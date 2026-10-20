@@ -40,7 +40,6 @@ function officerLibraryEntry(officer) {
   const asTactic = (item, kind) => item && { name: item.name, system: { ...item.system, kind } };
   const abilities = [
     asTactic(sig("battlePassive"), "passive"), asTactic(sig("battleActive"), "skill"),
-    ...officer.items.filter(i => i.type === "officerAbility"),
   ].filter(Boolean);
   const effects = {};
   for (const a of abilities.filter(a => a.system.kind === "passive")) {

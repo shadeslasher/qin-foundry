@@ -43,7 +43,7 @@ test("battle adapter: a full officer turn through Foundry tokens", async () => {
   M.setSetting("rotateFacing", true);
 
   const officer = M.makeActor({ type: "character", uuid: "Actor.wenping", system: { name: "Wen Ping", aspects: { metal: 3, water: 3, fire: 3, wood: 3, earth: 4 }, skills: skills({ qiangshu: 4, command: 4 }) },
-    items: [{ name: "Unyielding Defender", type: "officerAbility", system: { kind: "passive", moraleCost: 0, effects: { noRearAgainst: true, ignoreMoralePenalty: false, ignoreEncirclement: false, moveBonus: 0, chargeAttackBonus: 0, extraMoraleLossOnWin: 0 }, description: "" } },
+    items: [{ name: "Unyielding Defender", type: "signature", system: { slot: "battlePassive", moraleCost: 0, effects: { noRearAgainst: true, ignoreMoralePenalty: false, ignoreEncirclement: false, moveBonus: 0, chargeAttackBonus: 0, extraMoraleLossOnWin: 0 }, description: "" } },
       { name: "Hold the Ford!", type: "signature", system: { slot: "battleActive", moraleCost: 20, effects: {}, description: "<p>+1 defending</p>" } }] });
   const unitSystem = (o) => {
     const u = Object.assign(new UnitData(), { side: "player", faction: "Han", tier: 2, category: "infantry", weapon: "melee", weaponSkill: "qiangshu", unitValue: 2, damage: 6, defense: 3, move: 4, rangeMin: 1, rangeMax: 1, formations: "", men: { value: 100, max: 100 }, morale: 50, formation: "none", hidden: false, status: "active", officer: "", ...o });

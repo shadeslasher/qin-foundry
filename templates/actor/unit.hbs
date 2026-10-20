@@ -52,10 +52,6 @@
           <p>Drag a Qin character here to make them this unit's officer. Without one, the unit counts Command, Fire and Skill as 0 and has no initiative.</p>
         {{/if}}
       </div>
-      {{#if officerStats.abilities.length}}
-      <h3>Tactics</h3>
-      <ul class="qin-list">{{#each officerStats.abilities}}<li><b>{{name}}</b> <span class="qin-muted">{{kindLabel}}{{#if moraleCost}} · {{moraleCost}} morale{{/if}}</span></li>{{/each}}</ul>
-      {{/if}}
     </section>
 
     <section class="qin-tab" data-tab="notes"><textarea name="system.traits" rows="12">{{system.traits}}</textarea></section>

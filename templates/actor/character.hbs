@@ -60,7 +60,7 @@
 
   <nav class="qin-tabs">
     <a data-tab="skills">Skills</a><a data-tab="combat">Combat</a><a data-tab="taos">Taos</a>
-    <a data-tab="tactics">Tactics</a><a data-tab="gear">Gifts &amp; Gear</a><a data-tab="bio">Biography</a>
+    <a data-tab="gear">Gifts &amp; Gear</a><a data-tab="bio">Biography</a>
   </nav>
 
   <div class="qin-body">
@@ -164,16 +164,6 @@
       <p class="qin-muted">Inner strength: add up to Earth ({{system.aspects.earth}}) to any Test for 2 Chi per point, chosen in the roll dialog.</p>
     </section>
 
-    <section class="qin-tab" data-tab="tactics">
-      <p class="qin-muted">Battlefield tactics used when this character leads a unit, alongside their Battle Passive and Battle Active. The unit uses this character's Fire, Command skill and weapon skill.</p>
-      <h3>Tactics <a data-action="itemCreate" data-type="officerAbility"><i class="fa-solid fa-plus"></i></a></h3>
-      <ul class="qin-list">
-        {{#each items.officerAbility}}
-        <li data-item-id="{{id}}"><a data-action="itemChat">{{name}}</a> <span class="qin-muted">{{lookup ../officerKinds system.kind}}{{#if system.moraleCost}} · {{system.moraleCost}} morale{{/if}}</span>
-          <span class="qin-controls"><a data-action="itemEdit"><i class="fa-solid fa-pen"></i></a><a data-action="itemDelete"><i class="fa-solid fa-trash"></i></a></span></li>
-        {{/each}}
-      </ul>
-    </section>
 
     <section class="qin-tab" data-tab="gear">
       <h3>Gift <a data-action="itemCreate" data-type="gift"><i class="fa-solid fa-plus"></i></a></h3>
