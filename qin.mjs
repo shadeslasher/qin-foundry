@@ -11,6 +11,13 @@ import * as QinRules from "./module/rules/qin-rules.mjs";
 
 const { SYSTEM_ID } = CFG;
 
+/** Expose the chosen text size to the stylesheet as a zoom factor. */
+function applyTextScale() {
+  let pct = 115;
+  try { pct = Number(game.settings.get(SYSTEM_ID, "textScale")) || 115; } catch { /* not registered yet */ }
+  document.documentElement.style.setProperty("--qin-scale", String(pct / 100));
+}
+
 Hooks.once("init", () => {
   console.log("Qin | Initializing Qin: The Warring States");
   CONFIG.QIN = CFG;
@@ -59,6 +66,13 @@ Hooks.once("init", () => {
     name: "Hide stealthy enemy units from players", hint: "Enemy units hidden in grass or trees are hidden from players until spotted.",
     scope: "world", config: true, type: Boolean, default: true,
   });
+  game.settings.register(SYSTEM_ID, "textScale", {
+    name: "Qin text size", hint: "Scales the text on Qin sheets, the battle panel and Qin chat cards. Reopen sheets after changing.",
+    scope: "client", config: true, type: Number, default: 115,
+    choices: { 100: "Normal (100%)", 115: "Large (115%)", 130: "Larger (130%)", 145: "Largest (145%)" },
+    onChange: applyTextScale,
+  });
+  applyTextScale();
   game.settings.register(SYSTEM_ID, "autoOpenBattle", {
     name: "Open the battle panel automatically", scope: "client", config: true, type: Boolean, default: true,
   });

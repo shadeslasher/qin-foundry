@@ -2,6 +2,7 @@
 import { SYSTEM_ID, systemPath, SIDES } from "../config.mjs";
 import * as E from "./engine.mjs";
 import { getBattle, buildState, runAction, unitTokens } from "./adapter.mjs";
+import { scaledPosition } from "../sheets/sheets.mjs";
 
 const QUERY = `${SYSTEM_ID}.battle`;
 const PHASE_NAME = { setup: "Setup", formations: "Declare formations", officer: "Officer phase", officerless: "Officer-less phase", final: "Final pass" };
@@ -44,6 +45,12 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
     },
   };
   static PARTS = { body: { template: systemPath("templates/battle/panel.hbs"), scrollable: [".qin-battle-scroll"] } };
+
+  _initializeApplicationOptions(options) {
+    const o = super._initializeApplicationOptions?.(options) ?? options;
+    o.position = scaledPosition(o.position);
+    return o;
+  }
 
   static instance;
   static open() {

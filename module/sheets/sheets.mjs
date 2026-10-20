@@ -13,10 +13,26 @@ const ITEM_GROUPS = {
 const TAO_LEVELS = { 0: "0", 1: "1", 2: "2", 3: "3", 4: "4" };
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
 
+/** Grow a window's default size with the Qin text size setting. */
+export function scaledPosition(position) {
+  let pct = 115;
+  try { pct = Number(game.settings.get("qin", "textScale")) || 115; } catch { /* ignore */ }
+  const k = pct / 100;
+  const out = { ...position };
+  if (typeof out.width === "number") out.width = Math.round(out.width * k);
+  if (typeof out.height === "number") out.height = Math.min(Math.round(out.height * k), window.innerHeight - 40);
+  return out;
+}
+
 /** Small tab helper: tabs switch without a re-render and survive re-renders. */
 function tabMixin(Base) {
   return class extends Base {
     _qinTab = null;
+    _initializeApplicationOptions(options) {
+      const o = super._initializeApplicationOptions?.(options) ?? options;
+      o.position = scaledPosition(o.position);
+      return o;
+    }
     _onRender(context, options) {
       super._onRender?.(context, options);
       const el = this.element;
@@ -267,6 +283,11 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
 }
 
 export class QinItemSheet extends api.HandlebarsApplicationMixin(ItemSheetBase) {
+  _initializeApplicationOptions(options) {
+    const o = super._initializeApplicationOptions?.(options) ?? options;
+    o.position = scaledPosition(o.position);
+    return o;
+  }
   static DEFAULT_OPTIONS = {
     classes: ["qin", "qin-sheet", "item"],
     position: { width: 520, height: "auto" },
