@@ -10,6 +10,7 @@ import { defaultFormations, emptyBattle, onTokenMoved, getBattle } from "./modul
 import * as QinRules from "./module/rules/qin-rules.mjs";
 import { registerTokenHover } from "./module/token-hover.mjs";
 import { registerCombatQuery, onRenderCombatTracker } from "./module/combat-actions.mjs";
+import { registerAttackFxSocket } from "./module/attack-fx.mjs";
 
 const { SYSTEM_ID } = CFG;
 
@@ -75,6 +76,15 @@ Hooks.once("init", () => {
     onChange: applyTextScale,
   });
   applyTextScale();
+  game.settings.register(SYSTEM_ID, "attackTargeting", {
+    name: "Click a hex to attack", hint: "When attacking from a token on the scene, highlight the weapon's reach and click the hex to strike. Right-click or Esc cancels.",
+    scope: "client", config: true, type: Boolean, default: true,
+  });
+  game.settings.register(SYSTEM_ID, "attackAnimations", {
+    name: "Attack animations", hint: "Automatic uses JB2A animations when the Sequencer and JB2A modules are active, otherwise the built-in effects.",
+    scope: "world", config: true, type: String, default: "auto",
+    choices: { auto: "Automatic (JB2A if available)", builtin: "Built-in effects only", off: "Off" },
+  });
   game.settings.register(SYSTEM_ID, "autoOpenBattle", {
     name: "Open the battle panel automatically", scope: "client", config: true, type: Boolean, default: true,
   });
@@ -88,6 +98,7 @@ Hooks.once("init", () => {
 });
 
 Hooks.once("ready", () => {
+  registerAttackFxSocket();
   if (game.user.isGM && getBattle().active) BattlePanel.open();
   else if (getBattle().active && game.settings.get(SYSTEM_ID, "autoOpenBattle")) BattlePanel.open();
 });

@@ -208,3 +208,11 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin-actions .qin-pip.full { background: #c9a24a; }
 .qin-actions .qin-pip-extra { font-size: 10px; color: #e07a5f; margin-left: 2px; }
 .qin-exchange { text-align: center; font-size: 12px; font-weight: bold; color: #c9a24a; margin: 2px 0; }
+
+/* Attack targeting */
+.qin .qin-span3 { grid-column: 1 / -1; }
+.qin-target-banner {
+  position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 1000; pointer-events: none;
+  padding: 6px 14px; border-radius: 6px; background: rgba(20, 16, 12, 0.9); border: 1px solid #b8862b; color: #f3ead8;
+  font-size: calc(14px * var(--qin-scale, 1.15)); box-shadow: 0 2px 8px rgba(0,0,0,.5);
+}

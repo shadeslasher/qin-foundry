@@ -1,4 +1,5 @@
 import { spendDefenseAction } from "../combat-actions.mjs";
+import { pickAttackTarget, attackerToken, playAttackFx } from "../attack-fx.mjs";
 import { ASPECTS, SKILLS, SKILL_LEVELS } from "../config.mjs";
 import * as Q from "../rules/qin-rules.mjs";
 import { rollYinYang, renderTemplate, formDialog, Chat } from "../dice.mjs";
@@ -151,11 +152,27 @@ export class QinActor extends foundry.documents.Actor {
 
   /** Attack with a weapon item: Metal + Skill + YyD vs the target's Passive Defense. */
   async rollAttack(weapon) {
-    const target = [...game.user.targets][0]?.actor ?? null;
+    // On a scene: pick the hex to attack (highlighted reach), which also targets any token there.
+    const source = attackerToken(this);
+    let targetToken = [...game.user.targets][0] ?? null;
+    let picked = null;
+    if (source && game.settings.get("qin", "attackTargeting")) {
+      // Tuck the sheet out of the way while choosing the hex
+      const sheet = this.sheet?.rendered && !this.sheet.minimized ? this.sheet : null;
+      if (sheet) await sheet.minimize?.();
+      try { picked = await pickAttackTarget(source, weapon); }
+      finally { if (sheet) sheet.maximize?.(); }
+      if (!picked) return;
+      targetToken = picked.token;
+      if (targetToken) targetToken.setTarget(true, { releaseOthers: true, groupSelection: false });
+      else for (const t of [...game.user.targets]) t.setTarget(false, { releaseOthers: false, groupSelection: false });
+    }
+    const target = targetToken?.actor ?? null;
     const techniques = this.items.filter(i => i.type === "technique" && i.system.roll === "attack" && (i.system.skill === weapon.system.skill || i.system.skill === "any"));
     const content = await renderTemplate("templates/dialog/attack.hbs", {
       weapon, target, targetPD: target?.system?.passiveDefense ?? null,
       techniques, earth: this.system.aspects.earth, isCharacter: this.isCharacter, isRanged: weapon.system.isRanged,
+      distance: picked ? Math.round(picked.yards) : null, band: picked?.band ?? null, situation: picked?.band?.st ?? 0,
     });
     const fd = await formDialog({ title: `${this.name}: attack with ${weapon.name}`, content, okLabel: "Attack" });
     if (!fd) return;
@@ -202,6 +219,7 @@ export class QinActor extends foundry.documents.Actor {
       title: `${weapon.name} attack`, roll, dice, parts, total, st, success: st == null ? null : hit, extra, buttons,
       flags: { kind: "attack", attacker: this.uuid, target: target?.uuid ?? null, total, damage, pierce, skill: weapon.system.skill, ranged: weapon.system.isRanged, hit },
     });
+    playAttackFx({ source, target: targetToken, point: picked?.point, weapon, hit }).catch(e => console.warn("Qin | attack animation", e));
   }
 
   /** Active Defense against an attack total: block (Water + weapon Skill) or dodge (Water + Dodging). */

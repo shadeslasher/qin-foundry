@@ -17,6 +17,7 @@
     <label>extreme <input type="number" name="system.range.e" value="{{system.range.e}}"></label>
     <label>Price <input type="number" name="system.price" value="{{system.price}}"></label>
     <label class="qin-inline"><input type="checkbox" name="system.equipped" {{checked system.equipped}}> Equipped</label>
+    <label class="qin-span3">Animation (optional JB2A path, e.g. jb2a.spear.melee) <input type="text" name="system.animation" value="{{system.animation}}" placeholder="automatic from the weapon's skill"></label>
   {{else if (eq type "armor")}}
     <label>Protection <input type="number" name="system.protection" value="{{system.protection}}"></label>
     <label>Resilience <input type="number" name="system.resilience" value="{{system.resilience}}"></label>

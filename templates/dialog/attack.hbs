@@ -1,8 +1,9 @@
 <div class="qin-dialog">
   <p><b>{{weapon.name}}</b> — damage {{weapon.system.damage}}{{#if target}} · target <b>{{target.name}}</b>{{/if}}</p>
+  {{#if distance}}<p class="qin-muted">Distance {{distance}} yd{{#if band}} · {{band.label}} range ({{#if band.st}}{{band.st}}{{else}}0{{/if}} to the ST, already in Situation){{/if}}</p>{{/if}}
   <div class="form-group"><label>Target Passive Defense</label><input type="number" name="pd" value="{{targetPD}}" placeholder="unknown"></div>
   <div class="form-group"><label>Technique</label><select name="technique"><option value="">— none —</option>{{#each techniques}}<option value="{{id}}">{{name}} (ST +{{system.stIncrease}})</option>{{/each}}</select></div>
-  <div class="form-group"><label>Situation (added to the ST)</label><input type="number" name="situation" value="0" title="Behind defender -2, side -1, defender surprised -1, defender on ground -3, target in cover +1 to +4..."></div>
+  <div class="form-group"><label>Situation (added to the ST)</label><input type="number" name="situation" value="{{situation}}" title="Behind defender -2, side -1, defender surprised -1, defender on ground -3, target in cover +1 to +4..."></div>
   {{#if isRanged}}<div class="form-group"><label>Aim bonus (actions spent aiming)</label><input type="number" name="aim" value="0" min="0"></div>{{/if}}
   <div class="form-group"><label>Roll modifier</label><input type="number" name="modifier" value="0"></div>
   <div class="form-group"><label>Damage bonus (e.g. Destructive Breath)</label><input type="number" name="damageBonus" value="0"></div>

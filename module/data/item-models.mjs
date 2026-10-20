@@ -13,6 +13,7 @@ export class WeaponData extends foundry.abstract.TypeDataModel {
       range: new fields.SchemaField({ c: int(0), m: int(0), l: int(0), e: int(0) }), // yards; all 0 = close combat
       price: int(0),
       equipped: new fields.BooleanField({ initial: true }),
+      animation: new fields.StringField({ initial: "" }), // optional Sequencer/JB2A path
       description: desc(),
     };
   }
