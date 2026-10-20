@@ -185,3 +185,8 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin-info-levels { padding-left: 18px; margin: 4px 0; }
 .qin-info-levels li { margin: 3px 0; }
 .qin-tab[data-tab="combat"], .qin-tab[data-tab="taos"] { min-height: calc(340px * var(--qin-scale, 1.15)); }
+
+/* Unsaved item: Done / Cancel */
+.qin .qin-draft-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+.qin .qin-draft-footer button { flex: 0 0 auto; min-width: calc(90px * var(--qin-scale, 1.15)); }
+.qin .qin-draft-footer .qin-primary { font-weight: bold; }

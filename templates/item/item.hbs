@@ -83,4 +83,10 @@
 
   <h3>Description</h3>
   <textarea name="system.description" rows="8">{{system.description}}</textarea>
+  {{#if draft}}
+  <footer class="qin-draft-footer">
+    <button type="button" data-action="draftCancel"><i class="fa-solid fa-xmark"></i> Cancel</button>
+    <button type="button" class="qin-primary" data-action="draftDone"><i class="fa-solid fa-check"></i> Done</button>
+  </footer>
+  {{/if}}
 </div>

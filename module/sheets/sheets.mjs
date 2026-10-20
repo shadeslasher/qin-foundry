@@ -202,8 +202,7 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
     const item = this.actor.items.find(i => i.type === "signature" && i.system.slot === slot);
     if (!item) {
       if (!this.isEditable) return;
-      const [created] = await this.actor.createEmbeddedDocuments("Item", [{ name: `New ${label}`, type: "signature", system: { slot } }]);
-      return created?.sheet.render(true);
+      return openItemDraft(this.actor, { name: `New ${label}`, type: "signature", system: { slot } });
     }
     const meta = [label];
     if (item.system.chiCost) meta.push(`${item.system.chiCost} Chi`);
@@ -233,8 +232,7 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
   }
   static async #itemCreate(event, target) {
     const type = target.dataset.type;
-    const [item] = await this.actor.createEmbeddedDocuments("Item", [{ name: `New ${ITEM_GROUPS[type] ?? type}`.replace(/s$/, ""), type }]);
-    item?.sheet.render(true);
+    openItemDraft(this.actor, { name: `New ${ITEM_GROUPS[type] ?? type}`.replace(/s$/, ""), type });
   }
   static #itemOf(target) { return this.actor.items.get(target.closest("[data-item-id]")?.dataset.itemId); }
   static async #itemEdit(event, target) { QinActorSheetBase.#itemOf.call(this, target)?.sheet.render(true); }
@@ -333,6 +331,29 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
   static async #clearOfficer() { this.document.update({ "system.officer": "" }); }
 }
 
+/**
+ * Open an item sheet for an item that doesn't exist yet. Edits stay on the unsaved copy;
+ * "Done" creates it on the actor, closing the window (X / Cancel) discards it.
+ */
+export function openItemDraft(actor, data) {
+  const ItemClass = CONFIG.Item.documentClass;
+  const draft = new ItemClass({ _id: foundry.utils.randomID(), ...data }, { parent: actor });
+  const sheet = new QinItemSheet({ document: draft, qinDraft: true });
+  // Anything the sheet would save goes into the draft instead of the database.
+  draft.update = async (changes = {}) => {
+    draft.updateSource(foundry.utils.expandObject(changes));
+    if (sheet.rendered) sheet.render();
+    return draft;
+  };
+  // Safety net: if Foundry refuses to show a sheet for an unsaved item, fall back to create-then-edit.
+  Promise.resolve(sheet.render(true)).catch(async (err) => {
+    console.warn("Qin | Draft item sheet failed, creating the item directly instead", err);
+    const [item] = await actor.createEmbeddedDocuments("Item", [data]);
+    item?.sheet.render(true);
+  });
+  return sheet;
+}
+
 export class QinItemSheet extends api.HandlebarsApplicationMixin(ItemSheetBase) {
   _initializeApplicationOptions(options) {
     const o = super._initializeApplicationOptions?.(options) ?? options;
@@ -344,14 +365,32 @@ export class QinItemSheet extends api.HandlebarsApplicationMixin(ItemSheetBase) 
     position: { width: 520, height: "auto" },
     window: { resizable: true },
     form: { submitOnChange: true, closeOnSubmit: false },
+    actions: { draftDone: QinItemSheet.#draftDone, draftCancel: QinItemSheet.#draftCancel },
   };
+
+  get title() {
+    return this.options.qinDraft ? `New ${this.document.name}`.replace(/^New New /, "New ") : super.title;
+  }
+
+  /** Create the drafted item on its actor, with whatever was filled in. */
+  static async #draftDone() {
+    if (!this.options.qinDraft || this._qinCreating) return;
+    this._qinCreating = true;
+    try {
+      try { await this.submit(); } catch (e) { console.warn("Qin | draft submit", e); }
+      const data = this.document.toObject();
+      await this.document.parent.createEmbeddedDocuments("Item", [data], { keepId: true });
+      await this.close();
+    } finally { this._qinCreating = false; }
+  }
+  static async #draftCancel() { await this.close(); }
   static PARTS = { sheet: { template: systemPath("templates/item/item.hbs") } };
 
   async _prepareContext(options) {
     const context = await super._prepareContext(options);
     const item = this.document;
     Object.assign(context, {
-      item, system: item.system, type: item.type, editable: this.isEditable,
+      item, system: item.system, type: item.type, editable: this.isEditable, draft: !!this.options.qinDraft,
       skillChoices: Object.fromEntries(Object.entries(SKILLS).map(([k, s]) => [k, s.label])),
       martialChoices: { any: "Any weapon", ...Object.fromEntries(Object.entries(SKILLS).filter(([, s]) => s.martial).map(([k, s]) => [k, s.label])) },
       domains: DOMAINS, magicWays: MAGIC_WAYS, officerKinds: OFFICER_ABILITY_KINDS, skillLevels: SKILL_LEVELS,
