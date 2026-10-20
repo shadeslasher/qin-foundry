@@ -336,7 +336,7 @@ export function registerDamageFloats() {
       const delta = actor.system.bol.damage - options.qinBol.before;
       const died = !options.qinBol.wasDead && actor.system.bol.dead;
       for (const t of tokens) {
-        if (delta > 0) { showSlice(t); showFloat(t.center, "damage", `-${delta}`); }
+        if (delta > 0) { showSlice(t, delta); showFloat(t.center, "damage", `-${delta}`); }
         else if (delta < 0) showFloat(t.center, "heal", `+${-delta}`);
         if (died) showSkull(t.center);
       }
@@ -416,10 +416,13 @@ export async function showDefense(token, kind, success, from = null) {
   defenseLocal(data);
 }
 
-/** A slash that cuts through the token (damage got through), for every client. */
-export function showSlice(token) {
+/** A bloody gash opening across the token (damage got through), for every client. Bigger for more damage. */
+export function showSlice(token, amount = 3) {
   if (!canvas?.ready || !token || game.settings.get(SYSTEM_ID, "attackAnimations") === "off") return;
-  const data = { type: "slice", sceneId: canvas.scene.id, tokenId: token.id, angle: (Math.random() * 0.6 + 0.5) * (Math.random() < 0.5 ? 1 : -1) };
+  const data = {
+    type: "slice", sceneId: canvas.scene.id, tokenId: token.id, amount,
+    angle: (Math.random() * 0.5 + 0.45) * (Math.random() < 0.5 ? 1 : -1), seed: Math.floor(Math.random() * 1e9),
+  };
   game.socket?.emit(SOCKET, data);
   sliceLocal(data);
 }
@@ -553,67 +556,73 @@ function dodgeFx(token, size, ux, uy, success) {
   });
 }
 
-function sliceLocal({ tokenId, angle }) {
+function sliceLocal({ tokenId, angle, amount = 3, seed = 1 }) {
   const token = canvas.tokens?.get(tokenId);
   if (!token) return;
+  let r = seed || 1;
+  const rnd = () => ((r = (r * 16807) % 2147483647) / 2147483647); // same wound on every client
   const c = token.center, size = Math.max(token.w, token.h);
+  const sev = Math.min(1, 0.45 + amount / 12);              // severity: wider, longer, bloodier
   const dir = { x: Math.cos(angle), y: Math.sin(angle) }, nrm = { x: -dir.y, y: dir.x };
-  const L = size * 0.75;
-  const drops = Array.from({ length: 8 }, () => ({ s: Math.random() * 2 - 1, v: 0.4 + Math.random() * 0.8, side: Math.random() < 0.5 ? 1 : -1 }));
-  return animate(950, (g, t, ex) => {
-    const sweep = ease.out(seg(t, 0, 0.22));
-    const a = 1 - seg(t, 0.35, 0.9);
-    // the cut line sweeping across the token
-    const sx = c.x - dir.x * L, sy = c.y - dir.y * L;
-    const ex2 = c.x - dir.x * L + dir.x * 2 * L * sweep, ey2 = c.y - dir.y * L + dir.y * 2 * L * sweep;
-    g.lineStyle(size * 0.07, 0x8b0000, 0.55 * a).moveTo(sx, sy).lineTo(ex2, ey2);
-    g.lineStyle(size * 0.035, 0xff2a2a, 0.9 * a).moveTo(sx, sy).lineTo(ex2, ey2);
-    g.lineStyle(size * 0.012, 0xffffff, a).moveTo(sx, sy).lineTo(ex2, ey2);
-    // blood spatter off the cut
-    if (t > 0.18) {
-      const k = seg(t, 0.18, 0.8);
-      g.lineStyle(0).beginFill(0xc1121f, 1 - k);
-      for (const d of drops) {
-        const bx = c.x + dir.x * L * 0.8 * d.s + nrm.x * d.side * size * 0.45 * d.v * k;
-        const by = c.y + dir.y * L * 0.8 * d.s + nrm.y * d.side * size * 0.45 * d.v * k + size * 0.15 * k * k;
-        g.drawCircle(bx, by, size * 0.025 * (1 - k * 0.5));
+  const L = size * (0.32 + 0.16 * sev), W = size * (0.05 + 0.06 * sev);
+  const N = 14;
+  const spine = Array.from({ length: N + 1 }, (_, i) => {
+    const u = i / N, along = -L + 2 * L * u, wob = (rnd() - 0.5) * size * 0.05;
+    return { u, x: c.x + dir.x * along + nrm.x * wob, y: c.y + dir.y * along + nrm.y * wob, w: Math.sin(Math.PI * u) ** 0.8 * (0.75 + 0.5 * rnd()) };
+  });
+  const drips = Array.from({ length: Math.round(3 + 4 * sev) }, () => {
+    const p = spine[1 + Math.floor(rnd() * (N - 1))];
+    return { x: p.x, y: p.y + W * p.w * 0.5, len: size * (0.18 + 0.4 * rnd()) * sev, w: size * (0.012 + 0.012 * rnd()), delay: 0.2 + rnd() * 0.25 };
+  });
+  const spray = Array.from({ length: Math.round(8 + 10 * sev) }, () => {
+    const p = spine[Math.floor(rnd() * N)];
+    const side = rnd() < 0.5 ? -1 : 1, v = 0.3 + rnd() * 0.9;
+    return { x: p.x, y: p.y, vx: nrm.x * side * v + dir.x * (rnd() - 0.5) * 0.6, vy: nrm.y * side * v + dir.y * (rnd() - 0.5) * 0.6, s: 0.6 + rnd() };
+  });
+  const lens = (reveal, open, scale) => {
+    const n = Math.max(1, Math.round(N * reveal)), top = [], bot = [];
+    for (let i = 0; i <= n; i++) {
+      const p = spine[i];
+      const w = W * scale * p.w * open * (i === n && reveal < 1 ? 0.3 : 1);
+      top.push(p.x + nrm.x * w, p.y + nrm.y * w);
+      bot.unshift(p.x - nrm.x * w, p.y - nrm.y * w);
+    }
+    return top.concat(bot);
+  };
+  return animate(2600, (g, t) => {
+    const reveal = ease.out(seg(t, 0, 0.12));                 // the blade tears it open
+    const open = 0.25 + 0.75 * ease.out(seg(t, 0.06, 0.3));    // then the wound gapes
+    const fade = 1 - seg(t, 0.72, 1);
+    // bruised edge, raw wound, dark depth, wet highlight
+    g.lineStyle(0).beginFill(0x4a0008, 0.55 * fade).drawPolygon(lens(reveal, open, 1.6)).endFill();
+    g.beginFill(0xa3001b, 0.95 * fade).drawPolygon(lens(reveal, open, 1.0)).endFill();
+    g.beginFill(0x2a0004, 0.95 * fade).drawPolygon(lens(reveal, open, 0.45)).endFill();
+    if (reveal > 0.3) {
+      g.lineStyle(Math.max(1, size * 0.008), 0xff6b6b, 0.7 * fade);
+      const n = Math.round(N * reveal);
+      for (let i = 2; i < n - 1; i++) {
+        const p = spine[i], q = spine[i + 1], w = W * p.w * open * 0.55;
+        g.moveTo(p.x + nrm.x * w, p.y + nrm.y * w).lineTo(q.x + nrm.x * w, q.y + nrm.y * w);
+      }
+    }
+    // spray flung off the cut
+    if (t < 0.5) {
+      const k = seg(t, 0.04, 0.5);
+      g.lineStyle(0).beginFill(0xb5001e, 1 - k);
+      for (const d of spray) {
+        const dist = size * 0.55 * ease.out(k) * d.s;
+        g.drawCircle(d.x + d.vx * dist, d.y + d.vy * dist + size * 0.2 * k * k, size * 0.018 * d.s * (1 - 0.6 * k));
       }
       g.endFill();
     }
-    // the token's art splits along the cut, then closes back up
-    if (ex) {
-      const open = t < 0.22 ? 0 : t < 0.45 ? ease.out(seg(t, 0.22, 0.45)) : 1 - ease.inOut(seg(t, 0.55, 0.85));
-      const gap = size * 0.12 * open;
-      ex.halves.forEach((sp, i) => { const sgn = i ? 1 : -1; sp.position.set(ex.base.x + nrm.x * gap * sgn, ex.base.y + nrm.y * gap * sgn); });
-      if (t >= 0.85 && !ex.restored) { ex.restored = true; ex.restore(); ex.halves.forEach(sp => (sp.visible = false)); }
+    // blood running down from the wound
+    for (const d of drips) {
+      const k = ease.inOut(seg(t, d.delay, 0.85));
+      if (k <= 0) continue;
+      const len = d.len * k;
+      g.lineStyle(d.w, 0x8f0016, 0.95 * fade).moveTo(d.x, d.y).lineTo(d.x, d.y + len);
+      g.lineStyle(0).beginFill(0x8f0016, 0.95 * fade).drawCircle(d.x, d.y + len, d.w * 0.9).endFill();
     }
-  }, {
-    setup: (box) => {
-      const mesh = token.mesh;
-      const h1 = tokenGhost(token), h2 = tokenGhost(token);
-      if (!h1 || !h2) return null;
-      const big = size * 2;
-      const masks = [-1, 1].map(sgn => {
-        const m = new PIXI.Graphics();
-        m.beginFill(0xffffff).drawPolygon([
-          c.x - dir.x * big, c.y - dir.y * big, c.x + dir.x * big, c.y + dir.y * big,
-          c.x + dir.x * big + nrm.x * big * sgn, c.y + dir.y * big + nrm.y * big * sgn,
-          c.x - dir.x * big + nrm.x * big * sgn, c.y - dir.y * big + nrm.y * big * sgn,
-        ]).endFill();
-        box.addChild(m);
-        return m;
-      });
-      h1.mask = masks[0]; h2.mask = masks[1];
-      box.addChildAt(h1, 0); box.addChildAt(h2, 0);
-      const prev = mesh.alpha;
-      mesh.alpha = 0; // hide the real art while the halves are apart (this client only)
-      const restore = () => {
-        if (!mesh.destroyed) mesh.alpha = prev;
-        try { token.renderFlags?.set({ refreshState: true }); } catch { /* fine */ }
-      };
-      return { halves: [h1, h2], base: { x: h1.position.x, y: h1.position.y }, restore, restored: false };
-    },
-    cleanup: (ex) => { if (ex && !ex.restored) ex.restore(); },
   });
 }
 

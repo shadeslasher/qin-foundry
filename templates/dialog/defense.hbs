@@ -1,0 +1,8 @@
+<div class="qin-dialog">
+  <p><b>{{label}}</b> with {{skillLabel}} — beat <b>{{attackTotal}}</b>{{#if attacker}} ({{attacker}}'s attack){{/if}}</p>
+  {{#if techniques.length}}<div class="form-group"><label>Technique</label><select name="technique"><option value="">— none —</option>{{#each techniques}}<option value="{{id}}">{{name}} (ST +{{system.stIncrease}})</option>{{/each}}</select></div>{{/if}}
+  {{#if isCharacter}}<div class="form-group"><label>Inner strength (max {{earth}}, 2 Chi each)</label><input type="number" name="inner" value="0" min="0" max="{{earth}}"></div>{{/if}}
+  {{#if strongBlock}}<div class="form-group"><label>Strong Block (Invisible Shield 3): +{{wood}}</label><input type="checkbox" name="strongBlock"></div>{{/if}}
+  <div class="form-group"><label>Roll modifier</label><input type="number" name="modifier" value="0"></div>
+  {{#if actionsNote}}<p class="qin-muted">{{actionsNote}}</p>{{/if}}
+</div>

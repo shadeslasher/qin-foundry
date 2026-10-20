@@ -1,4 +1,4 @@
-import { spendDefenseAction } from "../combat-actions.mjs";
+import { spendDefenseAction, activeCombatantFor, remainingActions } from "../combat-actions.mjs";
 import { pickAttackTarget, attackerToken, playAttackFx, showFloat, showDefense } from "../attack-fx.mjs";
 import { ASPECTS, SKILLS, SKILL_LEVELS } from "../config.mjs";
 import * as Q from "../rules/qin-rules.mjs";
@@ -224,8 +224,6 @@ export class QinActor extends foundry.documents.Actor {
 
   /** Active Defense against an attack total: block (Water + weapon Skill) or dodge (Water + Dodging). */
   async rollDefense(type, attack) {
-    // A Block or Dodge uses one of the defender's actions this round.
-    if (!(await spendDefenseAction(this))) return;
     let skillKey = "dodging";
     let shieldBonus = 0;
     if (type === "block") {
@@ -238,17 +236,41 @@ export class QinActor extends foundry.documents.Actor {
         return;
       }
     }
+    // Options first (cancelling here doesn't use an action)
+    const skPre = this.getSkill(skillKey);
+    const shieldTao = this.items.find(i => i.type === "tao" && i.system.key === "invisibleShield");
+    const techniques = this.items.filter(i => i.type === "technique" && i.system.roll === "defense" && (i.system.skill === skillKey || i.system.skill === "any"));
+    const combatant = activeCombatantFor(this);
+    const content = await renderTemplate("templates/dialog/defense.hbs", {
+      label: type === "block" ? "Block" : "Dodge", skillLabel: `${skPre.label} (${SKILL_LEVELS[skPre.value]})`, attackTotal: attack.total,
+      attacker: attack.attacker ? fromUuidSync(attack.attacker)?.name : null,
+      techniques, isCharacter: this.isCharacter, earth: this.system.aspects.earth,
+      strongBlock: (shieldTao?.system.level ?? 0) >= 3, wood: this.system.aspects.wood,
+      actionsNote: combatant ? `Uses 1 action (${remainingActions(combatant)} left this round).` : "",
+    });
+    const fd = await formDialog({ title: `${this.name}: ${type === "block" ? "Block" : "Dodge"}`, content, okLabel: type === "block" ? "Block" : "Dodge" });
+    if (!fd) return;
+    // A Block or Dodge uses one of the defender's actions this round.
+    if (!(await spendDefenseAction(this))) return;
+    const inner = this.isCharacter ? Math.max(0, Math.min(Number(fd.inner) || 0, this.system.aspects.earth)) : 0;
+    if (inner) await this.spendChi(inner * 2, "inner strength");
+    const tech = fd.technique ? this.items.get(fd.technique) : null;
+    const strong = fd.strongBlock && (shieldTao?.system.level ?? 0) >= 3 ? this.system.aspects.wood : 0;
+    const mod = Number(fd.modifier) || 0;
     const sk = this.getSkill(skillKey);
     const { roll, dice } = await rollYinYang({ beginner: sk.value === 0 && type === "block" });
     const water = this.system.aspects.water;
     const penalty = this.system.penalty || 0;
     const armorPen = this.system.armor.movementPenalty;
-    const total = water + sk.value + dice.value + shieldBonus - penalty - armorPen;
-    const success = !dice.critFail && total >= attack.total;
+    const total = water + sk.value + dice.value + shieldBonus + inner + strong + mod - penalty - armorPen;
+    const st = attack.total + (tech ? tech.system.stIncrease : 0);
+    const success = !dice.critFail && total >= st;
     const parts = [
       ["Water", water], [`${sk.label} (${SKILL_LEVELS[sk.value]})`, sk.value],
       [`Yin/Yang (${dice.yin} / ${dice.yang})${dice.double && !dice.critFail ? ", double" : ""}`, dice.value],
-      shieldBonus ? ["Shield", shieldBonus] : null, penalty ? ["Injury penalty", -penalty] : null, armorPen ? ["Armor movement penalty", -armorPen] : null,
+      shieldBonus ? ["Shield", shieldBonus] : null, inner ? [`Inner strength (−${inner * 2} Chi)`, inner] : null,
+      strong ? ["Strong Block", strong] : null, mod ? ["Modifier", mod] : null,
+      penalty ? ["Injury penalty", -penalty] : null, armorPen ? ["Armor movement penalty", -armorPen] : null,
     ].filter(Boolean);
     await this._afterDice(dice);
     const defTok = attackerToken(this);
@@ -259,8 +281,9 @@ export class QinActor extends foundry.documents.Actor {
       showDefense(defTok, type, success, atkTok?.center ?? null).catch(e => console.warn("Qin | defense animation", e));
     }
     await this._postRoll({
-      title: type === "block" ? "Block" : "Dodge", roll, dice, parts, total, st: attack.total, success,
-      extra: success ? "<p><b>The blow is turned aside.</b></p>" : "<p><b>The attack lands.</b></p>",
+      title: type === "block" ? "Block" : "Dodge", roll, dice, parts, total, st, success,
+      extra: (tech ? `<p><b>Technique:</b> ${esc(tech.name)} (ST +${tech.system.stIncrease})</p>` : "")
+        + (success ? "<p><b>The blow is turned aside.</b></p>" : "<p><b>The attack lands.</b></p>"),
     });
   }
 
