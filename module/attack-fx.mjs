@@ -65,6 +65,23 @@ function firstPath(list) { return list.find(dbHas) ?? null; }
 
 function fxLayer() { return canvas.interface ?? canvas.controls ?? canvas.stage; }
 
+/**
+ * Container for animations drawn ON TOP of tokens. Token art lives in the primary canvas group,
+ * which is sorted by elevation, so the container goes there with a very high elevation.
+ */
+let overRoot = null;
+function overLayer() {
+  const primary = canvas.primary;
+  if (!primary) return fxLayer();
+  if (!overRoot || overRoot.destroyed || overRoot.parent !== primary) {
+    overRoot = new PIXI.Container();
+    Object.assign(overRoot, { elevation: 1e8, sortLayer: 1e8, sort: 1e8, zIndex: 1e8, eventMode: "none" });
+    primary.addChild(overRoot);
+    primary.sortDirty = true;
+  }
+  return overRoot;
+}
+
 function toWorld(clientX, clientY) {
   if (canvas.canvasCoordinatesFromClient) return canvas.canvasCoordinatesFromClient({ x: clientX, y: clientY });
   const r = canvas.app.view.getBoundingClientRect();
@@ -361,7 +378,7 @@ function animate(ms, draw, opts = {}) {
     const box = new PIXI.Container();
     const g = new PIXI.Graphics();
     box.addChild(g);
-    fxLayer().addChild(box);
+    overLayer().addChild(box);
     let extras = null;
     try { extras = opts.setup?.(box) ?? null; } catch (e) { console.warn(e); }
     let elapsed = 0;
