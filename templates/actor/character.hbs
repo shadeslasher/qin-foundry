@@ -118,22 +118,30 @@
         {{/each}}
       </ul>
 
-      <h3>Combat techniques <a data-action="itemCreate" data-type="technique"><i class="fa-solid fa-plus"></i></a></h3>
+      <h3>Combat techniques</h3>
+      <div class="qin-library">
+        <select class="qin-library-choice" data-library="techniques">
+          {{#each techniqueLibrary}}<option value="{{uuid}}" {{#if owned}}disabled{{/if}}>{{name}}{{#if owned}} (known){{/if}}</option>{{/each}}
+        </select>
+        <button type="button" data-action="addFromLibrary" data-library="techniques" data-type="technique"><i class="fa-solid fa-plus"></i> Learn</button>
+        <button type="button" data-action="itemCreate" data-type="technique" title="Create your own technique"><i class="fa-solid fa-feather"></i> Homebrew</button>
+      </div>
       <ul class="qin-list">
         {{#each items.technique}}
-        <li data-item-id="{{id}}"><a data-action="itemChat">{{name}}</a> <span class="qin-muted">ST +{{system.stIncrease}}</span>
-          <span class="qin-controls"><a data-action="itemEdit"><i class="fa-solid fa-pen"></i></a><a data-action="itemDelete"><i class="fa-solid fa-trash"></i></a></span></li>
+        <li data-item-id="{{id}}"><a data-action="itemChat" title="Post to chat">{{name}}</a> <span class="qin-muted">ST +{{system.stIncrease}}</span>
+          <span class="qin-controls"><a data-action="itemEdit" title="Details"><i class="fa-solid fa-pen"></i></a><a data-action="itemDelete" title="Forget"><i class="fa-solid fa-trash"></i></a></span></li>
+        {{else}}<li class="qin-muted">No techniques yet. Learn one from the list above or create a homebrew one.</li>
         {{/each}}
       </ul>
     </section>
 
     <section class="qin-tab" data-tab="taos">
       <h3>Tao library</h3>
-      <div class="qin-tao-library">
-        <select class="qin-tao-choice">
+      <div class="qin-library">
+        <select class="qin-library-choice" data-library="taos">
           {{#each taoLibrary}}<option value="{{uuid}}" {{#if owned}}disabled{{/if}}>{{name}}{{#if owned}} (known){{/if}}</option>{{/each}}
         </select>
-        <button type="button" data-action="addTao"><i class="fa-solid fa-plus"></i> Learn</button>
+        <button type="button" data-action="addFromLibrary" data-library="taos" data-type="tao"><i class="fa-solid fa-plus"></i> Learn</button>
       </div>
       {{#unless taoLibrary.length}}<p class="qin-muted">The Taos compendium isn't available.</p>{{/unless}}
       <h3>Known Taos</h3>

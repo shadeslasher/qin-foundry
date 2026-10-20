@@ -109,8 +109,8 @@ nav.qin-tabs a.active { background: var(--qin-red); color: #fff; }
 .qin-result.ok { background: #d8ead2; color: #2c5a22; }
 .qin-result.fail { background: #f1d6d2; color: #7e2018; }
 .qin-roll.double .qin-dice .die { box-shadow: 0 0 0 2px #b8862b; }
-.qin-buttons { display: flex; gap: 4px; margin-top: 6px; }
-.qin-buttons button { flex: 1; font-size: calc(12px * var(--qin-scale, 1.15)); line-height: calc(22px * var(--qin-scale, 1.15)); }
+.qin-buttons { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.qin-buttons button { flex: 1 1 30%; min-width: 0; white-space: nowrap; font-size: calc(12px * var(--qin-scale, 1.15)); line-height: calc(22px * var(--qin-scale, 1.15)); }
 .qin-damage { margin: 4px 0; }
 .qin-breakdown { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: calc(11px * var(--qin-scale, 1.15)); }
 .qin-warn { color: #9b2c22; }
@@ -154,8 +154,9 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin-sig-name { font-weight: bold; color: var(--qin-red); }
 .qin-sig-slot.empty .qin-sig-name { font-weight: normal; color: var(--qin-muted); font-style: italic; }
 .qin-sig-popup .qin-sig-meta { color: #6f6250; font-size: calc(12px * var(--qin-scale, 1.15)); margin-bottom: 6px; }
-.qin-tao-library { display: flex; gap: 6px; }
-.qin-tao-library select { flex: 1; }
+.qin-library { display: flex; gap: 6px; margin-bottom: 6px; }
+.qin-library select { flex: 1; min-width: 0; }
+.qin-library button { flex: none; width: auto; }
 .qin-tao-level { font-size: calc(12px * var(--qin-scale, 1.15)); color: var(--qin-muted); }
 .qin-tao-level select { width: calc(56px * var(--qin-scale, 1.15)); height: calc(22px * var(--qin-scale, 1.15)); }
 

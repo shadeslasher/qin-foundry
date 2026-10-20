@@ -195,7 +195,7 @@ export class QinActor extends foundry.documents.Actor {
     if (hit) {
       buttons.push({ action: "defend", type: "block", label: "Block" });
       buttons.push({ action: "defend", type: "dodge", label: "Dodge" });
-      buttons.push({ action: "applyDamage", label: "Apply damage" });
+      buttons.push({ action: "applyDamage", label: "Damage" });
     }
     await this._postRoll({
       title: `${weapon.name} attack`, roll, dice, parts, total, st, success: st == null ? null : hit, extra, buttons,

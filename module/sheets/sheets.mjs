@@ -69,7 +69,7 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
       restChi: QinActorSheetBase.#restChi,
       toggleEquip: QinActorSheetBase.#toggleEquip,
       signatureOpen: QinActorSheetBase.#signatureOpen,
-      addTao: QinActorSheetBase.#addTao,
+      addFromLibrary: QinActorSheetBase.#addFromLibrary,
     },
   };
 
@@ -100,7 +100,8 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
       weapons: (items.weapon || []).map(w => ({ item: w, skill: actor.getSkill(w.system.skill), ranged: w.system.isRanged })),
       magicWays: MAGIC_WAYS, officerKinds: OFFICER_ABILITY_KINDS, taoLevels: TAO_LEVELS,
       signature: Object.entries(SIGNATURE_SLOTS).map(([key, s]) => ({ key, label: s.label, item: (items.signature || []).find(i => i.system.slot === key) ?? null })),
-      taoLibrary: await QinActorSheetBase.#taoLibrary(actor),
+      taoLibrary: await QinActorSheetBase.#library(actor, "taos", "tao"),
+      techniqueLibrary: await QinActorSheetBase.#library(actor, "techniques", "technique"),
     });
     if (system.bol?.levels) {
       context.bol = system.bol.levels.map(l => ({
@@ -112,12 +113,12 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
     return context;
   }
 
-  /** Every Tao in the system compendium, flagged if the character already knows it. */
-  static async #taoLibrary(actor) {
-    const pack = game.packs.get("qin.taos");
+  /** Entries of a system compendium, flagged if the character already has one of that name. */
+  static async #library(actor, packName, type) {
+    const pack = game.packs.get(`qin.${packName}`);
     if (!pack) return [];
     const index = await pack.getIndex();
-    const known = new Set(actor.items.filter(i => i.type === "tao").map(i => i.name));
+    const known = new Set(actor.items.filter(i => i.type === type).map(i => i.name));
     return index.contents.map(e => ({ uuid: e.uuid, name: e.name, owned: known.has(e.name) })).sort((a, b) => a.name.localeCompare(b.name));
   }
 
@@ -128,19 +129,21 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
       ev.stopPropagation();
       this.actor.items.get(sel.dataset.taoLevel)?.update({ "system.level": Number(sel.value) });
     }));
-    // The library picker isn't part of the actor's data
-    this.element.querySelector(".qin-tao-choice")?.addEventListener("change", ev => ev.stopPropagation());
+    // Library pickers aren't part of the actor's data
+    this.element.querySelectorAll(".qin-library-choice").forEach(sel => sel.addEventListener("change", ev => ev.stopPropagation()));
   }
 
-  static async #addTao(event, target) {
-    const uuid = this.element.querySelector(".qin-tao-choice")?.value;
+  /** Copy the chosen compendium entry (a Tao or technique) onto the character. */
+  static async #addFromLibrary(event, target) {
+    const { library, type } = target.dataset;
+    const uuid = this.element.querySelector(`.qin-library-choice[data-library="${library}"]`)?.value;
     if (!uuid) return;
-    const tao = await fromUuid(uuid);
-    if (!tao) return;
-    if (this.actor.items.some(i => i.type === "tao" && i.name === tao.name)) return ui.notifications.info(`${this.actor.name} already knows ${tao.name}.`);
-    const data = tao.toObject();
+    const doc = await fromUuid(uuid);
+    if (!doc) return;
+    if (this.actor.items.some(i => i.type === type && i.name === doc.name)) return ui.notifications.info(`${this.actor.name} already knows ${doc.name}.`);
+    const data = doc.toObject();
     delete data._id;
-    data.system.level = 1;
+    if (type === "tao") data.system.level = 1;
     await this.actor.createEmbeddedDocuments("Item", [data]);
   }
 
