@@ -311,6 +311,8 @@ export function registerAttackFxSocket() {
     if (data.type === "fx") playBuiltIn(data);
     else if (data.type === "float") floatLocal(data.at, data.style, data.text);
     else if (data.type === "skull") skullLocal(data);
+    else if (data.type === "defense") defenseLocal(data);
+    else if (data.type === "slice") sliceLocal(data);
   });
 }
 
@@ -334,7 +336,7 @@ export function registerDamageFloats() {
       const delta = actor.system.bol.damage - options.qinBol.before;
       const died = !options.qinBol.wasDead && actor.system.bol.dead;
       for (const t of tokens) {
-        if (delta > 0) showFloat(t.center, "damage", `-${delta}`);
+        if (delta > 0) { showSlice(t); showFloat(t.center, "damage", `-${delta}`); }
         else if (delta < 0) showFloat(t.center, "heal", `+${-delta}`);
         if (died) showSkull(t.center);
       }
@@ -350,19 +352,268 @@ const clamp01 = (t) => Math.max(0, Math.min(1, t));
 const seg = (t, a, b) => clamp01((t - a) / (b - a));
 
 /** Runs draw(g, t) every frame for `ms`, then cleans up. */
-function animate(ms, draw) {
+/**
+ * Runs draw(g, t, extras) every frame for `ms`, then cleans up.
+ * opts.setup(container) may add sprites and return anything (passed as `extras`); opts.cleanup(extras) runs at the end.
+ */
+function animate(ms, draw, opts = {}) {
   return new Promise(resolve => {
+    const box = new PIXI.Container();
     const g = new PIXI.Graphics();
-    fxLayer().addChild(g);
+    box.addChild(g);
+    fxLayer().addChild(box);
+    let extras = null;
+    try { extras = opts.setup?.(box) ?? null; } catch (e) { console.warn(e); }
     let elapsed = 0;
     const tick = () => {
       elapsed += canvas.app.ticker.deltaMS;
       const t = clamp01(elapsed / ms);
       g.clear();
-      try { draw(g, t); } catch (e) { console.warn(e); }
-      if (t >= 1) { canvas.app.ticker.remove(tick); g.destroy(); resolve(); }
+      try { draw(g, t, extras); } catch (e) { console.warn(e); }
+      if (t >= 1) {
+        canvas.app.ticker.remove(tick);
+        try { opts.cleanup?.(extras); } catch (e) { console.warn(e); }
+        box.destroy({ children: true });
+        resolve();
+      }
     };
     canvas.app.ticker.add(tick);
+  });
+}
+
+/* ---------------------------------------- Block, dodge and the damage slice */
+
+/** A copy of the token's artwork, placed over it (null if the token has no art yet). */
+function tokenGhost(token) {
+  const mesh = token?.mesh;
+  if (!mesh?.texture) return null;
+  const sp = new PIXI.Sprite(mesh.texture);
+  sp.anchor.set(mesh.anchor?.x ?? 0.5, mesh.anchor?.y ?? 0.5);
+  sp.position.set(mesh.position.x, mesh.position.y);
+  sp.width = mesh.width; sp.height = mesh.height;
+  sp.rotation = mesh.rotation ?? 0;
+  return sp;
+}
+
+/**
+ * Show a Block / Dodge result on the defender for every client.
+ * @param {Token} token    defender
+ * @param {object} from    attacker position {x,y} (optional, sets which side the shield faces)
+ */
+export async function showDefense(token, kind, success, from = null) {
+  if (!canvas?.ready || !token) return;
+  const mode = game.settings.get(SYSTEM_ID, "attackAnimations");
+  if (mode === "off") return;
+  if (kind === "block" && mode !== "builtin" && sequencerReady()) {
+    const path = success ? firstPath(["jb2a.shield.01.complete.01.blue", "jb2a.shield.01.complete"]) : firstPath(["jb2a.shield.01.outro_explode.blue", "jb2a.shield.01.outro_explode"]);
+    if (path) {
+      try { await new Sequence().effect().file(path).atLocation(token).scaleToObject(1.6).play(); return; }
+      catch (e) { console.warn("Qin | Sequencer shield failed, using the built-in one", e); }
+    }
+  }
+  const data = { type: "defense", sceneId: canvas.scene.id, tokenId: token.id, kind, success, from: from ? { x: from.x, y: from.y } : null };
+  game.socket?.emit(SOCKET, data);
+  defenseLocal(data);
+}
+
+/** A slash that cuts through the token (damage got through), for every client. */
+export function showSlice(token) {
+  if (!canvas?.ready || !token || game.settings.get(SYSTEM_ID, "attackAnimations") === "off") return;
+  const data = { type: "slice", sceneId: canvas.scene.id, tokenId: token.id, angle: (Math.random() * 0.6 + 0.5) * (Math.random() < 0.5 ? 1 : -1) };
+  game.socket?.emit(SOCKET, data);
+  sliceLocal(data);
+}
+
+function defenseLocal({ tokenId, kind, success, from }) {
+  const token = canvas.tokens?.get(tokenId);
+  if (!token) return;
+  const c = token.center, size = Math.max(token.w, token.h);
+  let ux = 0, uy = -1;
+  if (from) { const dx = from.x - c.x, dy = from.y - c.y, d = Math.hypot(dx, dy) || 1; ux = dx / d; uy = dy / d; }
+  return kind === "block" ? shieldFx(c, size, ux, uy, success) : dodgeFx(token, size, ux, uy, success);
+}
+
+function drawShield(g, x, y, r, alpha, rot = 0, half = 0) {
+  // round bronze shield with a rim, boss and rivets; half: 0 whole, -1/1 = one half (for the break)
+  const start = half === 0 ? 0 : half < 0 ? Math.PI / 2 : -Math.PI / 2;
+  const end = half === 0 ? Math.PI * 2 : start + Math.PI;
+  const arcPoly = (rad) => {
+    const pts = [];
+    if (half) pts.push(x, y);
+    for (let i = 0; i <= 24; i++) { const a = rot + start + (end - start) * (i / 24); pts.push(x + Math.cos(a) * rad, y + Math.sin(a) * rad); }
+    return pts;
+  };
+  g.lineStyle(Math.max(2, r * 0.12), 0x5a3a14, alpha).beginFill(0xb07a2a, alpha).drawPolygon(arcPoly(r)).endFill();
+  g.lineStyle(Math.max(1, r * 0.05), 0xe8c170, alpha * 0.9).drawPolygon(arcPoly(r * 0.78));
+  if (!half) {
+    g.lineStyle(Math.max(1, r * 0.04), 0x3b260c, alpha).beginFill(0xd9b26a, alpha).drawCircle(x, y, r * 0.26).endFill();
+    g.lineStyle(0).beginFill(0xf6e3b0, alpha);
+    for (let i = 0; i < 8; i++) { const a = rot + (i / 8) * Math.PI * 2; g.drawCircle(x + Math.cos(a) * r * 0.62, y + Math.sin(a) * r * 0.62, r * 0.05); }
+    g.endFill();
+  }
+}
+
+function shieldFx(c, size, ux, uy, success) {
+  const r = size * 0.4;
+  const at = { x: c.x + ux * size * 0.3, y: c.y + uy * size * 0.3 };
+  const rays = Array.from({ length: 10 }, (_, i) => (i / 10) * Math.PI * 2 + Math.random() * 0.3);
+  if (success) {
+    return animate(900, (g, t) => {
+      const pop = t < 0.15 ? ease.out(t / 0.15) : 1;
+      const knock = t > 0.15 && t < 0.3 ? Math.sin(((t - 0.15) / 0.15) * Math.PI) * size * 0.06 : 0;
+      const a = 1 - seg(t, 0.7, 1);
+      drawShield(g, at.x + ux * knock, at.y + uy * knock, r * (0.6 + 0.4 * pop), a);
+      if (t > 0.15 && t < 0.55) { // clang: ring + sparks off the face of the shield
+        const k = seg(t, 0.15, 0.55);
+        g.lineStyle(size * 0.03, 0xffffff, 1 - k).drawCircle(at.x, at.y, r * (1 + 0.6 * k));
+        g.lineStyle(Math.max(2, size * 0.02), 0xfff1c1, 1 - k);
+        for (const ry of rays) {
+          const r0 = r * (1.05 + 0.3 * k), r1 = r * (1.25 + 0.6 * k);
+          g.moveTo(at.x + Math.cos(ry) * r0, at.y + Math.sin(ry) * r0).lineTo(at.x + Math.cos(ry) * r1, at.y + Math.sin(ry) * r1);
+        }
+      }
+    });
+  }
+  // Failed block: the shield takes the blow, cracks and breaks in two
+  const crack = [[0, 0], [0.15, -0.35], [-0.05, -0.6], [0.1, -0.95], [-0.1, 0.3], [0.08, 0.62], [-0.04, 0.98]];
+  const ang = Math.atan2(uy, ux) + Math.PI / 2;
+  return animate(1100, (g, t) => {
+    const a = 1 - seg(t, 0.65, 1);
+    if (t < 0.35) {
+      const shake = t > 0.12 ? Math.sin(t * 90) * size * 0.015 : 0;
+      drawShield(g, at.x + shake, at.y, r, 1, ang);
+      if (t > 0.12) {
+        const k = seg(t, 0.12, 0.32);
+        g.lineStyle(Math.max(2, r * 0.06), 0x1a1006, 1);
+        const pts = crack.map(([px, py]) => ({ x: at.x + (Math.cos(ang) * px - Math.sin(ang) * py) * r, y: at.y + (Math.sin(ang) * px + Math.cos(ang) * py) * r }));
+        const n = Math.max(2, Math.round(pts.length * k));
+        g.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < n; i++) g.lineTo(pts[i].x, pts[i].y);
+      }
+    } else {
+      const k = ease.out(seg(t, 0.35, 1));
+      const spread = size * 0.35 * k, spin = 0.9 * k, drop = size * 0.25 * k * k;
+      const px = Math.cos(ang), py = Math.sin(ang);
+      drawShield(g, at.x - px * spread, at.y - py * spread + drop, r, a, ang - spin, -1);
+      drawShield(g, at.x + px * spread, at.y + py * spread + drop, r, a, ang + spin, 1);
+      g.lineStyle(0).beginFill(0xb07a2a, a);
+      for (let i = 0; i < 6; i++) { const ry = rays[i]; g.drawCircle(at.x + Math.cos(ry) * r * 1.4 * k, at.y + Math.sin(ry) * r * 1.4 * k + drop, r * 0.06); }
+      g.endFill();
+    }
+  });
+}
+
+function dodgeFx(token, size, ux, uy, success) {
+  const side = Math.random() < 0.5 ? 1 : -1;
+  const px = -uy * side, py = ux * side; // sidestep perpendicular to the attack
+  const base = token.mesh?.position ? { x: token.mesh.position.x, y: token.mesh.position.y } : token.center;
+  return animate(success ? 800 : 900, (g, t, ghosts) => {
+    const c = token.center;
+    if (success) {
+      // afterimages slide aside and fade, with speed lines
+      const out = ease.out(seg(t, 0, 0.4)), back = ease.inOut(seg(t, 0.55, 1));
+      const d = size * 0.45 * out * (1 - back);
+      ghosts?.forEach((sp, i) => {
+        const lag = (i + 1) / (ghosts.length + 1);
+        sp.position.set(base.x + px * d * (1 - lag * 0.6), base.y + py * d * (1 - lag * 0.6));
+        sp.alpha = 0.45 * (1 - lag) * (1 - seg(t, 0.4, 1));
+      });
+      if (t < 0.6) {
+        const a = 0.7 * (1 - seg(t, 0.25, 0.6));
+        g.lineStyle(Math.max(2, size * 0.02), 0xffffff, a);
+        for (const o of [-0.25, 0, 0.25]) {
+          const sx = c.x + ux * size * o, sy = c.y + uy * size * o;
+          g.moveTo(sx + px * size * 0.2, sy + py * size * 0.2).lineTo(sx + px * size * (0.2 + 0.45 * out), sy + py * size * (0.2 + 0.45 * out));
+        }
+      }
+    } else {
+      // tries to slip aside, gets caught and jolts back
+      const k = t < 0.3 ? ease.out(t / 0.3) : 1 - ease.out(seg(t, 0.3, 0.45));
+      const d = size * 0.2 * k;
+      ghosts?.forEach((sp, i) => {
+        sp.position.set(base.x + px * d * (1 - i * 0.3), base.y + py * d * (1 - i * 0.3));
+        sp.alpha = 0.4 * (1 - i * 0.3) * (1 - seg(t, 0.3, 0.6));
+      });
+      if (t > 0.4) {
+        const j = seg(t, 0.4, 1);
+        g.lineStyle(Math.max(2, size * 0.025), 0xbbbbbb, 1 - j);
+        for (let i = 0; i < 3; i++) {
+          const a = Math.atan2(py, px) + (i - 1) * 0.5;
+          const r0 = size * 0.42, r1 = size * (0.5 + 0.12 * j);
+          g.moveTo(c.x + Math.cos(a) * r0, c.y + Math.sin(a) * r0).lineTo(c.x + Math.cos(a) * r1, c.y + Math.sin(a) * r1);
+        }
+      }
+    }
+  }, {
+    setup: (box) => {
+      const ghosts = [0, 1, 2].map(() => tokenGhost(token)).filter(Boolean);
+      ghosts.forEach(sp => { sp.alpha = 0; box.addChildAt(sp, 0); });
+      return ghosts;
+    },
+  });
+}
+
+function sliceLocal({ tokenId, angle }) {
+  const token = canvas.tokens?.get(tokenId);
+  if (!token) return;
+  const c = token.center, size = Math.max(token.w, token.h);
+  const dir = { x: Math.cos(angle), y: Math.sin(angle) }, nrm = { x: -dir.y, y: dir.x };
+  const L = size * 0.75;
+  const drops = Array.from({ length: 8 }, () => ({ s: Math.random() * 2 - 1, v: 0.4 + Math.random() * 0.8, side: Math.random() < 0.5 ? 1 : -1 }));
+  return animate(950, (g, t, ex) => {
+    const sweep = ease.out(seg(t, 0, 0.22));
+    const a = 1 - seg(t, 0.35, 0.9);
+    // the cut line sweeping across the token
+    const sx = c.x - dir.x * L, sy = c.y - dir.y * L;
+    const ex2 = c.x - dir.x * L + dir.x * 2 * L * sweep, ey2 = c.y - dir.y * L + dir.y * 2 * L * sweep;
+    g.lineStyle(size * 0.07, 0x8b0000, 0.55 * a).moveTo(sx, sy).lineTo(ex2, ey2);
+    g.lineStyle(size * 0.035, 0xff2a2a, 0.9 * a).moveTo(sx, sy).lineTo(ex2, ey2);
+    g.lineStyle(size * 0.012, 0xffffff, a).moveTo(sx, sy).lineTo(ex2, ey2);
+    // blood spatter off the cut
+    if (t > 0.18) {
+      const k = seg(t, 0.18, 0.8);
+      g.lineStyle(0).beginFill(0xc1121f, 1 - k);
+      for (const d of drops) {
+        const bx = c.x + dir.x * L * 0.8 * d.s + nrm.x * d.side * size * 0.45 * d.v * k;
+        const by = c.y + dir.y * L * 0.8 * d.s + nrm.y * d.side * size * 0.45 * d.v * k + size * 0.15 * k * k;
+        g.drawCircle(bx, by, size * 0.025 * (1 - k * 0.5));
+      }
+      g.endFill();
+    }
+    // the token's art splits along the cut, then closes back up
+    if (ex) {
+      const open = t < 0.22 ? 0 : t < 0.45 ? ease.out(seg(t, 0.22, 0.45)) : 1 - ease.inOut(seg(t, 0.55, 0.85));
+      const gap = size * 0.12 * open;
+      ex.halves.forEach((sp, i) => { const sgn = i ? 1 : -1; sp.position.set(ex.base.x + nrm.x * gap * sgn, ex.base.y + nrm.y * gap * sgn); });
+      if (t >= 0.85 && !ex.restored) { ex.restored = true; ex.restore(); ex.halves.forEach(sp => (sp.visible = false)); }
+    }
+  }, {
+    setup: (box) => {
+      const mesh = token.mesh;
+      const h1 = tokenGhost(token), h2 = tokenGhost(token);
+      if (!h1 || !h2) return null;
+      const big = size * 2;
+      const masks = [-1, 1].map(sgn => {
+        const m = new PIXI.Graphics();
+        m.beginFill(0xffffff).drawPolygon([
+          c.x - dir.x * big, c.y - dir.y * big, c.x + dir.x * big, c.y + dir.y * big,
+          c.x + dir.x * big + nrm.x * big * sgn, c.y + dir.y * big + nrm.y * big * sgn,
+          c.x - dir.x * big + nrm.x * big * sgn, c.y - dir.y * big + nrm.y * big * sgn,
+        ]).endFill();
+        box.addChild(m);
+        return m;
+      });
+      h1.mask = masks[0]; h2.mask = masks[1];
+      box.addChildAt(h1, 0); box.addChildAt(h2, 0);
+      const prev = mesh.alpha;
+      mesh.alpha = 0; // hide the real art while the halves are apart (this client only)
+      const restore = () => {
+        if (!mesh.destroyed) mesh.alpha = prev;
+        try { token.renderFlags?.set({ refreshState: true }); } catch { /* fine */ }
+      };
+      return { halves: [h1, h2], base: { x: h1.position.x, y: h1.position.y }, restore, restored: false };
+    },
+    cleanup: (ex) => { if (ex && !ex.restored) ex.restore(); },
   });
 }
 

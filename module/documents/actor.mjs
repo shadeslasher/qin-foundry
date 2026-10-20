@@ -1,5 +1,5 @@
 import { spendDefenseAction } from "../combat-actions.mjs";
-import { pickAttackTarget, attackerToken, playAttackFx, showFloat } from "../attack-fx.mjs";
+import { pickAttackTarget, attackerToken, playAttackFx, showFloat, showDefense } from "../attack-fx.mjs";
 import { ASPECTS, SKILLS, SKILL_LEVELS } from "../config.mjs";
 import * as Q from "../rules/qin-rules.mjs";
 import { rollYinYang, renderTemplate, formDialog, Chat } from "../dice.mjs";
@@ -252,7 +252,12 @@ export class QinActor extends foundry.documents.Actor {
     ].filter(Boolean);
     await this._afterDice(dice);
     const defTok = attackerToken(this);
-    if (defTok) showFloat(defTok.center, success ? type : `${type}Fail`);
+    if (defTok) {
+      showFloat(defTok.center, success ? type : `${type}Fail`);
+      const atk = attack.attacker ? fromUuidSync(attack.attacker) : null;
+      const atkTok = atk ? attackerToken(atk) : null;
+      showDefense(defTok, type, success, atkTok?.center ?? null).catch(e => console.warn("Qin | defense animation", e));
+    }
     await this._postRoll({
       title: type === "block" ? "Block" : "Dodge", roll, dice, parts, total, st: attack.total, success,
       extra: success ? "<p><b>The blow is turned aside.</b></p>" : "<p><b>The attack lands.</b></p>",
