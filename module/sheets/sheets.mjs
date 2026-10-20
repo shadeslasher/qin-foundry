@@ -13,6 +13,30 @@ const ITEM_GROUPS = {
 const TAO_LEVELS = { 0: "0", 1: "1", 2: "2", 3: "3", 4: "4" };
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
 
+/** Compendium entries with pre-built hover details, cached per pack (the system packs don't change in play). */
+const libraryCache = new Map();
+async function loadLibrary(packName) {
+  if (libraryCache.has(packName)) return libraryCache.get(packName);
+  const pack = game.packs.get(`qin.${packName}`);
+  if (!pack) return [];
+  const docs = await pack.getDocuments();
+  const list = docs.map(d => ({ uuid: d.uuid, name: d.name, details: libraryDetails(d) })).sort((a, b) => a.name.localeCompare(b.name));
+  libraryCache.set(packName, list);
+  return list;
+}
+function libraryDetails(doc) {
+  const s = doc.system;
+  let html = `<h4>${esc(doc.name)}</h4>`;
+  if (doc.type === "tao") {
+    html += s.description || "";
+    html += `<ol class="qin-info-levels">${[1, 2, 3, 4].map(l => `<li><b>Level ${l}</b> (${l} Chi): ${esc(s.effects[`l${l}`])}</li>`).join("")}</ol>`;
+  } else if (doc.type === "technique") {
+    const used = { attack: "Attack Test", defense: "Active Defense", other: "Special" }[s.roll] ?? s.roll;
+    html += `<p class="qin-muted">${s.kind === "distance" ? "Distance" : "Close"} combat · ${used} · ST +${s.stIncrease}</p>${s.description || ""}`;
+  } else html += s.description || "";
+  return html;
+}
+
 /** Grow a window's default size with the Qin text size setting. */
 export function scaledPosition(position) {
   let pct = 115;
@@ -113,31 +137,55 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
     return context;
   }
 
-  /** Entries of a system compendium, flagged if the character already has one of that name. */
+  /** Entries of a system compendium with hover details, flagged if the character already has one of that name. */
   static async #library(actor, packName, type) {
-    const pack = game.packs.get(`qin.${packName}`);
-    if (!pack) return [];
-    const index = await pack.getIndex();
+    const docs = await loadLibrary(packName);
     const known = new Set(actor.items.filter(i => i.type === type).map(i => i.name));
-    return index.contents.map(e => ({ uuid: e.uuid, name: e.name, owned: known.has(e.name) })).sort((a, b) => a.name.localeCompare(b.name));
+    return docs.map(d => ({ ...d, owned: known.has(d.name) }));
   }
 
   _onRender(context, options) {
     super._onRender(context, options);
+    const el = this.element;
     // Tao level selects update the embedded item directly
-    this.element.querySelectorAll("select[data-tao-level]").forEach(sel => sel.addEventListener("change", ev => {
+    el.querySelectorAll("select[data-tao-level]").forEach(sel => sel.addEventListener("change", ev => {
       ev.stopPropagation();
       this.actor.items.get(sel.dataset.taoLevel)?.update({ "system.level": Number(sel.value) });
     }));
-    // Library pickers aren't part of the actor's data
-    this.element.querySelectorAll(".qin-library-choice").forEach(sel => sel.addEventListener("change", ev => ev.stopPropagation()));
+    // Library pickers: hover an entry for its details, click to choose it
+    const details = Object.fromEntries([...(context.taoLibrary ?? []), ...(context.techniqueLibrary ?? [])].map(d => [d.uuid, d.details]));
+    el.querySelectorAll(".qin-picker").forEach(picker => {
+      const info = picker.querySelector(".qin-picker-info");
+      const close = () => picker.classList.remove("open", "show-info");
+      picker.querySelector(".qin-picker-toggle").addEventListener("click", ev => {
+        ev.preventDefault();
+        el.querySelectorAll(".qin-picker.open").forEach(p => { if (p !== picker) p.classList.remove("open", "show-info"); });
+        picker.classList.toggle("open");
+      });
+      picker.querySelectorAll("li[data-uuid]").forEach(li => {
+        li.addEventListener("mouseenter", () => { info.innerHTML = details[li.dataset.uuid] ?? ""; picker.classList.add("show-info"); });
+        li.addEventListener("click", () => {
+          if (li.classList.contains("owned")) return;
+          picker.dataset.value = li.dataset.uuid;
+          picker.querySelector(".qin-picker-label").textContent = li.textContent.trim();
+          close();
+        });
+      });
+      picker.addEventListener("mouseleave", () => picker.classList.remove("show-info"));
+    });
+    if (!this._qinPickerCloser) {
+      this._qinPickerCloser = true;
+      el.addEventListener("click", ev => {
+        if (!ev.target.closest(".qin-picker")) el.querySelectorAll(".qin-picker.open").forEach(p => p.classList.remove("open", "show-info"));
+      });
+    }
   }
 
   /** Copy the chosen compendium entry (a Tao or technique) onto the character. */
   static async #addFromLibrary(event, target) {
     const { library, type } = target.dataset;
-    const uuid = this.element.querySelector(`.qin-library-choice[data-library="${library}"]`)?.value;
-    if (!uuid) return;
+    const uuid = this.element.querySelector(`.qin-picker[data-library="${library}"]`)?.dataset.value;
+    if (!uuid) return ui.notifications.info(`Choose one from the list first.`);
     const doc = await fromUuid(uuid);
     if (!doc) return;
     if (this.actor.items.some(i => i.type === type && i.name === doc.name)) return ui.notifications.info(`${this.actor.name} already knows ${doc.name}.`);

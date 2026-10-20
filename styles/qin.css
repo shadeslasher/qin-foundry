@@ -155,7 +155,6 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin-sig-slot.empty .qin-sig-name { font-weight: normal; color: var(--qin-muted); font-style: italic; }
 .qin-sig-popup .qin-sig-meta { color: #6f6250; font-size: calc(12px * var(--qin-scale, 1.15)); margin-bottom: 6px; }
 .qin-library { display: flex; gap: 6px; margin-bottom: 6px; }
-.qin-library select { flex: 1; min-width: 0; }
 .qin-library button { flex: none; width: auto; }
 .qin-tao-level { font-size: calc(12px * var(--qin-scale, 1.15)); color: var(--qin-muted); }
 .qin-tao-level select { width: calc(56px * var(--qin-scale, 1.15)); height: calc(22px * var(--qin-scale, 1.15)); }
@@ -168,3 +167,21 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 /* zero-specificity defaults so the explicit sizes above still win */
 :where(.qin, .qin-chat) :where(input, select, textarea, button, label) { font-size: inherit; }
 :where(.qin) :where(select, input[type="text"], input[type="number"]) { height: auto; min-height: calc(22px * var(--qin-scale, 1.15)); }
+
+/* Library pickers with hover details */
+.qin-picker { position: relative; flex: 1; min-width: 0; }
+.qin-picker-toggle { width: 100%; text-align: left; display: flex; justify-content: space-between; align-items: center; }
+.qin-picker-list { display: none; position: absolute; z-index: 20; top: 100%; left: 0; width: 46%; max-height: calc(260px * var(--qin-scale, 1.15)); overflow-y: auto;
+  list-style: none; margin: 2px 0 0; padding: 2px 0; background: #fbf6ea; border: 1px solid var(--qin-gold); border-radius: 6px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25); }
+.qin-picker.open .qin-picker-list { display: block; }
+.qin-picker-list li { padding: 3px 8px; cursor: pointer; }
+.qin-picker-list li:hover { background: rgba(184, 134, 43, 0.25); }
+.qin-picker-list li.owned { cursor: default; opacity: 0.6; }
+.qin-picker-info { display: none; position: absolute; z-index: 21; top: 100%; left: 48%; width: 52%; max-height: calc(320px * var(--qin-scale, 1.15)); overflow-y: auto;
+  margin-top: 2px; padding: 6px 10px; background: #fffdf6; border: 1px solid var(--qin-red); border-radius: 6px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25); }
+.qin-picker.open.show-info .qin-picker-info { display: block; }
+.qin-picker-info h4 { margin: 0 0 4px; color: var(--qin-red); }
+.qin-picker-info p { margin: 4px 0; }
+.qin-info-levels { padding-left: 18px; margin: 4px 0; }
+.qin-info-levels li { margin: 3px 0; }
+.qin-tab[data-tab="combat"], .qin-tab[data-tab="taos"] { min-height: calc(340px * var(--qin-scale, 1.15)); }

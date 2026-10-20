@@ -59,7 +59,7 @@
   </section>
 
   <nav class="qin-tabs">
-    <a data-tab="skills">Skills</a><a data-tab="combat">Combat</a><a data-tab="taos">Taos &amp; Magic</a>
+    <a data-tab="skills">Skills</a><a data-tab="combat">Combat</a><a data-tab="taos">Taos</a>
     <a data-tab="tactics">Tactics</a><a data-tab="gear">Gifts &amp; Gear</a><a data-tab="bio">Biography</a>
   </nav>
 
@@ -120,9 +120,13 @@
 
       <h3>Combat techniques</h3>
       <div class="qin-library">
-        <select class="qin-library-choice" data-library="techniques">
-          {{#each techniqueLibrary}}<option value="{{uuid}}" {{#if owned}}disabled{{/if}}>{{name}}{{#if owned}} (known){{/if}}</option>{{/each}}
-        </select>
+        <div class="qin-picker" data-library="techniques">
+          <button type="button" class="qin-picker-toggle"><span class="qin-picker-label">Choose a technique…</span> <i class="fa-solid fa-caret-down"></i></button>
+          <ul class="qin-picker-list">
+            {{#each techniqueLibrary}}<li data-uuid="{{uuid}}" class="{{#if owned}}owned{{/if}}">{{name}}{{#if owned}} <span class="qin-muted">(known)</span>{{/if}}</li>{{/each}}
+          </ul>
+          <div class="qin-picker-info"></div>
+        </div>
         <button type="button" data-action="addFromLibrary" data-library="techniques" data-type="technique"><i class="fa-solid fa-plus"></i> Learn</button>
         <button type="button" data-action="itemCreate" data-type="technique" title="Create your own technique"><i class="fa-solid fa-feather"></i> Homebrew</button>
       </div>
@@ -138,9 +142,13 @@
     <section class="qin-tab" data-tab="taos">
       <h3>Tao library</h3>
       <div class="qin-library">
-        <select class="qin-library-choice" data-library="taos">
-          {{#each taoLibrary}}<option value="{{uuid}}" {{#if owned}}disabled{{/if}}>{{name}}{{#if owned}} (known){{/if}}</option>{{/each}}
-        </select>
+        <div class="qin-picker" data-library="taos">
+          <button type="button" class="qin-picker-toggle"><span class="qin-picker-label">Choose a Tao…</span> <i class="fa-solid fa-caret-down"></i></button>
+          <ul class="qin-picker-list">
+            {{#each taoLibrary}}<li data-uuid="{{uuid}}" class="{{#if owned}}owned{{/if}}">{{name}}{{#if owned}} <span class="qin-muted">(known)</span>{{/if}}</li>{{/each}}
+          </ul>
+          <div class="qin-picker-info"></div>
+        </div>
         <button type="button" data-action="addFromLibrary" data-library="taos" data-type="tao"><i class="fa-solid fa-plus"></i> Learn</button>
       </div>
       {{#unless taoLibrary.length}}<p class="qin-muted">The Taos compendium isn't available.</p>{{/unless}}
