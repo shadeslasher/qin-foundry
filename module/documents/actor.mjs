@@ -220,6 +220,8 @@ export class QinActor extends foundry.documents.Actor {
       flags: { kind: "attack", attacker: this.uuid, target: target?.uuid ?? null, total, damage, pierce, skill: weapon.system.skill, ranged: weapon.system.isRanged, hit },
     });
     playAttackFx({ source, target: targetToken, point: picked?.point, weapon, hit }).catch(e => console.warn("Qin | attack animation", e));
+    // The card remembers the target, so drop the targeting arrows once the attack is posted
+    if (picked) for (const t of [...game.user.targets]) t.setTarget(false, { releaseOthers: false, groupSelection: false });
   }
 
   /** Active Defense against an attack total: block (Water + weapon Skill) or dodge (Water + Dodging). */
