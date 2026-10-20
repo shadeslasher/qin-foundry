@@ -85,6 +85,10 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: String, default: "auto",
     choices: { auto: "Automatic (JB2A if available)", builtin: "Built-in effects only", off: "Off" },
   });
+  game.settings.register(SYSTEM_ID, "showMovementTrail", {
+    name: "Show token movement trails", hint: "Foundry draws the path a token has travelled when you hover it. Off: the trail is wiped after every move.",
+    scope: "world", config: true, type: Boolean, default: false,
+  });
   game.settings.register(SYSTEM_ID, "autoOpenBattle", {
     name: "Open the battle panel automatically", scope: "client", config: true, type: Boolean, default: true,
   });
@@ -106,7 +110,13 @@ Hooks.once("ready", () => {
 Hooks.on("renderChatMessageHTML", onRenderChatMessage);
 registerTokenHover();
 Hooks.on("renderCombatTracker", onRenderCombatTracker);
-Hooks.on("updateToken", (doc, change, options) => onTokenMoved(doc, change, options));
+Hooks.on("updateToken", (doc, change, options) => {
+  onTokenMoved(doc, change, options);
+  // Wipe the hover movement trail after each move unless the GM wants it
+  if (("x" in change || "y" in change) && game.user.isActiveGM && !game.settings.get(SYSTEM_ID, "showMovementTrail") && doc.movementHistory?.length) {
+    setTimeout(() => doc.clearMovementHistory?.().catch?.(() => {}), 0);
+  }
+});
 Hooks.on("updateActor", () => BattlePanel.refresh());
 
 Hooks.on("getSceneControlButtons", (controls) => {
