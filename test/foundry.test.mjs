@@ -44,7 +44,7 @@ test("battle adapter: a full officer turn through Foundry tokens", async () => {
 
   const officer = M.makeActor({ type: "character", uuid: "Actor.wenping", system: { name: "Wen Ping", aspects: { metal: 3, water: 3, fire: 3, wood: 3, earth: 4 }, skills: skills({ qiangshu: 4, command: 4 }) },
     items: [{ name: "Unyielding Defender", type: "officerAbility", system: { kind: "passive", moraleCost: 0, effects: { noRearAgainst: true, ignoreMoralePenalty: false, ignoreEncirclement: false, moveBonus: 0, chargeAttackBonus: 0, extraMoraleLossOnWin: 0 }, description: "" } },
-      { name: "Hold the Ford!", type: "officerAbility", system: { kind: "skill", moraleCost: 20, effects: {}, description: "<p>+1 defending</p>" } }] });
+      { name: "Hold the Ford!", type: "signature", system: { slot: "battleActive", moraleCost: 20, effects: {}, description: "<p>+1 defending</p>" } }] });
   const unitSystem = (o) => {
     const u = Object.assign(new UnitData(), { side: "player", faction: "Han", tier: 2, category: "infantry", weapon: "melee", weaponSkill: "qiangshu", unitValue: 2, damage: 6, defense: 3, move: 4, rangeMin: 1, rangeMax: 1, formations: "", men: { value: 100, max: 100 }, morale: 50, formation: "none", hidden: false, status: "active", officer: "", ...o });
     u.prepareDerivedData();
@@ -69,6 +69,11 @@ test("battle adapter: a full officer turn through Foundry tokens", async () => {
   assert.ok(!r.ok, "someone else can't act for Alice's unit");
   r = await A.runAction("alice", { type: "decide", unitId: "tokA", choice: "act" });
   assert.ok(r.ok, r.error);
+  // The Battle Active signature skill works as the officer's battle skill (costs 20 morale)
+  ally.system.morale = 60;
+  r = await A.runAction("alice", { type: "useSkill", unitId: "tokA" });
+  assert.ok(r.ok, r.error);
+  assert.strictEqual(ally.system.morale, 40);
 
   // Alice drags her token 3 tiles down (Shield Wall: movement 3)
   tA.y = 5 * 100;

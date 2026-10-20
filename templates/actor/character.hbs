@@ -34,6 +34,15 @@
     <div class="qin-stat"><span>Experience</span><input type="number" name="system.experience.value" value="{{system.experience.value}}"></div>
   </section>
 
+  <section class="qin-signature">
+    {{#each signature}}
+    <div class="qin-sig-slot {{#unless item}}empty{{/unless}}">
+      <span class="qin-sig-label">{{label}}</span>
+      <a class="qin-sig-name" data-action="signatureOpen" data-slot="{{key}}" title="{{#if item}}Show description{{else}}Add a {{label}} skill{{/if}}">{{#if item}}{{item.name}}{{else}}— empty —{{/if}}</a>
+    </div>
+    {{/each}}
+  </section>
+
   <section class="qin-bol">
     <div class="qin-bol-head"><b>Breath of Life</b> {{system.bol.remaining}} / {{system.bol.total}}
       {{#if system.penalty}}<span class="qin-penalty">−{{system.penalty}} to all Tests</span>{{/if}}
@@ -51,7 +60,7 @@
 
   <nav class="qin-tabs">
     <a data-tab="skills">Skills</a><a data-tab="combat">Combat</a><a data-tab="taos">Taos &amp; Magic</a>
-    <a data-tab="officer">Officer</a><a data-tab="gear">Gifts &amp; Gear</a><a data-tab="bio">Biography</a>
+    <a data-tab="tactics">Tactics</a><a data-tab="gear">Gifts &amp; Gear</a><a data-tab="bio">Biography</a>
   </nav>
 
   <div class="qin-body">
@@ -119,27 +128,29 @@
     </section>
 
     <section class="qin-tab" data-tab="taos">
-      <h3>Taos <a data-action="itemCreate" data-type="tao"><i class="fa-solid fa-plus"></i></a></h3>
+      <h3>Tao library</h3>
+      <div class="qin-tao-library">
+        <select class="qin-tao-choice">
+          {{#each taoLibrary}}<option value="{{uuid}}" {{#if owned}}disabled{{/if}}>{{name}}{{#if owned}} (known){{/if}}</option>{{/each}}
+        </select>
+        <button type="button" data-action="addTao"><i class="fa-solid fa-plus"></i> Learn</button>
+      </div>
+      {{#unless taoLibrary.length}}<p class="qin-muted">The Taos compendium isn't available.</p>{{/unless}}
+      <h3>Known Taos</h3>
       <ul class="qin-list">
         {{#each items.tao}}
-        <li data-item-id="{{id}}"><a data-action="itemUse" title="Use (spend Chi)"><i class="fa-solid fa-yin-yang"></i> {{name}}</a> <span class="qin-muted">Level {{system.level}}</span>
-          <span class="qin-controls"><a data-action="itemEdit"><i class="fa-solid fa-pen"></i></a><a data-action="itemDelete"><i class="fa-solid fa-trash"></i></a></span></li>
-        {{/each}}
-      </ul>
-      <h3>Magic <a data-action="itemCreate" data-type="magic"><i class="fa-solid fa-plus"></i></a></h3>
-      <ul class="qin-list">
-        {{#each items.magic}}
-        <li data-item-id="{{id}}"><a data-action="itemUse"><i class="fa-solid fa-scroll"></i> {{name}}</a>
-          <span class="qin-muted">{{lookup ../magicWays system.way}} {{system.skillLevel}} · {{system.chiCost}} Chi{{#if system.prepST}} · ST {{system.prepST}}{{/if}}</span>
-          <span class="qin-controls"><a data-action="itemEdit"><i class="fa-solid fa-pen"></i></a><a data-action="itemDelete"><i class="fa-solid fa-trash"></i></a></span></li>
+        <li data-item-id="{{id}}"><a data-action="itemUse" title="Use (spend Chi)"><i class="fa-solid fa-yin-yang"></i> {{name}}</a>
+          <label class="qin-tao-level">Level <select data-tao-level="{{id}}">{{selectOptions ../taoLevels selected=system.level}}</select></label>
+          <span class="qin-controls"><a data-action="itemEdit" title="Details"><i class="fa-solid fa-pen"></i></a><a data-action="itemDelete" title="Forget"><i class="fa-solid fa-trash"></i></a></span></li>
+        {{else}}<li class="qin-muted">No Taos yet. Pick one from the library above.</li>
         {{/each}}
       </ul>
       <p class="qin-muted">Inner strength: add up to Earth ({{system.aspects.earth}}) to any Test for 2 Chi per point, chosen in the roll dialog.</p>
     </section>
 
-    <section class="qin-tab" data-tab="officer">
-      <p class="qin-muted">Battlefield abilities used when this character leads a unit. The unit uses this character's Fire, Command skill and weapon skill.</p>
-      <h3>Officer abilities <a data-action="itemCreate" data-type="officerAbility"><i class="fa-solid fa-plus"></i></a></h3>
+    <section class="qin-tab" data-tab="tactics">
+      <p class="qin-muted">Battlefield tactics used when this character leads a unit, alongside their Battle Passive and Battle Active. The unit uses this character's Fire, Command skill and weapon skill.</p>
+      <h3>Tactics <a data-action="itemCreate" data-type="officerAbility"><i class="fa-solid fa-plus"></i></a></h3>
       <ul class="qin-list">
         {{#each items.officerAbility}}
         <li data-item-id="{{id}}"><a data-action="itemChat">{{name}}</a> <span class="qin-muted">{{lookup ../officerKinds system.kind}}{{#if system.moraleCost}} · {{system.moraleCost}} morale{{/if}}</span>

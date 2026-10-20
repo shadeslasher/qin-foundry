@@ -40,7 +40,7 @@
 .qin-chi input { width: 46px; text-align: center; }
 .qin-mini { font-size: 11px; }
 
-.qin-bol { padding: 4px 10px; }
+.qin-bol { padding: 4px 10px; margin-bottom: 14px; }
 .qin-bol-head { display: flex; gap: 10px; align-items: center; }
 .qin-dmg { margin-left: auto; font-size: 12px; }
 .qin-dmg input { width: 48px; }
@@ -145,3 +145,16 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin-uinfo { flex: 1; font-size: 12px; }
 .qin-uinfo select { font-size: 11px; height: 20px; }
 .qin-log li { font-size: 11px; border-bottom: 1px dotted #7a6a52; padding: 2px 0; }
+
+/* Signature skills */
+.qin-signature { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 0 10px 8px; }
+.qin-sig-slot { border: 1px solid var(--qin-gold); border-radius: 6px; padding: 4px 6px; background: rgba(255, 255, 255, 0.45); text-align: center; }
+.qin-sig-slot.empty { border-style: dashed; border-color: var(--qin-line); }
+.qin-sig-label { display: block; font-size: 11px; color: var(--qin-muted); }
+.qin-sig-name { font-weight: bold; color: var(--qin-red); }
+.qin-sig-slot.empty .qin-sig-name { font-weight: normal; color: var(--qin-muted); font-style: italic; }
+.qin-sig-popup .qin-sig-meta { color: #6f6250; font-size: 12px; margin-bottom: 6px; }
+.qin-tao-library { display: flex; gap: 6px; }
+.qin-tao-library select { flex: 1; }
+.qin-tao-level { font-size: 12px; color: var(--qin-muted); }
+.qin-tao-level select { width: 56px; height: 22px; }

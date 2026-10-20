@@ -22,7 +22,7 @@ Hooks.once("init", () => {
   Object.assign(CONFIG.Actor.dataModels, { character: CharacterData, henchman: HenchmanData, unit: UnitData });
   Object.assign(CONFIG.Item.dataModels, {
     weapon: IM.WeaponData, armor: IM.ArmorData, tao: IM.TaoData, technique: IM.TechniqueData, magic: IM.MagicData,
-    gift: IM.TraitData, weakness: IM.TraitData, gear: IM.GearData, skill: IM.SkillData, officerAbility: IM.OfficerAbilityData,
+    gift: IM.TraitData, weakness: IM.TraitData, gear: IM.GearData, skill: IM.SkillData, officerAbility: IM.OfficerAbilityData, signature: IM.SignatureData,
   });
   CONFIG.Actor.trackableAttributes = {
     character: { bar: [], value: ["chi.value", "bol.damage", "renown"] },

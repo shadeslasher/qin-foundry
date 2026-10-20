@@ -53,8 +53,8 @@
         {{/if}}
       </div>
       {{#if officerStats.abilities.length}}
-      <h3>Officer abilities</h3>
-      <ul class="qin-list">{{#each officerStats.abilities}}<li><b>{{name}}</b> <span class="qin-muted">{{lookup ../officerKinds system.kind}}{{#if system.moraleCost}} · {{system.moraleCost}} morale{{/if}}</span></li>{{/each}}</ul>
+      <h3>Tactics</h3>
+      <ul class="qin-list">{{#each officerStats.abilities}}<li><b>{{name}}</b> <span class="qin-muted">{{kindLabel}}{{#if moraleCost}} · {{moraleCost}} morale{{/if}}</span></li>{{/each}}</ul>
       {{/if}}
     </section>
 

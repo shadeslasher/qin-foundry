@@ -115,4 +115,24 @@ export class OfficerAbilityData extends foundry.abstract.TypeDataModel {
   }
 }
 
+/** A signature skill occupying one slot: Passive, Active, Battle Passive or Battle Active. */
+export class SignatureData extends foundry.abstract.TypeDataModel {
+  static defineSchema() {
+    return {
+      slot: new fields.StringField({ initial: "passive", choices: ["passive", "active", "battlePassive", "battleActive"] }),
+      chiCost: int(0, { min: 0 }),
+      moraleCost: int(0, { min: 0 }),
+      effects: new fields.SchemaField({
+        ignoreMoralePenalty: new fields.BooleanField({ initial: false }),
+        noRearAgainst: new fields.BooleanField({ initial: false }),
+        ignoreEncirclement: new fields.BooleanField({ initial: false }),
+        moveBonus: int(0),
+        chargeAttackBonus: int(0),
+        extraMoraleLossOnWin: int(0),
+      }),
+      description: desc(),
+    };
+  }
+}
+
 export const SKILL_CHOICES = () => Object.fromEntries(Object.entries(SKILLS).map(([k, v]) => [k, v.label]));

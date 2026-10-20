@@ -114,5 +114,14 @@ export const OFFICER_EFFECTS = {
   extraMoraleLossOnWin: { label: "Extra morale loss for enemies it beats", type: "number" },
 };
 
+// One signature skill per slot, shown under the derived stats. The two battle slots
+// feed the battlefield system when the character leads a unit.
+export const SIGNATURE_SLOTS = {
+  passive: { label: "Passive", battle: false },
+  active: { label: "Active", battle: false },
+  battlePassive: { label: "Battle Passive", battle: true },
+  battleActive: { label: "Battle Active", battle: true },
+};
+
 export const UNIT_CATEGORIES = { infantry: "Infantry", cavalry: "Cavalry", ranged: "Ranged" };
 export const SIDES = { player: "Player", enemy: "Enemy", ally: "Ally" };

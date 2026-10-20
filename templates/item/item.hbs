@@ -52,6 +52,10 @@
   {{else if (eq type "officerAbility")}}
     <label>Kind <select name="system.kind">{{selectOptions officerKinds selected=system.kind}}</select></label>
     <label>Morale cost <input type="number" name="system.moraleCost" value="{{system.moraleCost}}"></label>
+  {{else if (eq type "signature")}}
+    <label>Slot <select name="system.slot">{{selectOptions signatureSlots selected=system.slot}}</select></label>
+    {{#if (eq system.slot "active")}}<label>Chi cost <input type="number" name="system.chiCost" value="{{system.chiCost}}"></label>{{/if}}
+    {{#if (eq system.slot "battleActive")}}<label>Morale cost <input type="number" name="system.moraleCost" value="{{system.moraleCost}}"></label>{{/if}}
   {{/if}}
   </div>
 
@@ -63,7 +67,7 @@
   <label>Level 4 <textarea name="system.effects.l4" rows="2">{{system.effects.l4}}</textarea></label>
   {{/if}}
 
-  {{#if (eq type "officerAbility")}}
+  {{#if showEffects}}
   <h3>Automated battlefield effects</h3>
   <p class="qin-muted">Used by the battle system when this officer leads a unit. Anything else is applied by hand.</p>
   <div class="qin-grid2">

@@ -35,7 +35,13 @@ function ownerUserId(actor) {
 function officerLibraryEntry(officer) {
   const skills = {};
   for (const [k, v] of Object.entries(officer.system.skills ?? {})) skills[k] = v.value;
-  const abilities = officer.items.filter(i => i.type === "officerAbility");
+  // Signature Battle Passive / Battle Active slots count as a passive and a battle skill.
+  const sig = (slot) => officer.items.find(i => i.type === "signature" && i.system.slot === slot);
+  const asTactic = (item, kind) => item && { name: item.name, system: { ...item.system, kind } };
+  const abilities = [
+    asTactic(sig("battlePassive"), "passive"), asTactic(sig("battleActive"), "skill"),
+    ...officer.items.filter(i => i.type === "officerAbility"),
+  ].filter(Boolean);
   const effects = {};
   for (const a of abilities.filter(a => a.system.kind === "passive")) {
     for (const [k, v] of Object.entries(a.system.effects)) {

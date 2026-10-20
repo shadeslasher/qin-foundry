@@ -1,4 +1,4 @@
-import { ASPECTS, SKILLS, DOMAINS, SKILL_LEVELS, BOL_LEVELS, MAGIC_WAYS, OFFICER_ABILITY_KINDS, OFFICER_EFFECTS, UNIT_CATEGORIES, SIDES, systemPath } from "../config.mjs";
+import { ASPECTS, SKILLS, DOMAINS, SKILL_LEVELS, BOL_LEVELS, MAGIC_WAYS, OFFICER_ABILITY_KINDS, OFFICER_EFFECTS, UNIT_CATEGORIES, SIDES, SIGNATURE_SLOTS, systemPath } from "../config.mjs";
 import { actionsPerRound } from "../rules/qin-rules.mjs";
 
 const { api, sheets } = foundry.applications;
@@ -8,8 +8,10 @@ const ItemSheetBase = sheets.ItemSheet ?? sheets.ItemSheetV2;
 
 const ITEM_GROUPS = {
   weapon: "Weapons", armor: "Armor & shields", technique: "Combat techniques", tao: "Taos", magic: "Magic",
-  gift: "Gift", weakness: "Weakness", gear: "Equipment", skill: "Extra skills", officerAbility: "Officer abilities",
+  gift: "Gift", weakness: "Weakness", gear: "Equipment", skill: "Extra skills", officerAbility: "Tactics", signature: "Signature skills",
 };
+const TAO_LEVELS = { 0: "0", 1: "1", 2: "2", 3: "3", 4: "4" };
+const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
 
 /** Small tab helper: tabs switch without a re-render and survive re-renders. */
 function tabMixin(Base) {
@@ -50,6 +52,8 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
       meditate: QinActorSheetBase.#meditate,
       restChi: QinActorSheetBase.#restChi,
       toggleEquip: QinActorSheetBase.#toggleEquip,
+      signatureOpen: QinActorSheetBase.#signatureOpen,
+      addTao: QinActorSheetBase.#addTao,
     },
   };
 
@@ -78,7 +82,9 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
       aspects: Object.entries(ASPECTS).map(([key, a]) => ({ key, ...a, value: system.aspects?.[key] })),
       skillsByDomain, skillLevels: SKILL_LEVELS, bolLabels: BOL_LEVELS,
       weapons: (items.weapon || []).map(w => ({ item: w, skill: actor.getSkill(w.system.skill), ranged: w.system.isRanged })),
-      magicWays: MAGIC_WAYS, officerKinds: OFFICER_ABILITY_KINDS,
+      magicWays: MAGIC_WAYS, officerKinds: OFFICER_ABILITY_KINDS, taoLevels: TAO_LEVELS,
+      signature: Object.entries(SIGNATURE_SLOTS).map(([key, s]) => ({ key, label: s.label, item: (items.signature || []).find(i => i.system.slot === key) ?? null })),
+      taoLibrary: await QinActorSheetBase.#taoLibrary(actor),
     });
     if (system.bol?.levels) {
       context.bol = system.bol.levels.map(l => ({
@@ -88,6 +94,66 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
       }));
     }
     return context;
+  }
+
+  /** Every Tao in the system compendium, flagged if the character already knows it. */
+  static async #taoLibrary(actor) {
+    const pack = game.packs.get("qin.taos");
+    if (!pack) return [];
+    const index = await pack.getIndex();
+    const known = new Set(actor.items.filter(i => i.type === "tao").map(i => i.name));
+    return index.contents.map(e => ({ uuid: e.uuid, name: e.name, owned: known.has(e.name) })).sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  _onRender(context, options) {
+    super._onRender(context, options);
+    // Tao level selects update the embedded item directly
+    this.element.querySelectorAll("select[data-tao-level]").forEach(sel => sel.addEventListener("change", ev => {
+      ev.stopPropagation();
+      this.actor.items.get(sel.dataset.taoLevel)?.update({ "system.level": Number(sel.value) });
+    }));
+    // The library picker isn't part of the actor's data
+    this.element.querySelector(".qin-tao-choice")?.addEventListener("change", ev => ev.stopPropagation());
+  }
+
+  static async #addTao(event, target) {
+    const uuid = this.element.querySelector(".qin-tao-choice")?.value;
+    if (!uuid) return;
+    const tao = await fromUuid(uuid);
+    if (!tao) return;
+    if (this.actor.items.some(i => i.type === "tao" && i.name === tao.name)) return ui.notifications.info(`${this.actor.name} already knows ${tao.name}.`);
+    const data = tao.toObject();
+    delete data._id;
+    data.system.level = 1;
+    await this.actor.createEmbeddedDocuments("Item", [data]);
+  }
+
+  /** Show a signature skill's description, with options to change or remove it. Empty slot: create one. */
+  static async #signatureOpen(event, target) {
+    const slot = target.dataset.slot;
+    const label = SIGNATURE_SLOTS[slot]?.label ?? slot;
+    const item = this.actor.items.find(i => i.type === "signature" && i.system.slot === slot);
+    if (!item) {
+      if (!this.isEditable) return;
+      const [created] = await this.actor.createEmbeddedDocuments("Item", [{ name: `New ${label}`, type: "signature", system: { slot } }]);
+      return created?.sheet.render(true);
+    }
+    const meta = [label];
+    if (item.system.chiCost) meta.push(`${item.system.chiCost} Chi`);
+    if (item.system.moraleCost) meta.push(`${item.system.moraleCost} morale`);
+    const buttons = [{ action: "close", label: "Close", default: true }, { action: "chat", label: "Post to chat", icon: "fa-solid fa-comment" }];
+    if (this.isEditable) buttons.push({ action: "edit", label: "Change", icon: "fa-solid fa-pen" }, { action: "remove", label: "Remove", icon: "fa-solid fa-trash" });
+    const choice = await (api.Dialog ?? api.DialogV2).wait({
+      window: { title: item.name },
+      classes: ["qin", "qin-sig-popup"],
+      position: { width: 420 },
+      content: `<div class="qin-sig-meta">${esc(meta.join(" · "))}</div>${item.system.description || "<p><i>No description yet.</i></p>"}`,
+      buttons,
+      rejectClose: false,
+    });
+    if (choice === "edit") item.sheet.render(true);
+    else if (choice === "chat") item.toChat();
+    else if (choice === "remove") item.delete();
   }
 
   static async #rollAspect(event, target) {
@@ -169,7 +235,10 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
       officer, officerStats: officer ? {
         fire: officer.system.aspects.fire, command: officer.system.skills.command.value,
         skill: officer.getSkill(system.weaponSkill).value, skillLabel: SKILLS[system.weaponSkill]?.label,
-        abilities: officer.items.filter(i => i.type === "officerAbility"),
+        abilities: [
+          ...officer.items.filter(i => i.type === "signature" && SIGNATURE_SLOTS[i.system.slot]?.battle).map(i => ({ name: i.name, kindLabel: SIGNATURE_SLOTS[i.system.slot].label, moraleCost: i.system.moraleCost })),
+          ...officer.items.filter(i => i.type === "officerAbility").map(i => ({ name: i.name, kindLabel: OFFICER_ABILITY_KINDS[i.system.kind], moraleCost: i.system.moraleCost })),
+        ],
       } : null,
       officerKinds: OFFICER_ABILITY_KINDS,
       menPct: Math.min(100, Math.round(100 * system.men.value / (system.men.max || 100))),
@@ -215,6 +284,8 @@ export class QinItemSheet extends api.HandlebarsApplicationMixin(ItemSheetBase) 
       martialChoices: { any: "Any weapon", ...Object.fromEntries(Object.entries(SKILLS).filter(([, s]) => s.martial).map(([k, s]) => [k, s.label])) },
       domains: DOMAINS, magicWays: MAGIC_WAYS, officerKinds: OFFICER_ABILITY_KINDS, skillLevels: SKILL_LEVELS,
       officerEffects: Object.entries(OFFICER_EFFECTS).map(([k, e]) => ({ key: k, ...e, value: item.system.effects?.[k] })),
+      signatureSlots: Object.fromEntries(Object.entries(SIGNATURE_SLOTS).map(([k, s]) => [k, s.label])),
+      showEffects: item.type === "officerAbility" || (item.type === "signature" && item.system.slot === "battlePassive"),
     });
     return context;
   }
