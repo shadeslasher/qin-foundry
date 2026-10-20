@@ -33,7 +33,6 @@ export const SKILLS = {
   nushu: S("Nushu (crossbow)", { domain: "metal", martial: true }),
   qiangshu: S("Qiangshu (spear)", { domain: "metal", martial: true }),
   throwing: S("Throwing", { domain: "metal", martial: true }),
-  command: S("Command", { domain: "metal", homebrew: true }),
   // Physical domain (Water)
   acrobatics: S("Acrobatics", { domain: "water" }),
   craft: S("Craft", { domain: "water", spec: true }),
@@ -48,6 +47,7 @@ export const SKILLS = {
   // Social domain (Fire)
   acting: S("Acting", { domain: "fire" }),
   arts: S("Arts", { domain: "fire", spec: true }),
+  command: S("Command", { domain: "fire", homebrew: true }),
   dance: S("Dance", { domain: "fire" }),
   diplomacy: S("Diplomacy", { domain: "fire" }),
   eloquence: S("Eloquence", { domain: "fire" }),
