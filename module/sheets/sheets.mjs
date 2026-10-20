@@ -159,6 +159,23 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
         ev.dataTransfer.setData("text/plain", JSON.stringify(item.toDragData()));
       });
     });
+    // Aspect and skill rolls can be dragged to the macro bar too
+    el.querySelectorAll('a[data-action="rollAspect"][data-aspect], a[data-action="rollSkill"][data-skill]').forEach(a => {
+      if (a.dataset.qinDrag) return;
+      a.dataset.qinDrag = "1";
+      a.setAttribute("draggable", "true");
+      a.addEventListener("dragstart", ev => {
+        ev.stopPropagation();
+        const data = { type: "QinRoll", actorUuid: this.actor.uuid };
+        if (a.dataset.aspect) data.aspect = a.dataset.aspect;
+        else {
+          const key = a.dataset.skill;
+          if (SKILLS[key]) data.skill = key;
+          else { const it = this.actor.items.get(key); data.skillItem = it?.name ?? key; }
+        }
+        ev.dataTransfer.setData("text/plain", JSON.stringify(data));
+      });
+    });
     // Tao level selects update the embedded item directly
     el.querySelectorAll("select[data-tao-level]").forEach(sel => sel.addEventListener("change", ev => {
       ev.stopPropagation();

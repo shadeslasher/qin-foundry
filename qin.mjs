@@ -152,7 +152,39 @@ async function rollItemMacro(name, uuid) {
   if (!item.isOwner) return ui.notifications.warn(`You don't own ${item.parent?.name ?? "that character"}.`);
   return item.use();
 }
-Hooks.once("init", () => { game.qin.rollItemMacro = rollItemMacro; });
+/** Aspect or skill Test from the macro bar: the selected token's character, else the one it was dragged from. */
+async function rollTestMacro({ actorUuid, aspect, skill, skillItem }) {
+  const tok = canvas?.tokens?.controlled?.find(t => t.actor && t.actor.type !== "unit" && t.actor.isOwner);
+  const actor = tok?.actor ?? (actorUuid ? await fromUuid(actorUuid) : null);
+  if (!actor) return ui.notifications.warn("Select a token first.");
+  if (!actor.isOwner) return ui.notifications.warn(`You don't own ${actor.name}.`);
+  if (aspect) return actor.rollTest({ aspect });
+  let key = skill, domain = CFG.SKILLS[skill]?.domain;
+  if (!key && skillItem) {
+    const it = actor.items.find(i => i.type === "skill" && i.name === skillItem);
+    if (!it) return ui.notifications.warn(`${actor.name} has no "${skillItem}" skill.`);
+    key = it.id; domain = it.system.domain;
+  }
+  domain ??= "metal";
+  return actor.rollTest({ aspect: domain, skill: key, physical: domain === "water" });
+}
+Hooks.once("init", () => { game.qin.rollItemMacro = rollItemMacro; game.qin.rollTestMacro = rollTestMacro; });
+Hooks.on("hotbarDrop", (bar, data, slot) => {
+  if (data?.type !== "QinRoll") return;
+  (async () => {
+    const actor = data.actorUuid ? fromUuidSync(data.actorUuid) : null;
+    const label = data.aspect ? `${CFG.ASPECTS[data.aspect]?.label ?? data.aspect} Test`
+      : data.skill ? (CFG.SKILLS[data.skill]?.label ?? data.skill) : data.skillItem;
+    const payload = { actorUuid: data.actorUuid, aspect: data.aspect, skill: data.skill, skillItem: data.skillItem };
+    const command = `game.qin.rollTestMacro(${JSON.stringify(payload)});`;
+    let macro = game.macros.find(m => m.command === command && m.isOwner);
+    macro ??= await CONFIG.Macro.documentClass.create({
+      name: label, type: "script", img: data.aspect ? "icons/svg/d10-grey.svg" : "icons/svg/book.svg", command, flags: { qin: { rollMacro: true, actor: actor?.name } },
+    });
+    await game.user.assignHotbarMacro(macro, slot);
+  })();
+  return false;
+});
 Hooks.on("hotbarDrop", (bar, data, slot) => {
   if (data?.type !== "Item" || !data.uuid) return;
   const item = fromUuidSync(data.uuid);
