@@ -1,0 +1,32 @@
+{
+  "_id": "xact1aX2wpZOFrr3",
+  "_key": "!items!xact1aX2wpZOFrr3",
+  "name": "Mystification",
+  "type": "technique",
+  "img": "icons/svg/sword.svg",
+  "system": {
+    "skill": "any",
+    "skillLevel": 1,
+    "stIncrease": 1,
+    "kind": "close",
+    "roll": "attack",
+    "description": "<p>Spend several actions on one attack and add a Yin/Yang Die per action. Yang-over-Yin damage doesn't apply; double bonuses do.</p><p><b>Available:</b> Bangshu 3, Daoshu 2, Jianshu 4, Qiangshu 4</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "_id": "BgTy0ip2xN1prknR",
+  "_key": "!items!BgTy0ip2xN1prknR",
+  "name": "Feint",
+  "type": "technique",
+  "img": "icons/svg/sword.svg",
+  "system": {
+    "skill": "any",
+    "skillLevel": 1,
+    "stIncrease": 2,
+    "kind": "close",
+    "roll": "defense",
+    "description": "<p>Active Defense at +2 ST against one foe; on success, subtract the margin from their Passive Defense on your next attack.</p><p><b>Available:</b> Daoshu 2, Jianshu 2</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

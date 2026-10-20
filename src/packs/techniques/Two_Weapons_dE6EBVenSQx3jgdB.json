@@ -1,0 +1,32 @@
+{
+  "_id": "dE6EBVenSQx3jgdB",
+  "_key": "!items!dE6EBVenSQx3jgdB",
+  "name": "Two Weapons",
+  "type": "technique",
+  "img": "icons/svg/sword.svg",
+  "system": {
+    "skill": "any",
+    "skillLevel": 1,
+    "stIncrease": 1,
+    "kind": "close",
+    "roll": "attack",
+    "description": "<p>With two identical weapons: +1 Passive Defense and +1 Active Defense this exchange; attacks are +1 ST.</p><p><b>Available:</b> Daoshu 1, Dunshu 4, Jianshu 4</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

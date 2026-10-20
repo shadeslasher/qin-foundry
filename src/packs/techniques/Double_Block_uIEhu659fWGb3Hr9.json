@@ -1,0 +1,32 @@
+{
+  "_id": "uIEhu659fWGb3Hr9",
+  "_key": "!items!uIEhu659fWGb3Hr9",
+  "name": "Double Block",
+  "type": "technique",
+  "img": "icons/svg/sword.svg",
+  "system": {
+    "skill": "any",
+    "skillLevel": 1,
+    "stIncrease": 1,
+    "kind": "close",
+    "roll": "defense",
+    "description": "<p>Block two blows in one exchange with one Active Defense: +1 ST for the first, +2 for the second.</p><p><b>Available:</b> Bangshu 3, Daoshu 2, Dunshu 3, Jianshu 2, Qiangshu 2</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

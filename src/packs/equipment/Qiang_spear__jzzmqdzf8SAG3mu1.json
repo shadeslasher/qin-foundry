@@ -1,0 +1,38 @@
+{
+  "_id": "jzzmqdzf8SAG3mu1",
+  "_key": "!items!jzzmqdzf8SAG3mu1",
+  "name": "Qiang (spear)",
+  "type": "weapon",
+  "img": "icons/svg/sword.svg",
+  "system": {
+    "skill": "qiangshu",
+    "damage": 3,
+    "resilience": 9,
+    "range": {
+      "c": 0,
+      "m": 0,
+      "l": 0,
+      "e": 0
+    },
+    "price": 60,
+    "equipped": true,
+    "description": ""
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

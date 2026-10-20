@@ -1,0 +1,27 @@
+{
+  "_id": "1THjcWk9rAcyXiVD",
+  "_key": "!items!1THjcWk9rAcyXiVD",
+  "name": "Impetuosity of the Horse",
+  "type": "weakness",
+  "img": "icons/svg/skull.svg",
+  "system": {
+    "description": "<p>Hot-blooded. Once per session the GM can force a Meditation reroll.</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

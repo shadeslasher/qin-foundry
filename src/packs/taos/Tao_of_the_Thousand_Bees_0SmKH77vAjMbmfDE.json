@@ -1,0 +1,35 @@
+{
+  "_id": "0SmKH77vAjMbmfDE",
+  "_key": "!items!0SmKH77vAjMbmfDE",
+  "name": "Tao of the Thousand Bees",
+  "type": "tao",
+  "img": "icons/svg/aura.svg",
+  "system": {
+    "key": "thousandBees",
+    "level": 1,
+    "effects": {
+      "l1": "Throw: throw any held object up to Metal pounds, 1 damage.",
+      "l2": "Propel: launch an object within reach up to Metal ×3 pounds, 2 damage; catch thrown everyday objects (Water + Dodging).",
+      "l3": "Wall of missiles: throw Water small objects at one target in one Attack Test, damage = objects; catch thrown weapons.",
+      "l4": "Whirlwind of missiles: Water ×2 objects split among several targets; catch Water objects."
+    },
+    "description": "<p>Turn everyday objects into missiles (Metal + Throwing vs Passive Defense, range Metal ×3 yards).</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

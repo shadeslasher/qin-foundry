@@ -1,0 +1,32 @@
+{
+  "_id": "Akwu796LqEZld2Ax",
+  "_key": "!items!Akwu796LqEZld2Ax",
+  "name": "Ricochet",
+  "type": "technique",
+  "img": "icons/svg/sword.svg",
+  "system": {
+    "skill": "any",
+    "skillLevel": 1,
+    "stIncrease": 2,
+    "kind": "distance",
+    "roll": "attack",
+    "description": "<p>Bounce a shot to hit a target out of sight or in cover; cover bonus −2.</p><p><b>Available:</b> Gongshu 4, Nushu 4, short thrown 2, long thrown 4</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

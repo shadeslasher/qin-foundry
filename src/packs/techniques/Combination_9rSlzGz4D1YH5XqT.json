@@ -1,0 +1,32 @@
+{
+  "_id": "9rSlzGz4D1YH5XqT",
+  "_key": "!items!9rSlzGz4D1YH5XqT",
+  "name": "Combination",
+  "type": "technique",
+  "img": "icons/svg/sword.svg",
+  "system": {
+    "skill": "any",
+    "skillLevel": 1,
+    "stIncrease": 2,
+    "kind": "close",
+    "roll": "attack",
+    "description": "<p>Combine two different Techniques in one action (+2 ST on top of theirs).</p><p><b>Available:</b> Bangshu 3, Hand-to-Hand 4, Chuishu 4, Daoshu 3, Jianshu 4, Qiangshu 4</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

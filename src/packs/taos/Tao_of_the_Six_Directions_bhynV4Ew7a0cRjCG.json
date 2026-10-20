@@ -1,0 +1,35 @@
+{
+  "_id": "bhynV4Ew7a0cRjCG",
+  "_key": "!items!bhynV4Ew7a0cRjCG",
+  "name": "Tao of the Six Directions",
+  "type": "tao",
+  "img": "icons/svg/aura.svg",
+  "system": {
+    "key": "sixDirections",
+    "level": 1,
+    "effects": {
+      "l1": "Run/long jump: add a horizontal move up to Water yards to an action.",
+      "l2": "Run/long jump up to Water ×2 yards; defy gravity: run up a wall up to Water yards.",
+      "l3": "Run/long jump up to Water ×3; wall-run up to Water ×2; jump up or drop down Water yards with no run-up or fall damage.",
+      "l4": "Run/long jump up to Water ×4; wall-run up to Water ×3; jump up/drop down Water ×2 yards."
+    },
+    "description": "<p>Combine a movement with another action (move-and-strike, leaps, wall-running) on solid, stable ground.</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

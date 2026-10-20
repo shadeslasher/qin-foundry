@@ -1,0 +1,35 @@
+{
+  "_id": "B3fAXvHUrgRYbkVg",
+  "_key": "!items!B3fAXvHUrgRYbkVg",
+  "name": "Tao of the Clear Mind",
+  "type": "tao",
+  "img": "icons/svg/aura.svg",
+  "system": {
+    "key": "clearMind",
+    "level": 1,
+    "effects": {
+      "l1": "Sharp mind: +2 to Tests with mental-domain Skills.",
+      "l2": "Tranquil mind: ignore distractions and discomfort for Tao-level minutes.",
+      "l3": "Library of the mind: perfectly memorize a text, speech or scene for Wood months.",
+      "l4": "Visionary mind: + Water to reasoning Tests (puzzles, connecting facts)."
+    },
+    "description": "<p>Concentration for scholars and thinkers.</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

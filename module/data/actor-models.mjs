@@ -1,0 +1,147 @@
+import { SKILLS, ASPECTS } from "../config.mjs";
+import * as Q from "../rules/qin-rules.mjs";
+
+const fields = foundry.data.fields;
+const int = (initial = 0, opts = {}) => new fields.NumberField({ required: true, nullable: false, integer: true, initial, ...opts });
+
+function aspectsSchema(initial = 2) {
+  const s = {};
+  for (const k of Object.keys(ASPECTS)) s[k] = int(initial, { min: 0, max: 10 });
+  return new fields.SchemaField(s);
+}
+function skillsSchema() {
+  const s = {};
+  for (const k of Object.keys(SKILLS)) {
+    s[k] = new fields.SchemaField({ value: int(0, { min: 0, max: 6 }), spec: new fields.StringField({ initial: "" }) });
+  }
+  return new fields.SchemaField(s);
+}
+
+/** Collects skill levels from built-in skills plus extra "skill" items. */
+function allSkillLevels(system, items) {
+  const levels = Object.values(system.skills).map(s => s.value);
+  for (const i of items ?? []) if (i.type === "skill") levels.push(i.system.value);
+  return levels;
+}
+
+/** Shared by characters (PCs and VIP NPCs) and henchmen. */
+class QinBaseActor extends foundry.abstract.TypeDataModel {
+  static defineSchema() {
+    return {
+      aspects: aspectsSchema(2),
+      skills: skillsSchema(),
+      biography: new fields.HTMLField({ initial: "" }),
+      notes: new fields.HTMLField({ initial: "" }),
+      pdBonus: int(0),
+    };
+  }
+
+  prepareDerivedData() {
+    const a = this.aspects;
+    const items = this.parent?.items ?? [];
+    this.balance = Q.balance(a);
+    this.resistance = Q.resistance(a);
+    this.passiveDefense = Q.passiveDefense(a) + (this.pdBonus || 0);
+    // Armor: best equipped protection (shields add their defense bonus separately)
+    let protection = 0, defenseBonus = 0;
+    for (const i of items) {
+      if (i.type !== "armor" || !i.system.equipped) continue;
+      protection = Math.max(protection, i.system.protection);
+      defenseBonus += i.system.defenseBonus || 0;
+    }
+    this.armor = { protection, defenseBonus, movementPenalty: Q.armorPenalty(protection, a.metal) };
+    this.bestSkill = Math.max(0, ...allSkillLevels(this, items));
+  }
+}
+
+export class CharacterData extends QinBaseActor {
+  static defineSchema() {
+    return {
+      ...super.defineSchema(),
+      details: new fields.SchemaField({
+        state: new fields.StringField({ initial: "" }),
+        characterType: new fields.StringField({ initial: "" }),
+        tier: new fields.StringField({ initial: "" }),
+        title: new fields.StringField({ initial: "" }),
+      }),
+      chi: new fields.SchemaField({ value: int(0), bonus: int(0) }),
+      bol: new fields.SchemaField({
+        damage: int(0, { min: 0 }),
+        override: new fields.ArrayField(int(0, { min: 0 }), { initial: [0, 0, 0, 0, 0] }),
+      }),
+      renown: int(0, { min: 0 }),
+      experience: new fields.SchemaField({ value: int(0), total: int(0) }),
+      deeds: new fields.HTMLField({ initial: "" }),
+    };
+  }
+
+  prepareDerivedData() {
+    super.prepareDerivedData();
+    const items = this.parent?.items ?? [];
+    this.chi.max = Q.chiMax(this.aspects, this.bestSkill) + (this.chi.bonus || 0);
+    const sb = items.find(i => i.type === "tao" && i.system.key === "strengthenedBody");
+    const dist = Q.bolDistribution(this.aspects, { strengthenedBody: sb?.system.level ?? 0, override: this.bol.override });
+    const st = Q.bolState(dist, this.bol.damage);
+    this.bol.levels = st.levels;
+    this.bol.total = st.total;
+    this.bol.remaining = st.remaining;
+    this.bol.current = st.current;
+    this.bol.penalty = st.penalty;
+    this.bol.coma = st.coma;
+    this.bol.dead = st.dead;
+    this.penalty = st.penalty;
+  }
+}
+
+/** Henchmen: no Chi, no Breath of Life. Out of action when one blow exceeds Resistance. */
+export class HenchmanData extends QinBaseActor {
+  static defineSchema() {
+    return {
+      ...super.defineSchema(),
+      outOfAction: new fields.BooleanField({ initial: false }),
+      count: int(1, { min: 1 }),
+    };
+  }
+  prepareDerivedData() {
+    super.prepareDerivedData();
+    this.penalty = 0;
+  }
+}
+
+/** A battlefield unit: 100 soldiers of one type, optionally led by an officer. */
+export class UnitData extends foundry.abstract.TypeDataModel {
+  static defineSchema() {
+    return {
+      side: new fields.StringField({ initial: "player", choices: ["player", "enemy", "ally"] }),
+      faction: new fields.StringField({ initial: "" }),
+      tier: int(1, { min: 1 }),
+      category: new fields.StringField({ initial: "infantry", choices: ["infantry", "cavalry", "ranged"] }),
+      weapon: new fields.StringField({ initial: "melee", choices: ["melee", "ranged"] }),
+      weaponSkill: new fields.StringField({ initial: "qiangshu" }),
+      unitValue: int(1),
+      damage: int(5),
+      defense: int(3),
+      move: int(4, { min: 0 }),
+      rangeMin: int(1, { min: 0 }),
+      rangeMax: int(1, { min: 0 }),
+      formations: new fields.StringField({ initial: "" }), // comma list of allowed formation ids; blank = all
+      men: new fields.SchemaField({ value: int(100, { min: 0 }), max: int(100, { min: 1 }) }),
+      morale: int(50, { min: 0, max: 100 }),
+      formation: new fields.StringField({ initial: "none" }),
+      hidden: new fields.BooleanField({ initial: false }),
+      status: new fields.StringField({ initial: "active", choices: ["active", "defeated", "surrendered"] }),
+      officer: new fields.StringField({ initial: "" }), // UUID of a character actor
+      traits: new fields.HTMLField({ initial: "" }),
+    };
+  }
+
+  get officerActor() {
+    if (!this.officer) return null;
+    try { return fromUuidSync(this.officer) ?? null; } catch { return null; }
+  }
+
+  prepareDerivedData() {
+    const m = this.morale;
+    this.moraleState = m <= 0 ? "Surrendered" : m <= 25 ? "Demoralized" : m >= 75 ? "Encouraged" : "Neutral";
+  }
+}

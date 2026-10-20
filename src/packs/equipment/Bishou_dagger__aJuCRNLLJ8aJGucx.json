@@ -1,0 +1,38 @@
+{
+  "_id": "aJuCRNLLJ8aJGucx",
+  "_key": "!items!aJuCRNLLJ8aJGucx",
+  "name": "Bishou (dagger)",
+  "type": "weapon",
+  "img": "icons/svg/sword.svg",
+  "system": {
+    "skill": "daoshu",
+    "damage": 1,
+    "resilience": 5,
+    "range": {
+      "c": 0,
+      "m": 0,
+      "l": 0,
+      "e": 0
+    },
+    "price": 15,
+    "equipped": true,
+    "description": ""
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

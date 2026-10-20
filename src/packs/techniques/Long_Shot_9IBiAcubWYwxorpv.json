@@ -1,0 +1,32 @@
+{
+  "_id": "9IBiAcubWYwxorpv",
+  "_key": "!items!9IBiAcubWYwxorpv",
+  "name": "Long Shot",
+  "type": "technique",
+  "img": "icons/svg/sword.svg",
+  "system": {
+    "skill": "any",
+    "skillLevel": 1,
+    "stIncrease": 1,
+    "kind": "distance",
+    "roll": "attack",
+    "description": "<p>No penalty at long or extreme range.</p><p><b>Available:</b> Gongshu 2, Nushu 1, short thrown 3, long thrown 3</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

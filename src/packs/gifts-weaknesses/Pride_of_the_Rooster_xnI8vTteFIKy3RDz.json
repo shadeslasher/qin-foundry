@@ -1,0 +1,27 @@
+{
+  "_id": "xnI8vTteFIKy3RDz",
+  "_key": "!items!xnI8vTteFIKy3RDz",
+  "name": "Pride of the Rooster",
+  "type": "weakness",
+  "img": "icons/svg/skull.svg",
+  "system": {
+    "description": "<p>Boastful, never refuses a challenge, patronizing.</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

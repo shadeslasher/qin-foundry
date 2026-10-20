@@ -1,0 +1,12 @@
+<div class="qin-chat qin-roll {{#if dice.critFail}}crit-fail{{/if}} {{#if dice.double}}double{{/if}}">
+  <h3>{{title}}</h3>
+  <div class="qin-dice"><span class="die yin" title="Yin">{{dice.yin}}</span><span class="die yang" title="Yang">{{dice.yang}}</span></div>
+  <ul class="qin-parts">{{#each parts}}<li><span>{{this.[0]}}</span><span>{{this.[1]}}</span></li>{{/each}}</ul>
+  <div class="qin-total">Total <b>{{total}}</b>{{#if st}} vs ST {{st}}{{/if}}</div>
+  {{#if dice.critFail}}<div class="qin-result fail">Critical failure (double zero) — −5 Chi</div>
+  {{else if (eq success true)}}<div class="qin-result ok">Success{{#if margin}} — margin {{margin}}{{/if}}</div>
+  {{else if (eq success false)}}<div class="qin-result fail">Failure</div>{{/if}}
+  {{#if dice.chiGain}}{{#if isCharacter}}<div class="qin-muted">Double {{dice.value}}: regained up to {{dice.chiGain}} Chi</div>{{/if}}{{/if}}
+  {{{extra}}}
+  {{#if buttons.length}}<div class="qin-buttons">{{#each buttons}}<button type="button" data-qin-action="{{action}}" data-type="{{type}}">{{label}}</button>{{/each}}</div>{{/if}}
+</div>

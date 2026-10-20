@@ -1,0 +1,32 @@
+{
+  "_id": "jJLuk4a5Ror3DwwC",
+  "_key": "!items!jJLuk4a5Ror3DwwC",
+  "name": "Total Block",
+  "type": "technique",
+  "img": "icons/svg/sword.svg",
+  "system": {
+    "skill": "any",
+    "skillLevel": 1,
+    "stIncrease": 1,
+    "kind": "close",
+    "roll": "other",
+    "description": "<p>Declare before initiative; Metal + Skill vs ST 7. Add the margin to Active Defense and to the ST of your attacks while held.</p><p><b>Available:</b> Bangshu 2, Chuishu 3, Daoshu 3, Dunshu 1, Jianshu 1, Qiangshu 3</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

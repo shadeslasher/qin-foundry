@@ -1,0 +1,32 @@
+{
+  "_id": "FiLsJ79pDPhi0tZX",
+  "_key": "!items!FiLsJ79pDPhi0tZX",
+  "name": "Masterstroke",
+  "type": "technique",
+  "img": "icons/svg/sword.svg",
+  "system": {
+    "skill": "any",
+    "skillLevel": 1,
+    "stIncrease": 1,
+    "kind": "distance",
+    "roll": "attack",
+    "description": "<p>Aim at a chosen point without spending aim actions; hitting a chink reduces armor by 2.</p><p><b>Available:</b> Gongshu 3, Nushu 3, short thrown 2, long thrown 1</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

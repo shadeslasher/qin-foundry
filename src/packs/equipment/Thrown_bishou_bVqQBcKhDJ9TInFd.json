@@ -1,0 +1,38 @@
+{
+  "_id": "bVqQBcKhDJ9TInFd",
+  "_key": "!items!bVqQBcKhDJ9TInFd",
+  "name": "Thrown bishou",
+  "type": "weapon",
+  "img": "icons/svg/target.svg",
+  "system": {
+    "skill": "throwing",
+    "damage": 1,
+    "resilience": 5,
+    "range": {
+      "c": 5,
+      "m": 10,
+      "l": 15,
+      "e": 20
+    },
+    "price": 15,
+    "equipped": true,
+    "description": ""
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

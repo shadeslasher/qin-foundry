@@ -1,0 +1,35 @@
+{
+  "_id": "VyPzMPscEGcSA9Ya",
+  "_key": "!items!VyPzMPscEGcSA9Ya",
+  "name": "Tao of the Strengthened Body",
+  "type": "tao",
+  "img": "icons/svg/aura.svg",
+  "system": {
+    "key": "strengthenedBody",
+    "level": 1,
+    "effects": {
+      "l1": "Cloak of Chi: ignore heat to 70°C and cold to −40°C for Tao-level hours. +2 Normal boxes.",
+      "l2": "Feel no pain: ignore injury penalties for Tao-level rounds. +2 Normal boxes.",
+      "l3": "Cleanse the blood: + Earth to Resistance Tests vs disease and poison; sense which it is. +2 Bruised boxes.",
+      "l4": "Hard hide: subtract Metal from damage of every hit for Tao-level rounds. +2 Slightly Injured boxes."
+    },
+    "description": "<p>Natural body armor and resilience. Extra Breath of Life boxes are added automatically by this system from this Tao's level.</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

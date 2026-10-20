@@ -1,0 +1,27 @@
+{
+  "_id": "JrTDIod369n9Qudb",
+  "_key": "!items!JrTDIod369n9Qudb",
+  "name": "Memory of the Zhongguo",
+  "type": "gift",
+  "img": "icons/svg/sun.svg",
+  "system": {
+    "description": "<p>Pick History, Legends or Heraldry. Once per session, reroll a Test with it.</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

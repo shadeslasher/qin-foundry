@@ -1,0 +1,56 @@
+<div class="qin-wrap">
+  <header class="qin-header">
+    <img class="qin-portrait" src="{{actor.img}}" data-action="editImage" data-edit="img" title="{{actor.name}}">
+    <div class="qin-head-main">
+      <input class="qin-name" name="name" type="text" value="{{actor.name}}" placeholder="Name">
+      <p class="qin-muted">Henchman: no Chi, no Breath of Life. Out of action when one blow's damage exceeds Resistance. Main skill Competent, three minor skills Apprentice, one combat technique.</p>
+    </div>
+  </header>
+  <section class="qin-aspects">
+    {{#each aspects}}
+    <div class="qin-aspect qin-aspect-{{key}}">
+      <a class="qin-aspect-label" data-action="rollAspect" data-aspect="{{key}}">{{label}}</a>
+      <input type="number" name="system.aspects.{{key}}" value="{{value}}" min="0" max="10">
+    </div>
+    {{/each}}
+  </section>
+  <section class="qin-derived">
+    <div class="qin-stat"><span>Passive Defense</span><b>{{system.passiveDefense}}</b></div>
+    <div class="qin-stat"><span>Resistance</span><b>{{system.resistance}}</b></div>
+    <div class="qin-stat"><span>Armor</span><b>{{system.armor.protection}}</b></div>
+    <div class="qin-stat"><span>Group size</span><input type="number" name="system.count" value="{{system.count}}" min="1"></div>
+    <div class="qin-stat"><span>Out of action</span><input type="checkbox" name="system.outOfAction" {{checked system.outOfAction}}></div>
+  </section>
+  <nav class="qin-tabs"><a data-tab="skills">Skills</a><a data-tab="combat">Combat</a><a data-tab="bio">Notes</a></nav>
+  <div class="qin-body">
+    <section class="qin-tab" data-tab="skills">
+      <div class="qin-skill-grid">
+        {{#each skillsByDomain}}
+        <div class="qin-domain"><h3>{{label}}</h3>
+          {{#each skills}}
+          <div class="qin-skill {{#if value}}known{{/if}}">
+            <a data-action="rollSkill" data-skill="{{key}}">{{label}}{{#if complex}}*{{/if}}</a>
+            <select name="system.skills.{{key}}.value">{{selectOptions ../../skillLevels selected=value}}</select>
+          </div>
+          {{/each}}
+        </div>
+        {{/each}}
+      </div>
+    </section>
+    <section class="qin-tab" data-tab="combat">
+      <h3>Weapons <a data-action="itemCreate" data-type="weapon"><i class="fa-solid fa-plus"></i></a></h3>
+      <ul class="qin-list">
+        {{#each weapons}}
+        <li data-item-id="{{item.id}}"><a data-action="itemUse"><i class="fa-solid fa-dice-d10"></i> {{item.name}}</a> <span class="qin-muted">{{skill.label}} {{skill.value}} · dmg {{item.system.damage}}</span>
+          <span class="qin-controls"><a data-action="itemEdit"><i class="fa-solid fa-pen"></i></a><a data-action="itemDelete"><i class="fa-solid fa-trash"></i></a></span></li>
+        {{/each}}
+      </ul>
+      <h3>Armor <a data-action="itemCreate" data-type="armor"><i class="fa-solid fa-plus"></i></a></h3>
+      <ul class="qin-list">{{#each items.armor}}<li data-item-id="{{id}}"><a data-action="toggleEquip"><i class="fa-{{#if system.equipped}}solid{{else}}regular{{/if}} fa-square-check"></i></a> {{name}} <span class="qin-muted">protection {{system.protection}}</span><span class="qin-controls"><a data-action="itemEdit"><i class="fa-solid fa-pen"></i></a><a data-action="itemDelete"><i class="fa-solid fa-trash"></i></a></span></li>{{/each}}</ul>
+      <h3>Technique <a data-action="itemCreate" data-type="technique"><i class="fa-solid fa-plus"></i></a></h3>
+      <ul class="qin-list">{{#each items.technique}}<li data-item-id="{{id}}"><a data-action="itemChat">{{name}}</a><span class="qin-controls"><a data-action="itemEdit"><i class="fa-solid fa-pen"></i></a><a data-action="itemDelete"><i class="fa-solid fa-trash"></i></a></span></li>{{/each}}</ul>
+      <p class="qin-muted">Group attacks: roll once for the group and add +1 per extra henchman in the Modifier box.</p>
+    </section>
+    <section class="qin-tab" data-tab="bio"><textarea name="system.notes" rows="12">{{system.notes}}</textarea></section>
+  </div>
+</div>

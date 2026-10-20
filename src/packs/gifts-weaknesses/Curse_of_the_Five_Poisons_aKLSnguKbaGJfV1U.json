@@ -1,0 +1,27 @@
+{
+  "_id": "aKLSnguKbaGJfV1U",
+  "_key": "!items!aKLSnguKbaGJfV1U",
+  "name": "Curse of the Five Poisons",
+  "type": "weakness",
+  "img": "icons/svg/skull.svg",
+  "system": {
+    "description": "<p>Needs ten hours of sleep or suffers +1 ST to all actions.</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

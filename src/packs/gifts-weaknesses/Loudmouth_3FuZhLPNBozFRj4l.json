@@ -1,0 +1,27 @@
+{
+  "_id": "3FuZhLPNBozFRj4l",
+  "_key": "!items!3FuZhLPNBozFRj4l",
+  "name": "Loudmouth",
+  "type": "weakness",
+  "img": "icons/svg/skull.svg",
+  "system": {
+    "description": "<p>Once per session the GM can force a reroll of Eloquence or Diplomacy.</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

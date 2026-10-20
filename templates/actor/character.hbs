@@ -1,0 +1,176 @@
+<div class="qin-wrap">
+  <header class="qin-header">
+    <img class="qin-portrait" src="{{actor.img}}" data-action="editImage" data-edit="img" title="{{actor.name}}">
+    <div class="qin-head-main">
+      <input class="qin-name" name="name" type="text" value="{{actor.name}}" placeholder="Name">
+      <div class="qin-details">
+        <label>State <input name="system.details.state" type="text" value="{{system.details.state}}"></label>
+        <label>Type <input name="system.details.characterType" type="text" value="{{system.details.characterType}}"></label>
+        <label>Tier <input name="system.details.tier" type="text" value="{{system.details.tier}}"></label>
+        <label>Title <input name="system.details.title" type="text" value="{{system.details.title}}"></label>
+      </div>
+    </div>
+  </header>
+
+  <section class="qin-aspects">
+    {{#each aspects}}
+    <div class="qin-aspect qin-aspect-{{key}}">
+      <a class="qin-aspect-label" data-action="rollAspect" data-aspect="{{key}}" title="{{trait}} — click to roll">{{label}}</a>
+      <input type="number" name="system.aspects.{{key}}" value="{{value}}" min="0" max="10">
+    </div>
+    {{/each}}
+  </section>
+
+  <section class="qin-derived">
+    <div class="qin-stat"><span>Chi</span>
+      <div class="qin-chi"><input type="number" name="system.chi.value" value="{{system.chi.value}}"> / {{system.chi.max}}</div>
+      <div class="qin-mini"><a data-action="meditate">Meditate</a> · <a data-action="restChi">Sleep</a></div>
+    </div>
+    <div class="qin-stat"><span>Passive Defense</span><b>{{system.passiveDefense}}</b></div>
+    <div class="qin-stat"><span>Resistance</span><b>{{system.resistance}}</b></div>
+    <div class="qin-stat"><span>Balance</span><b>{{system.balance}}</b></div>
+    <div class="qin-stat"><span>Armor</span><b>{{system.armor.protection}}</b>{{#if system.armor.movementPenalty}}<small>move −{{system.armor.movementPenalty}}</small>{{/if}}</div>
+    <div class="qin-stat"><span>Renown</span><input type="number" name="system.renown" value="{{system.renown}}"></div>
+    <div class="qin-stat"><span>Experience</span><input type="number" name="system.experience.value" value="{{system.experience.value}}"></div>
+  </section>
+
+  <section class="qin-bol">
+    <div class="qin-bol-head"><b>Breath of Life</b> {{system.bol.remaining}} / {{system.bol.total}}
+      {{#if system.penalty}}<span class="qin-penalty">−{{system.penalty}} to all Tests</span>{{/if}}
+      {{#if system.bol.dead}}<span class="qin-penalty">Dead</span>{{else if system.bol.coma}}<span class="qin-penalty">Coma</span>{{/if}}
+      <label class="qin-dmg">Damage <input type="number" name="system.bol.damage" value="{{system.bol.damage}}" min="0"></label>
+    </div>
+    <div class="qin-bol-levels">
+      {{#each bol}}
+      <div class="qin-bol-level"><span class="qin-bol-label">{{label}}{{#if penalty}} (−{{penalty}}){{/if}}</span>
+        <span class="qin-boxes">{{#each boxes}}<a class="qin-box {{#if filled}}filled{{/if}}" data-action="bolBox" data-n="{{add ../offset index}}"></a>{{/each}}</span>
+      </div>
+      {{/each}}
+    </div>
+  </section>
+
+  <nav class="qin-tabs">
+    <a data-tab="skills">Skills</a><a data-tab="combat">Combat</a><a data-tab="taos">Taos &amp; Magic</a>
+    <a data-tab="officer">Officer</a><a data-tab="gear">Gifts &amp; Gear</a><a data-tab="bio">Biography</a>
+  </nav>
+
+  <div class="qin-body">
+    <section class="qin-tab" data-tab="skills">
+      <p class="qin-muted">Click a skill to roll it. Skills marked * need Apprentice to attempt.</p>
+      <div class="qin-skill-grid">
+        {{#each skillsByDomain}}
+        <div class="qin-domain">
+          <h3>{{label}}</h3>
+          {{#each skills}}
+          <div class="qin-skill {{#if value}}known{{/if}}">
+            <a data-action="rollSkill" data-skill="{{key}}">{{label}}{{#if complex}}*{{/if}}{{#if homebrew}} †{{/if}}</a>
+            {{#if needsSpec}}<input class="qin-spec" type="text" name="system.skills.{{key}}.spec" value="{{spec}}" placeholder="specialty">{{/if}}
+            <select name="system.skills.{{key}}.value" data-dtype="Number">{{selectOptions ../../skillLevels selected=value}}</select>
+          </div>
+          {{/each}}
+          {{#each extra}}
+          <div class="qin-skill known" data-item-id="{{id}}">
+            <a data-action="rollSkill" data-skill="{{id}}">{{name}}</a>
+            <span class="qin-lvl">{{system.value}}</span>
+            <a data-action="itemEdit" title="Edit"><i class="fa-solid fa-pen"></i></a>
+          </div>
+          {{/each}}
+        </div>
+        {{/each}}
+      </div>
+      <p><a data-action="itemCreate" data-type="skill"><i class="fa-solid fa-plus"></i> Add a second instance of a skill (e.g. another Craft or Language)</a></p>
+      <p class="qin-muted">† campaign homebrew skill</p>
+    </section>
+
+    <section class="qin-tab" data-tab="combat">
+      <h3>Weapons <a data-action="itemCreate" data-type="weapon" title="Add"><i class="fa-solid fa-plus"></i></a></h3>
+      <table class="qin-table">
+        <thead><tr><th>Weapon</th><th>Skill</th><th>Actions/round</th><th>Dmg</th><th>Res</th><th>Range C/M/L/E</th><th></th></tr></thead>
+        <tbody>
+        {{#each weapons}}
+        <tr data-item-id="{{item.id}}">
+          <td><a data-action="itemUse" title="Attack"><i class="fa-solid fa-dice-d10"></i> {{item.name}}</a></td>
+          <td>{{skill.label}} ({{skill.value}})</td><td>{{add skill.value 1}}</td>
+          <td>{{item.system.damage}}</td><td>{{item.system.resilience}}</td>
+          <td>{{#if ranged}}{{item.system.range.c}}/{{item.system.range.m}}/{{item.system.range.l}}/{{item.system.range.e}}{{else}}—{{/if}}</td>
+          <td class="qin-controls"><a data-action="itemEdit"><i class="fa-solid fa-pen"></i></a><a data-action="itemDelete"><i class="fa-solid fa-trash"></i></a></td>
+        </tr>
+        {{/each}}
+        </tbody>
+      </table>
+      <p class="qin-muted">Target an enemy token before attacking to roll against its Passive Defense.</p>
+
+      <h3>Armor &amp; shields <a data-action="itemCreate" data-type="armor"><i class="fa-solid fa-plus"></i></a></h3>
+      <ul class="qin-list">
+        {{#each items.armor}}
+        <li data-item-id="{{id}}"><a data-action="toggleEquip" title="Equip"><i class="fa-{{#if system.equipped}}solid{{else}}regular{{/if}} fa-square-check"></i></a>
+          {{name}} <span class="qin-muted">protection {{system.protection}}{{#if system.defenseBonus}}, defense +{{system.defenseBonus}}{{/if}}</span>
+          <span class="qin-controls"><a data-action="itemEdit"><i class="fa-solid fa-pen"></i></a><a data-action="itemDelete"><i class="fa-solid fa-trash"></i></a></span></li>
+        {{/each}}
+      </ul>
+
+      <h3>Combat techniques <a data-action="itemCreate" data-type="technique"><i class="fa-solid fa-plus"></i></a></h3>
+      <ul class="qin-list">
+        {{#each items.technique}}
+        <li data-item-id="{{id}}"><a data-action="itemChat">{{name}}</a> <span class="qin-muted">ST +{{system.stIncrease}}</span>
+          <span class="qin-controls"><a data-action="itemEdit"><i class="fa-solid fa-pen"></i></a><a data-action="itemDelete"><i class="fa-solid fa-trash"></i></a></span></li>
+        {{/each}}
+      </ul>
+    </section>
+
+    <section class="qin-tab" data-tab="taos">
+      <h3>Taos <a data-action="itemCreate" data-type="tao"><i class="fa-solid fa-plus"></i></a></h3>
+      <ul class="qin-list">
+        {{#each items.tao}}
+        <li data-item-id="{{id}}"><a data-action="itemUse" title="Use (spend Chi)"><i class="fa-solid fa-yin-yang"></i> {{name}}</a> <span class="qin-muted">Level {{system.level}}</span>
+          <span class="qin-controls"><a data-action="itemEdit"><i class="fa-solid fa-pen"></i></a><a data-action="itemDelete"><i class="fa-solid fa-trash"></i></a></span></li>
+        {{/each}}
+      </ul>
+      <h3>Magic <a data-action="itemCreate" data-type="magic"><i class="fa-solid fa-plus"></i></a></h3>
+      <ul class="qin-list">
+        {{#each items.magic}}
+        <li data-item-id="{{id}}"><a data-action="itemUse"><i class="fa-solid fa-scroll"></i> {{name}}</a>
+          <span class="qin-muted">{{lookup ../magicWays system.way}} {{system.skillLevel}} · {{system.chiCost}} Chi{{#if system.prepST}} · ST {{system.prepST}}{{/if}}</span>
+          <span class="qin-controls"><a data-action="itemEdit"><i class="fa-solid fa-pen"></i></a><a data-action="itemDelete"><i class="fa-solid fa-trash"></i></a></span></li>
+        {{/each}}
+      </ul>
+      <p class="qin-muted">Inner strength: add up to Earth ({{system.aspects.earth}}) to any Test for 2 Chi per point, chosen in the roll dialog.</p>
+    </section>
+
+    <section class="qin-tab" data-tab="officer">
+      <p class="qin-muted">Battlefield abilities used when this character leads a unit. The unit uses this character's Fire, Command skill and weapon skill.</p>
+      <h3>Officer abilities <a data-action="itemCreate" data-type="officerAbility"><i class="fa-solid fa-plus"></i></a></h3>
+      <ul class="qin-list">
+        {{#each items.officerAbility}}
+        <li data-item-id="{{id}}"><a data-action="itemChat">{{name}}</a> <span class="qin-muted">{{lookup ../officerKinds system.kind}}{{#if system.moraleCost}} · {{system.moraleCost}} morale{{/if}}</span>
+          <span class="qin-controls"><a data-action="itemEdit"><i class="fa-solid fa-pen"></i></a><a data-action="itemDelete"><i class="fa-solid fa-trash"></i></a></span></li>
+        {{/each}}
+      </ul>
+    </section>
+
+    <section class="qin-tab" data-tab="gear">
+      <h3>Gift <a data-action="itemCreate" data-type="gift"><i class="fa-solid fa-plus"></i></a></h3>
+      <ul class="qin-list">{{#each items.gift}}<li data-item-id="{{id}}"><a data-action="itemChat">{{name}}</a><span class="qin-controls"><a data-action="itemEdit"><i class="fa-solid fa-pen"></i></a><a data-action="itemDelete"><i class="fa-solid fa-trash"></i></a></span></li>{{/each}}</ul>
+      <h3>Weakness <a data-action="itemCreate" data-type="weakness"><i class="fa-solid fa-plus"></i></a></h3>
+      <ul class="qin-list">{{#each items.weakness}}<li data-item-id="{{id}}"><a data-action="itemChat">{{name}}</a><span class="qin-controls"><a data-action="itemEdit"><i class="fa-solid fa-pen"></i></a><a data-action="itemDelete"><i class="fa-solid fa-trash"></i></a></span></li>{{/each}}</ul>
+      <h3>Equipment <a data-action="itemCreate" data-type="gear"><i class="fa-solid fa-plus"></i></a></h3>
+      <ul class="qin-list">{{#each items.gear}}<li data-item-id="{{id}}">{{name}} <span class="qin-muted">×{{system.quantity}}</span><span class="qin-controls"><a data-action="itemEdit"><i class="fa-solid fa-pen"></i></a><a data-action="itemDelete"><i class="fa-solid fa-trash"></i></a></span></li>{{/each}}</ul>
+      <h3>Breath of Life override</h3>
+      <p class="qin-muted">For creatures or special NPCs: boxes per level (0 = automatic).</p>
+      <div class="qin-override">
+        {{#each system.bol.override}}<input type="number" name="system.bol.override.{{@index}}" value="{{this}}" min="0">{{/each}}
+      </div>
+      <label>Extra Chi <input type="number" name="system.chi.bonus" value="{{system.chi.bonus}}"></label>
+      <label>Passive Defense bonus <input type="number" name="system.pdBonus" value="{{system.pdBonus}}"></label>
+    </section>
+
+    <section class="qin-tab" data-tab="bio">
+      <h3>Defining deeds</h3>
+      <textarea name="system.deeds" rows="5">{{system.deeds}}</textarea>
+      <h3>Biography</h3>
+      <textarea name="system.biography" rows="10">{{system.biography}}</textarea>
+      <h3>Notes</h3>
+      <textarea name="system.notes" rows="5">{{system.notes}}</textarea>
+    </section>
+  </div>
+</div>

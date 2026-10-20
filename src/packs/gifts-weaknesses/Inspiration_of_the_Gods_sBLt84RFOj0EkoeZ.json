@@ -1,0 +1,27 @@
+{
+  "_id": "sBLt84RFOj0EkoeZ",
+  "_key": "!items!sBLt84RFOj0EkoeZ",
+  "name": "Inspiration of the Gods",
+  "type": "gift",
+  "img": "icons/svg/sun.svg",
+  "system": {
+    "description": "<p>Pick an artistic Skill. Once per session, reroll a Test with it.</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

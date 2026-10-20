@@ -1,0 +1,35 @@
+{
+  "_id": "nu0f3XXiqB1udjAc",
+  "_key": "!items!nu0f3XXiqB1udjAc",
+  "name": "Tao of the Serene Presence",
+  "type": "tao",
+  "img": "icons/svg/aura.svg",
+  "system": {
+    "key": "serenePresence",
+    "level": 1,
+    "effects": {
+      "l1": "Mask of serenity: for Fire hours, + Tao level to Tests to please or win confidence.",
+      "l2": "Behind the mask: + Tao level to Empathy and Tests to read a person.",
+      "l3": "Mask of terror: for Fire hours, + Tao level to Tests to impress or unsettle (Intimidation etc.).",
+      "l4": "The mirror: + Earth to detect and resist manipulation, lies, seduction and intimidation."
+    },
+    "description": "<p>Social influence and reading people.</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

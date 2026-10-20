@@ -1,0 +1,32 @@
+{
+  "_id": "TJugByDL7PmrBtuK",
+  "_key": "!items!TJugByDL7PmrBtuK",
+  "name": "Trap",
+  "type": "technique",
+  "img": "icons/svg/sword.svg",
+  "system": {
+    "skill": "any",
+    "skillLevel": 1,
+    "stIncrease": 1,
+    "kind": "close",
+    "roll": "attack",
+    "description": "<p>Trap the opponent's weapon. They escape by letting go or a Water opposition; you can hold, release, try to break it (Metal vs Resilience) or act with the margin as a bonus. A trapped foe acts after you.</p><p><b>Available:</b> Bangshu —, Hand-to-Hand 2, Dunshu 1, Jianshu 1</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

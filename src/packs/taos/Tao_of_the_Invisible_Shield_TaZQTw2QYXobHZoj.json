@@ -1,0 +1,35 @@
+{
+  "_id": "TaZQTw2QYXobHZoj",
+  "_key": "!items!TaZQTw2QYXobHZoj",
+  "name": "Tao of the Invisible Shield",
+  "type": "tao",
+  "img": "icons/svg/aura.svg",
+  "system": {
+    "key": "invisibleShield",
+    "level": 1,
+    "effects": {
+      "l1": "Strong defense: reduce a blow's damage by Tao level (paid in Chi).",
+      "l2": "Chi defense: + Tao level to Passive Defense for this exchange (paid in Chi).",
+      "l3": "Strong block: + Wood to an Active Defense Test.",
+      "l4": "Chi block: a free Active Defense even with no actions left; can stack with another Tao or Technique."
+    },
+    "description": "<p>Harder to hit and to hurt.</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

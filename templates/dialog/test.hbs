@@ -1,0 +1,9 @@
+<div class="qin-dialog">
+  <div class="form-group"><label>Aspect</label><select name="aspect">{{#each aspects}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></div>
+  <div class="form-group"><label>Skill</label><select name="skill">{{#each skills}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></div>
+  <div class="form-group"><label>Success Threshold</label><input type="number" name="st" value="{{o.st}}" placeholder="optional"></div>
+  <div class="form-group"><label>Modifier</label><input type="number" name="modifier" value="{{o.modifier}}"></div>
+  {{#if isCharacter}}<div class="form-group"><label>Inner strength (max {{earth}}, 2 Chi each)</label><input type="number" name="inner" value="0" min="0" max="{{earth}}"></div>{{/if}}
+  <div class="form-group"><label>Physical action (armor penalty)</label><input type="checkbox" name="physical" {{#if o.physical}}checked{{/if}}></div>
+  <p class="qin-muted">Common STs: Easy 5, Average 6, Difficult 9, Very difficult 11, Heroic 13, Legendary 15.</p>
+</div>

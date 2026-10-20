@@ -1,0 +1,32 @@
+{
+  "_id": "qcxZev7J3TlmcWYJ",
+  "_key": "!items!qcxZev7J3TlmcWYJ",
+  "name": "Double Blow",
+  "type": "technique",
+  "img": "icons/svg/sword.svg",
+  "system": {
+    "skill": "any",
+    "skillLevel": 1,
+    "stIncrease": 1,
+    "kind": "close",
+    "roll": "attack",
+    "description": "<p>Two strikes in one action: +1 then +2 ST; damage −1 then −2 (minimum 1).</p><p><b>Available:</b> Bangshu 1, Jianshu 3, Qiangshu 2</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "_id": "U4MPXcT5aGxBonwX",
+  "_key": "!items!U4MPXcT5aGxBonwX",
+  "name": "Strike Through",
+  "type": "technique",
+  "img": "icons/svg/sword.svg",
+  "system": {
+    "skill": "any",
+    "skillLevel": 1,
+    "stIncrease": 2,
+    "kind": "distance",
+    "roll": "attack",
+    "description": "<p>One shot hits two targets in line (second within Metal yards behind, −3 damage).</p><p><b>Available:</b> Gongshu 4, Nushu 3, long thrown 3</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

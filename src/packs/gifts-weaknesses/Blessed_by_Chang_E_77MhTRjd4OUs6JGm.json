@@ -1,0 +1,27 @@
+{
+  "_id": "77MhTRjd4OUs6JGm",
+  "_key": "!items!77MhTRjd4OUs6JGm",
+  "name": "Blessed by Chang-E",
+  "type": "weakness",
+  "img": "icons/svg/skull.svg",
+  "system": {
+    "description": "<p>Falls in love easily and often; never keeps a lasting relationship.</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

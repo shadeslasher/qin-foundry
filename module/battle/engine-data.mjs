@@ -1,0 +1,113 @@
+// Default rules data. Everything here is editable in-game by the host
+// (Library panel), and saved with each session.
+
+const TERRAIN = {
+  flat: { name: 'Flat', passable: true, cover: 0 },
+  grass: { name: 'Tall grass', passable: true, cover: 2 }, // hidden; seen within 2 tiles (20 ft)
+  trees: { name: 'Trees', passable: true, cover: 4 },      // hidden; seen within 4 tiles (40 ft)
+  impassable: { name: 'Impassable', passable: false, cover: 0 },
+};
+
+// Formation fields (all optional, default 0/false):
+//   moveMod        added to the unit's movement
+//   immobile       unit cannot move
+//   vsAttack       added to the ATTACKER's roll when this unit is attacked (any attack)
+//   vsMelee        added to the attacker's roll for melee attacks against this unit
+//   vsRanged       added to the attacker's roll for ranged attacks against this unit
+//   vsCharge       replaces vsMelee when the attack is a cavalry charge
+//   defFront       added to THIS unit's roll when defending against attacks from the front
+//   chargeBonus    added to this unit's roll when it makes a cavalry charge
+//   dmgMod         added to this unit's damage value
+//   noRear         this unit cannot be attacked in the rear
+const FORMATIONS = [
+  { id: 'none', name: 'No formation', desc: 'No modifiers.' },
+  { id: 'loose', name: 'Loose', vsRanged: -3, vsMelee: 1, vsCharge: 2,
+    desc: 'Missile attacks against this unit -3. Melee attacks against it +1. Cavalry charges against it +2.' },
+  { id: 'diamond', name: 'Diamond', moveMod: -2, chargeBonus: 2,
+    desc: 'Movement -2. +2 to its roll when it makes a cavalry charge.' },
+  { id: 'wedge', name: 'Wedge', vsAttack: 2, chargeBonus: 4,
+    desc: 'Enemy attacks against this unit +2. +4 to its roll when it makes a cavalry charge.' },
+  { id: 'circle', name: 'Circle', immobile: true, vsAttack: -3, dmgMod: -2, noRear: true,
+    desc: 'Cannot move. Enemy attacks -3. Deals -2 damage. Cannot be attacked in the rear.' },
+  { id: 'hollow_square', name: 'Hollowed Square', immobile: true, vsAttack: -2, vsCharge: -2, dmgMod: -2, noRear: true,
+    desc: 'Cannot move. Enemy attacks -2; cavalry charges -4 in total. Deals -2 damage. Cannot be attacked in the rear.' },
+  { id: 'shield_wall', name: 'Shield Wall', moveMod: -1, defFront: 2,
+    desc: 'Movement -1. +2 when defending against melee and ranged attacks from the front.' },
+  { id: 'spear_wall', name: 'Spear Wall', desc: 'PLACEHOLDER: effects not set yet. Edit in Library > Formations.' },
+  { id: 'turtle', name: 'Turtle', desc: 'PLACEHOLDER: effects not set yet. Edit in Library > Formations.' },
+];
+
+// Unit types. Damage and Defense come from the v1.9 compendium (Dmg, Armor).
+// Unit Value and movement are PLACEHOLDERS until the stat sheets are done.
+// category: infantry | cavalry | ranged.  weapon: melee | ranged.
+// skill: the officer weapon skill used for Skill Value in the combat roll.
+const ALL = FORMATIONS.map(f => f.id);
+function ut(id, name, faction, tier, category, weapon, skill, damage, defense, extra) {
+  const base = {
+    id, name, faction, tier, category, weapon, skill, damage, defense,
+    unitValue: tier,
+    move: category === 'cavalry' ? 6 : 4,
+    rangeMin: weapon === 'ranged' ? 2 : 1,
+    rangeMax: weapon === 'ranged' ? 3 : 1,
+    formations: ALL,
+  };
+  return Object.assign(base, extra || {});
+}
+const UNIT_TYPES = [
+  // Han infantry
+  ut('han_peasant_spear', 'Peasant Spearmen', 'Han', 1, 'infantry', 'melee', 'Qiangshu', 5, 0),
+  ut('han_ji_militia', 'Ji Militia', 'Han', 1, 'infantry', 'melee', 'Qiangshu', 5, 3),
+  ut('han_ji_inf', 'Ji Infantry', 'Han', 2, 'infantry', 'melee', 'Qiangshu', 6, 3),
+  ut('han_sabre_inf', 'Sabre Infantry', 'Han', 2, 'infantry', 'melee', 'Jianshu', 6, 3),
+  ut('han_spear_guard', 'Spear Guards', 'Han', 2, 'infantry', 'melee', 'Qiangshu', 6, 3),
+  ut('han_heavy_ji', 'Heavy Ji Infantry', 'Han', 3, 'infantry', 'melee', 'Qiangshu', 7, 4),
+  ut('han_heavy_spear', 'Heavy Spear Guards', 'Han', 3, 'infantry', 'melee', 'Qiangshu', 6, 4),
+  ut('han_protectors', 'Protectors of Heaven', 'Han', 4, 'infantry', 'melee', 'Qiangshu', 8, 5),
+  // Han cavalry
+  ut('han_lancer_cav', 'Lancer Cavalry', 'Han', 2, 'cavalry', 'melee', 'Qiangshu', 6, 3),
+  ut('han_sabre_cav', 'Sabre Cavalry', 'Han', 2, 'cavalry', 'melee', 'Jianshu', 6, 3),
+  ut('han_cataphracts', 'Cataphracts', 'Han', 3, 'cavalry', 'melee', 'Qiangshu', 6, 4),
+  ut('han_heavy_cataphracts', 'Heavy Cataphracts', 'Han', 4, 'cavalry', 'melee', 'Qiangshu', 7, 5),
+  // Han ranged
+  ut('han_archers', 'Archers', 'Han', 2, 'ranged', 'ranged', 'Gongshu', 3, 2),
+  ut('han_crossbow', 'Crossbowmen', 'Han', 2, 'ranged', 'ranged', 'Nushu', 5, 3, { rangeMax: 4 }),
+  ut('han_heavy_crossbow', 'Heavy Crossbowmen', 'Han', 3, 'ranged', 'ranged', 'Nushu', 5, 4, { rangeMax: 4 }),
+  ut('han_mounted_archers', 'Mounted Archers', 'Han', 3, 'cavalry', 'ranged', 'Gongshu', 3, 2, { move: 6 }),
+  // Yellow Turbans
+  ut('yt_warriors', 'Yellow Turban Warriors', 'Yellow Turban', 2, 'infantry', 'melee', 'Jianshu', 6, 3),
+  ut('yt_spearmen', 'Yellow Turban Spearmen', 'Yellow Turban', 2, 'infantry', 'melee', 'Qiangshu', 6, 3),
+  ut('yt_cavalry', 'Yellow Turban Cavalry', 'Yellow Turban', 2, 'cavalry', 'melee', 'Qiangshu', 6, 3),
+  ut('yt_archers', 'Yellow Turban Archers', 'Yellow Turban', 2, 'ranged', 'ranged', 'Gongshu', 3, 2),
+  // Bandits
+  ut('bandit_axe', 'Bandit Warriors (Axe)', 'Bandits', 1, 'infantry', 'melee', 'Qiangshu', 6, 2),
+  ut('bandit_white_tiger', 'White Tiger Warriors', 'Bandits', 2, 'infantry', 'melee', 'Qiangshu', 7, 1),
+  ut('bandit_hunters', 'Bandit Hunters (Bow)', 'Bandits', 2, 'ranged', 'ranged', 'Gongshu', 4, 1),
+];
+
+// Officers. Fire, Command and weapon skills come from the v2.0 character sheets.
+// passive.effects supports: ignoreMoralePenalty, noRearAgainst, moveBonus (n),
+// chargeAttackBonus (n), extraMoraleLossOnWin (n), ignoreEncirclement.
+const OFFICERS = [
+  { id: 'xu_chu', name: 'Xu Chu', fire: 3, command: 3,
+    skills: { Bangshu: 5 },
+    passive: { name: 'Tiger Guard', text: 'Bodyguard. Apply manually for now.', effects: {} },
+    skill: { name: "Tiger's Gate", moraleCost: 20,
+      text: 'Once per round: adjacent allies gain +2 on melee defense; once, take casualties for an adjacent ally.' },
+    heroicActions: [], battleArt: null },
+  { id: 'han_dang', name: 'Han Dang', fire: 3, command: 4,
+    skills: { Gongshu: 5, Jianshu: 4 },
+    passive: { name: 'Old Wu Veteran', text: 'This unit ignores all roll penalties from morale state.',
+      effects: { ignoreMoralePenalty: true } },
+    skill: { name: 'Steady the Line', moraleCost: 20,
+      text: 'Until next activation, adjacent allied units gain +1 to defending rolls; once, prevent a -10 formation-break penalty.' },
+    heroicActions: [], battleArt: null },
+  { id: 'wen_ping', name: 'Wen Ping', fire: 3, command: 4,
+    skills: { Qiangshu: 4 },
+    passive: { name: 'Unyielding Defender', text: 'Enemy units gain no rear attack bonus against this unit.',
+      effects: { noRearAgainst: true } },
+    skill: { name: 'Hold the Ford!', moraleCost: 20,
+      text: "Until next activation, this unit and adjacent allies gain +1 on defending; enemies gain no rear-attack bonus against this unit." },
+    heroicActions: [], battleArt: null },
+];
+
+export { TERRAIN, FORMATIONS, UNIT_TYPES, OFFICERS };

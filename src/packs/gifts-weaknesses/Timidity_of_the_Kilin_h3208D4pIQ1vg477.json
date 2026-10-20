@@ -1,0 +1,27 @@
+{
+  "_id": "h3208D4pIQ1vg477",
+  "_key": "!items!h3208D4pIQ1vg477",
+  "name": "Timidity of the Kilin",
+  "type": "weakness",
+  "img": "icons/svg/skull.svg",
+  "system": {
+    "description": "<p>Shy. Once per session the GM can force a Seduction or Intimidation reroll.</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

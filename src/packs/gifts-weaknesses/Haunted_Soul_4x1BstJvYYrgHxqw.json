@@ -1,0 +1,27 @@
+{
+  "_id": "4x1BstJvYYrgHxqw",
+  "_key": "!items!4x1BstJvYYrgHxqw",
+  "name": "Haunted Soul",
+  "type": "weakness",
+  "img": "icons/svg/skull.svg",
+  "system": {
+    "description": "<p>A ghost disturbs their sleep: Chi and Breath of Life recover at half rate.</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

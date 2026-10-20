@@ -1,0 +1,35 @@
+{
+  "_id": "9pvgVRs230NDVTUK",
+  "_key": "!items!9pvgVRs230NDVTUK",
+  "name": "Tao of the Hidden Shadow",
+  "type": "tao",
+  "img": "icons/svg/aura.svg",
+  "system": {
+    "key": "hiddenShadow",
+    "level": 1,
+    "effects": {
+      "l1": "Dark veil: + Fire to Stealth while still and partly hidden.",
+      "l2": "Secret veil: hide Tao-level small objects on the body; searches don't find them.",
+      "l3": "Path of shadows: + Fire to Stealth while moving unseen; always use Stealth for combined Tests.",
+      "l4": "Path of ghosts: + Fire to Stealth on any subtle action, including attacking; always use Stealth."
+    },
+    "description": "<p>Hide presence and objects.</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

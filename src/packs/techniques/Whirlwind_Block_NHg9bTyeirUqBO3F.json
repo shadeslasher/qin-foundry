@@ -1,0 +1,32 @@
+{
+  "_id": "NHg9bTyeirUqBO3F",
+  "_key": "!items!NHg9bTyeirUqBO3F",
+  "name": "Whirlwind Block",
+  "type": "technique",
+  "img": "icons/svg/sword.svg",
+  "system": {
+    "skill": "any",
+    "skillLevel": 1,
+    "stIncrease": 2,
+    "kind": "close",
+    "roll": "defense",
+    "description": "<p>Block at +2 ST; if it works, counter-attack in the same action at +2 ST and −2 damage. No other attack that exchange.</p><p><b>Available:</b> Bangshu 2, Hand-to-Hand 4, Jianshu 3, Qiangshu 3</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

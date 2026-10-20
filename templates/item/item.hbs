@@ -1,0 +1,82 @@
+<div class="qin-wrap qin-item">
+  <header class="qin-header">
+    <img class="qin-portrait small" src="{{item.img}}" data-action="editImage" data-edit="img">
+    <div class="qin-head-main">
+      <input class="qin-name" name="name" type="text" value="{{item.name}}">
+      <span class="qin-muted">{{type}}</span>
+    </div>
+  </header>
+  <div class="qin-grid3">
+  {{#if (eq type "weapon")}}
+    <label>Skill <select name="system.skill">{{selectOptions martialChoices selected=system.skill}}</select></label>
+    <label>Damage <input type="number" name="system.damage" value="{{system.damage}}"></label>
+    <label>Resilience <input type="number" name="system.resilience" value="{{system.resilience}}"></label>
+    <label>Range: close <input type="number" name="system.range.c" value="{{system.range.c}}"></label>
+    <label>medium <input type="number" name="system.range.m" value="{{system.range.m}}"></label>
+    <label>long <input type="number" name="system.range.l" value="{{system.range.l}}"></label>
+    <label>extreme <input type="number" name="system.range.e" value="{{system.range.e}}"></label>
+    <label>Price <input type="number" name="system.price" value="{{system.price}}"></label>
+    <label class="qin-inline"><input type="checkbox" name="system.equipped" {{checked system.equipped}}> Equipped</label>
+  {{else if (eq type "armor")}}
+    <label>Protection <input type="number" name="system.protection" value="{{system.protection}}"></label>
+    <label>Resilience <input type="number" name="system.resilience" value="{{system.resilience}}"></label>
+    <label>Active Defense bonus <input type="number" name="system.defenseBonus" value="{{system.defenseBonus}}"></label>
+    <label>Price <input type="number" name="system.price" value="{{system.price}}"></label>
+    <label class="qin-inline"><input type="checkbox" name="system.equipped" {{checked system.equipped}}> Equipped</label>
+  {{else if (eq type "tao")}}
+    <label>Level known <input type="number" name="system.level" value="{{system.level}}" min="0" max="6"></label>
+    <label>Key <input type="text" name="system.key" value="{{system.key}}" placeholder="e.g. strengthenedBody"></label>
+  {{else if (eq type "technique")}}
+    <label>Skill <select name="system.skill">{{selectOptions martialChoices selected=system.skill}}</select></label>
+    <label>Skill level needed <select name="system.skillLevel">{{selectOptions skillLevels selected=system.skillLevel}}</select></label>
+    <label>ST increase <input type="number" name="system.stIncrease" value="{{system.stIncrease}}"></label>
+    <label>Used on <select name="system.roll">{{selectOptions (qinObj attack="Attack" defense="Active Defense" other="Other") selected=system.roll}}</select></label>
+    <label>Range <select name="system.kind">{{selectOptions (qinObj close="Close combat" distance="Distance") selected=system.kind}}</select></label>
+  {{else if (eq type "magic")}}
+    <label>Way <select name="system.way">{{selectOptions magicWays selected=system.way}}</select></label>
+    <label>Skill level <select name="system.skillLevel">{{selectOptions skillLevels selected=system.skillLevel}}</select></label>
+    <label>Chi cost <input type="number" name="system.chiCost" value="{{system.chiCost}}"></label>
+    <label>Preparation ST (0 = no Test) <input type="number" name="system.prepST" value="{{system.prepST}}"></label>
+    <label>Preparation time <input type="text" name="system.prepTime" value="{{system.prepTime}}"></label>
+    <label>Duration <input type="text" name="system.duration" value="{{system.duration}}"></label>
+    <label>Area <input type="text" name="system.area" value="{{system.area}}"></label>
+    <label>Improvements <input type="text" name="system.improvements" value="{{system.improvements}}"></label>
+  {{else if (eq type "skill")}}
+    <label>Domain <select name="system.domain">{{selectOptions domains selected=system.domain}}</select></label>
+    <label>Level <select name="system.value">{{selectOptions skillLevels selected=system.value}}</select></label>
+    <label class="qin-inline"><input type="checkbox" name="system.complex" {{checked system.complex}}> Needs Apprentice (*)</label>
+    <label class="qin-inline"><input type="checkbox" name="system.martial" {{checked system.martial}}> Fighting skill</label>
+  {{else if (eq type "gear")}}
+    <label>Quantity <input type="number" name="system.quantity" value="{{system.quantity}}"></label>
+    <label>Price <input type="number" name="system.price" value="{{system.price}}"></label>
+  {{else if (eq type "officerAbility")}}
+    <label>Kind <select name="system.kind">{{selectOptions officerKinds selected=system.kind}}</select></label>
+    <label>Morale cost <input type="number" name="system.moraleCost" value="{{system.moraleCost}}"></label>
+  {{/if}}
+  </div>
+
+  {{#if (eq type "tao")}}
+  <h3>Effects by level</h3>
+  <label>Level 1 <textarea name="system.effects.l1" rows="2">{{system.effects.l1}}</textarea></label>
+  <label>Level 2 <textarea name="system.effects.l2" rows="2">{{system.effects.l2}}</textarea></label>
+  <label>Level 3 <textarea name="system.effects.l3" rows="2">{{system.effects.l3}}</textarea></label>
+  <label>Level 4 <textarea name="system.effects.l4" rows="2">{{system.effects.l4}}</textarea></label>
+  {{/if}}
+
+  {{#if (eq type "officerAbility")}}
+  <h3>Automated battlefield effects</h3>
+  <p class="qin-muted">Used by the battle system when this officer leads a unit. Anything else is applied by hand.</p>
+  <div class="qin-grid2">
+    {{#each officerEffects}}
+    {{#if (eq type "boolean")}}
+      <label class="qin-inline"><input type="checkbox" name="system.effects.{{key}}" {{checked value}}> {{label}}</label>
+    {{else}}
+      <label>{{label}} <input type="number" name="system.effects.{{key}}" value="{{value}}"></label>
+    {{/if}}
+    {{/each}}
+  </div>
+  {{/if}}
+
+  <h3>Description</h3>
+  <textarea name="system.description" rows="8">{{system.description}}</textarea>
+</div>

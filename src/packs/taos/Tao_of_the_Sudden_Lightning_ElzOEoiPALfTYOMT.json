@@ -1,0 +1,35 @@
+{
+  "_id": "ElzOEoiPALfTYOMT",
+  "_key": "!items!ElzOEoiPALfTYOMT",
+  "name": "Tao of the Sudden Lightning",
+  "type": "tao",
+  "img": "icons/svg/aura.svg",
+  "system": {
+    "key": "suddenLightning",
+    "level": 1,
+    "effects": {
+      "l1": "Vigilance: cannot be surprised for Wood hours.",
+      "l2": "Speed: + Tao level to an Initiative Test (paid in Chi).",
+      "l3": "Jump start: after winning initiative, use two actions in the first exchange.",
+      "l4": "First move: act first in an exchange even without winning initiative."
+    },
+    "description": "<p>Anticipate danger and seize the initiative.</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

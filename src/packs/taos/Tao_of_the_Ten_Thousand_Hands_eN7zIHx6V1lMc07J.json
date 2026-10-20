@@ -1,0 +1,35 @@
+{
+  "_id": "eN7zIHx6V1lMc07J",
+  "_key": "!items!eN7zIHx6V1lMc07J",
+  "name": "Tao of the Ten Thousand Hands",
+  "type": "tao",
+  "img": "icons/svg/aura.svg",
+  "system": {
+    "key": "tenThousandHands",
+    "level": 1,
+    "effects": {
+      "l1": "Second hand: a non-attack, non-move second action (draw, aim, use a skill).",
+      "l2": "Second breath: the second action may be a move, enhanced by Six Directions or Light Step.",
+      "l3": "Second strike: the second action may be an unarmed attack.",
+      "l4": "Second blade: the second action may be a strike or block with an off-hand weapon or shield."
+    },
+    "description": "<p>Chain a second action straight after the first, before anyone reacts. The second action can't carry other Tao effects unless stated.</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

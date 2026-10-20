@@ -1,0 +1,35 @@
+{
+  "_id": "QgzNQ6HmnGa0DYth",
+  "_key": "!items!QgzNQ6HmnGa0DYth",
+  "name": "Tao of the Destructive Breath",
+  "type": "tao",
+  "img": "icons/svg/aura.svg",
+  "system": {
+    "key": "destructiveBreath",
+    "level": 1,
+    "effects": {
+      "l1": "Gentle breeze: destroy a chair-sized wooden object.",
+      "l2": "Sudden gust: destroy doors, scaffolding, beams.",
+      "l3": "Sudden quake: destroy large stone objects; lower effects work on stone.",
+      "l4": "Scourge of steel: destroy anvil-sized metal objects; lower effects work on metal."
+    },
+    "description": "<p>Shatter objects and structures by striking their weak point. Any level: + Tao level damage (paid in Chi). Adds Tao level to Metal Tests to break a weapon held with Trap.</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "_id": "UPrS8alplPCBisZM",
+  "_key": "!items!UPrS8alplPCBisZM",
+  "name": "Spirit of Horses",
+  "type": "gift",
+  "img": "icons/svg/sun.svg",
+  "system": {
+    "description": "<p>Once per session, reroll a Horsemanship Test.</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

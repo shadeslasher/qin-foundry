@@ -1,0 +1,32 @@
+{
+  "_id": "15vNdFP2IGlxjdHo",
+  "_key": "!items!15vNdFP2IGlxjdHo",
+  "name": "Throw",
+  "type": "technique",
+  "img": "icons/svg/sword.svg",
+  "system": {
+    "skill": "any",
+    "skillLevel": 1,
+    "stIncrease": 1,
+    "kind": "close",
+    "roll": "attack",
+    "description": "<p>The target falls without damage and can't use Active Defense until it spends an action to get up.</p><p><b>Available:</b> Hand-to-Hand 1</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "_id": "lyY3VbFuZzLlDwic",
+  "_key": "!items!lyY3VbFuZzLlDwic",
+  "name": "Gift of Nezha",
+  "type": "gift",
+  "img": "icons/svg/sun.svg",
+  "system": {
+    "description": "<p>Weak-hand penalty is −1 instead of −3.</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

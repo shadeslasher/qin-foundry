@@ -1,0 +1,35 @@
+{
+  "_id": "e6nLGcGT1F2Yw9hk",
+  "_key": "!items!e6nLGcGT1F2Yw9hk",
+  "name": "Tao of the Light Step",
+  "type": "tao",
+  "img": "icons/svg/aura.svg",
+  "system": {
+    "key": "lightStep",
+    "level": 1,
+    "effects": {
+      "l1": "Sure-footed: ignore difficult-terrain penalties for Water minutes.",
+      "l2": "Rock steady: stand, fight and hold any position on a narrow (4 in.) solid surface.",
+      "l3": "Tip toe: same on ropes or cloth 1–2 in. wide.",
+      "l4": "Perfect balance: balance on a single point (spear tip, bamboo tip) and act normally."
+    },
+    "description": "<p>Perfect balance on difficult or narrow surfaces. Not movement by itself. Any level: bonus equal to Tao level (paid in Chi) to avoid falling.</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

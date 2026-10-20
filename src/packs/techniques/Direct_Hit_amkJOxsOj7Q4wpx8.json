@@ -1,0 +1,32 @@
+{
+  "_id": "amkJOxsOj7Q4wpx8",
+  "_key": "!items!amkJOxsOj7Q4wpx8",
+  "name": "Direct Hit",
+  "type": "technique",
+  "img": "icons/svg/sword.svg",
+  "system": {
+    "skill": "any",
+    "skillLevel": 1,
+    "stIncrease": 1,
+    "kind": "close",
+    "roll": "attack",
+    "description": "<p>Strike a weak point: the target's armor counts 2 less (can reach 0).</p><p><b>Available:</b> Hand-to-Hand 3, Daoshu 1, Jianshu 1, Qiangshu 3</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

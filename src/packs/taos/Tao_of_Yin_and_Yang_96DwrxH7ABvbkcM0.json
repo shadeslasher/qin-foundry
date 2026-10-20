@@ -1,0 +1,35 @@
+{
+  "_id": "96DwrxH7ABvbkcM0",
+  "_key": "!items!96DwrxH7ABvbkcM0",
+  "name": "Tao of Yin and Yang",
+  "type": "tao",
+  "img": "icons/svg/aura.svg",
+  "system": {
+    "key": "yinYang",
+    "level": 1,
+    "effects": {
+      "l1": "Stroke of luck: move the Yin OR Yang die by 1 (an artificial double gives no double effects).",
+      "l2": "Controller of energy: swap the Yin and Yang results.",
+      "l3": "Controller of flow: move BOTH dice by 1 each.",
+      "l4": "Master of energy: reroll one die and keep either result."
+    },
+    "description": "<p>Bend the dice after rolling. Can't create a critical success or cancel a double zero. May be used after seeing the roll.</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

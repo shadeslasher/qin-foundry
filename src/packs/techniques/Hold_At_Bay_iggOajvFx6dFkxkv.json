@@ -1,0 +1,32 @@
+{
+  "_id": "iggOajvFx6dFkxkv",
+  "_key": "!items!iggOajvFx6dFkxkv",
+  "name": "Hold At Bay",
+  "type": "technique",
+  "img": "icons/svg/sword.svg",
+  "system": {
+    "skill": "any",
+    "skillLevel": 1,
+    "stIncrease": 1,
+    "kind": "close",
+    "roll": "other",
+    "description": "<p>Metal + Skill vs ST 5 (+1 per extra foe): the margin is added to attackers' ST; failed attackers take your weapon's damage. Ends when you act.</p><p><b>Available:</b> Bangshu 1, Chuishu 2, Jianshu 4, Qiangshu 1</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

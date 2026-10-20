@@ -1,0 +1,27 @@
+{
+  "_id": "3oFVmLmiPtxI6Ulh",
+  "_key": "!items!3oFVmLmiPtxI6Ulh",
+  "name": "Audacity of the Phoenix",
+  "type": "gift",
+  "img": "icons/svg/sun.svg",
+  "system": {
+    "description": "<p>Once per session, reroll any Test of ST 11 or more, but you must keep the second result.</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

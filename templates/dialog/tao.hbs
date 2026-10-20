@@ -1,0 +1,6 @@
+<div class="qin-dialog">
+  <p>Spend Chi equal to the effect's level.</p>
+  {{#each levels}}
+  <label class="qin-radio"><input type="radio" name="level" value="{{level}}" {{#if @first}}checked{{/if}}> <b>Level {{level}}</b> ({{level}} Chi): {{text}}</label>
+  {{/each}}
+</div>

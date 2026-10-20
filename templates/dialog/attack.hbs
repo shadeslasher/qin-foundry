@@ -1,0 +1,11 @@
+<div class="qin-dialog">
+  <p><b>{{weapon.name}}</b> — damage {{weapon.system.damage}}{{#if target}} · target <b>{{target.name}}</b>{{/if}}</p>
+  <div class="form-group"><label>Target Passive Defense</label><input type="number" name="pd" value="{{targetPD}}" placeholder="unknown"></div>
+  <div class="form-group"><label>Technique</label><select name="technique"><option value="">— none —</option>{{#each techniques}}<option value="{{id}}">{{name}} (ST +{{system.stIncrease}})</option>{{/each}}</select></div>
+  <div class="form-group"><label>Situation (added to the ST)</label><input type="number" name="situation" value="0" title="Behind defender -2, side -1, defender surprised -1, defender on ground -3, target in cover +1 to +4..."></div>
+  {{#if isRanged}}<div class="form-group"><label>Aim bonus (actions spent aiming)</label><input type="number" name="aim" value="0" min="0"></div>{{/if}}
+  <div class="form-group"><label>Roll modifier</label><input type="number" name="modifier" value="0"></div>
+  <div class="form-group"><label>Damage bonus (e.g. Destructive Breath)</label><input type="number" name="damageBonus" value="0"></div>
+  {{#if isCharacter}}<div class="form-group"><label>Inner strength (max {{earth}}, 2 Chi each)</label><input type="number" name="inner" value="0" min="0" max="{{earth}}"></div>{{/if}}
+  <p class="qin-muted">Close combat ST: attacker elevated −1, to the side −1, behind −2; defender surprised −1, immobilized −1, on the ground −3. Ranged: short −1, medium 0, long +1, extreme +3.</p>
+</div>

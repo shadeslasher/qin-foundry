@@ -1,0 +1,27 @@
+{
+  "name": "qin-foundry",
+  "version": "0.1.0",
+  "description": "Qin: The Warring States system for Foundry VTT",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "build:packs": "node tools/build-packs.mjs",
+    "test": "node --test test/*.test.mjs",
+    "package": "node tools/package.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shadeslasher/qin-foundry.git"
+  },
+  "license": "UNLICENSED",
+  "bugs": {
+    "url": "https://github.com/shadeslasher/qin-foundry/issues"
+  },
+  "homepage": "https://github.com/shadeslasher/qin-foundry#readme",
+  "devDependencies": {
+    "@foundryvtt/foundryvtt-cli": "^3.0.5"
+  },
+  "private": true,
+  "type": "module"
+}

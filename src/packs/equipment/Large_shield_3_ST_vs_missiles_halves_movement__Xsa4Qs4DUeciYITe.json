@@ -1,0 +1,32 @@
+{
+  "_id": "Xsa4Qs4DUeciYITe",
+  "_key": "!items!Xsa4Qs4DUeciYITe",
+  "name": "Large shield (+3 ST vs missiles, halves movement)",
+  "type": "armor",
+  "img": "icons/svg/shield.svg",
+  "system": {
+    "protection": 0,
+    "resilience": 13,
+    "defenseBonus": 0,
+    "price": 80,
+    "equipped": true,
+    "description": ""
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

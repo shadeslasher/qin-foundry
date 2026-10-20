@@ -1,0 +1,35 @@
+{
+  "_id": "JCseZWWMSySUBDoK",
+  "_key": "!items!JCseZWWMSySUBDoK",
+  "name": "Tao of the Inner Eye",
+  "type": "tao",
+  "img": "icons/svg/aura.svg",
+  "system": {
+    "key": "innerEye",
+    "level": 1,
+    "effects": {
+      "l1": "Keen eye: + Earth to a general perception Test (1 Chi).",
+      "l2": "Sharp sense: + Tao level to Tests with one chosen sense (paid in Chi).",
+      "l3": "Outer eye: ignore the penalty for a lost sense for Tao-level minutes.",
+      "l4": "Heavenly eye: fully replace a lost sense with the other four for Tao-level hours."
+    },
+    "description": "<p>Perceive beyond the normal senses.</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

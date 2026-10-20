@@ -1,0 +1,32 @@
+{
+  "_id": "xqA7cPv7rC2OZ9wy",
+  "_key": "!items!xqA7cPv7rC2OZ9wy",
+  "name": "Charge",
+  "type": "technique",
+  "img": "icons/svg/sword.svg",
+  "system": {
+    "skill": "any",
+    "skillLevel": 1,
+    "stIncrease": 1,
+    "kind": "close",
+    "roll": "attack",
+    "description": "<p>After moving Water yards, +1 damage. The target gets +1 to Active Defense per action spent charging.</p><p><b>Available:</b> Bangshu 1, Hand-to-Hand 3, Chuishu 3, Daoshu 4, Dunshu 2, Jianshu 2, Qiangshu 1</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

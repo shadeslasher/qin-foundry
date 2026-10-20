@@ -1,0 +1,27 @@
+{
+  "_id": "4mVgj5ygKZtKssm5",
+  "_key": "!items!4mVgj5ygKZtKssm5",
+  "name": "Inspiration of the Tao",
+  "type": "gift",
+  "img": "icons/svg/sun.svg",
+  "system": {
+    "description": "<p>Pick a craft. Once per session, reroll a Craft Test in it.</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

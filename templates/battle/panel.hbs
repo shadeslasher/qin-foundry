@@ -1,0 +1,106 @@
+<div class="qin-battle-wrap">
+{{#unless active}}
+  <div class="qin-card">
+    <h3>No battle running</h3>
+    {{#if isGM}}
+      <p>Place Unit tokens on the scene (<b>{{sceneName}}</b>), give officer units their officer, then start.</p>
+      <button type="button" data-action="startBattle" class="qin-primary">Start battle on this scene</button>
+      <p class="qin-muted">Name scene Regions "Trees", "Tall grass" or "Impassable" to give terrain to stealth and encirclement.</p>
+    {{else}}
+      <p>The GM hasn't started a battle.</p>
+    {{/if}}
+  </div>
+{{else}}
+  {{#if wrongScene}}<p class="qin-warn">The battle is on scene <b>{{battleScene}}</b>.</p>{{/if}}
+  <div class="qin-card qin-prompt">
+    <h3>{{#if round}}Round {{round}} · {{/if}}{{phase}}</h3>
+    <p>{{{prompt.text}}}</p>
+    <div class="qin-btns">
+      {{#each prompt.buttons}}
+      <button type="button" data-action="do" data-type="{{action}}" {{#if unitId}}data-unit-id="{{unitId}}"{{/if}} {{#if choice}}data-choice="{{choice}}"{{/if}} class="{{#if primary}}qin-primary{{/if}}" {{#if disabled}}disabled{{/if}}>{{label}}</button>
+      {{/each}}
+    </div>
+  </div>
+
+  {{#if held.length}}
+  <div class="qin-card qin-held">
+    <h4>Holding — may interject</h4>
+    <div class="qin-portraits">
+      {{#each held}}
+      <div class="qin-portrait-card {{#if can}}can{{/if}}">
+        <img src="{{img}}"><div class="qin-pname">{{name}}</div><div class="qin-muted">Init {{init}}</div>
+        {{#if mine}}<button type="button" data-action="do" data-type="interject" data-unit-id="{{id}}" {{#unless can}}disabled{{/unless}}>Interject</button>{{/if}}
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+  {{#if controls}}
+  <div class="qin-card qin-controls-card">
+    <h4>{{controls.name}} — your turn</h4>
+    {{#if controls.canMoveStep}}
+      <p class="qin-muted">Drag the token up to {{controls.movement}} tiles, or:</p>
+      <div class="qin-btns">
+        <button type="button" data-action="do" data-type="skipMove" data-unit-id="{{controls.id}}">Don't move</button>
+        <button type="button" data-action="swapTarget" data-unit-id="{{controls.id}}" title="Target an adjacent ally first">Swap with target</button>
+        <button type="button" data-action="do" data-type="holdPosition" data-unit-id="{{controls.id}}" title="No move or attack; enemy attacks −1">Hold position</button>
+      </div>
+    {{/if}}
+    {{#if controls.canAct}}
+      <div class="qin-btns">
+        <button type="button" class="qin-primary" data-action="attackTarget" data-unit-id="{{controls.id}}" title="Target an enemy unit token first">Attack target</button>
+        <button type="button" data-action="do" data-type="armMarch" data-unit-id="{{controls.id}}" class="{{#if controls.armed}}qin-armed{{/if}}">{{#if controls.armed}}Forced march armed — drag token{{else}}Forced march (−5 morale){{/if}}</button>
+      </div>
+    {{/if}}
+    <div class="qin-btns">
+      {{#if controls.skill}}<button type="button" data-action="do" data-type="useSkill" data-unit-id="{{controls.id}}" {{#if controls.skill.disabled}}disabled{{/if}}>{{controls.skill.name}}{{#if controls.skill.cost}} ({{controls.skill.cost}} morale){{/if}}</button>{{/if}}
+      {{#if controls.art}}<button type="button" data-action="do" data-type="battleArt" data-unit-id="{{controls.id}}" {{#if controls.art.disabled}}disabled{{/if}}>Battle art: {{controls.art.name}}</button>{{/if}}
+      {{#each controls.heroics}}<button type="button" data-action="do" data-type="heroic" data-unit-id="{{../controls.id}}" data-index="{{index}}" {{#if disabled}}disabled{{/if}}>Heroic: {{name}}</button>{{/each}}
+    </div>
+    {{#if controls.heroicLeft}}<p class="qin-muted">Heroic actions left: {{controls.heroicLeft}}</p>{{/if}}
+    <div class="qin-btns"><button type="button" class="qin-primary" data-action="do" data-type="endTurn" data-unit-id="{{controls.id}}">End turn</button></div>
+  </div>
+  {{/if}}
+
+  <div class="qin-battle-scroll">
+    {{#if order.length}}
+    <div class="qin-card"><h4>Initiative</h4>
+      <ul class="qin-order">{{#each order}}<li class="{{#if now}}now{{/if}}"><span>{{init}} · {{name}}</span><span class="qin-muted">{{state}}</span></li>{{/each}}</ul>
+    </div>
+    {{/if}}
+
+    <div class="qin-card"><h4>Units</h4>
+      <ul class="qin-units">
+        {{#each units}}
+        <li class="qin-side-{{side}} {{#if done}}done{{/if}} {{#unless (eq status "active")}}out{{/unless}}">
+          <img src="{{img}}" data-action="selectUnit" data-unit-id="{{id}}" title="Select token">
+          <div class="qin-uinfo">
+            <div><b>{{name}}</b>{{#if officer}} <span class="qin-muted">({{officer}})</span>{{/if}}</div>
+            <div class="qin-muted">{{men}} men · {{morale}} morale ({{moraleState}}){{#unless (eq status "active")}} · {{status}}{{/unless}}</div>
+            {{#if formationOptions}}
+              <select data-formation-unit="{{id}}">{{#each formationOptions}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{name}}</option>{{/each}}</select>
+            {{else}}<div class="qin-muted">{{formation}}</div>{{/if}}
+          </div>
+          {{#if pickable}}<button type="button" class="qin-primary" data-action="do" data-type="begin" data-unit-id="{{id}}">Take turn</button>{{/if}}
+        </li>
+        {{/each}}
+      </ul>
+    </div>
+
+    <div class="qin-card"><h4>Recent</h4>
+      <ul class="qin-log">{{#each log}}<li>{{this}}</li>{{/each}}</ul>
+    </div>
+
+    {{#if isGM}}
+    <div class="qin-card"><h4>GM</h4>
+      <div class="qin-btns">
+        {{#if showSkip}}<button type="button" data-action="do" data-type="skipPrompt">Skip current turn</button>{{/if}}
+        <button type="button" data-action="do" data-type="resetBattle">Back to setup</button>
+        <button type="button" data-action="endBattle">End battle</button>
+      </div>
+    </div>
+    {{/if}}
+  </div>
+{{/unless}}
+</div>

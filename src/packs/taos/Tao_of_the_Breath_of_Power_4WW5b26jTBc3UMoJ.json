@@ -1,0 +1,35 @@
+{
+  "_id": "4WW5b26jTBc3UMoJ",
+  "_key": "!items!4WW5b26jTBc3UMoJ",
+  "name": "Tao of the Breath of Power",
+  "type": "tao",
+  "img": "icons/svg/aura.svg",
+  "system": {
+    "key": "breathOfPower",
+    "level": 1,
+    "effects": {
+      "l1": "Improvised shield: +2 to Active Defense with a harmless object (cloth, fan, cloak).",
+      "l2": "Hidden blade: a harmless object becomes a weapon with 2 damage.",
+      "l3": "Invisible armor: clothing worn next to the skin gives protection 3.",
+      "l4": "Martial skill of the improvised weapon: use Combat Techniques and other Taos with improvised weapons."
+    },
+    "description": "<p>Breathe Chi into everyday objects (used with Improvisation). Lasts the current round unless stated.</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

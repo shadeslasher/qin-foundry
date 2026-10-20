@@ -1,0 +1,32 @@
+{
+  "_id": "Gg4bFWbSDQlpDXcS",
+  "_key": "!items!Gg4bFWbSDQlpDXcS",
+  "name": "Double Target",
+  "type": "technique",
+  "img": "icons/svg/sword.svg",
+  "system": {
+    "skill": "any",
+    "skillLevel": 1,
+    "stIncrease": 2,
+    "kind": "distance",
+    "roll": "attack",
+    "description": "<p>Attack two targets in one action, each at +2 ST and −1 damage.</p><p><b>Available:</b> Gongshu 3, short thrown 4</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

@@ -1,0 +1,5 @@
+<div class="qin-dialog">
+  <p><b>{{item.name}}</b> — {{skill.label}} {{skill.value}} · base cost {{item.system.chiCost}} Chi{{#if item.system.prepST}} · Preparation ST {{item.system.prepST}} (Earth + {{skill.label}}){{/if}}</p>
+  {{#if item.system.improvements}}<p class="qin-muted">Improvements: {{item.system.improvements}}</p>{{/if}}
+  <div class="form-group"><label>Extra Chi for improvements</label><input type="number" name="extraChi" value="0" min="0"></div>
+</div>

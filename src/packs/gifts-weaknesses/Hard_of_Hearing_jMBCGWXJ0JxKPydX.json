@@ -1,0 +1,27 @@
+{
+  "_id": "jMBCGWXJ0JxKPydX",
+  "_key": "!items!jMBCGWXJ0JxKPydX",
+  "name": "Hard of Hearing",
+  "type": "weakness",
+  "img": "icons/svg/skull.svg",
+  "system": {
+    "description": "<p>The GM can force a reroll of hearing-based Perception Tests.</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

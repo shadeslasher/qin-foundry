@@ -1,0 +1,32 @@
+{
+  "_id": "BeFwQ6d0n3uQGkOv",
+  "_key": "!items!BeFwQ6d0n3uQGkOv",
+  "name": "Indirect Shot",
+  "type": "technique",
+  "img": "icons/svg/sword.svg",
+  "system": {
+    "skill": "any",
+    "skillLevel": 1,
+    "stIncrease": 1,
+    "kind": "distance",
+    "roll": "attack",
+    "description": "<p>Curve around obstacles (+1 ST each); the target's Passive and Active Defense are −2.</p><p><b>Available:</b> Gongshu 3, short thrown 1, long thrown 2</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

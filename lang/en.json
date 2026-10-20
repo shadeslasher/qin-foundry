@@ -1,0 +1,9 @@
+{
+  "TYPES": {
+    "Actor": { "character": "Character", "henchman": "Henchman", "unit": "Battlefield unit" },
+    "Item": {
+      "weapon": "Weapon", "armor": "Armor / shield", "tao": "Tao", "technique": "Combat technique", "magic": "Magic technique",
+      "gift": "Gift", "weakness": "Weakness", "gear": "Equipment", "skill": "Extra skill", "officerAbility": "Officer ability"
+    }
+  }
+}

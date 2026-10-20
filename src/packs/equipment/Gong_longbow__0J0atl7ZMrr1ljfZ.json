@@ -1,0 +1,38 @@
+{
+  "_id": "0J0atl7ZMrr1ljfZ",
+  "_key": "!items!0J0atl7ZMrr1ljfZ",
+  "name": "Gong (longbow)",
+  "type": "weapon",
+  "img": "icons/svg/target.svg",
+  "system": {
+    "skill": "gongshu",
+    "damage": 3,
+    "resilience": 7,
+    "range": {
+      "c": 25,
+      "m": 50,
+      "l": 75,
+      "e": 100
+    },
+    "price": 35,
+    "equipped": true,
+    "description": ""
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

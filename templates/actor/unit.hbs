@@ -1,0 +1,63 @@
+<div class="qin-wrap">
+  <header class="qin-header">
+    <img class="qin-portrait" src="{{actor.img}}" data-action="editImage" data-edit="img" title="{{actor.name}}">
+    <div class="qin-head-main">
+      <input class="qin-name" name="name" type="text" value="{{actor.name}}" placeholder="Unit name">
+      <div class="qin-details">
+        <label>Side <select name="system.side">{{selectOptions sides selected=system.side}}</select></label>
+        <label>Faction <input type="text" name="system.faction" value="{{system.faction}}"></label>
+        <label>Status <select name="system.status">{{selectOptions (qinObj active="Active" defeated="Defeated" surrendered="Surrendered") selected=system.status}}</select></label>
+      </div>
+    </div>
+  </header>
+
+  <section class="qin-unit-bars">
+    <div><b>Men</b> <input type="number" name="system.men.value" value="{{system.men.value}}"> / {{system.men.max}}
+      <div class="qin-bar"><i style="width:{{menPct}}%"></i></div></div>
+    <div><b>Morale</b> <input type="number" name="system.morale" value="{{system.morale}}" min="0" max="100"> <span class="qin-tag qin-{{system.moraleState}}">{{system.moraleState}}</span>
+      <div class="qin-bar morale"><i style="width:{{system.morale}}%"></i></div></div>
+  </section>
+
+  <nav class="qin-tabs"><a data-tab="stats">Unit</a><a data-tab="officer">Officer</a><a data-tab="notes">Traits</a></nav>
+  <div class="qin-body">
+    <section class="qin-tab" data-tab="stats">
+      <div class="qin-grid3">
+        <label>Tier <input type="number" name="system.tier" value="{{system.tier}}"></label>
+        <label>Category <select name="system.category">{{selectOptions categories selected=system.category}}</select></label>
+        <label>Weapon <select name="system.weapon">{{selectOptions (qinObj melee="Melee" ranged="Ranged") selected=system.weapon}}</select></label>
+        <label>Weapon skill <select name="system.weaponSkill">{{selectOptions weaponSkills selected=system.weaponSkill}}</select></label>
+        <label>Unit Value <input type="number" name="system.unitValue" value="{{system.unitValue}}"></label>
+        <label>Damage <input type="number" name="system.damage" value="{{system.damage}}"></label>
+        <label>Defense <input type="number" name="system.defense" value="{{system.defense}}"></label>
+        <label>Movement <input type="number" name="system.move" value="{{system.move}}"></label>
+        <label>Range min / max <span class="qin-pair"><input type="number" name="system.rangeMin" value="{{system.rangeMin}}"><input type="number" name="system.rangeMax" value="{{system.rangeMax}}"></span></label>
+        <label>Max men <input type="number" name="system.men.max" value="{{system.men.max}}"></label>
+      </div>
+      <label>Formation <select name="system.formation">{{selectOptions formationChoices selected=system.formation}}</select></label>
+      {{#if formationDesc}}<p class="qin-muted">{{formationDesc}}</p>{{/if}}
+      <label>Allowed formations (ids, comma-separated; blank = all) <input type="text" name="system.formations" value="{{system.formations}}"></label>
+      <label class="qin-inline"><input type="checkbox" name="system.hidden" {{checked system.hidden}}> Hidden (attacks from hiding are ambushes)</label>
+    </section>
+
+    <section class="qin-tab" data-tab="officer">
+      <div class="qin-officer-drop">
+        {{#if officer}}
+          <img src="{{officer.img}}" class="qin-officer-img">
+          <div>
+            <h3><a data-action="openOfficer">{{officer.name}}</a></h3>
+            <p>Fire {{officerStats.fire}} · Command {{officerStats.command}} · {{officerStats.skillLabel}} {{officerStats.skill}}</p>
+            {{#if editable}}<a data-action="clearOfficer"><i class="fa-solid fa-xmark"></i> Remove officer</a>{{/if}}
+          </div>
+        {{else}}
+          <p>Drag a Qin character here to make them this unit's officer. Without one, the unit counts Command, Fire and Skill as 0 and has no initiative.</p>
+        {{/if}}
+      </div>
+      {{#if officerStats.abilities.length}}
+      <h3>Officer abilities</h3>
+      <ul class="qin-list">{{#each officerStats.abilities}}<li><b>{{name}}</b> <span class="qin-muted">{{lookup ../officerKinds system.kind}}{{#if system.moraleCost}} · {{system.moraleCost}} morale{{/if}}</span></li>{{/each}}</ul>
+      {{/if}}
+    </section>
+
+    <section class="qin-tab" data-tab="notes"><textarea name="system.traits" rows="12">{{system.traits}}</textarea></section>
+  </div>
+</div>

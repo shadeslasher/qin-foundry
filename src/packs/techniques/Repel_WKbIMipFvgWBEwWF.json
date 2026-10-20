@@ -1,0 +1,32 @@
+{
+  "_id": "WKbIMipFvgWBEwWF",
+  "_key": "!items!WKbIMipFvgWBEwWF",
+  "name": "Repel",
+  "type": "technique",
+  "img": "icons/svg/sword.svg",
+  "system": {
+    "skill": "any",
+    "skillLevel": 1,
+    "stIncrease": 1,
+    "kind": "close",
+    "roll": "attack",
+    "description": "<p>On a hit the foe retreats half the damage in yards (min 1); blocked retreat adds damage per missing yard.</p><p><b>Available:</b> Chuishu 4, Dunshu 2, Qiangshu 1</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

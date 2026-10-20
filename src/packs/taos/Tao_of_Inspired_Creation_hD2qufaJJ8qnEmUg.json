@@ -1,0 +1,35 @@
+{
+  "_id": "hD2qufaJJ8qnEmUg",
+  "_key": "!items!hD2qufaJJ8qnEmUg",
+  "name": "Tao of Inspired Creation",
+  "type": "tao",
+  "img": "icons/svg/aura.svg",
+  "system": {
+    "key": "inspiredCreation",
+    "level": 1,
+    "effects": {
+      "l1": "The hand that mends: + Earth to repair or restoration Tests.",
+      "l2": "The hand that creates: + Tao level to Tests creating an object or work of art.",
+      "l3": "The hand that acts: halve the Interval and Difficulty Threshold of creative Continuous Tests.",
+      "l4": "The hand of inspiration: imbue a creation with an exceptional quality (usually up to +2), agreed with the GM."
+    },
+    "description": "<p>Craft and art of exceptional quality. Pay the Chi once per creative project.</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

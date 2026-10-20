@@ -1,0 +1,32 @@
+{
+  "_id": "6M8jibC1F15XmwHY",
+  "_key": "!items!6M8jibC1F15XmwHY",
+  "name": "Snapshot",
+  "type": "technique",
+  "img": "icons/svg/sword.svg",
+  "system": {
+    "skill": "any",
+    "skillLevel": 1,
+    "stIncrease": 1,
+    "kind": "distance",
+    "roll": "other",
+    "description": "<p>With the weapon ready, +3 to the Initiative Test for that exchange.</p><p><b>Available:</b> Gongshu 1, Nushu 1, short thrown 1, long thrown 1</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

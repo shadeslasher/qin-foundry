@@ -1,0 +1,32 @@
+{
+  "_id": "y6rWvxBqf5t3AJ5N",
+  "_key": "!items!y6rWvxBqf5t3AJ5N",
+  "name": "Fur and wool",
+  "type": "armor",
+  "img": "icons/svg/shield.svg",
+  "system": {
+    "protection": 2,
+    "resilience": 0,
+    "defenseBonus": 0,
+    "price": 0,
+    "equipped": true,
+    "description": ""
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

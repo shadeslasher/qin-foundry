@@ -1,0 +1,38 @@
+{
+  "_id": "Hpinxbq5wVghAC3R",
+  "_key": "!items!Hpinxbq5wVghAC3R",
+  "name": "Jian (sword)",
+  "type": "weapon",
+  "img": "icons/svg/sword.svg",
+  "system": {
+    "skill": "jianshu",
+    "damage": 3,
+    "resilience": 9,
+    "range": {
+      "c": 0,
+      "m": 0,
+      "l": 0,
+      "e": 0
+    },
+    "price": 100,
+    "equipped": true,
+    "description": ""
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

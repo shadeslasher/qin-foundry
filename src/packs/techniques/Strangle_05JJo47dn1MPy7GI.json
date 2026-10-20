@@ -1,0 +1,32 @@
+{
+  "_id": "05JJo47dn1MPy7GI",
+  "_key": "!items!05JJo47dn1MPy7GI",
+  "name": "Strangle",
+  "type": "technique",
+  "img": "icons/svg/sword.svg",
+  "system": {
+    "skill": "any",
+    "skillLevel": 1,
+    "stIncrease": 1,
+    "kind": "close",
+    "roll": "attack",
+    "description": "<p>Strangulation damage each action held. Victim escapes with a Water opposition or acts at a penalty; acts after you.</p><p><b>Available:</b> Bangshu 4, Hand-to-Hand 2, Qiangshu 4</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

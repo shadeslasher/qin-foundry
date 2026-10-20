@@ -1,0 +1,32 @@
+{
+  "_id": "6a8UWmvuh8A67EX3",
+  "_key": "!items!6a8UWmvuh8A67EX3",
+  "name": "Disarm",
+  "type": "technique",
+  "img": "icons/svg/sword.svg",
+  "system": {
+    "skill": "any",
+    "skillLevel": 1,
+    "stIncrease": 1,
+    "kind": "close",
+    "roll": "attack",
+    "description": "<p>On a hit, no damage: fling the weapon Water yards or take it. On a miss, the foe gets a free simple counter-attack.</p><p><b>Available:</b> Bangshu 4, Hand-to-Hand 4, Daoshu 4, Dunshu 3, Jianshu 3</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}
