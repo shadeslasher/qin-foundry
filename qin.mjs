@@ -142,6 +142,34 @@ Hooks.on("getSceneControlButtons", (controls) => {
   else if (controls.tokens?.tools) controls.tokens.tools.qinBattle = tool;
 });
 
+/* ---------- Macro bar: drag a weapon (or Tao, technique...) onto the hotbar to get a click-to-use button */
+async function rollItemMacro(name, uuid) {
+  // Use the selected token's copy of the item if it has one (handy for henchman groups), else the original
+  const tok = canvas?.tokens?.controlled?.find(t => t.actor?.items?.getName?.(name));
+  let item = tok?.actor.items.getName(name);
+  if (!item && uuid) item = await fromUuid(uuid);
+  if (!item) return ui.notifications.warn(`No "${name}" on the selected token.`);
+  if (!item.isOwner) return ui.notifications.warn(`You don't own ${item.parent?.name ?? "that character"}.`);
+  return item.use();
+}
+Hooks.once("init", () => { game.qin.rollItemMacro = rollItemMacro; });
+Hooks.on("hotbarDrop", (bar, data, slot) => {
+  if (data?.type !== "Item" || !data.uuid) return;
+  const item = fromUuidSync(data.uuid);
+  if (!item?.parent || !["weapon", "tao", "technique", "magic", "signature", "gear", "gift", "weakness"].includes(item.type)) return;
+  (async () => {
+    const command = `game.qin.rollItemMacro(${JSON.stringify(item.name)}, ${JSON.stringify(item.uuid)});`;
+    const MacroCls = CONFIG.Macro.documentClass;
+    let macro = game.macros.find(m => m.command === command && m.isOwner);
+    macro ??= await MacroCls.create({
+      name: item.type === "weapon" ? `${item.name} attack` : item.name, type: "script", img: item.img, command,
+      flags: { qin: { itemMacro: true } },
+    });
+    await game.user.assignHotbarMacro(macro, slot);
+  })();
+  return false;
+});
+
 // Renaming an actor renames its tokens too (prototype + placed tokens that still had the old name)
 Hooks.on("preUpdateActor", (actor, change, options) => {
   if (!("name" in change) || change.name === actor.name) return;
