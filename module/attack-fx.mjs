@@ -235,19 +235,111 @@ async function playSequencer({ source, target, to, weapon, kind, hit }) {
     if (impact) seq.effect().file(impact).atLocation(target ?? to).scale(0.5);
   }
   await seq.play();
-  if (!hit) missText(to);
+  showFloat(to, hit ? "hit" : "miss");
   return true;
 }
 
-function missText(to) {
+/* ---------------------------------------- Floating text and the skull (seen by everyone) */
+
+const FLOAT_STYLES = {
+  hit: { text: "Hit!", fill: "#ffd36b", fontSize: 30 },
+  miss: { text: "Miss", fill: "#dddddd", fontSize: 28 },
+  block: { text: "Blocked", fill: "#8ab8ff", fontSize: 30 },
+  dodge: { text: "Dodged", fill: "#8fe08f", fontSize: 30 },
+  blockFail: { text: "Block failed", fill: "#bbbbbb", fontSize: 22 },
+  dodgeFail: { text: "Dodge failed", fill: "#bbbbbb", fontSize: 22 },
+  damage: { fill: "#ff3b30", fontSize: 42 },
+  heal: { fill: "#5fd36b", fontSize: 34 },
+};
+
+function floatLocal(at, style, text) {
+  const st = FLOAT_STYLES[style] ?? FLOAT_STYLES.hit;
   try {
-    canvas.interface?.createScrollingText?.(to, "Miss", { anchor: CONST.TEXT_ANCHOR_POINTS?.TOP ?? 1, fontSize: 28, fill: "#dddddd", stroke: 0x000000, strokeThickness: 4, jitter: 0.25 });
+    canvas.interface?.createScrollingText?.(at, text ?? st.text, {
+      anchor: CONST.TEXT_ANCHOR_POINTS?.TOP ?? 1, direction: CONST.TEXT_ANCHOR_POINTS?.TOP ?? 1,
+      fontSize: st.fontSize, fill: st.fill, stroke: 0x000000, strokeThickness: 5, jitter: 0.2, duration: 2000,
+    });
   } catch { /* cosmetic only */ }
+}
+const missText = (to) => floatLocal(to, "miss");
+
+/** Show a floating label at a point for every client. style: hit, miss, block, dodge, blockFail, dodgeFail, damage, heal. */
+export function showFloat(at, style, text = null) {
+  if (!canvas?.ready || !at) return;
+  const data = { type: "float", sceneId: canvas.scene.id, at: { x: at.x, y: at.y }, style, text };
+  game.socket?.emit(SOCKET, data);
+  floatLocal(data.at, style, text);
+}
+
+/** A grey skull over a token for every client (character killed / henchman out of action). */
+export function showSkull(at, size = canvas.grid?.size ?? 100) {
+  if (!canvas?.ready || !at) return;
+  const data = { type: "skull", sceneId: canvas.scene.id, at: { x: at.x, y: at.y }, size };
+  game.socket?.emit(SOCKET, data);
+  skullLocal(data);
+}
+
+function skullLocal({ at, size }) {
+  const s = size * 0.55;
+  return animate(2800, (g, t) => {
+    const pop = t < 0.12 ? ease.out(t / 0.12) * 1.15 : t < 0.2 ? 1.15 - 0.15 * ((t - 0.12) / 0.08) : 1;
+    const alpha = 1 - seg(t, 0.75, 1);
+    const cx = at.x, cy = at.y - size * 0.15 - size * 0.25 * seg(t, 0.2, 1);
+    const k = s * pop;
+    const grey = 0xb5b5b5, dark = 0x1e1e1e;
+    // cranium + jaw
+    g.lineStyle(Math.max(2, k * 0.06), dark, alpha).beginFill(grey, alpha);
+    g.drawEllipse(cx, cy - k * 0.12, k * 0.42, k * 0.38);
+    g.drawRoundedRect(cx - k * 0.24, cy + k * 0.12, k * 0.48, k * 0.26, k * 0.06);
+    g.endFill();
+    g.lineStyle(0).beginFill(grey, alpha).drawRect(cx - k * 0.22, cy + k * 0.06, k * 0.44, k * 0.12).endFill();
+    // eyes and nose
+    g.beginFill(dark, alpha);
+    g.drawEllipse(cx - k * 0.16, cy - k * 0.06, k * 0.11, k * 0.12);
+    g.drawEllipse(cx + k * 0.16, cy - k * 0.06, k * 0.11, k * 0.12);
+    g.drawPolygon([cx, cy + k * 0.04, cx - k * 0.05, cy + k * 0.13, cx + k * 0.05, cy + k * 0.13]);
+    g.endFill();
+    // teeth
+    g.lineStyle(Math.max(1.5, k * 0.03), dark, alpha);
+    for (const dx of [-0.12, -0.04, 0.04, 0.12]) g.moveTo(cx + k * dx, cy + k * 0.2).lineTo(cx + k * dx, cy + k * 0.36);
+  });
 }
 
 export function registerAttackFxSocket() {
   game.socket?.on(SOCKET, (data) => {
-    if (data?.type === "fx") playBuiltIn(data);
+    if (!data || (data.sceneId && canvas?.scene?.id !== data.sceneId)) return;
+    if (data.type === "fx") playBuiltIn(data);
+    else if (data.type === "float") floatLocal(data.at, data.style, data.text);
+    else if (data.type === "skull") skullLocal(data);
+  });
+}
+
+/* ---------------------------------------- Damage indicators */
+
+/** Floating "-N" (or "+N" healing) when Breath of Life changes, and a skull on death. */
+export function registerDamageFloats() {
+  Hooks.on("preUpdateActor", (actor, change, options) => {
+    if (actor.type === "character" && foundry.utils.hasProperty(change, "system.bol.damage")) {
+      options.qinBol = { before: actor.system.bol.damage, wasDead: !!actor.system.bol.dead };
+    }
+    if (actor.type === "henchman" && foundry.utils.hasProperty(change, "system.outOfAction")) {
+      options.qinOut = !!actor.system.outOfAction;
+    }
+  });
+  Hooks.on("updateActor", (actor, change, options, userId) => {
+    if (userId !== game.user.id || !canvas?.ready) return;
+    const tokens = actor.getActiveTokens?.(true) ?? [];
+    if (!tokens.length) return;
+    if (options.qinBol) {
+      const delta = actor.system.bol.damage - options.qinBol.before;
+      const died = !options.qinBol.wasDead && actor.system.bol.dead;
+      for (const t of tokens) {
+        if (delta > 0) showFloat(t.center, "damage", `-${delta}`);
+        else if (delta < 0) showFloat(t.center, "heal", `+${-delta}`);
+        if (died) showSkull(t.center);
+      }
+    }
+    if (options.qinOut === false && actor.system.outOfAction) for (const t of tokens) showSkull(t.center);
   });
 }
 
@@ -282,7 +374,7 @@ export function playBuiltIn({ sceneId, kind, from, to, hit }) {
   const ux = dx / dist, uy = dy / dist;   // direction
   const px = -uy, py = ux;                // perpendicular
   const angle = Math.atan2(dy, dx);
-  const impact = () => (hit ? burst(to, size) : missText(to));
+  const impact = () => { if (hit) { burst(to, size); floatLocal(to, "hit"); } else missText(to); };
 
   switch (kind) {
     case "thrust": case "stab": {

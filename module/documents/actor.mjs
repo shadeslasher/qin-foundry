@@ -1,5 +1,5 @@
 import { spendDefenseAction } from "../combat-actions.mjs";
-import { pickAttackTarget, attackerToken, playAttackFx } from "../attack-fx.mjs";
+import { pickAttackTarget, attackerToken, playAttackFx, showFloat } from "../attack-fx.mjs";
 import { ASPECTS, SKILLS, SKILL_LEVELS } from "../config.mjs";
 import * as Q from "../rules/qin-rules.mjs";
 import { rollYinYang, renderTemplate, formDialog, Chat } from "../dice.mjs";
@@ -251,6 +251,8 @@ export class QinActor extends foundry.documents.Actor {
       shieldBonus ? ["Shield", shieldBonus] : null, penalty ? ["Injury penalty", -penalty] : null, armorPen ? ["Armor movement penalty", -armorPen] : null,
     ].filter(Boolean);
     await this._afterDice(dice);
+    const defTok = attackerToken(this);
+    if (defTok) showFloat(defTok.center, success ? type : `${type}Fail`);
     await this._postRoll({
       title: type === "block" ? "Block" : "Dodge", roll, dice, parts, total, st: attack.total, success,
       extra: success ? "<p><b>The blow is turned aside.</b></p>" : "<p><b>The attack lands.</b></p>",

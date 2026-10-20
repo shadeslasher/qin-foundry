@@ -10,7 +10,7 @@ import { defaultFormations, emptyBattle, onTokenMoved, getBattle } from "./modul
 import * as QinRules from "./module/rules/qin-rules.mjs";
 import { registerTokenHover } from "./module/token-hover.mjs";
 import { registerCombatQuery, onRenderCombatTracker } from "./module/combat-actions.mjs";
-import { registerAttackFxSocket } from "./module/attack-fx.mjs";
+import { registerAttackFxSocket, registerDamageFloats } from "./module/attack-fx.mjs";
 
 const { SYSTEM_ID } = CFG;
 
@@ -109,6 +109,7 @@ Hooks.once("ready", () => {
 
 Hooks.on("renderChatMessageHTML", onRenderChatMessage);
 registerTokenHover();
+registerDamageFloats();
 Hooks.on("renderCombatTracker", onRenderCombatTracker);
 Hooks.on("updateToken", (doc, change, options) => {
   onTokenMoved(doc, change, options);
