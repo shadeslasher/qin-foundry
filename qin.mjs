@@ -128,6 +128,29 @@ Hooks.on("getSceneControlButtons", (controls) => {
   else if (controls.tokens?.tools) controls.tokens.tools.qinBattle = tool;
 });
 
+// Renaming an actor renames its tokens too (prototype + placed tokens that still had the old name)
+Hooks.on("preUpdateActor", (actor, change, options) => {
+  if (!("name" in change) || change.name === actor.name) return;
+  options.qinOldName = actor.name;
+  if (!actor.isToken && (actor.prototypeToken?.name === actor.name || !actor.prototypeToken?.name)) {
+    foundry.utils.setProperty(change, "prototypeToken.name", change.name);
+  }
+});
+Hooks.on("updateActor", async (actor, change, options, userId) => {
+  const oldName = options.qinOldName;
+  if (!oldName || userId !== game.user.id || !("name" in change)) return;
+  const name = actor.name;
+  if (actor.isToken) {
+    if (actor.token?.name === oldName) await actor.token.update({ name });
+    return;
+  }
+  for (const scene of game.scenes) {
+    const updates = scene.tokens.filter(t => t.actorLink && t.actorId === actor.id && t.name === oldName && t.canUserModify(game.user, "update"))
+      .map(t => ({ _id: t.id, name }));
+    if (updates.length) await scene.updateEmbeddedDocuments("Token", updates);
+  }
+});
+
 // New characters start with sensible tokens
 Hooks.on("preCreateActor", (actor, data) => {
   if (data.prototypeToken) return;
