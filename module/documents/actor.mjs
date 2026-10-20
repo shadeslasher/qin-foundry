@@ -1,3 +1,4 @@
+import { spendDefenseAction } from "../combat-actions.mjs";
 import { ASPECTS, SKILLS, SKILL_LEVELS } from "../config.mjs";
 import * as Q from "../rules/qin-rules.mjs";
 import { rollYinYang, renderTemplate, formDialog, Chat } from "../dice.mjs";
@@ -205,6 +206,8 @@ export class QinActor extends foundry.documents.Actor {
 
   /** Active Defense against an attack total: block (Water + weapon Skill) or dodge (Water + Dodging). */
   async rollDefense(type, attack) {
+    // A Block or Dodge uses one of the defender's actions this round.
+    if (!(await spendDefenseAction(this))) return;
     let skillKey = "dodging";
     let shieldBonus = 0;
     if (type === "block") {

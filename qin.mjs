@@ -9,6 +9,7 @@ import { BattlePanel, registerBattleQuery, battleRequest } from "./module/battle
 import { defaultFormations, emptyBattle, onTokenMoved, getBattle } from "./module/battle/adapter.mjs";
 import * as QinRules from "./module/rules/qin-rules.mjs";
 import { registerTokenHover } from "./module/token-hover.mjs";
+import { registerCombatQuery, onRenderCombatTracker } from "./module/combat-actions.mjs";
 
 const { SYSTEM_ID } = CFG;
 
@@ -83,6 +84,7 @@ Hooks.once("init", () => {
   if (!Handlebars.helpers.eq) Handlebars.registerHelper("eq", (a, b) => a === b);
 
   registerBattleQuery();
+  registerCombatQuery();
 });
 
 Hooks.once("ready", () => {
@@ -92,6 +94,7 @@ Hooks.once("ready", () => {
 
 Hooks.on("renderChatMessageHTML", onRenderChatMessage);
 registerTokenHover();
+Hooks.on("renderCombatTracker", onRenderCombatTracker);
 Hooks.on("updateToken", (doc, change, options) => onTokenMoved(doc, change, options));
 Hooks.on("updateActor", () => BattlePanel.refresh());
 
