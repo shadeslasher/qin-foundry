@@ -221,3 +221,6 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin .qin-skill a.qin-known-toggle { flex: 0 0 auto; opacity: 0.25; font-size: calc(11px * var(--qin-scale, 1.15)); }
 .qin .qin-skill.known a.qin-known-toggle { opacity: 0.9; color: var(--qin-red); }
 .qin .qin-skill a.qin-known-toggle:hover { opacity: 1; }
+
+/* Draggable item rows (to the macro bar) */
+.qin [data-item-id][draggable="true"] { cursor: grab; }

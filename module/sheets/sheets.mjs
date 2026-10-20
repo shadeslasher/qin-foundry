@@ -150,7 +150,7 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
     super._onRender(context, options);
     const el = this.element;
     // Weapons, Taos, techniques etc. can be dragged to the macro bar (or onto other sheets)
-    el.querySelectorAll("li[data-item-id], .qin-skill[data-item-id]").forEach(li => {
+    el.querySelectorAll("[data-item-id]").forEach(li => {
       const item = this.actor.items.get(li.dataset.itemId);
       if (!item || li.dataset.qinDrag) return;
       li.dataset.qinDrag = "1";
