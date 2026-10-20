@@ -8,6 +8,7 @@ import { onRenderChatMessage } from "./module/chat.mjs";
 import { BattlePanel, registerBattleQuery, battleRequest } from "./module/battle/battle.mjs";
 import { defaultFormations, emptyBattle, onTokenMoved, getBattle } from "./module/battle/adapter.mjs";
 import * as QinRules from "./module/rules/qin-rules.mjs";
+import { registerTokenHover } from "./module/token-hover.mjs";
 
 const { SYSTEM_ID } = CFG;
 
@@ -90,6 +91,7 @@ Hooks.once("ready", () => {
 });
 
 Hooks.on("renderChatMessageHTML", onRenderChatMessage);
+registerTokenHover();
 Hooks.on("updateToken", (doc, change, options) => onTokenMoved(doc, change, options));
 Hooks.on("updateActor", () => BattlePanel.refresh());
 
