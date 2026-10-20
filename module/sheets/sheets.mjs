@@ -368,6 +368,13 @@ export class QinItemSheet extends api.HandlebarsApplicationMixin(ItemSheetBase) 
     actions: { draftDone: QinItemSheet.#draftDone, draftCancel: QinItemSheet.#draftCancel },
   };
 
+  /** Unsaved drafts keep edits on the in-memory item instead of writing to the database. */
+  async _processSubmitData(event, form, submitData, options) {
+    if (!this.options.qinDraft) return super._processSubmitData(event, form, submitData, options);
+    this.document.updateSource(foundry.utils.expandObject(submitData));
+    if (this.rendered) this.render();
+  }
+
   get title() {
     return this.options.qinDraft ? `New ${this.document.name}`.replace(/^New New /, "New ") : super.title;
   }
