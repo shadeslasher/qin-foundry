@@ -185,7 +185,8 @@ export class QinActor extends foundry.documents.Actor {
     const penalty = this.system.penalty || 0;
     const armorPen = this.system.armor.movementPenalty;
     const mod = (Number(fd.modifier) || 0) + (Number(fd.aim) || 0);
-    const total = metal + sk.value + dice.value + mod + inner - penalty - armorPen;
+    const wpnMod = weapon.system.attackModifier || 0;
+    const total = metal + sk.value + dice.value + mod + wpnMod + inner - penalty - armorPen;
     const basePD = fd.pd === "" || fd.pd == null ? null : Number(fd.pd);
     const st = basePD == null ? null : basePD + (tech ? tech.system.stIncrease : 0) + (Number(fd.situation) || 0);
     const hit = dice.critFail ? false : st == null ? true : total >= st;
@@ -195,6 +196,7 @@ export class QinActor extends foundry.documents.Actor {
       ["Metal", metal],
       [`${sk.label} (${SKILL_LEVELS[sk.value]})`, sk.value],
       [`Yin/Yang (${dice.yin} / ${dice.yang})${dice.double && !dice.critFail ? ", double" : ""}`, dice.value],
+      wpnMod ? [`${weapon.name} modifier`, wpnMod] : null,
       mod ? ["Modifiers / aim", mod] : null,
       inner ? [`Inner strength (−${inner * 2} Chi)`, inner] : null,
       penalty ? ["Injury penalty", -penalty] : null,

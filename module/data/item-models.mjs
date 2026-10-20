@@ -11,6 +11,7 @@ export class WeaponData extends foundry.abstract.TypeDataModel {
       damage: int(3),
       resilience: int(9),
       range: new fields.SchemaField({ c: int(0), m: int(0), l: int(0), e: int(0) }), // yards; all 0 = close combat
+      attackModifier: int(0), // added to (or, if negative, taken from) every Attack Test with this weapon
       price: int(0),
       equipped: new fields.BooleanField({ initial: true }),
       animation: new fields.StringField({ initial: "" }), // optional Sequencer/JB2A path
@@ -26,6 +27,7 @@ export class ArmorData extends foundry.abstract.TypeDataModel {
       protection: int(0, { min: 0 }),
       resilience: int(0),
       defenseBonus: int(0), // e.g. small shield +1 to Active Defense with Dunshu
+      pdModifier: int(0), // raises (or lowers) Passive Defense while equipped
       price: int(0),
       equipped: new fields.BooleanField({ initial: true }),
       description: desc(),

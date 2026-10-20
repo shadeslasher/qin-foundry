@@ -43,12 +43,14 @@ class QinBaseActor extends foundry.abstract.TypeDataModel {
     this.resistance = Q.resistance(a);
     this.passiveDefense = Q.passiveDefense(a) + (this.pdBonus || 0);
     // Armor: best equipped protection (shields add their defense bonus separately)
-    let protection = 0, defenseBonus = 0;
+    let protection = 0, defenseBonus = 0, armorPD = 0;
     for (const i of items) {
       if (i.type !== "armor" || !i.system.equipped) continue;
       protection = Math.max(protection, i.system.protection);
       defenseBonus += i.system.defenseBonus || 0;
+      armorPD += i.system.pdModifier || 0;
     }
+    this.passiveDefense += armorPD;
     this.armor = { protection, defenseBonus, movementPenalty: Q.armorPenalty(protection, a.metal) };
     this.bestSkill = Math.max(0, ...allSkillLevels(this, items));
   }

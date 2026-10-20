@@ -11,6 +11,7 @@
     <label>Skill <select name="system.skill">{{selectOptions martialChoices selected=system.skill}}</select></label>
     <label>Damage <input type="number" name="system.damage" value="{{system.damage}}"></label>
     <label>Resilience <input type="number" name="system.resilience" value="{{system.resilience}}"></label>
+    <label>Attack roll modifier <input type="number" name="system.attackModifier" value="{{system.attackModifier}}" title="Added to every attack roll with this weapon (negative to lower it)"></label>
     <label>Range: close <input type="number" name="system.range.c" value="{{system.range.c}}"></label>
     <label>medium <input type="number" name="system.range.m" value="{{system.range.m}}"></label>
     <label>long <input type="number" name="system.range.l" value="{{system.range.l}}"></label>
@@ -22,6 +23,7 @@
     <label>Protection <input type="number" name="system.protection" value="{{system.protection}}"></label>
     <label>Resilience <input type="number" name="system.resilience" value="{{system.resilience}}"></label>
     <label>Active Defense bonus <input type="number" name="system.defenseBonus" value="{{system.defenseBonus}}"></label>
+    <label>Passive Defense modifier <input type="number" name="system.pdModifier" value="{{system.pdModifier}}" title="Added to Passive Defense while equipped (negative to lower it)"></label>
     <label>Price <input type="number" name="system.price" value="{{system.price}}"></label>
     <label class="qin-inline"><input type="checkbox" name="system.equipped" {{checked system.equipped}}> Equipped</label>
   {{else if (eq type "tao")}}
