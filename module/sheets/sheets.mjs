@@ -271,6 +271,20 @@ export class CharacterSheet extends QinActorSheetBase {
 export class HenchmanSheet extends QinActorSheetBase {
   static DEFAULT_OPTIONS = { position: { width: 640, height: 640 } };
   static PARTS = { sheet: { template: systemPath("templates/actor/henchman.hbs"), scrollable: [".qin-body"] } };
+
+  /** Henchmen only track weapon skills, Dodging and Perception (plus any extra skills added by hand). */
+  async _prepareContext(options) {
+    const context = await super._prepareContext(options);
+    const system = this.document.system;
+    const row = (key) => {
+      const s = SKILLS[key], v = system.skills?.[key] ?? { value: 0, spec: "" };
+      return { key, label: s.label, value: v.value, spec: v.spec, complex: s.complex };
+    };
+    context.weaponSkills = Object.entries(SKILLS).filter(([, s]) => s.martial).map(([k]) => row(k));
+    context.otherSkills = ["dodging", "perception"].filter(k => SKILLS[k]).map(row);
+    context.extraSkills = (context.items.skill || []).map(i => ({ id: i.id, name: i.name, value: i.system.value, levelLabel: SKILL_LEVELS[i.system.value], domain: DOMAINS[i.system.domain] ?? i.system.domain }));
+    return context;
+  }
 }
 
 export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorSheetBase)) {

@@ -25,16 +25,29 @@
   <div class="qin-body">
     <section class="qin-tab" data-tab="skills">
       <div class="qin-skill-grid">
-        {{#each skillsByDomain}}
-        <div class="qin-domain"><h3>{{label}}</h3>
-          {{#each skills}}
+        <div class="qin-domain"><h3>Weapon skills</h3>
+          {{#each weaponSkills}}
           <div class="qin-skill {{#if value}}known{{/if}}">
-            <a data-action="rollSkill" data-skill="{{key}}">{{label}}{{#if complex}}*{{/if}}</a>
-            <select name="system.skills.{{key}}.value">{{selectOptions ../../skillLevels selected=value}}</select>
+            <a data-action="rollSkill" data-skill="{{key}}">{{label}}</a>
+            <select name="system.skills.{{key}}.value">{{selectOptions ../skillLevels selected=value}}</select>
           </div>
           {{/each}}
         </div>
-        {{/each}}
+        <div class="qin-domain"><h3>Other skills <a data-action="itemCreate" data-type="skill" title="Add a skill"><i class="fa-solid fa-plus"></i></a></h3>
+          {{#each otherSkills}}
+          <div class="qin-skill {{#if value}}known{{/if}}">
+            <a data-action="rollSkill" data-skill="{{key}}">{{label}}</a>
+            <select name="system.skills.{{key}}.value">{{selectOptions ../skillLevels selected=value}}</select>
+          </div>
+          {{/each}}
+          {{#each extraSkills}}
+          <div class="qin-skill known" data-item-id="{{id}}">
+            <a data-action="rollSkill" data-skill="{{id}}">{{name}}</a>
+            <span class="qin-muted">{{levelLabel}} · {{domain}}</span>
+            <span class="qin-controls"><a data-action="itemEdit" title="Edit"><i class="fa-solid fa-pen"></i></a><a data-action="itemDelete" title="Remove"><i class="fa-solid fa-trash"></i></a></span>
+          </div>
+          {{/each}}
+        </div>
       </div>
     </section>
     <section class="qin-tab" data-tab="combat">
