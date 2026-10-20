@@ -19,17 +19,33 @@ export function fxKind(weapon) {
   return weapon?.system?.isRanged ? "arrow" : "slash";
 }
 
-/** Sequencer database paths to try for each style (first one that exists in JB2A wins). */
+/**
+ * Sequencer database paths to try, checked against the free JB2A_DnD5e database
+ * (github.com/Jules-Bens-Aa/JB2A_DnD5e). Per-skill picks come first, then per-style fallbacks.
+ */
+const JB2A_BY_SKILL = {
+  qiangshu: ["jb2a.spear.melee.01.white", "jb2a.glaive.melee.01", "jb2a.halberd.melee.01"],
+  daoshu: ["jb2a.dagger.melee.02.white", "jb2a.shortsword.melee.01"],
+  jianshu: ["jb2a.sword.melee.01.white", "jb2a.shortsword.melee.01", "jb2a.rapier.melee.01"],
+  bangshu: ["jb2a.quarterstaff.melee.01.white", "jb2a.club.melee.01.white"],
+  chuishu: ["jb2a.mace.melee.01.white", "jb2a.warhammer.melee.01", "jb2a.hammer.melee.01"],
+  dunshu: ["jb2a.melee_attack.06.shield.01"],
+  improvisation: ["jb2a.club.melee.01.white", "jb2a.melee_attack.02.club"],
+  handToHand: ["jb2a.unarmed_strike.physical.01.blue", "jb2a.flurry_of_blows.physical"],
+  gongshu: ["jb2a.arrow.physical.white.01", "jb2a.arrow.physical.blue"],
+  nushu: ["jb2a.bolt.physical.orange", "jb2a.arrow.physical.white.01"],
+  throwing: ["jb2a.dagger.throw.01.white"],
+};
 const JB2A_PATHS = {
-  thrust: ["jb2a.spear.melee", "jb2a.glaive.melee", "jb2a.halberd.melee", "jb2a.melee_generic.piercing.one_handed", "jb2a.melee_generic.piercing", "jb2a.rapier.melee"],
-  stab: ["jb2a.dagger.melee", "jb2a.shortsword.melee", "jb2a.melee_generic.piercing.one_handed", "jb2a.melee_generic.piercing"],
-  slash: ["jb2a.sword.melee", "jb2a.longsword.melee", "jb2a.scimitar.melee", "jb2a.greatsword.melee", "jb2a.melee_generic.slashing.one_handed", "jb2a.melee_generic.slash"],
-  blunt: ["jb2a.quarterstaff.melee", "jb2a.club.melee", "jb2a.mace.melee", "jb2a.warhammer.melee", "jb2a.melee_generic.bludgeoning.one_handed", "jb2a.melee_generic.bludgeoning"],
-  punch: ["jb2a.unarmed_strike.physical", "jb2a.unarmed_strike", "jb2a.flurry_of_blows.physical", "jb2a.flurry_of_blows"],
-  arrow: ["jb2a.arrow.physical", "jb2a.arrow"],
-  bolt: ["jb2a.bolt.physical", "jb2a.arrow.physical", "jb2a.arrow"],
-  thrown: ["jb2a.spear.throw", "jb2a.javelin", "jb2a.dagger.throw", "jb2a.dagger.thrown", "jb2a.handaxe.throw"],
-  impact: ["jb2a.impact.ground_crack.orange", "jb2a.impact.001.orange", "jb2a.impact.001", "jb2a.impact"],
+  thrust: ["jb2a.spear.melee.01.white", "jb2a.glaive.melee.01"],
+  stab: ["jb2a.dagger.melee.02.white", "jb2a.shortsword.melee.01"],
+  slash: ["jb2a.sword.melee.01.white", "jb2a.melee_generic.slash.01"],
+  blunt: ["jb2a.club.melee.01.white", "jb2a.mace.melee.01.white"],
+  punch: ["jb2a.unarmed_strike.physical.01.blue"],
+  arrow: ["jb2a.arrow.physical.white.01"],
+  bolt: ["jb2a.bolt.physical.orange"],
+  thrown: ["jb2a.dagger.throw.01.white"],
+  impact: ["jb2a.impact.005.orange", "jb2a.impact.008.orange", "jb2a.impact.001.blue"],
 };
 const RANGED_KINDS = new Set(["arrow", "bolt", "thrown"]);
 
@@ -37,7 +53,11 @@ function sequencerReady() {
   return !!(game.modules.get("sequencer")?.active && globalThis.Sequence && globalThis.Sequencer?.Database);
 }
 function dbHas(path) {
-  try { return !!path && Sequencer.Database.entryExists(path); } catch { return false; }
+  if (!path) return false;
+  try {
+    if (Sequencer.Database.entryExists(path)) return true;
+    return !!Sequencer.Database.getPathsUnder?.(path)?.length;
+  } catch { return false; }
 }
 function firstPath(list) { return list.find(dbHas) ?? null; }
 
@@ -203,7 +223,8 @@ export async function playAttackFx({ source, target, point, weapon, hit }) {
 
 async function playSequencer({ source, target, to, weapon, kind, hit }) {
   const custom = weapon.system.animation?.trim();
-  const path = (custom && dbHas(custom) ? custom : null) ?? firstPath(JB2A_PATHS[kind] ?? []);
+  const path = (custom && dbHas(custom) ? custom : null)
+    ?? firstPath(JB2A_BY_SKILL[weapon.system.skill] ?? []) ?? firstPath(JB2A_PATHS[kind] ?? []);
   if (!path) return false;
   const seq = new Sequence();
   const fx = seq.effect().file(path).atLocation(source).stretchTo(target ?? to);
