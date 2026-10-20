@@ -216,3 +216,8 @@ button.qin-armed { outline: 2px solid #9b2c22; }
   padding: 6px 14px; border-radius: 6px; background: rgba(20, 16, 12, 0.9); border: 1px solid #b8862b; color: #f3ead8;
   font-size: calc(14px * var(--qin-scale, 1.15)); box-shadow: 0 2px 8px rgba(0,0,0,.5);
 }
+
+/* Learned-skill marker (Beginner skills a character actually has) */
+.qin .qin-skill a.qin-known-toggle { flex: 0 0 auto; opacity: 0.25; font-size: calc(11px * var(--qin-scale, 1.15)); }
+.qin .qin-skill.known a.qin-known-toggle { opacity: 0.9; color: var(--qin-red); }
+.qin .qin-skill a.qin-known-toggle:hover { opacity: 1; }

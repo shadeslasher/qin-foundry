@@ -69,7 +69,8 @@
         <div class="qin-domain">
           <h3>{{label}}</h3>
           {{#each skills}}
-          <div class="qin-skill {{#if value}}known{{/if}}">
+          <div class="qin-skill {{#if known}}known{{/if}}">
+            <a class="qin-known-toggle {{#if listed}}on{{/if}}" data-action="toggleKnown" data-skill="{{key}}" title="Learned at Beginner level (click to toggle)"><i class="fa-{{#if known}}solid{{else}}regular{{/if}} fa-circle-check"></i></a>
             <a data-action="rollSkill" data-skill="{{key}}">{{label}}{{#if complex}}*{{/if}}{{#if homebrew}} †{{/if}}</a>
             {{#if needsSpec}}<input class="qin-spec" type="text" name="system.skills.{{key}}.spec" value="{{spec}}" placeholder="specialty">{{/if}}
             <select name="system.skills.{{key}}.value" data-dtype="Number">{{selectOptions ../../skillLevels selected=value}}</select>

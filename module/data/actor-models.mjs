@@ -12,7 +12,10 @@ function aspectsSchema(initial = 2) {
 function skillsSchema() {
   const s = {};
   for (const k of Object.keys(SKILLS)) {
-    s[k] = new fields.SchemaField({ value: int(0, { min: 0, max: 6 }), spec: new fields.StringField({ initial: "" }) });
+    s[k] = new fields.SchemaField({
+      value: int(0, { min: 0, max: 6 }), spec: new fields.StringField({ initial: "" }),
+      known: new fields.BooleanField({ initial: false }), // learned at Beginner (level 0) — shown like a trained skill
+    });
   }
   return new fields.SchemaField(s);
 }

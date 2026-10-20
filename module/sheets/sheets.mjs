@@ -84,6 +84,7 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
       rollAspect: QinActorSheetBase.#rollAspect,
       rollSkill: QinActorSheetBase.#rollSkill,
       itemCreate: QinActorSheetBase.#itemCreate,
+      toggleKnown: QinActorSheetBase.#toggleKnown,
       itemEdit: QinActorSheetBase.#itemEdit,
       itemDelete: QinActorSheetBase.#itemDelete,
       itemUse: QinActorSheetBase.#itemUse,
@@ -112,6 +113,7 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
         const v = system.skills?.[key] ?? { value: 0, spec: "" };
         return {
           key, label: s.label, value: v.value, spec: v.spec, complex: s.complex, needsSpec: s.spec, martial: s.martial, homebrew: s.homebrew,
+          known: v.value > 0 || !!v.known, listed: !!v.known,
           levelLabel: SKILL_LEVELS[v.value], actions: s.martial ? actionsPerRound(v.value) : null,
         };
       }),
@@ -229,6 +231,11 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
     const key = target.dataset.skill;
     const domain = SKILLS[key]?.domain ?? this.actor.items.get(key)?.system.domain ?? "metal";
     this.actor.rollTest({ aspect: domain, skill: key, physical: domain === "water" });
+  }
+  /** Mark a Beginner-level skill as learned (or not). */
+  static async #toggleKnown(event, target) {
+    const key = target.dataset.skill;
+    await this.actor.update({ [`system.skills.${key}.known`]: !this.actor.system.skills?.[key]?.known });
   }
   static async #itemCreate(event, target) {
     const type = target.dataset.type;
