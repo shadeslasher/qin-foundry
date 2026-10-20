@@ -1,51 +1,158 @@
 {
   "id": "qin",
   "title": "Qin: The Warring States",
-  "description": "Unofficial Foundry VTT system for Qin: The Warring States (Yin/Yang system), with a Fire Emblem–style battlefield unit combat system for a Three Kingdoms campaign.",
+  "description": "Unofficial Foundry VTT system for Qin: The Warring States (Yin/Yang system), with a Fire Emblem\u2013style battlefield unit combat system for a Three Kingdoms campaign.",
   "version": "0.1.0",
   "compatibility": {
     "minimum": "14",
     "verified": "14.369",
     "maximum": "14"
   },
-  "authors": [{ "name": "David" }],
-  "esmodules": ["qin.mjs"],
-  "styles": ["styles/qin.css"],
-  "languages": [{ "lang": "en", "name": "English", "path": "lang/en.json" }],
+  "authors": [
+    {
+      "name": "David"
+    }
+  ],
+  "esmodules": [
+    "qin.mjs"
+  ],
+  "styles": [
+    "styles/qin.css"
+  ],
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "lang/en.json"
+    }
+  ],
   "documentTypes": {
     "Actor": {
-      "character": { "htmlFields": ["biography", "notes", "deeds"] },
-      "henchman": { "htmlFields": ["biography", "notes"] },
-      "unit": { "htmlFields": ["traits"] }
+      "character": {
+        "htmlFields": [
+          "biography",
+          "notes",
+          "deeds"
+        ]
+      },
+      "henchman": {
+        "htmlFields": [
+          "biography",
+          "notes"
+        ]
+      },
+      "unit": {
+        "htmlFields": [
+          "traits"
+        ]
+      }
     },
     "Item": {
-      "weapon": { "htmlFields": ["description"] },
-      "armor": { "htmlFields": ["description"] },
-      "tao": { "htmlFields": ["description"] },
-      "technique": { "htmlFields": ["description"] },
-      "magic": { "htmlFields": ["description"] },
-      "gift": { "htmlFields": ["description"] },
-      "weakness": { "htmlFields": ["description"] },
-      "gear": { "htmlFields": ["description"] },
-      "skill": { "htmlFields": ["description"] },
-      "officerAbility": { "htmlFields": ["description"] }
+      "weapon": {
+        "htmlFields": [
+          "description"
+        ]
+      },
+      "armor": {
+        "htmlFields": [
+          "description"
+        ]
+      },
+      "tao": {
+        "htmlFields": [
+          "description"
+        ]
+      },
+      "technique": {
+        "htmlFields": [
+          "description"
+        ]
+      },
+      "magic": {
+        "htmlFields": [
+          "description"
+        ]
+      },
+      "gift": {
+        "htmlFields": [
+          "description"
+        ]
+      },
+      "weakness": {
+        "htmlFields": [
+          "description"
+        ]
+      },
+      "gear": {
+        "htmlFields": [
+          "description"
+        ]
+      },
+      "skill": {
+        "htmlFields": [
+          "description"
+        ]
+      },
+      "officerAbility": {
+        "htmlFields": [
+          "description"
+        ]
+      }
     }
   },
   "packs": [
-    { "name": "taos", "label": "Taos", "type": "Item", "system": "qin" },
-    { "name": "techniques", "label": "Combat Techniques", "type": "Item", "system": "qin" },
-    { "name": "equipment", "label": "Weapons & Armor", "type": "Item", "system": "qin" },
-    { "name": "gifts-weaknesses", "label": "Gifts & Weaknesses", "type": "Item", "system": "qin" },
-    { "name": "units", "label": "Battlefield Units", "type": "Actor", "system": "qin" }
+    {
+      "name": "taos",
+      "label": "Taos",
+      "type": "Item",
+      "system": "qin"
+    },
+    {
+      "name": "techniques",
+      "label": "Combat Techniques",
+      "type": "Item",
+      "system": "qin"
+    },
+    {
+      "name": "equipment",
+      "label": "Weapons & Armor",
+      "type": "Item",
+      "system": "qin"
+    },
+    {
+      "name": "gifts-weaknesses",
+      "label": "Gifts & Weaknesses",
+      "type": "Item",
+      "system": "qin"
+    },
+    {
+      "name": "units",
+      "label": "Battlefield Units",
+      "type": "Actor",
+      "system": "qin"
+    }
   ],
   "packFolders": [
-    { "name": "Qin", "sorting": "m", "packs": ["taos", "techniques", "equipment", "gifts-weaknesses", "units"] }
+    {
+      "name": "Qin",
+      "sorting": "m",
+      "packs": [
+        "taos",
+        "techniques",
+        "equipment",
+        "gifts-weaknesses",
+        "units"
+      ]
+    }
   ],
-  "grid": { "distance": 1, "units": "yd" },
+  "grid": {
+    "distance": 1,
+    "units": "yd"
+  },
   "primaryTokenAttribute": "men",
   "socket": true,
   "url": "https://github.com/shadeslasher/qin-foundry",
-  "manifest": "https://github.com/shadeslasher/qin-foundry/releases/latest/download/system.json",
-  "download": "https://github.com/shadeslasher/qin-foundry/releases/latest/download/qin.zip",
+  "manifest": "https://raw.githubusercontent.com/shadeslasher/qin-foundry/main/system.json",
+  "download": "https://raw.githubusercontent.com/shadeslasher/qin-foundry/main/dist/qin.zip",
   "license": "LICENSE"
 }

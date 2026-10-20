@@ -7,7 +7,7 @@ An unofficial game system for **Qin: The Warring States** on Foundry VTT v14. It
 1. In Foundry's setup screen, go to **Game Systems → Install System**.
 2. Paste this into **Manifest URL** at the bottom and click **Install**:
    ```
-   https://github.com/shadeslasher/qin-foundry/releases/latest/download/system.json
+   https://raw.githubusercontent.com/shadeslasher/qin-foundry/main/system.json
    ```
 3. Create a world with the **Qin: The Warring States** system.
 
@@ -84,5 +84,5 @@ Taos (all 15, with level effects), Combat Techniques, Weapons & Armor, Gifts & W
 npm install
 npm test             # rules, battle engine and Foundry bridge tests
 npm run build:packs  # rebuild compendiums from tools/content.mjs
-npm run package      # dist/qin.zip + dist/system.json for a release
+npm run package      # rebuild dist/qin.zip (commit it; Foundry downloads it from the repo)
 ```
