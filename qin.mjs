@@ -94,6 +94,19 @@ Hooks.once("init", () => {
   });
 
   Handlebars.registerHelper("add", (a, b) => Number(a) + Number(b));
+  // Option values are strings ("0".."6"), but our data is numbers: compare as strings so the
+  // stored level (e.g. 1 = Apprentice) is the one shown as selected.
+  const coreSelectOptions = Handlebars.helpers.selectOptions;
+  if (coreSelectOptions && !coreSelectOptions.qinWrapped) {
+    const wrapped = function (choices, options) {
+      const sel = options?.hash?.selected;
+      if (typeof sel === "number" || typeof sel === "boolean") options.hash.selected = String(sel);
+      else if (Array.isArray(sel)) options.hash.selected = sel.map(v => (typeof v === "number" ? String(v) : v));
+      return coreSelectOptions.call(this, choices, options);
+    };
+    wrapped.qinWrapped = true;
+    Handlebars.registerHelper("selectOptions", wrapped);
+  }
   Handlebars.registerHelper("qinObj", (options) => options.hash);
   if (!Handlebars.helpers.eq) Handlebars.registerHelper("eq", (a, b) => a === b);
 
