@@ -3,7 +3,7 @@
     <img class="qin-portrait" src="{{actor.img}}" data-action="editImage" data-edit="img" title="{{actor.name}}">
     <div class="qin-head-main">
       <input class="qin-name" name="name" type="text" value="{{actor.name}}" placeholder="Name">
-      <p class="qin-muted">Henchman: no Chi, no Breath of Life. Out of action when one blow's damage exceeds Resistance. Main skill Competent, three minor skills Apprentice, one combat technique.</p>
+      <p class="qin-muted">Henchman: no Chi, no Breath of Life. Health equals tier; each hit costs 1 health, or 2/3/4 when the damage (after armor) reaches 2×/3×/4× Resistance.</p>
     </div>
   </header>
   <section class="qin-aspects">
@@ -18,6 +18,8 @@
     <div class="qin-stat"><span>Passive Defense</span><b>{{system.passiveDefense}}</b></div>
     <div class="qin-stat"><span>Resistance</span><b>{{system.resistance}}</b></div>
     <div class="qin-stat"><span>Armor</span><b>{{system.armor.protection}}</b></div>
+    <div class="qin-stat"><span>Tier</span><input type="number" name="system.tier" value="{{system.tier}}" min="1" max="6"></div>
+    <div class="qin-stat"><span>Health</span><b class="qin-hp">{{#each hpPips}}<a data-action="henchHp" data-index="{{@index}}" class="qin-hp-pip {{#if this}}full{{/if}}" title="Click to set health"></a>{{/each}} {{system.hp.value}}/{{system.hp.max}}</b></div>
     <div class="qin-stat"><span>Group size</span><input type="number" name="system.count" value="{{system.count}}" min="1"></div>
     <div class="qin-stat"><span>Out of action</span><input type="checkbox" name="system.outOfAction" {{checked system.outOfAction}}></div>
   </section>

@@ -224,3 +224,11 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 
 /* Draggable item rows (to the macro bar) */
 .qin [data-item-id][draggable="true"] { cursor: grab; }
+
+/* Henchman health pips (sheet + token hover) and character titles on hover */
+.qin .qin-hp { display: inline-flex; align-items: center; gap: 3px; }
+.qin .qin-hp-pip, .qin-token-hover .qin-th-pip { display: inline-block; width: 11px; height: 11px; border-radius: 2px; border: 1px solid #9b2c22; background: transparent; vertical-align: middle; }
+.qin .qin-hp-pip.full, .qin-token-hover .qin-th-pip.full { background: #c0392b; }
+.qin .qin-hp-pip { cursor: pointer; }
+.qin-token-hover .qin-th-title { text-align: center; font-style: italic; color: #d8c8a8; margin: -1px 0 3px; }
+.qin-token-hover .qin-th-pip { width: 8px; height: 8px; margin-right: 1px; }

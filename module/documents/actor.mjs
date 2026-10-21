@@ -75,9 +75,13 @@ export class QinActor extends foundry.documents.Actor {
       return `${this.name} takes ${dmg} damage (${amount} − ${prot} armor${reduction ? ` − ${reduction}` : ""}). Now ${state}.`;
     }
     if (this.isHenchman) {
-      const out = dmg > this.system.resistance;
-      if (out) await this.update({ "system.outOfAction": true });
-      return `${this.name} takes ${dmg} damage (${amount} − ${prot} armor${reduction ? ` − ${reduction}` : ""}): ${out ? "out of action" : `still standing (Resistance ${this.system.resistance})`}.`;
+      // Homebrew: health = tier. Any damage costs 1; 2x Resistance costs 2, 3x costs 3, 4x costs 4.
+      const lost = Q.henchmanHealthLoss(dmg, this.system.resistance);
+      const wounds = Math.min(this.system.tier, this.system.wounds + lost);
+      const out = wounds >= this.system.tier;
+      if (lost) await this.update({ "system.wounds": wounds, "system.outOfAction": out });
+      const left = this.system.tier - wounds;
+      return `${this.name} takes ${dmg} damage (${amount} − ${prot} armor${reduction ? ` − ${reduction}` : ""}) and loses ${lost} health (Resistance ${this.system.resistance}): ${out ? "out of action" : `${left} / ${this.system.tier} health left`}.`;
     }
     return "";
   }

@@ -344,6 +344,9 @@ export function registerDamageFloats() {
     if (actor.type === "henchman" && foundry.utils.hasProperty(change, "system.outOfAction")) {
       options.qinOut = !!actor.system.outOfAction;
     }
+    if (actor.type === "henchman" && foundry.utils.hasProperty(change, "system.wounds")) {
+      options.qinWounds = actor.system.wounds;
+    }
   });
   Hooks.on("updateActor", (actor, change, options, userId) => {
     if (userId !== game.user.id || !canvas?.ready) return;
@@ -356,6 +359,13 @@ export function registerDamageFloats() {
         if (delta > 0) { showSlice(t, delta); showFloat(t.center, "damage", `-${delta}`); }
         else if (delta < 0) showFloat(t.center, "heal", `+${-delta}`);
         if (died) showSkull(t.center);
+      }
+    }
+    if (options.qinWounds !== undefined) {
+      const delta = actor.system.wounds - options.qinWounds;
+      for (const t of tokens) {
+        if (delta > 0) { showSlice(t, delta * 3); showFloat(t.center, "damage", `-${delta}`); }
+        else if (delta < 0) showFloat(t.center, "heal", `+${-delta}`);
       }
     }
     if (options.qinOut === false && actor.system.outOfAction) for (const t of tokens) showSkull(t.center);

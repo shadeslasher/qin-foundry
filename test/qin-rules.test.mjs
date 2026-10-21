@@ -56,3 +56,15 @@ test("negative Chi converts to damage", () => {
   assert.deepStrictEqual(Q.spendChi(1, 3), { chi: -2, damage: 2 });
   assert.deepStrictEqual(Q.spendChi(-2, 1), { chi: -3, damage: 1 });
 });
+
+test("henchman health loss: 1 per hit, 2/3/4 at 2x/3x/4x Resistance", async () => {
+  const { henchmanHealthLoss: h } = await import("../module/rules/qin-rules.mjs");
+  const assert = (await import("node:assert/strict")).default;
+  assert.equal(h(0, 4), 0);
+  assert.equal(h(1, 4), 1);
+  assert.equal(h(7, 4), 1);
+  assert.equal(h(8, 4), 2);
+  assert.equal(h(12, 4), 3);
+  assert.equal(h(16, 4), 4);
+  assert.equal(h(40, 4), 4);
+});

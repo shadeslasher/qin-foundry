@@ -78,6 +78,13 @@ export function bolState(dist, damage) {
   return { levels, total, remaining, current: current.key, penalty: coma ? 5 : current.penalty, coma, dead };
 }
 
+/** Henchman health lost to one hit (after armor): 1, or 2/3/4 when it reaches 2x/3x/4x Resistance. */
+export function henchmanHealthLoss(damage, resistance) {
+  if (damage <= 0) return 0;
+  const res = Math.max(1, resistance);
+  return Math.max(1, Math.min(4, Math.floor(damage / res)));
+}
+
 export function actionsPerRound(skillLevel) {
   return Math.max(0, skillLevel) + 1;
 }

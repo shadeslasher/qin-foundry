@@ -303,7 +303,15 @@ export class CharacterSheet extends QinActorSheetBase {
 }
 
 export class HenchmanSheet extends QinActorSheetBase {
-  static DEFAULT_OPTIONS = { position: { width: 640, height: 640 } };
+  static DEFAULT_OPTIONS = { position: { width: 640, height: 640 }, actions: { henchHp: HenchmanSheet.#henchHp } };
+
+  /** Click a health pip: set health to that many (clicking the last full pip removes it). */
+  static async #henchHp(event, target) {
+    const i = Number(target.dataset.index), s = this.actor.system;
+    const value = s.hp.value === i + 1 ? i : i + 1;
+    const wounds = Math.max(0, s.tier - value);
+    await this.actor.update({ "system.wounds": wounds, "system.outOfAction": wounds >= s.tier });
+  }
   static PARTS = { sheet: { template: systemPath("templates/actor/henchman.hbs"), scrollable: [".qin-body"] } };
 
   /** Henchmen only track weapon skills, Dodging and Perception (plus any extra skills added by hand). */
@@ -314,6 +322,7 @@ export class HenchmanSheet extends QinActorSheetBase {
       const s = SKILLS[key], v = system.skills?.[key] ?? { value: 0, spec: "" };
       return { key, label: s.label, value: v.value, spec: v.spec, complex: s.complex };
     };
+    context.hpPips = Array.from({ length: system.hp?.max ?? 0 }, (_, i) => i < (system.hp?.value ?? 0));
     context.weaponSkills = Object.entries(SKILLS).filter(([, s]) => s.martial).map(([k]) => row(k));
     context.otherSkills = ["dodging", "perception"].filter(k => SKILLS[k]).map(row);
     context.extraSkills = (context.items.skill || []).map(i => ({ id: i.id, name: i.name, value: i.system.value, levelLabel: SKILL_LEVELS[i.system.value], domain: DOMAINS[i.system.domain] ?? i.system.domain }));

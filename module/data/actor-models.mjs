@@ -105,11 +105,14 @@ export class HenchmanData extends QinBaseActor {
       ...super.defineSchema(),
       outOfAction: new fields.BooleanField({ initial: false }),
       count: int(1, { min: 1 }),
+      tier: int(1, { min: 1, max: 6 }),   // campaign homebrew: health = tier
+      wounds: int(0, { min: 0 }),          // health lost
     };
   }
   prepareDerivedData() {
     super.prepareDerivedData();
     this.penalty = 0;
+    this.hp = { max: this.tier, value: Math.max(0, this.tier - this.wounds) };
   }
 }
 
