@@ -9,9 +9,10 @@ export function factionSlug(name) {
   return String(name ?? "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
+// Kept on CONFIG itself: CONFIG.QIN is the config module's namespace object, which can't take new keys
 function registry() {
-  CONFIG.QIN.factions ??= {};
-  return CONFIG.QIN.factions;
+  CONFIG.qinFactions ??= {};
+  return CONFIG.qinFactions;
 }
 
 /**

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert';
-globalThis.CONFIG = { QIN: {} };
+globalThis.CONFIG = { QIN: Object.preventExtensions({}) }; // like the real config namespace: no new keys
 globalThis.foundry = { utils: {} };
 const F = await import('../module/factions.mjs');
 

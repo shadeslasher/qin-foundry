@@ -27,7 +27,7 @@ function applyTextScale() {
 Hooks.once("init", () => {
   console.log("Qin | Initializing Qin: The Warring States");
   CONFIG.QIN = CFG;
-  CFG.factions ??= {};
+  CONFIG.qinFactions ??= {};
   globalThis.qin = game.qin = { config: CFG, rules: QinRules, openBattle: () => BattlePanel.open(), battleRequest, registerFactions, factionList };
 
   CONFIG.Actor.documentClass = QinActor;
