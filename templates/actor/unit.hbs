@@ -6,7 +6,9 @@
       <div class="qin-details">
         <label>Unit type <input type="text" name="system.unitType" value="{{system.unitType}}" placeholder="e.g. Spear and Shield"></label>
         <label>Side <select name="system.side">{{selectOptions sides selected=system.side}}</select></label>
-        <label>Faction <input type="text" name="system.faction" value="{{system.faction}}"></label>
+        <label>Faction <button type="button" class="qin-faction-btn" {{#if editable}}data-action="pickFaction"{{else}}disabled{{/if}} title="{{#if editable}}Choose a faction{{/if}}">
+          {{#if faction}}{{#if faction.img}}<img src="{{faction.img}}" alt="">{{else}}<i class="fa-solid fa-flag"></i>{{/if}} <span>{{faction.name}}</span>{{else}}<i class="fa-solid fa-flag"></i> <span class="qin-muted">No faction</span>{{/if}}
+        </button></label>
         <label>Status <select name="system.status">{{selectOptions (qinObj active="Active" defeated="Defeated" surrendered="Surrendered") selected=system.status}}</select></label>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import { ASPECTS, SKILLS, DOMAINS, SKILL_LEVELS, BOL_LEVELS, MAGIC_WAYS, OFFICER_ABILITY_KINDS, OFFICER_EFFECTS, UNIT_CATEGORIES, SIDES, SIGNATURE_SLOTS, systemPath } from "../config.mjs";
+import { factionOf, openFactionPicker } from "../factions.mjs";
 import { actionsPerRound } from "../rules/qin-rules.mjs";
 
 const { api, sheets } = foundry.applications;
@@ -373,6 +374,7 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
       itemCreate: UnitSheet.#itemCreate,
       addFormation: UnitSheet.#addFormation,
       addAllFormations: UnitSheet.#addAllFormations,
+      pickFaction: UnitSheet.#pickFaction,
     },
   };
   static PARTS = { sheet: { template: systemPath("templates/actor/unit.hbs"), scrollable: [".qin-body"] } };
@@ -392,7 +394,7 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
     const owned = new Set(formations.map(f => f.name));
     Object.assign(context, {
       actor, system, editable: this.isEditable, isGM: game.user.isGM,
-      categories: UNIT_CATEGORIES, sides: SIDES,
+      categories: UNIT_CATEGORIES, sides: SIDES, faction: factionOf(system.faction),
       weaponSkills: Object.fromEntries(Object.entries(SKILLS).filter(([, s]) => s.martial).map(([k, s]) => [k, s.label])),
       formationChoices: { none: "No formation", ...Object.fromEntries(formations.map(f => [f.id, f.name])) },
       formations: formations.map(f => ({ id: f.id, name: f.name, description: f.system.description, summary: formationSummary(f.system), active: system.formation === f.id })),
@@ -451,6 +453,7 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
     const docs = (await Promise.all(lib.filter(l => !owned.has(l.name)).map(l => fromUuid(l.uuid)))).filter(Boolean);
     if (docs.length) await this.document.createEmbeddedDocuments("Item", docs.map(d => d.toObject()));
   }
+  static async #pickFaction() { if (this.isEditable) openFactionPicker(this.document); }
   static async #openOfficer() { this.document.system.officerActor?.sheet.render(true); }
   static async #clearOfficer() { this.document.update({ "system.officer": "" }); }
 }

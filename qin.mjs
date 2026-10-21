@@ -12,6 +12,7 @@ import { registerTokenHover } from "./module/token-hover.mjs";
 import { registerCombatQuery, onRenderCombatTracker } from "./module/combat-actions.mjs";
 import { registerAttackFxSocket, registerDamageFloats } from "./module/attack-fx.mjs";
 import { registerUnitBars, redrawAllUnitBars } from "./module/unit-bars.mjs";
+import { registerFactions, factionList } from "./module/factions.mjs";
 import { refreshBattleUI, repositionBattleUI, lockUnitTokens, onUnitSelected } from "./module/battle/battle-ui.mjs";
 
 const { SYSTEM_ID } = CFG;
@@ -26,7 +27,8 @@ function applyTextScale() {
 Hooks.once("init", () => {
   console.log("Qin | Initializing Qin: The Warring States");
   CONFIG.QIN = CFG;
-  globalThis.qin = game.qin = { config: CFG, rules: QinRules, openBattle: () => BattlePanel.open(), battleRequest };
+  CFG.factions ??= {};
+  globalThis.qin = game.qin = { config: CFG, rules: QinRules, openBattle: () => BattlePanel.open(), battleRequest, registerFactions, factionList };
 
   CONFIG.Actor.documentClass = QinActor;
   CONFIG.Item.documentClass = QinItem;
