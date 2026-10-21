@@ -60,6 +60,16 @@ function officerLibraryEntry(officer) {
   };
 }
 
+/** Engine formation entry from a unit's formation item. */
+function formationEntry(tokenId, item) {
+  const f = item.system;
+  const e = { id: `${tokenId}.${item.id}`, name: item.name, desc: stripHtml(f.description) };
+  for (const k of ["moveMod", "vsAttack", "vsMelee", "vsRanged", "defAll", "defFront", "frontMelee", "chargeBonus", "dmgMod", "casReduce"]) if (f[k]) e[k] = f[k];
+  if (f.vsCharge !== null && f.vsCharge !== undefined) e.vsCharge = f.vsCharge;
+  for (const k of ["immobile", "noAttackerBonus", "noRear"]) if (f[k]) e[k] = true;
+  return e;
+}
+
 function terrainAt(scene, x, y) {
   for (const region of scene.regions ?? []) {
     const name = (region.name || "").toLowerCase();
@@ -83,7 +93,7 @@ export function buildState(battle, { useLastPosition = null } = {}) {
   s.freeMovement = true;
   s.turn = battle.turn;
   s.log = battle.log ?? [];
-  s.library.formations = game.settings.get(SYSTEM_ID, "formations");
+  s.library.formations = [{ id: "none", name: "No formation", desc: "No modifiers." }];
   s.library.unitTypes = [];
   s.library.officers = [];
   s.map = { image: null, cols: BIG, rows: BIG, tile: 1, offsetX: 0, offsetY: 0, terrain: {} };
@@ -95,11 +105,14 @@ export function buildState(battle, { useLastPosition = null } = {}) {
   for (const tok of unitTokens(scene)) {
     const a = tok.actor, sys = a.system;
     const gx = Math.round(tok.x / size), gy = Math.round(tok.y / size);
-    const allowed = (sys.formations || "").split(",").map(x => x.trim()).filter(Boolean);
+    // This unit's formations (embedded items) become engine formations "<token>.<item>"
+    const forms = a.items.filter(i => i.type === "formation").map(i => formationEntry(tok.id, i));
+    s.library.formations.push(...forms);
+    const ranged = sys.range > 1;
     s.library.unitTypes.push({
-      id: tok.id, name: a.name, faction: sys.faction, tier: sys.tier, category: sys.category, weapon: sys.weapon,
-      skill: sys.weaponSkill, unitValue: sys.unitValue, damage: sys.damage, defense: sys.defense, move: sys.move,
-      rangeMin: sys.rangeMin, rangeMax: sys.rangeMax, formations: allowed.length ? ["none", ...allowed] : null,
+      id: tok.id, name: a.name, faction: sys.faction, tier: sys.tier, category: sys.category, weapon: ranged ? "ranged" : "melee",
+      skill: sys.weaponSkill, unitValue: sys.unitValue, damage: sys.damage, armor: sys.armor, armorPen: sys.armorPen, move: sys.move,
+      rangeMin: ranged ? Math.min(sys.rangeMin || 1, sys.range) : 1, rangeMax: ranged ? sys.range : 1, formations: ["none", ...forms.map(f => f.id)],
     });
     let officerId = null;
     const officer = sys.officerActor;
@@ -112,7 +125,8 @@ export function buildState(battle, { useLastPosition = null } = {}) {
     const fromPos = useLastPosition === tok.id && meta.pos ? meta.pos : null;
     s.units.push({
       id: tok.id, typeId: tok.id, officerId, name: tok.name, side: sys.side, owner: ownerUserId(a),
-      x: fromPos ? fromPos.x : gx, y: fromPos ? fromPos.y : gy, men: sys.men.value, morale: sys.morale, formation: sys.formation || "none",
+      x: fromPos ? fromPos.x : gx, y: fromPos ? fromPos.y : gy, men: sys.men.value, maxMen: sys.men.max, morale: sys.morale, xp: sys.xp?.value ?? 0,
+      formation: a.items.get(sys.formation)?.type === "formation" ? `${tok.id}.${sys.formation}` : "none",
       facing: meta.facing ?? { dx: 0, dy: sys.side === "enemy" ? 1 : -1 }, hidden: sys.hidden, status: sys.status,
       mods: meta.mods ?? [], heroicUsed: meta.heroicUsed ?? 0, lastHeroic: meta.lastHeroic ?? null,
       surrounded: meta.surrounded ?? false, round: meta.round ?? { activated: false, moved: false, cannotMove: false, holding: false, attacked: false, skillUsed: false, heroicUsed: false, meleeTarget: null, meleeAttacker: null },
@@ -146,7 +160,12 @@ async function writeBack(battle, s, scene) {
     const upd = {};
     if (sys.men.value !== u.men) upd["system.men.value"] = u.men;
     if (sys.morale !== u.morale) upd["system.morale"] = u.morale;
-    if ((sys.formation || "none") !== u.formation) upd["system.formation"] = u.formation;
+    if ((sys.xp?.value ?? 0) !== (u.xp || 0)) upd["system.xp.value"] = u.xp || 0;
+    const formItem = u.formation && u.formation !== "none" ? u.formation.split(".").pop() : "none";
+    if ((sys.formation || "none") !== formItem) upd["system.formation"] = formItem;
+    // Health at the start of the battle (post-battle XP loss = casualties suffered)
+    battle.startMen ??= {};
+    if (battle.startMen[u.id] === undefined) battle.startMen[u.id] = sys.men.value;
     if (sys.status !== u.status) upd["system.status"] = u.status;
     if (sys.hidden !== !!u.hidden) upd["system.hidden"] = !!u.hidden;
     if (Object.keys(upd).length) actorUpdates.push(tok.actor.update(upd, { qinBattle: true }));
@@ -214,6 +233,7 @@ async function runActionNow(userId, action) {
     battle.sceneId = scene.id;
   } else if (action.type === "endBattle") {
     if (!actor.host) return { ok: false, error: "Only the GM can end the battle" };
+    await settleXpAfterBattle(battle);
     await game.settings.set(SYSTEM_ID, SETTING, emptyBattle());
     return { ok: true };
   } else if (!battle.active) {
@@ -238,6 +258,24 @@ async function runActionNow(userId, action) {
   await writeBack(battle, s, scene);
   await postLog(s.log.slice(logLen), s);
   return res;
+}
+
+/** After a battle, each unit loses XP equal to the casualties it suffered (health lost) during it. */
+async function settleXpAfterBattle(battle) {
+  const scene = game.scenes.get(battle.sceneId);
+  if (!scene) return;
+  const lines = [];
+  for (const tok of unitTokens(scene)) {
+    const start = battle.startMen?.[tok.id];
+    if (start === undefined) continue;
+    const sys = tok.actor.system;
+    const lost = Math.max(0, start - sys.men.value);
+    const xp = sys.xp?.value ?? 0;
+    const after = Math.max(0, xp - lost);
+    if (after !== xp) await tok.actor.update({ "system.xp.value": after }, { qinBattle: true });
+    lines.push(`<li><b>${tok.name}</b>: ${lost} casualties${lost ? `, XP ${xp} → ${after}` : `, XP ${xp}`}</li>`);
+  }
+  if (lines.length) await Chat().create({ content: `<div class="qin-chat qin-battle-log"><h3>Battle over</h3><p>Units lose XP equal to the casualties they suffered.</p><ul>${lines.join("")}</ul></div>`, speaker: { alias: "Battle" } });
 }
 
 /** GM-side reaction to a token being dragged during a battle. */

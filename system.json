@@ -2,7 +2,7 @@
   "id": "qin",
   "title": "Qin: The Warring States",
   "description": "Unofficial Foundry VTT system for Qin: The Warring States (Yin/Yang system), with a Fire Emblem\u2013style battlefield unit combat system for a Three Kingdoms campaign.",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "compatibility": {
     "minimum": "14",
     "verified": "14.369",
@@ -102,6 +102,11 @@
         "htmlFields": [
           "description"
         ]
+      },
+      "formation": {
+        "htmlFields": [
+          "description"
+        ]
       }
     }
   },
@@ -131,9 +136,9 @@
       "system": "qin"
     },
     {
-      "name": "units",
-      "label": "Battlefield Units",
-      "type": "Actor",
+      "name": "formations",
+      "label": "Battle Formations",
+      "type": "Item",
       "system": "qin"
     }
   ],
@@ -146,7 +151,7 @@
         "techniques",
         "equipment",
         "gifts-weaknesses",
-        "units"
+        "formations"
       ]
     }
   ],

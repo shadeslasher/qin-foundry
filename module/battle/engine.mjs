@@ -162,8 +162,10 @@ function buildRoll(s, unit, role, ctx) {
   parts.push(['Unit Value', t.unitValue || 0]);
 
   if (role === 'attacker') {
-    if (ctx.ranged && unit.round.moved) parts.push(['Attacker bonus (lost: moved before shooting)', 0]);
+    if (f.noAttackerBonus) parts.push(['Attacker bonus (lost: ' + f.name + ')', 0]);
+    else if (ctx.ranged && unit.round.moved) parts.push(['Attacker bonus (lost: moved before shooting)', 0]);
     else parts.push(['Attacker bonus', 2]);
+    if (!ctx.ranged && f.frontMelee && isFront(s, other, unit)) parts.push(['Formation front (' + f.name + ')', f.frontMelee]);
     if (ctx.charge) parts.push(['Cavalry charge', 1]);
     if (ctx.charge && f.chargeBonus) parts.push(['Formation charge bonus (' + f.name + ')', f.chargeBonus]);
     if (ctx.charge && p.chargeAttackBonus) parts.push(['Officer passive: charge', p.chargeAttackBonus]);
@@ -179,20 +181,24 @@ function buildRoll(s, unit, role, ctx) {
   } else {
     if (ctx.charge) parts.push(['Charged by cavalry', -1]);
     if (f.defFront && isFront(s, ctx.attacker, unit)) parts.push(['Formation front defense (' + f.name + ')', f.defFront]);
+    if (f.defAll) parts.push(['Formation defense (' + f.name + ')', f.defAll]);
+    if (!ctx.ranged && f.frontMelee && isFront(s, ctx.attacker, unit)) parts.push(['Formation front vs melee (' + f.name + ')', f.frontMelee]);
   }
 
   const ms = moraleState(unit.morale);
   if (ms === 'Encouraged') parts.push(['Encouraged', 2]);
   if (ms === 'Demoralized') parts.push(['Demoralized' + (p.ignoreMoralePenalty ? ' (ignored: officer passive)' : ''), p.ignoreMoralePenalty ? 0 : -2]);
-  if (unit.men < 25) parts.push(['Below 25 men', -2]);
-  else if (unit.men < 50) parts.push(['Below 50 men', -1]);
+  // Strength penalties scale with the unit's full health (cavalry have 50)
+  const full = unit.maxMen || 100;
+  if (unit.men < full * 0.25) parts.push(['Below a quarter strength', -2]);
+  else if (unit.men < full * 0.5) parts.push(['Below half strength', -1]);
   for (const m of unit.mods || []) parts.push(['Modifier: ' + m.label, Number(m.value) || 0]);
 
   const total = parts.reduce((a, [, v]) => a + v, 0);
   return { total, parts, dice };
 }
 
-function damageValue(s, u) {
+function damageValue(s, u) { // formation damage modifier applies to the unit's damage value
   const t = typeOf(s, u), f = formationOf(s, u);
   return Math.max(0, (t.damage || 0) + (f.dmgMod || 0));
 }
@@ -227,8 +233,11 @@ function resolveAttack(s, attacker, defender, opts) {
       : manhattan(attacker, defender) === 1;
     if (!dNeg && canReturn) dmgToAtt = base(defender) + winBonus('defender');
   }
-  const casDef = Math.max(0, dmgToDef - (dt.defense || 0));
-  const casAtt = Math.max(0, dmgToAtt - (at.defense || 0));
+  // Casualties = damage - (armor reduced by the other side's armor penetration) - formation damage reduction
+  const af = formationOf(s, attacker);
+  const armorOf = (t) => (t.armor ?? t.defense ?? 0);
+  const casDef = Math.max(0, dmgToDef - Math.max(0, armorOf(dt) - (at.armorPen || 0)) - (df.casReduce || 0));
+  const casAtt = Math.max(0, dmgToAtt - Math.max(0, armorOf(at) - (dt.armorPen || 0)) - (af.casReduce || 0));
 
   // Morale loss for the loser
   let moraleLoss = 0, mult = 1, loser = null;
@@ -244,6 +253,7 @@ function resolveAttack(s, attacker, defender, opts) {
   }
 
   // Apply simultaneously
+  const menBefore = { d: defender.men, a: attacker.men };
   defender.men = Math.max(0, defender.men - casDef);
   attacker.men = Math.max(0, attacker.men - casAtt);
   if (loser) loser.morale = clamp(loser.morale - moraleLoss, 0, 100);
@@ -272,11 +282,22 @@ function resolveAttack(s, attacker, defender, opts) {
     (loser ? '. ' + loser.name + ' loses ' + moraleLoss + ' morale' + (mult > 1 ? ' (x' + mult + ')' : '') : '') + '.',
     { type: 'attack', result });
 
-  // Killing blows
-  if (defender.men <= 0 && attacker.men > 0) gainMorale(s, attacker, 5 * (dt.tier || 1), 'killing blow');
-  if (attacker.men <= 0 && defender.men > 0) gainMorale(s, defender, 5 * (at.tier || 1), 'killing blow');
+  // XP: casualties inflicted x (enemy tier / own tier), rounded down
+  // (only the men the enemy actually had count)
+  gainXp(s, attacker, (menBefore.d - defender.men) * (dt.tier || 1) / (at.tier || 1), 'casualties dealt');
+  gainXp(s, defender, (menBefore.a - attacker.men) * (at.tier || 1) / (dt.tier || 1), 'casualties dealt');
+  // Killing blows: morale 5 x enemy tier, XP 25 x (enemy tier / own tier)
+  if (defender.men <= 0 && attacker.men > 0) { gainMorale(s, attacker, 5 * (dt.tier || 1), 'killing blow'); gainXp(s, attacker, 25 * (dt.tier || 1) / (at.tier || 1), 'killing blow'); }
+  if (attacker.men <= 0 && defender.men > 0) { gainMorale(s, defender, 5 * (at.tier || 1), 'killing blow'); gainXp(s, defender, 25 * (at.tier || 1) / (dt.tier || 1), 'killing blow'); }
   settle(s);
   return result;
+}
+
+function gainXp(s, u, amount, why) {
+  const n = Math.floor(amount);
+  if (n <= 0) return;
+  u.xp = (u.xp || 0) + n;
+  log(s, u.name + ' gains ' + n + ' XP (' + why + ').');
 }
 
 function gainMorale(s, u, n, why) {

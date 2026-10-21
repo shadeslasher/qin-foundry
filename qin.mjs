@@ -11,6 +11,7 @@ import * as QinRules from "./module/rules/qin-rules.mjs";
 import { registerTokenHover } from "./module/token-hover.mjs";
 import { registerCombatQuery, onRenderCombatTracker } from "./module/combat-actions.mjs";
 import { registerAttackFxSocket, registerDamageFloats } from "./module/attack-fx.mjs";
+import { registerUnitBars } from "./module/unit-bars.mjs";
 
 const { SYSTEM_ID } = CFG;
 
@@ -32,7 +33,7 @@ Hooks.once("init", () => {
   Object.assign(CONFIG.Actor.dataModels, { character: CharacterData, henchman: HenchmanData, unit: UnitData });
   Object.assign(CONFIG.Item.dataModels, {
     weapon: IM.WeaponData, armor: IM.ArmorData, tao: IM.TaoData, technique: IM.TechniqueData, magic: IM.MagicData,
-    gift: IM.TraitData, weakness: IM.TraitData, gear: IM.GearData, skill: IM.SkillData, officerAbility: IM.OfficerAbilityData, signature: IM.SignatureData,
+    gift: IM.TraitData, weakness: IM.TraitData, gear: IM.GearData, skill: IM.SkillData, officerAbility: IM.OfficerAbilityData, signature: IM.SignatureData, formation: IM.FormationData,
   });
   CONFIG.Actor.trackableAttributes = {
     character: { bar: [], value: ["chi.value", "bol.damage", "renown"] },
@@ -141,6 +142,7 @@ Hooks.once("ready", () => {
 Hooks.on("renderChatMessageHTML", onRenderChatMessage);
 registerTokenHover();
 registerDamageFloats();
+registerUnitBars();
 Hooks.on("renderCombatTracker", onRenderCombatTracker);
 Hooks.on("updateToken", (doc, change, options) => {
   onTokenMoved(doc, change, options);
@@ -220,6 +222,15 @@ Hooks.on("hotbarDrop", (bar, data, slot) => {
   return false;
 });
 
+// Only the GM may create, change or remove a unit's formations
+for (const hook of ["preCreateItem", "preUpdateItem", "preDeleteItem"]) {
+  Hooks.on(hook, (item) => {
+    if (item.type !== "formation" || !item.parent || game.user.isGM) return;
+    ui.notifications.warn("Only the GM can change a unit's formations.");
+    return false;
+  });
+}
+
 // Renaming an actor renames its tokens too (prototype + placed tokens that still had the old name)
 Hooks.on("preUpdateActor", (actor, change, options) => {
   if (!("name" in change) || change.name === actor.name) return;
@@ -247,6 +258,7 @@ Hooks.on("updateActor", async (actor, change, options, userId) => {
 Hooks.on("preCreateActor", (actor, data) => {
   if (data.prototypeToken) return;
   const proto = { actorLink: actor.type === "character", displayName: 20, displayBars: 20 };
-  if (actor.type === "unit") Object.assign(proto, { bar1: { attribute: "men" }, actorLink: false });
+  // Units: our own always-on health/morale bars replace Foundry's; player units keep their health between battles
+  if (actor.type === "unit") Object.assign(proto, { bar1: { attribute: null }, displayBars: 0, actorLink: (data.system?.side ?? "player") === "player" });
   actor.updateSource({ prototypeToken: proto });
 });

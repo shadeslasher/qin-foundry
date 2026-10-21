@@ -1,0 +1,42 @@
+{
+  "_id": "Q7mldyJszKmzkzEM",
+  "_key": "!items!Q7mldyJszKmzkzEM",
+  "name": "Diamond",
+  "type": "formation",
+  "img": "icons/svg/combat.svg",
+  "system": {
+    "key": "diamond",
+    "moveMod": -2,
+    "immobile": false,
+    "vsAttack": 0,
+    "vsMelee": 0,
+    "vsRanged": 0,
+    "vsCharge": null,
+    "defAll": 0,
+    "defFront": 0,
+    "frontMelee": 0,
+    "chargeBonus": 2,
+    "dmgMod": 0,
+    "casReduce": 0,
+    "noAttackerBonus": false,
+    "noRear": false,
+    "description": "<p>Commanded Unit forms into a diamond shape, the <b>unit's movement decreases by 2</b>. If this unit performs a <b>cavalry charge,</b> <b>add +2 to its roll</b>.</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

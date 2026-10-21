@@ -37,7 +37,7 @@ export function setSetting(k, v) { settings.set(k, v); }
 export function makeActor({ type, system, items = [], owners = [], uuid }) {
   const a = {
     type, system, uuid, name: system.name ?? uuid,
-    items: Object.assign(items, { filter: Array.prototype.filter, find: Array.prototype.find }),
+    items: Object.assign(items, { filter: Array.prototype.filter, find: Array.prototype.find, get(id) { return items.find(i => i.id === id); } }),
     testUserPermission: (u) => u.isGM || owners.includes(u.id),
     update: async (upd) => { for (const [k, v] of Object.entries(upd)) setPath(a, k, v); return a; },
     getSkill(key) { return { value: a.system.skills?.[key]?.value ?? 0 }; },

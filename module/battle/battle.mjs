@@ -142,7 +142,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
     }).filter(Boolean);
 
     const units = s.units.map(u => ({
-      id: u.id, name: u.name, side: u.side, men: u.men, morale: u.morale, moraleState: E.moraleState(u.morale), status: u.status,
+      id: u.id, name: u.name, side: u.side, men: u.men, maxMen: u.maxMen ?? 100, xp: u.xp ?? 0, morale: u.morale, moraleState: E.moraleState(u.morale), status: u.status,
       formation: s.library.formations.find(f => f.id === u.formation)?.name ?? "—", officer: E.officerOf(s, u)?.name ?? null,
       done: u.round.activated, mine: mine(u), img: tokenImg(u.id), pickable: pickable.includes(u),
       formationOptions: (t.phase === "formations" || t.phase === "setup") && mine(u)
@@ -178,7 +178,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
     await battleRequest({ type: "startBattle", sceneId: canvas.scene.id });
   }
   static async #endBattle() {
-    const ok = await (api.Dialog ?? api.DialogV2).confirm({ window: { title: "End battle?" }, content: "<p>End the battle? Unit men and morale stay as they are.</p>" });
+    const ok = await (api.Dialog ?? api.DialogV2).confirm({ window: { title: "End battle?" }, content: "<p>End the battle? Units keep their health and morale. Each unit then loses XP equal to the casualties it suffered this battle.</p>" });
     if (ok) await battleRequest({ type: "endBattle" });
   }
   static async #attackTarget(event, target) {

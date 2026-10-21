@@ -280,3 +280,48 @@ test('free movement (VTT): moves are recorded, over-distance moves warn instead 
   assert.match(res.warning, /moved 8 tiles/);
   assert.strictEqual(R.unitById(s, a).x, 9);
 });
+
+function unitType(id, o) {
+  return Object.assign({ id, name: id, faction: 'X', tier: 1, category: 'infantry', weapon: 'melee', skill: 'Qiangshu',
+    damage: 6, armor: 3, armorPen: 0, unitValue: 0, move: 3, rangeMin: 1, rangeMax: 1, formations: null }, o);
+}
+function duel(s, aType, dType, rolls, setupFn) {
+  s.library.unitTypes.push(aType, dType);
+  const a = add(s, { typeId: aType.id, side: 'player', owner: 'p1', x: 5, y: 5 });
+  const d = add(s, { typeId: dType.id, side: 'enemy', x: 5, y: 4 });
+  if (setupFn) setupFn(R.unitById(s, a), R.unitById(s, d));
+  must(R.act(s, HOST, { type: 'startBattle' }));
+  dice([0, 0]); must(R.act(s, HOST, { type: 'startRound' }));
+  must(R.act(s, P1, { type: 'claim' }));
+  must(R.act(s, P1, { type: 'begin', unitId: a }));
+  dice(rolls);
+  must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
+  return [R.unitById(s, a), R.unitById(s, d)];
+}
+
+test('armor penetration lowers the armor that casualties are reduced by', () => {
+  const s = setup();
+  // attacker: 5 + 2 = 7, defender 0: diff 7. Damage 6+7 = 13 vs armor 4 - AP 3 = 1 -> 12 casualties
+  const [A, D] = duel(s, unitType('ap', { armorPen: 3 }), unitType('tank', { armor: 4 }), [7, 2, 0, 0]);
+  assert.strictEqual(D.men, 100 - 12);
+  assert.strictEqual(A.men, 100); // defender's total was 0: its return damage is negated
+});
+
+test('XP: casualties dealt x enemy tier / own tier, rounded down; kill bonus 25 x ratio', () => {
+  const s = setup();
+  // tier 2 attacker vs tier 1 defender with 10 men: 13 damage - 3 armor = 10 casualties -> kill
+  const [A] = duel(s, unitType('vet', { tier: 2 }), unitType('militia', { tier: 1 }), [7, 2, 0, 0], (a, d) => { d.men = 10; });
+  // only the 10 men it had count: 10 * 1/2 = 5; kill 25 * 1/2 = 12.5 -> 12
+  assert.strictEqual(A.xp, 5 + 12);
+});
+
+test('Turtle: no attacker bonus, +2 defending, 2 fewer casualties; strength penalty scales with max health', () => {
+  const s = setup();
+  s.library.formations.push({ id: 'turt', name: 'Turtle', moveMod: -2, casReduce: 2, noAttackerBonus: true, defAll: 2 });
+  const [A, D] = duel(s, unitType('a1', {}), unitType('d1', { formations: null, category: 'cavalry' }), [7, 2, 0, 0],
+    (a, d) => { d.formation = 'turt'; d.maxMen = 50; d.men = 50; });
+  // attacker 5+2 = 7 vs defender 0+2 = 2 -> diff 5. Damage 6+5 = 11 - armor 3 - turtle 2 = 6
+  assert.strictEqual(D.men, 50 - 6);
+  // defender's return damage 6 - 3 armor = 3 (turtle reduction only protects the turtle)
+  assert.strictEqual(A.men, 100 - 3);
+});

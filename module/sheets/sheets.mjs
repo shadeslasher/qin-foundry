@@ -8,7 +8,7 @@ const ItemSheetBase = sheets.ItemSheet ?? sheets.ItemSheetV2;
 
 const ITEM_GROUPS = {
   weapon: "Weapons", armor: "Armor & shields", technique: "Combat techniques", tao: "Taos", magic: "Magic",
-  gift: "Gift", weakness: "Weakness", gear: "Equipment", skill: "Extra skills", officerAbility: "Tactics", signature: "Signature skills",
+  gift: "Gift", weakness: "Weakness", gear: "Equipment", skill: "Extra skills", officerAbility: "Tactics", signature: "Signature skills", formation: "Formations",
 };
 const TAO_LEVELS = { 0: "0", 1: "1", 2: "2", 3: "3", 4: "4" };
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
@@ -330,40 +330,71 @@ export class HenchmanSheet extends QinActorSheetBase {
   }
 }
 
+/** Short text for a formation's numeric effects (shown on unit sheets). */
+export function formationSummary(f) {
+  const out = [];
+  const sg = (n) => (n > 0 ? `+${n}` : `${n}`);
+  if (f.immobile) out.push("Cannot move");
+  else if (f.moveMod) out.push(`Movement ${sg(f.moveMod)}`);
+  if (f.vsAttack) out.push(`Enemy attacks ${sg(f.vsAttack)}`);
+  if (f.vsMelee) out.push(`Enemy melee ${sg(f.vsMelee)}`);
+  if (f.vsRanged) out.push(`Enemy ranged ${sg(f.vsRanged)}`);
+  if (f.vsCharge !== null && f.vsCharge !== undefined) out.push(`Enemy cavalry charges ${sg(f.vsCharge)}`);
+  if (f.defAll) out.push(`Defending ${sg(f.defAll)}`);
+  if (f.defFront) out.push(`Defending from the front ${sg(f.defFront)}`);
+  if (f.frontMelee) out.push(`Melee from the front ${sg(f.frontMelee)}`);
+  if (f.chargeBonus) out.push(`Own cavalry charge ${sg(f.chargeBonus)}`);
+  if (f.dmgMod) out.push(`Damage ${sg(f.dmgMod)}`);
+  if (f.casReduce) out.push(`${f.casReduce} fewer casualties`);
+  if (f.noAttackerBonus) out.push("No attacker bonus");
+  if (f.noRear) out.push("Can't be attacked in the rear");
+  return out.join(" · ");
+}
+
 export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorSheetBase)) {
   static DEFAULT_OPTIONS = {
     classes: ["qin", "qin-sheet", "actor", "unit"],
-    position: { width: 620, height: 680 },
+    position: { width: 660, height: 720 },
     window: { resizable: true },
     form: { submitOnChange: true, closeOnSubmit: false },
     actions: {
       openOfficer: UnitSheet.#openOfficer,
       clearOfficer: UnitSheet.#clearOfficer,
+      itemEdit: UnitSheet.#itemEdit,
+      itemDelete: UnitSheet.#itemDelete,
+      itemCreate: UnitSheet.#itemCreate,
+      addFormation: UnitSheet.#addFormation,
+      addAllFormations: UnitSheet.#addAllFormations,
     },
   };
   static PARTS = { sheet: { template: systemPath("templates/actor/unit.hbs"), scrollable: [".qin-body"] } };
+
+  _initializeApplicationOptions(options) {
+    const o = super._initializeApplicationOptions?.(options) ?? options;
+    o.position = scaledPosition(o.position);
+    return o;
+  }
 
   async _prepareContext(options) {
     const context = await super._prepareContext(options);
     const actor = this.document, system = actor.system;
     const officer = system.officerActor;
-    const formations = game.settings.get("qin", "formations") ?? [];
+    const formations = actor.items.filter(i => i.type === "formation").sort((a, b) => (a.sort || 0) - (b.sort || 0));
+    const lib = game.user.isGM ? await loadLibrary("formations") : [];
+    const owned = new Set(formations.map(f => f.name));
     Object.assign(context, {
       actor, system, editable: this.isEditable, isGM: game.user.isGM,
       categories: UNIT_CATEGORIES, sides: SIDES,
       weaponSkills: Object.fromEntries(Object.entries(SKILLS).filter(([, s]) => s.martial).map(([k, s]) => [k, s.label])),
-      formationChoices: Object.fromEntries(formations.map(f => [f.id, f.name])),
-      formationDesc: formations.find(f => f.id === system.formation)?.desc ?? "",
+      formationChoices: { none: "No formation", ...Object.fromEntries(formations.map(f => [f.id, f.name])) },
+      formations: formations.map(f => ({ id: f.id, name: f.name, description: f.system.description, summary: formationSummary(f.system), active: system.formation === f.id })),
+      formationLibrary: lib.map(l => ({ ...l, owned: owned.has(l.name) })),
       officer, officerStats: officer ? {
         fire: officer.system.aspects.fire, command: officer.system.skills.command.value,
         skill: officer.getSkill(system.weaponSkill).value, skillLabel: SKILLS[system.weaponSkill]?.label,
-        abilities: [
-          ...officer.items.filter(i => i.type === "signature" && SIGNATURE_SLOTS[i.system.slot]?.battle).map(i => ({ name: i.name, kindLabel: SIGNATURE_SLOTS[i.system.slot].label, moraleCost: i.system.moraleCost })),
-          ...officer.items.filter(i => i.type === "officerAbility").map(i => ({ name: i.name, kindLabel: OFFICER_ABILITY_KINDS[i.system.kind], moraleCost: i.system.moraleCost })),
-        ],
       } : null,
-      officerKinds: OFFICER_ABILITY_KINDS,
       menPct: Math.min(100, Math.round(100 * system.men.value / (system.men.max || 100))),
+      xpPct: Math.min(100, Math.round(100 * (system.xp?.value ?? 0) / (system.xp?.max || 100))),
     });
     return context;
   }
@@ -384,6 +415,33 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
     });
   }
 
+  static #item(target) { return this.document.items.get(target.closest("[data-item-id]")?.dataset.itemId); }
+  static async #itemEdit(event, target) { UnitSheet.#item.call(this, target)?.sheet.render(true); }
+  static async #itemDelete(event, target) {
+    const item = UnitSheet.#item.call(this, target);
+    if (!item) return;
+    const ok = await (api.Dialog ?? api.DialogV2).confirm({ window: { title: `Remove ${item.name}?` }, content: `<p>Remove <b>${esc(item.name)}</b> from ${esc(this.document.name)}?</p>` });
+    if (ok) {
+      if (this.document.system.formation === item.id) await this.document.update({ "system.formation": "none" });
+      await item.delete();
+    }
+  }
+  static async #itemCreate(event, target) {
+    const type = target.dataset.type;
+    openItemDraft(this.document, { name: type === "formation" ? "New Formation" : `New ${type}`, type });
+  }
+  static async #addFormation() {
+    const uuid = this.element.querySelector("select[data-formation-library]")?.value;
+    if (!uuid) return ui.notifications.info("Choose a formation from the list first.");
+    const doc = await fromUuid(uuid);
+    if (doc) await this.document.createEmbeddedDocuments("Item", [doc.toObject()]);
+  }
+  static async #addAllFormations() {
+    const owned = new Set(this.document.items.filter(i => i.type === "formation").map(i => i.name));
+    const lib = await loadLibrary("formations");
+    const docs = (await Promise.all(lib.filter(l => !owned.has(l.name)).map(l => fromUuid(l.uuid)))).filter(Boolean);
+    if (docs.length) await this.document.createEmbeddedDocuments("Item", docs.map(d => d.toObject()));
+  }
   static async #openOfficer() { this.document.system.officerActor?.sheet.render(true); }
   static async #clearOfficer() { this.document.update({ "system.officer": "" }); }
 }
@@ -432,6 +490,12 @@ export class QinItemSheet extends api.HandlebarsApplicationMixin(ItemSheetBase) 
     if (this.rendered) this.render();
   }
 
+  /** Formation effects are the GM's to set: players can read them but not edit. */
+  get isEditable() {
+    if (this.document.type === "formation" && !game.user.isGM) return false;
+    return super.isEditable;
+  }
+
   get title() {
     return this.options.qinDraft ? `New ${this.document.name}`.replace(/^New New /, "New ") : super.title;
   }
@@ -455,6 +519,7 @@ export class QinItemSheet extends api.HandlebarsApplicationMixin(ItemSheetBase) 
     const item = this.document;
     Object.assign(context, {
       item, system: item.system, type: item.type, editable: this.isEditable, draft: !!this.options.qinDraft,
+      readOnlyDesc: !this.isEditable,
       skillChoices: Object.fromEntries(Object.entries(SKILLS).map(([k, s]) => [k, s.label])),
       martialChoices: { any: "Any weapon", ...Object.fromEntries(Object.entries(SKILLS).filter(([, s]) => s.martial).map(([k, s]) => [k, s.label])) },
       domains: DOMAINS, magicWays: MAGIC_WAYS, officerKinds: OFFICER_ABILITY_KINDS, skillLevels: SKILL_LEVELS,

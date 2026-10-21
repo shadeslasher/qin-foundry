@@ -1,0 +1,42 @@
+{
+  "_id": "fTIzMJUu8WfPnK5r",
+  "_key": "!items!fTIzMJUu8WfPnK5r",
+  "name": "Spear Wall",
+  "type": "formation",
+  "img": "icons/svg/combat.svg",
+  "system": {
+    "key": "spear_wall",
+    "moveMod": -1,
+    "immobile": false,
+    "vsAttack": 0,
+    "vsMelee": 0,
+    "vsRanged": 2,
+    "vsCharge": null,
+    "defAll": 0,
+    "defFront": 0,
+    "frontMelee": 2,
+    "chargeBonus": 0,
+    "dmgMod": 0,
+    "casReduce": 0,
+    "noAttackerBonus": false,
+    "noRear": false,
+    "description": "<p>Commanded Unit takes a defensive stance, pointing their spears forward. While in this stance, the <b>unit's movement decreases by 1, </b>but <b>gains +2 to rolls when defending against melee attacks and attacking from the front</b>. However, <b>enemy ranged attacks gain +2</b> when attacking this unit.</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

@@ -55,6 +55,21 @@
   {{else if (eq type "officerAbility")}}
     <label>Kind <select name="system.kind">{{selectOptions officerKinds selected=system.kind}}</select></label>
     <label>Morale cost <input type="number" name="system.moraleCost" value="{{system.moraleCost}}"></label>
+  {{else if (eq type "formation")}}
+    <label>Movement modifier <input type="number" name="system.moveMod" value="{{system.moveMod}}"></label>
+    <label class="qin-inline"><input type="checkbox" name="system.immobile" {{checked system.immobile}}> Cannot move</label>
+    <label class="qin-inline"><input type="checkbox" name="system.noRear" {{checked system.noRear}}> Can't be attacked in the rear</label>
+    <label>Enemy attacks (any) <input type="number" name="system.vsAttack" value="{{system.vsAttack}}" title="Added to the attacker's roll when this unit is attacked"></label>
+    <label>Enemy melee attacks <input type="number" name="system.vsMelee" value="{{system.vsMelee}}"></label>
+    <label>Enemy ranged attacks <input type="number" name="system.vsRanged" value="{{system.vsRanged}}"></label>
+    <label>Enemy cavalry charges <input type="number" name="system.vsCharge" value="{{system.vsCharge}}" placeholder="same as melee" title="Replaces the melee modifier for cavalry charges; leave blank to use the melee modifier"></label>
+    <label>Own roll when defending <input type="number" name="system.defAll" value="{{system.defAll}}"></label>
+    <label>Own roll defending from the front <input type="number" name="system.defFront" value="{{system.defFront}}" title="Melee and ranged attacks from the front"></label>
+    <label>Own melee roll vs the front <input type="number" name="system.frontMelee" value="{{system.frontMelee}}" title="Attacking or defending in melee when the enemy is in front"></label>
+    <label>Own cavalry charge roll <input type="number" name="system.chargeBonus" value="{{system.chargeBonus}}"></label>
+    <label>Damage modifier <input type="number" name="system.dmgMod" value="{{system.dmgMod}}"></label>
+    <label>Fewer casualties taken <input type="number" name="system.casReduce" value="{{system.casReduce}}"></label>
+    <label class="qin-inline"><input type="checkbox" name="system.noAttackerBonus" {{checked system.noAttackerBonus}}> Loses the +2 attacker bonus</label>
   {{else if (eq type "signature")}}
     <label>Slot <select name="system.slot">{{selectOptions signatureSlots selected=system.slot}}</select></label>
     {{#if (eq system.slot "active")}}<label>Chi cost <input type="number" name="system.chiCost" value="{{system.chiCost}}"></label>{{/if}}
@@ -85,7 +100,7 @@
   {{/if}}
 
   <h3>Description</h3>
-  <textarea name="system.description" rows="8">{{system.description}}</textarea>
+  {{#if readOnlyDesc}}<div class="qin-desc-read">{{{system.description}}}</div>{{else}}<textarea name="system.description" rows="8">{{system.description}}</textarea>{{/if}}
   {{#if draft}}
   <footer class="qin-draft-footer">
     <button type="button" data-action="draftCancel"><i class="fa-solid fa-xmark"></i> Cancel</button>

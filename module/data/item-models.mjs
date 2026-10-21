@@ -139,3 +139,23 @@ export class SignatureData extends foundry.abstract.TypeDataModel {
 }
 
 export const SKILL_CHOICES = () => Object.fromEntries(Object.entries(SKILLS).map(([k, v]) => [k, v.label]));
+
+/**
+ * Battlefield formation (embedded in a unit). Numbers are roll modifiers; see the item sheet for meanings.
+ * Only the GM may create, edit or delete these.
+ */
+export class FormationData extends foundry.abstract.TypeDataModel {
+  static defineSchema() {
+    const n = () => new fields.NumberField({ required: true, integer: true, initial: 0 });
+    return {
+      key: new fields.StringField({ initial: "" }),
+      moveMod: n(), immobile: new fields.BooleanField({ initial: false }),
+      vsAttack: n(), vsMelee: n(), vsRanged: n(),
+      vsCharge: new fields.NumberField({ required: false, integer: true, nullable: true, initial: null }),
+      defAll: n(), defFront: n(), frontMelee: n(), chargeBonus: n(), dmgMod: n(), casReduce: n(),
+      noAttackerBonus: new fields.BooleanField({ initial: false }),
+      noRear: new fields.BooleanField({ initial: false }),
+      description: desc(),
+    };
+  }
+}

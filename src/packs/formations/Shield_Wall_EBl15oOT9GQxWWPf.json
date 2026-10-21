@@ -1,0 +1,42 @@
+{
+  "_id": "EBl15oOT9GQxWWPf",
+  "_key": "!items!EBl15oOT9GQxWWPf",
+  "name": "Shield Wall",
+  "type": "formation",
+  "img": "icons/svg/combat.svg",
+  "system": {
+    "key": "shield_wall",
+    "moveMod": -1,
+    "immobile": false,
+    "vsAttack": 0,
+    "vsMelee": 0,
+    "vsRanged": 0,
+    "vsCharge": null,
+    "defAll": 0,
+    "defFront": 2,
+    "frontMelee": 0,
+    "chargeBonus": 0,
+    "dmgMod": 0,
+    "casReduce": 0,
+    "noAttackerBonus": false,
+    "noRear": false,
+    "description": "<p>Command Unit takes a defense stance, raising their shields. While in this stance, the <b>unit's movement decreases by 1</b>, but <b>gains +2 when defending</b> against both melee and ranged attacks from the front.</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

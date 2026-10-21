@@ -19,6 +19,10 @@ const TERRAIN = {
 //   chargeBonus    added to this unit's roll when it makes a cavalry charge
 //   dmgMod         added to this unit's damage value
 //   noRear         this unit cannot be attacked in the rear
+//   defAll         added to THIS unit's roll whenever it defends
+//   frontMelee     added to THIS unit's roll in melee (attacking or defending) when the enemy is in front of it
+//   casReduce      this unit takes this many fewer casualties (attacking or defending)
+//   noAttackerBonus  this unit loses the +2 attacker bonus
 const FORMATIONS = [
   { id: 'none', name: 'No formation', desc: 'No modifiers.' },
   { id: 'loose', name: 'Loose', vsRanged: -3, vsMelee: 1, vsCharge: 2,
@@ -33,8 +37,10 @@ const FORMATIONS = [
     desc: 'Cannot move. Enemy attacks -2; cavalry charges -4 in total. Deals -2 damage. Cannot be attacked in the rear.' },
   { id: 'shield_wall', name: 'Shield Wall', moveMod: -1, defFront: 2,
     desc: 'Movement -1. +2 when defending against melee and ranged attacks from the front.' },
-  { id: 'spear_wall', name: 'Spear Wall', desc: 'PLACEHOLDER: effects not set yet. Edit in Library > Formations.' },
-  { id: 'turtle', name: 'Turtle', desc: 'PLACEHOLDER: effects not set yet. Edit in Library > Formations.' },
+  { id: 'spear_wall', name: 'Spear Wall', moveMod: -1, frontMelee: 2, vsRanged: 2,
+    desc: 'Movement -1. +2 when defending against or attacking in melee from the front. Enemy ranged attacks +2.' },
+  { id: 'turtle', name: 'Turtle', moveMod: -2, casReduce: 2, noAttackerBonus: true, defAll: 2,
+    desc: 'Movement -2. Takes 2 fewer casualties when attacking and defending. Loses the +2 attacker bonus; +2 when defending.' },
 ];
 
 // Unit types. Damage and Defense come from the v1.9 compendium (Dmg, Armor).

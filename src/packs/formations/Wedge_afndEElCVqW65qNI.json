@@ -1,0 +1,42 @@
+{
+  "_id": "afndEElCVqW65qNI",
+  "_key": "!items!afndEElCVqW65qNI",
+  "name": "Wedge",
+  "type": "formation",
+  "img": "icons/svg/combat.svg",
+  "system": {
+    "key": "wedge",
+    "moveMod": 0,
+    "immobile": false,
+    "vsAttack": 2,
+    "vsMelee": 0,
+    "vsRanged": 0,
+    "vsCharge": null,
+    "defAll": 0,
+    "defFront": 0,
+    "frontMelee": 0,
+    "chargeBonus": 4,
+    "dmgMod": 0,
+    "casReduce": 0,
+    "noAttackerBonus": false,
+    "noRear": false,
+    "description": "<p>Commanded Unit forms into a wedge shape. <b>Enemy attacks gain +2</b> to their rolls when targeting this unit. If this unit performs a c<b>avalry charge, add +4</b> to its roll.</p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

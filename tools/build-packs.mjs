@@ -47,12 +47,12 @@ const packs = {
     ...C.GIFTS.map(([name, d]) => item("gifts-weaknesses", name, "gift", { description: p(d) }, "icons/svg/sun.svg")),
     ...C.WEAKNESSES.map(([name, d]) => item("gifts-weaknesses", name, "weakness", { description: p(d) }, "icons/svg/skull.svg")),
   ],
-  units: C.UNITS.map(u => actor("units", u.name, "unit", {
-    side: u.faction === "Han" ? "player" : "enemy", faction: u.faction, tier: u.tier, category: u.category, weapon: u.weapon,
-    weaponSkill: u.skill, unitValue: u.unitValue, damage: u.damage, defense: u.defense, move: u.move,
-    rangeMin: u.rangeMin, rangeMax: u.rangeMax, formations: "", men: { value: 100, max: 100 }, morale: 50,
-    formation: "none", hidden: false, status: "active", officer: "", traits: "",
-  })),
+  formations: C.FORMATIONS.map(([name, fx, desc]) => item("formations", name, "formation", {
+    key: fx.key, moveMod: fx.moveMod ?? 0, immobile: !!fx.immobile, vsAttack: fx.vsAttack ?? 0, vsMelee: fx.vsMelee ?? 0,
+    vsRanged: fx.vsRanged ?? 0, vsCharge: fx.vsCharge ?? null, defAll: fx.defAll ?? 0, defFront: fx.defFront ?? 0,
+    frontMelee: fx.frontMelee ?? 0, chargeBonus: fx.chargeBonus ?? 0, dmgMod: fx.dmgMod ?? 0, casReduce: fx.casReduce ?? 0,
+    noAttackerBonus: !!fx.noAttackerBonus, noRear: !!fx.noRear, description: desc,
+  }, "icons/svg/combat.svg")),
 };
 
 fs.rmSync(SRC, { recursive: true, force: true });

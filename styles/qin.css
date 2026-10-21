@@ -232,3 +232,15 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin .qin-hp-pip { cursor: pointer; }
 .qin-token-hover .qin-th-title { text-align: center; font-style: italic; color: #d8c8a8; margin: -1px 0 3px; }
 .qin-token-hover .qin-th-pip { width: 8px; height: 8px; margin-right: 1px; }
+
+/* Unit sheet: formations and XP */
+.qin .qin-bar.xp i { background: #b58b2a; }
+.qin .qin-formations { list-style: none; margin: 8px 0; padding: 0; }
+.qin .qin-formations li { border: 1px solid var(--qin-line); border-radius: 5px; padding: 6px 8px; margin-bottom: 6px; background: rgba(255,255,255,0.35); }
+.qin .qin-formations li.active { border-color: var(--qin-red); box-shadow: 0 0 0 1px var(--qin-red) inset; }
+.qin .qin-form-head { display: flex; align-items: center; gap: 6px; font-size: calc(14px * var(--qin-scale, 1.15)); }
+.qin .qin-form-head .qin-controls { margin-left: auto; }
+.qin .qin-form-fx { color: var(--qin-red); font-size: calc(12px * var(--qin-scale, 1.15)); margin: 2px 0; }
+.qin .qin-form-desc p { margin: 2px 0; font-size: calc(12px * var(--qin-scale, 1.15)); }
+.qin .qin-form-add select { flex: 1 1 200px; }
+.qin .qin-desc-read { padding: 6px; border: 1px solid var(--qin-line); border-radius: 4px; background: rgba(255,255,255,0.4); }

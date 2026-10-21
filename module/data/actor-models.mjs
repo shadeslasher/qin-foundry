@@ -116,31 +116,40 @@ export class HenchmanData extends QinBaseActor {
   }
 }
 
-/** A battlefield unit: 100 soldiers of one type, optionally led by an officer. */
+/** A battlefield unit: one formation of soldiers, optionally led by an officer (Fire Emblem-style battles). */
 export class UnitData extends foundry.abstract.TypeDataModel {
   static defineSchema() {
     return {
       side: new fields.StringField({ initial: "player", choices: ["player", "enemy", "ally"] }),
       faction: new fields.StringField({ initial: "" }),
-      tier: int(1, { min: 1 }),
+      unitType: new fields.StringField({ initial: "" }),          // e.g. "Spear and Shield", "Mounted Spear"
+      tier: int(1, { min: 1, max: 6 }),
       category: new fields.StringField({ initial: "infantry", choices: ["infantry", "cavalry", "ranged"] }),
-      weapon: new fields.StringField({ initial: "melee", choices: ["melee", "ranged"] }),
-      weaponSkill: new fields.StringField({ initial: "qiangshu" }),
-      unitValue: int(1),
-      damage: int(5),
-      defense: int(3),
-      move: int(4, { min: 0 }),
-      rangeMin: int(1, { min: 0 }),
-      rangeMax: int(1, { min: 0 }),
-      formations: new fields.StringField({ initial: "" }), // comma list of allowed formation ids; blank = all
-      men: new fields.SchemaField({ value: int(100, { min: 0 }), max: int(100, { min: 1 }) }),
+      weaponSkill: new fields.StringField({ initial: "qiangshu" }), // officer skill used in the combat roll
+      men: new fields.SchemaField({ value: int(100, { min: 0 }), max: int(100, { min: 1 }) }), // shown as Health
+      armor: int(0, { min: 0 }),
+      armorNote: new fields.StringField({ initial: "" }),          // e.g. "2 + 2 (Shield)"
+      damage: int(5, { min: 0 }),
+      armorPen: int(0, { min: 0 }),
+      move: int(3, { min: 0 }),
+      range: int(1, { min: 1 }),                                    // 1 = melee; 2+ = ranged
+      rangeMin: int(1, { min: 1 }),
+      unitValue: int(1, { min: 0 }),
+      xp: new fields.SchemaField({ value: int(0, { min: 0 }), max: int(100, { min: 1 }) }),
       morale: int(50, { min: 0, max: 100 }),
-      formation: new fields.StringField({ initial: "none" }),
+      formation: new fields.StringField({ initial: "none" }),      // id of one of this unit's formation items
       hidden: new fields.BooleanField({ initial: false }),
       status: new fields.StringField({ initial: "active", choices: ["active", "defeated", "surrendered"] }),
-      officer: new fields.StringField({ initial: "" }), // UUID of a character actor
+      officer: new fields.StringField({ initial: "" }),            // UUID of a character actor
       traits: new fields.HTMLField({ initial: "" }),
     };
+  }
+
+  /** Older unit actors (Defense / weapon / rangeMax fields). */
+  static migrateData(source) {
+    if (source.defense !== undefined && source.armor === undefined) source.armor = source.defense;
+    if (source.rangeMax !== undefined && source.range === undefined) source.range = source.weapon === "ranged" ? Math.max(2, source.rangeMax) : 1;
+    return super.migrateData(source);
   }
 
   get officerActor() {
@@ -148,8 +157,11 @@ export class UnitData extends foundry.abstract.TypeDataModel {
     try { return fromUuidSync(this.officer) ?? null; } catch { return null; }
   }
 
+  get isRanged() { return this.range > 1; }
+
   prepareDerivedData() {
     const m = this.morale;
     this.moraleState = m <= 0 ? "Surrendered" : m <= 25 ? "Demoralized" : m >= 75 ? "Encouraged" : "Neutral";
+    this.weapon = this.range > 1 ? "ranged" : "melee";
   }
 }

@@ -46,21 +46,22 @@ test("battle adapter: a full officer turn through Foundry tokens", async () => {
     items: [{ name: "Unyielding Defender", type: "signature", system: { slot: "battlePassive", moraleCost: 0, effects: { noRearAgainst: true, ignoreMoralePenalty: false, ignoreEncirclement: false, moveBonus: 0, chargeAttackBonus: 0, extraMoraleLossOnWin: 0 }, description: "" } },
       { name: "Hold the Ford!", type: "signature", system: { slot: "battleActive", moraleCost: 20, effects: {}, description: "<p>+1 defending</p>" } }] });
   const unitSystem = (o) => {
-    const u = Object.assign(new UnitData(), { side: "player", faction: "Han", tier: 2, category: "infantry", weapon: "melee", weaponSkill: "qiangshu", unitValue: 2, damage: 6, defense: 3, move: 4, rangeMin: 1, rangeMax: 1, formations: "", men: { value: 100, max: 100 }, morale: 50, formation: "none", hidden: false, status: "active", officer: "", ...o });
+    const u = Object.assign(new UnitData(), { side: "player", faction: "Han", tier: 2, category: "infantry", weaponSkill: "qiangshu", unitValue: 2, damage: 6, armor: 3, armorPen: 0, move: 4, range: 1, rangeMin: 1, men: { value: 100, max: 100 }, xp: { value: 0, max: 100 }, morale: 50, formation: "none", hidden: false, status: "active", officer: "", ...o });
     u.prepareDerivedData();
     return u;
   };
   const scene = M.makeScene("field");
-  const ally = M.makeActor({ type: "unit", owners: ["alice"], system: unitSystem({ officer: "Actor.wenping" }) });
+  const shieldWall = { id: "fsw", type: "formation", name: "Shield Wall", system: { moveMod: -1, defFront: 2, vsCharge: null, description: "" } };
+  const ally = M.makeActor({ type: "unit", owners: ["alice"], items: [shieldWall], system: unitSystem({ officer: "Actor.wenping" }) });
   const foe = M.makeActor({ type: "unit", system: unitSystem({ side: "enemy", faction: "Yellow Turban", weaponSkill: "jianshu" }) });
   const tA = M.addToken(scene, { id: "tokA", name: "Wen Ping's Ji Infantry", x: 2, y: 2, actor: ally });
   const tE = M.addToken(scene, { id: "tokE", name: "Yellow Turbans", x: 2, y: 6, actor: foe });
 
   let r = await A.runAction("gm", { type: "startBattle", sceneId: "field" });
   assert.ok(r.ok, r.error);
-  r = await A.runAction("alice", { type: "setFormation", unitId: "tokA", formation: "shield_wall" });
+  r = await A.runAction("alice", { type: "setFormation", unitId: "tokA", formation: "tokA.fsw" });
   assert.ok(r.ok, r.error);
-  assert.strictEqual(ally.system.formation, "shield_wall", "formation written to the actor");
+  assert.strictEqual(ally.system.formation, "fsw", "formation (item id) written to the actor");
   r = await A.runAction("gm", { type: "startRound" });
   assert.ok(r.ok, r.error);
   let b = A.getBattle();
@@ -87,6 +88,10 @@ test("battle adapter: a full officer turn through Foundry tokens", async () => {
   r = await A.runAction("alice", { type: "attack", unitId: "tokA", targetId: "tokE" });
   assert.ok(r.ok, r.error);
   assert.ok(foe.system.men.value < 100, "enemy took casualties");
+  // XP: casualties dealt x (enemy tier / own tier) — same tier here
+  assert.strictEqual(ally.system.xp.value, 100 - foe.system.men.value, "XP equals casualties dealt at equal tier");
+  const allyCasualties = 100 - ally.system.men.value;
+  const allyXpBefore = ally.system.xp.value;
   assert.ok(M.chat.length > chatBefore && /attacks/.test(M.chat.at(-1).content), "attack posted to chat");
   b = A.getBattle();
   assert.strictEqual(b.turn.phase, "officerless", "turn handed on after the attack");
@@ -101,4 +106,5 @@ test("battle adapter: a full officer turn through Foundry tokens", async () => {
   assert.ok(!r.ok, "only the GM ends battles");
   r = await A.runAction("gm", { type: "endBattle" });
   assert.ok(r.ok && !A.getBattle().active);
+  assert.strictEqual(ally.system.xp.value, Math.max(0, allyXpBefore - allyCasualties), "after battle, XP drops by casualties suffered");
 });

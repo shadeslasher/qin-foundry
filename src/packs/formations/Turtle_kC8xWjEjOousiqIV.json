@@ -1,0 +1,42 @@
+{
+  "_id": "kC8xWjEjOousiqIV",
+  "_key": "!items!kC8xWjEjOousiqIV",
+  "name": "Turtle",
+  "type": "formation",
+  "img": "icons/svg/combat.svg",
+  "system": {
+    "key": "turtle",
+    "moveMod": -2,
+    "immobile": false,
+    "vsAttack": 0,
+    "vsMelee": 0,
+    "vsRanged": 0,
+    "vsCharge": null,
+    "defAll": 2,
+    "defFront": 0,
+    "frontMelee": 0,
+    "chargeBonus": 0,
+    "dmgMod": 0,
+    "casReduce": 2,
+    "noAttackerBonus": true,
+    "noRear": false,
+    "description": "<p>Commanded Unit overlaps their shields to form a defense formation. While in this stance, the <b>unit's movement decreases by 2, </b>but <b>suffers 2 less damage from attacking and defending</b>. While attacking, this unit will <b>lose the +2 attacker's bonus</b>, but <b>while defending, gain +2 to rolls.</b></p>"
+  },
+  "effects": [],
+  "folder": null,
+  "sort": 0,
+  "ownership": {
+    "default": 0
+  },
+  "flags": {},
+  "_stats": {
+    "coreVersion": "14.369",
+    "systemId": "qin",
+    "systemVersion": "0.1.0",
+    "createdTime": 0,
+    "modifiedTime": 0,
+    "lastModifiedBy": null,
+    "compendiumSource": null,
+    "duplicateSource": null
+  }
+}

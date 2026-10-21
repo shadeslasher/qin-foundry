@@ -77,7 +77,7 @@
           <img src="{{img}}" data-action="selectUnit" data-unit-id="{{id}}" title="Select token">
           <div class="qin-uinfo">
             <div><b>{{name}}</b>{{#if officer}} <span class="qin-muted">({{officer}})</span>{{/if}}</div>
-            <div class="qin-muted">{{men}} men · {{morale}} morale ({{moraleState}}){{#unless (eq status "active")}} · {{status}}{{/unless}}</div>
+            <div class="qin-muted">{{men}}/{{maxMen}} health · {{morale}} morale · {{xp}} XP ({{moraleState}}){{#unless (eq status "active")}} · {{status}}{{/unless}}</div>
             {{#if formationOptions}}
               <select data-formation-unit="{{id}}">{{#each formationOptions}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{name}}</option>{{/each}}</select>
             {{else}}<div class="qin-muted">{{formation}}</div>{{/if}}
