@@ -50,7 +50,8 @@ export function drawUnitBars(token) {
   if (!actor || actor.type !== "unit" || token.destroyed) return clear(token);
   const s = actor.system;
   const men = s.men?.value ?? 0, max = s.men?.max || 100, morale = s.morale ?? 0;
-  const w = token.w, h = Math.max(12, Math.round(token.h * 0.16));
+  // Bars sit inside the bottom of the token's own square so nothing spills into the next tile
+  const w = token.w, h = Math.max(9, Math.round(token.h * 0.15));
   const acted = hasActed(token);
   applyActedLook(token, acted);
   const key = `${men}/${max}/${morale}/${w}/${h}/${s.side}/${acted}`;
@@ -67,8 +68,8 @@ export function drawUnitBars(token) {
 
   const Txt = textClass();
   const styleOpts = {
-    fontFamily: "Signika, sans-serif", fontSize: Math.round(h * 0.82), fontWeight: "bold",
-    fill: "#ffffff", stroke: "#000000", strokeThickness: Math.max(2, Math.round(h * 0.22)),
+    fontFamily: "Signika, sans-serif", fontSize: Math.round(h * 0.85), fontWeight: "bold",
+    fill: "#ffffff", stroke: "#000000", strokeThickness: Math.max(2, Math.round(h * 0.25)),
   };
   const style = new PIXI.TextStyle(styleOpts);
   const rows = [
@@ -77,22 +78,26 @@ export function drawUnitBars(token) {
   ];
   const g = new PIXI.Graphics();
   c.addChild(g);
-  // side colour tab to the left of the bars
-  const tabH = rows.length * (h + 2) - 2;
-  g.lineStyle(1, 0x000000, 0.9).beginFill(SIDE_COLORS[s.side] ?? 0x888888, 1).drawRoundedRect(-Math.round(h * 0.6) - 2, -tabH - 2, Math.round(h * 0.6), tabH, 2).endFill();
+  const pad = Math.max(1, Math.round(token.w * 0.02));
+  const tabW = Math.max(4, Math.round(h * 0.45));
+  const barX = pad + tabW + 1, barW = w - barX - pad;
+  const top = token.h - pad - rows.length * (h + 1) + 1;
+  // side colour tab at the left of the bars
+  g.lineStyle(1, 0x000000, 0.9).beginFill(SIDE_COLORS[s.side] ?? 0x888888, 1).drawRoundedRect(pad, top, tabW, rows.length * (h + 1) - 1, 2).endFill();
   if (acted) {
-    const t = new Txt("Done", new PIXI.TextStyle({ ...styleOpts, fontSize: Math.round(h * 0.9), fill: "#dddddd" }));
+    const t = new Txt("Done", new PIXI.TextStyle({ ...styleOpts, fontSize: Math.round(h * 1.1), fill: "#dddddd" }));
     t.anchor?.set?.(0.5, 0.5);
-    t.position.set(w / 2, token.h / 2);
+    t.position.set(w / 2, top / 2);
     c.addChild(t);
   }
   rows.forEach((r, i) => {
-    const y = -(rows.length - i) * (h + 2) - 2;
-    g.lineStyle(1, 0x000000, 0.9).beginFill(0x111111, 0.75).drawRoundedRect(0, y, w, h, 3).endFill();
-    if (r.pct > 0) g.lineStyle(0).beginFill(r.color, 0.95).drawRoundedRect(1, y + 1, Math.max(2, (w - 2) * r.pct), h - 2, 2).endFill();
+    const y = top + i * (h + 1);
+    g.lineStyle(1, 0x000000, 0.9).beginFill(0x111111, 0.8).drawRoundedRect(barX, y, barW, h, 2).endFill();
+    if (r.pct > 0) g.lineStyle(0).beginFill(r.color, 0.95).drawRoundedRect(barX + 1, y + 1, Math.max(2, (barW - 2) * r.pct), h - 2, 2).endFill();
     const t = new Txt(r.label, style);
     t.anchor?.set?.(0.5, 0.5);
-    t.position.set(w / 2, y + h / 2);
+    t.position.set(barX + barW / 2, y + h / 2);
+    if (t.width > barW - 2) t.scale.set((barW - 2) / t.width);
     c.addChild(t);
   });
 }

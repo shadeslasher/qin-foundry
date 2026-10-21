@@ -48,9 +48,12 @@ export function highlightUnit(tokenId, on) {
   const tok = canvas.tokens?.get(tokenId);
   if (!tok) return;
   const g = new PIXI.Graphics();
+  g.eventMode = "none";
   layer().addChild(g);
   let t = 0;
   g.qinTick = () => {
+    // the hovered button can disappear without a mouseleave (the panel re-renders): drop the ring then
+    if (tok.destroyed || !document.querySelector(`[data-unit-id="${tokenId}"]:hover`)) return highlightUnit(null, false);
     t += canvas.app.ticker.deltaMS / 1000;
     const pulse = 0.5 + 0.5 * Math.sin(t * 5);
     const c = tok.center, r = Math.max(tok.w, tok.h) * (0.62 + 0.06 * pulse);
@@ -119,6 +122,7 @@ function enterMove() {
   clearSquares();
   overlay = new PIXI.Graphics();
   labels = new PIXI.Container();
+  overlay.eventMode = labels.eventMode = "none";
   layer().addChild(overlay, labels);
   const Txt = foundry.canvas?.containers?.PreciseText ?? PIXI.Text;
   const size = gridSize();
@@ -147,6 +151,7 @@ function enterAttack() {
   mode = "attack";
   clearSquares();
   overlay = new PIXI.Graphics();
+  overlay.eventMode = "none";
   layer().addChild(overlay);
   for (const d of targets) drawSquare(overlay, d.x, d.y, 0xd63c3c, 0.35, 1);
   renderMenu();
@@ -258,9 +263,16 @@ function onMenuClick(ev) {
 }
 
 /** Rebuild the menu from the current battle state (call whenever the battle changes). */
+/** Tear down everything the battle put on the map (menu, squares, click capture, rings, pick menu). */
+export function resetBattleUI() {
+  current = null; mode = null; busy = false;
+  clearSquares(); hideMenu(); hidePick(); highlightUnit(null, false);
+}
+
 export function refreshBattleUI() {
   if (!canvas?.ready) return;
   const battle = getBattle();
+  if (!battle.active) return resetBattleUI();
   const ac = battle.active ? battle.turn?.activation : null;
   if (ac) hidePick();
   if (!ac || canvas.scene?.id !== battle.sceneId) { current = null; mode = null; clearSquares(); return hideMenu(); }

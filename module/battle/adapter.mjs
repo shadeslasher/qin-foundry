@@ -317,7 +317,9 @@ async function runActionNow(userId, action) {
     battle.sceneId = scene.id;
   } else if (action.type === "endBattle") {
     if (!actor.host) return { ok: false, error: "Only the GM can end the battle" };
-    await settleXpAfterBattle(battle);
+    // Always end the battle, even if settling XP fails (a missing actor, say), so tokens unlock
+    try { await settleXpAfterBattle(battle); }
+    catch (e) { console.error("Qin | settling XP after the battle failed", e); ui.notifications.warn("The battle ended, but settling XP failed: see the console (F12)."); }
     await game.settings.set(SYSTEM_ID, SETTING, emptyBattle());
     return { ok: true };
   } else if (!battle.active) {
@@ -354,7 +356,7 @@ async function settleXpAfterBattle(battle) {
   const lines = [];
   for (const tok of unitTokens(scene)) {
     const start = battle.startMen?.[tok.id];
-    if (start === undefined) continue;
+    if (start === undefined || !tok.actor) continue;
     const sys = tok.actor.system;
     const lost = Math.max(0, start - sys.men.value);
     const xp = sys.xp?.value ?? 0;
