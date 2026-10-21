@@ -12,6 +12,7 @@ import { registerTokenHover } from "./module/token-hover.mjs";
 import { registerCombatQuery, onRenderCombatTracker } from "./module/combat-actions.mjs";
 import { registerAttackFxSocket, registerDamageFloats } from "./module/attack-fx.mjs";
 import { registerUnitBars } from "./module/unit-bars.mjs";
+import { refreshBattleUI, repositionBattleUI, lockUnitTokens } from "./module/battle/battle-ui.mjs";
 
 const { SYSTEM_ID } = CFG;
 
@@ -52,6 +53,7 @@ Hooks.once("init", () => {
     scope: "world", config: false, type: new ObjectField(), default: emptyBattle(),
     onChange: () => {
       BattlePanel.refresh();
+      refreshBattleUI();
       if (getBattle().active && !BattlePanel.instance?.rendered && game.settings.get(SYSTEM_ID, "autoOpenBattle")) BattlePanel.open();
     },
   });
@@ -64,7 +66,7 @@ Hooks.once("init", () => {
   });
   game.settings.register(SYSTEM_ID, "rotateFacing", {
     name: "Rotate unit tokens to show facing", hint: "Battle units turn to face their last move or melee target. Turn off if your token art isn't top-down.",
-    scope: "world", config: true, type: Boolean, default: true,
+    scope: "world", config: true, type: Boolean, default: false,
   });
   game.settings.register(SYSTEM_ID, "manageStealth", {
     name: "Hide stealthy enemy units from players", hint: "Enemy units hidden in grass or trees are hidden from players until spotted.",
@@ -151,7 +153,10 @@ Hooks.on("updateToken", (doc, change, options) => {
     setTimeout(() => doc.clearMovementHistory?.().catch?.(() => {}), 0);
   }
 });
-Hooks.on("updateActor", () => BattlePanel.refresh());
+Hooks.on("updateActor", () => { BattlePanel.refresh(); refreshBattleUI(); });
+Hooks.on("canvasReady", () => refreshBattleUI());
+Hooks.on("canvasPan", () => repositionBattleUI());
+Hooks.on("preUpdateToken", lockUnitTokens);
 
 Hooks.on("getSceneControlButtons", (controls) => {
   const tool = {

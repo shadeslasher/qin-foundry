@@ -39,27 +39,9 @@
   {{#if controls}}
   <div class="qin-card qin-controls-card">
     <h4>{{controls.name}} — your turn</h4>
-    {{#if controls.canMoveStep}}
-      <p class="qin-muted">Drag the token up to {{controls.movement}} tiles, or:</p>
-      <div class="qin-btns">
-        <button type="button" data-action="do" data-type="skipMove" data-unit-id="{{controls.id}}">Don't move</button>
-        <button type="button" data-action="swapTarget" data-unit-id="{{controls.id}}" title="Target an adjacent ally first">Swap with target</button>
-        <button type="button" data-action="do" data-type="holdPosition" data-unit-id="{{controls.id}}" title="No move or attack; enemy attacks −1">Hold position</button>
-      </div>
-    {{/if}}
-    {{#if controls.canAct}}
-      <div class="qin-btns">
-        <button type="button" class="qin-primary" data-action="attackTarget" data-unit-id="{{controls.id}}" title="Target an enemy unit token first">Attack target</button>
-        <button type="button" data-action="do" data-type="armMarch" data-unit-id="{{controls.id}}" class="{{#if controls.armed}}qin-armed{{/if}}">{{#if controls.armed}}Forced march armed — drag token{{else}}Forced march (−5 morale){{/if}}</button>
-      </div>
-    {{/if}}
-    <div class="qin-btns">
-      {{#if controls.skill}}<button type="button" data-action="do" data-type="useSkill" data-unit-id="{{controls.id}}" {{#if controls.skill.disabled}}disabled{{/if}}>{{controls.skill.name}}{{#if controls.skill.cost}} ({{controls.skill.cost}} morale){{/if}}</button>{{/if}}
-      {{#if controls.art}}<button type="button" data-action="do" data-type="battleArt" data-unit-id="{{controls.id}}" {{#if controls.art.disabled}}disabled{{/if}}>Battle art: {{controls.art.name}}</button>{{/if}}
-      {{#each controls.heroics}}<button type="button" data-action="do" data-type="heroic" data-unit-id="{{../controls.id}}" data-index="{{index}}" {{#if disabled}}disabled{{/if}}>Heroic: {{name}}</button>{{/each}}
-    </div>
+    <p>Use the action menu beside the unit on the map: <b>Move</b>, <b>Attack</b>, <b>Hold</b>, <b>Ability</b>, <b>Heroic action</b> or <b>End turn</b>.</p>
     {{#if controls.heroicLeft}}<p class="qin-muted">Heroic actions left: {{controls.heroicLeft}}</p>{{/if}}
-    <div class="qin-btns"><button type="button" class="qin-primary" data-action="do" data-type="endTurn" data-unit-id="{{controls.id}}">End turn</button></div>
+    <div class="qin-btns"><button type="button" data-action="do" data-type="endTurn" data-unit-id="{{controls.id}}">End turn</button></div>
   </div>
   {{/if}}
 

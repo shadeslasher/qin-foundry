@@ -57,10 +57,15 @@
         {{/each}}
       </ul>
       {{#if isGM}}
-      <div class="qin-buttons qin-form-add">
-        <select data-formation-library><option value="">— add from the formation library —</option>{{#each formationLibrary}}<option value="{{uuid}}" {{#if owned}}disabled{{/if}}>{{name}}{{#if owned}} (has it){{/if}}</option>{{/each}}</select>
+      <div class="qin-library qin-form-add">
+        <div class="qin-picker" data-library="formations">
+          <button type="button" class="qin-picker-toggle"><span class="qin-picker-label">Choose a formation…</span> <i class="fa-solid fa-caret-down"></i></button>
+          <ul class="qin-picker-list">
+            {{#each formationLibrary}}<li data-uuid="{{uuid}}" class="{{#if owned}}owned{{/if}}">{{name}}{{#if owned}} <span class="qin-muted">(has it)</span>{{/if}}</li>{{/each}}
+          </ul>
+          <div class="qin-picker-info"></div>
+        </div>
         <button type="button" data-action="addFormation"><i class="fa-solid fa-plus"></i> Add</button>
-        <button type="button" data-action="addAllFormations"><i class="fa-solid fa-layer-group"></i> Add all</button>
         <button type="button" data-action="itemCreate" data-type="formation"><i class="fa-solid fa-feather"></i> Homebrew</button>
       </div>
       {{else}}<p class="qin-muted">Only the GM can add or change this unit's formations.</p>{{/if}}

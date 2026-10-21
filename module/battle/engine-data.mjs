@@ -116,4 +116,18 @@ const OFFICERS = [
     heroicActions: [], battleArt: null },
 ];
 
-export { TERRAIN, FORMATIONS, UNIT_TYPES, OFFICERS };
+
+// Heroic actions (David's handout): free actions for officer units; uses per battle = officer Fire,
+// one per turn, never the same one twice in a row. Resolved by the GM.
+const HEROIC_ACTIONS = [
+  { id: "you_and_me", name: "You and Me!", text: "The officer declares a duel with an opposing officer. While this duel is occurring, neither unit can activate. Each turn the duel is active, the participants will fight for 2 rounds. If an officer dies, the unit they controlled will suffer a -30 morale loss. At the end of a round of dueling, an officer can decide to retreat and return to their unit, resulting in a -20 morale loss. An officer may also refuse to duel entirely, in this case, the officer who refused the duel's unit suffers a -10 morale loss." },
+  { id: "enter_the_dragon", name: "Enter the Dragon", text: "When the officer's unit perform an attack, the officer himself can enter the fray and roll a single attack roll, that roll is added the value of the unit's attack roll. If the combined attack roll happens to be less than the enemy unit's command roll, the officer will suffer damage equal to the difference, his attack roll will still be added to his unit's even if this is the case." },
+  { id: "diversion_ranged", name: "Diversion (Ranged)", text: "If a heroic action is performed within 3 movements of an officer's unit, the officer may attempt a missile attack with a ST of 9 + (Target Officer's Metal). Upon success, that heroic action is prevented." },
+  { id: "unmovable_wall", name: "Unmovable Wall", text: "The officer blocks the path of an enemy Unit. He faces six Henchmen. If the officer wins, the unit is unable to activate this turn and takes 6 casualties." },
+  { id: "formation_breaker", name: "Formation Breaker", text: "The officer charges into the enemy Unit's formation. He faces 4 Henchman. The officer will suffer a -1 to rolls while the Henchman will receive +1 to rolls. If the officer wins, the unit immediately loses the benefits of their formation and takes 4 casualties." },
+  { id: "flame_amidst_the_chaos", name: "Flame amidst the Chaos", text: "The officer rallies his troops or an adjacent unit, making a YinYang + Command + Fire roll. Multiply the result by 2 and add it to the officer's unit's morale." },
+  { id: "deducing_heaven", name: "Deducing Heaven", text: "The officer makes a mental calculation and predicts future events. The officer makes a YinYang + Wood + Divination roll. The officer may add this result to any roll his unit makes next turn." },
+  { id: "facing_a_thousand_arrows", name: "Facing a Thousand Arrows", text: "The officer attempts to block enemy missiles. The officer must make an Active Defense Roll with a +2 bonus. If the active defense is equal to or higher than the enemy unit's ranged attack, suffer less casualties equal to 1 plus the difference between the two rolls. If the result is less that the attack, take damage equal to the difference." },
+];
+
+export { TERRAIN, FORMATIONS, UNIT_TYPES, OFFICERS, HEROIC_ACTIONS };

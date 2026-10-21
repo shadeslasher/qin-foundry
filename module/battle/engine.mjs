@@ -113,6 +113,52 @@ function reachable(s, u, budget) {
   return out; // "x,y" -> distance
 }
 
+/**
+ * Where a unit can go this turn. blue: normal move (keeps its action). red: forced march
+ * (another move's worth, 5 morale per extra tile, never down to 0 morale; ends the turn).
+ */
+function moveOptions(s, u) {
+  const blue = new Map(), red = new Map();
+  const ac = s.turn.activation;
+  if (!u || !ac || ac.unitId !== u.id || ac.step !== 'move' || u.round.cannotMove) return { blue, red };
+  const move = movementOf(s, u);
+  if (!move) return { blue, red };
+  const reach = reachable(s, u, move * 2);
+  for (const [k, d] of reach) {
+    if (d <= move) blue.set(k, d);
+    else {
+      const cost = 5 * (d - move);
+      if (u.morale - cost > 0) red.set(k, { dist: d, cost });
+    }
+  }
+  return { blue, red };
+}
+
+/** Enemy units this unit could attack right now. */
+function attackTargets(s, u) {
+  return liveUnits(s).filter(d => hostile(u, d) && visibleTo(s, d, alliance(u.side)) && rangeOk(s, u, d));
+}
+
+/** What the Fire Emblem-style action menu may offer the active unit. */
+function actionMenu(s, u) {
+  const ac = s.turn.activation;
+  const none = { move: false, attack: false, hold: false, ability: false, heroic: false, endTurn: false };
+  if (!u || !ac || ac.unitId !== u.id || !alive(u)) return none;
+  const o = officerOf(s, u);
+  const opts = moveOptions(s, u);
+  const canStillAct = !u.round.attacked && !ac.forcedMarched;
+  const skillOk = !!(o && o.skill && !u.round.skillUsed && u.morale >= (Number(o.skill.moraleCost) || 0));
+  const artOk = !!(o && o.battleArt && !u.round.skillUsed && moraleState(u.morale) === 'Encouraged');
+  return {
+    move: opts.blue.size + opts.red.size > 0,
+    attack: canStillAct && attackTargets(s, u).length > 0,
+    hold: canStillAct,
+    ability: skillOk || artOk, skill: skillOk, art: artOk,
+    heroic: !!(o && (o.heroicActions || []).length && !u.round.heroicUsed && (u.heroicUsed || 0) < (o.fire || 0)),
+    endTurn: true,
+  };
+}
+
 // ---------------------------------------------------------------- facing
 
 function faceToward(u, target) {
@@ -709,6 +755,31 @@ const ACTIONS = {
 
   // ---------- activation steps
   move(s, actor, a) { return doMove(s, actor, a, false); },
+  moveTo(s, actor, a) { // click-to-move: blue tile = move, red tile = forced march (ends the turn)
+    const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
+    const { u, act: ac } = r;
+    const k = a.x + ',' + a.y;
+    const { blue, red } = moveOptions(s, u);
+    const forced = !blue.has(k) && red.has(k);
+    if (!blue.has(k) && !forced) return err("Can't move there");
+    const from = { x: u.x, y: u.y };
+    u.x = a.x; u.y = a.y; u.round.moved = true;
+    u.facing = { dx: sign(u.x - from.x), dy: sign(u.y - from.y) };
+    if (Math.abs(u.x - from.x) > Math.abs(u.y - from.y)) u.facing.dy = 0; else if (u.y !== from.y) u.facing.dx = 0;
+    if (!(data.TERRAIN[terrainAt(s, u.x, u.y)] || {}).cover) u.hidden = false;
+    ac.started = true; ac.movedThisActivation = true; ac.step = 'act';
+    if (forced) {
+      const { cost, dist } = red.get(k);
+      ac.forcedMarched = true;
+      u.morale = clamp(u.morale - cost, 0, 100);
+      log(s, u.name + ' force-marches ' + dist + ' tiles (-' + cost + ' morale).');
+      settle(s);
+      if (alive(u)) finishActivation(s, u);
+      return;
+    }
+    log(s, u.name + ' moves ' + blue.get(k) + ' tile' + (blue.get(k) === 1 ? '' : 's') + '.');
+    settle(s);
+  },
   forcedMarch(s, actor, a) { return doMove(s, actor, a, true); },
   skipMove(s, actor, a) {
     const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
@@ -729,7 +800,7 @@ const ACTIONS = {
   },
   holdPosition(s, actor, a) {
     const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
-    if (r.act.step !== 'move') return err('Hold replaces both movement and attack');
+    if (r.u.round.attacked || r.act.forcedMarched) return err('Too late to hold this turn');
     r.u.round.holding = true;
     log(s, r.u.name + ' holds position (enemy attacks against it -1 this round).');
     finishActivation(s, r.u);
@@ -839,6 +910,7 @@ function viewFor(s, viewer) {
 }
 
 export {
+  moveOptions, attackTargets, actionMenu,
   newState, act, viewFor, prompt, reachable, movementOf, moraleState, visibleTo, rangeOk,
   resolveAttack, buildRoll, setRng, yinYang, typeOf, officerOf, unitById, SIDES, settle, advance,
 };

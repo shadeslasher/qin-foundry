@@ -3,6 +3,7 @@ import { SYSTEM_ID, systemPath, SIDES } from "../config.mjs";
 import * as E from "./engine.mjs";
 import { getBattle, buildState, runAction, unitTokens } from "./adapter.mjs";
 import { scaledPosition } from "../sheets/sheets.mjs";
+import { setBattleRequest, highlightUnit } from "./battle-ui.mjs";
 
 const QUERY = `${SYSTEM_ID}.battle`;
 const PHASE_NAME = { setup: "Setup", formations: "Declare formations", officer: "Officer phase", officerless: "Officer-less phase", final: "Final pass" };
@@ -10,6 +11,8 @@ const PHASE_NAME = { setup: "Setup", formations: "Declare formations", officer: 
 export function registerBattleQuery() {
   CONFIG.queries[QUERY] = async ({ userId, action }) => runAction(userId, action);
 }
+
+setTimeout(() => setBattleRequest(battleRequest), 0);
 
 /** Send an action to the battle (runs on the active GM's client). */
 export async function battleRequest(action) {
@@ -161,6 +164,11 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
 
   _onRender(context, options) {
     super._onRender?.(context, options);
+    // Hovering a unit button (Take turn, Act, interject...) marks that unit on the map
+    this.element.querySelectorAll("[data-unit-id]").forEach(el => {
+      el.addEventListener("mouseenter", () => highlightUnit(el.dataset.unitId, true));
+      el.addEventListener("mouseleave", () => highlightUnit(el.dataset.unitId, false));
+    });
     this.element.querySelectorAll("select[data-formation-unit]").forEach(sel => sel.addEventListener("change", () => {
       battleRequest({ type: "setFormation", unitId: sel.dataset.formationUnit, formation: sel.value });
     }));

@@ -2,7 +2,7 @@ import { Chat } from "../dice.mjs";
 // Bridges Foundry (scene tokens, unit actors, officer characters) and the pure battle
 // engine. Runs only on the active GM's client; players reach it through queries.
 import * as E from "./engine.mjs";
-import { FORMATIONS } from "./engine-data.mjs";
+import { FORMATIONS, HEROIC_ACTIONS } from "./engine-data.mjs";
 import { SYSTEM_ID } from "../config.mjs";
 
 const SETTING = "battle";
@@ -55,7 +55,7 @@ function officerLibraryEntry(officer) {
     fire: officer.system.aspects.fire, command: officer.system.skills.command?.value ?? 0, skills,
     passive: { name: abilities.filter(a => a.system.kind === "passive").map(a => a.name).join(", "), text: "", effects },
     skill: skill ? { name: skill.name, text: stripHtml(skill.system.description), moraleCost: skill.system.moraleCost } : null,
-    heroicActions: abilities.filter(a => a.system.kind === "heroic").map(a => ({ name: a.name, text: stripHtml(a.system.description) })),
+    heroicActions: HEROIC_ACTIONS.map(h => ({ name: h.name, text: h.text })), // every officer may use the heroic action list
     battleArt: art ? { name: art.name, text: stripHtml(art.system.description) } : null,
   };
 }
@@ -87,7 +87,7 @@ export function unitTokens(scene) {
 }
 
 /** Engine state assembled from the battle setting and the scene's unit tokens. */
-export function buildState(battle, { useLastPosition = null } = {}) {
+export function buildState(battle, { useLastPosition = null, terrainFor = null } = {}) {
   const scene = game.scenes.get(battle.sceneId);
   const s = E.newState();
   s.freeMovement = true;
@@ -140,6 +140,17 @@ export function buildState(battle, { useLastPosition = null } = {}) {
     }
   }
   s.library.officers = [...officers.values()];
+  // Full terrain around one unit (movement range, so impassable regions block its path)
+  const tu = terrainFor && s.units.find(u => u.id === terrainFor);
+  if (tu) {
+    const r = Math.min(30, (E.movementOf(s, tu) || 0) * 2 + 1);
+    for (let x = tu.x - r; x <= tu.x + r; x++) for (let y = tu.y - r; y <= tu.y + r; y++) {
+      const k = x + "," + y;
+      if (k in s.map.terrain || Math.abs(x - tu.x) + Math.abs(y - tu.y) > r) continue;
+      const t = terrainAt(scene, x * size + size / 2, y * size + size / 2);
+      if (t !== "flat") s.map.terrain[k] = t;
+    }
+  }
   return { s, scene };
 }
 
@@ -185,7 +196,7 @@ async function writeBack(battle, s, scene) {
     if (Object.keys(t).length > 1) tokenUpdates.push(t);
   }
   await Promise.all(actorUpdates);
-  if (scene && tokenUpdates.length) await scene.updateEmbeddedDocuments("Token", tokenUpdates, { qinBattle: true, animate: false });
+  if (scene && tokenUpdates.length) await scene.updateEmbeddedDocuments("Token", tokenUpdates, { qinBattle: true });
   battle.turn = s.turn;
   battle.log = s.log.slice(-60);
   await game.settings.set(SYSTEM_ID, SETTING, battle);
@@ -250,7 +261,8 @@ async function runActionNow(userId, action) {
   }
 
   const moving = ["move", "forcedMarch"].includes(action.type) ? action.unitId : null;
-  const { s, scene } = buildState(battle, { useLastPosition: moving });
+  const { s, scene } = buildState(battle, { useLastPosition: moving, terrainFor: action.type === "moveTo" ? action.unitId : null });
+  if (action.type === "moveTo") s.freeMovement = false;
   const logLen = s.log.length;
   E.setRng(() => CONFIG.Dice.randomUniform());
   const res = E.act(s, actor, action.type === "startBattle" ? { type: "startBattle" } : action);

@@ -325,3 +325,49 @@ test('Turtle: no attacker bonus, +2 defending, 2 fewer casualties; strength pena
   // defender's return damage 6 - 3 armor = 3 (turtle reduction only protects the turtle)
   assert.strictEqual(A.men, 100 - 3);
 });
+
+function turnFor(s, aType, extra = []) {
+  s.library.unitTypes.push(aType, ...extra.map(e => e.type));
+  const a = add(s, { typeId: aType.id, side: 'player', owner: 'p1', x: 5, y: 5 });
+  const others = extra.map(e => add(s, { typeId: e.type.id, side: e.side || 'enemy', x: e.x, y: e.y }));
+  must(R.act(s, HOST, { type: 'startBattle' }));
+  dice([0, 0]); must(R.act(s, HOST, { type: 'startRound' }));
+  must(R.act(s, P1, { type: 'claim' }));
+  must(R.act(s, P1, { type: 'begin', unitId: a }));
+  return [a, ...others];
+}
+
+test('click-to-move: blue tiles keep the action, red tiles force march and end the turn', () => {
+  const s = setup();
+  const [a] = turnFor(s, unitType('walker', { move: 3 }), [{ type: unitType('far'), x: 20, y: 12 }]);
+  const u = R.unitById(s, a);
+  const { blue, red } = R.moveOptions(s, u);
+  assert.ok(blue.has('8,5') && !blue.has('9,5') && red.has('9,5') && red.has('11,5') && !red.has('12,5'));
+  assert.strictEqual(red.get('11,5').cost, 15);
+  must(R.act(s, P1, { type: 'moveTo', unitId: a, x: 7, y: 5 }));
+  assert.strictEqual(u.x, 7);
+  assert.strictEqual(s.turn.activation.step, 'act', 'still has its action after a blue move');
+  const menu = R.actionMenu(s, u);
+  assert.ok(!menu.move && menu.hold && menu.endTurn && !menu.attack);
+  must(R.act(s, P1, { type: 'holdPosition', unitId: a }));
+  assert.ok(u.round.holding && u.round.activated, 'hold after moving ends the turn');
+});
+
+test('forced march costs 5 morale per extra tile, ends the turn, and cannot drop morale to 0', () => {
+  const s = setup();
+  const [a] = turnFor(s, unitType('marcher', { move: 3 }), [{ type: unitType('far2'), x: 20, y: 12 }]);
+  const u = R.unitById(s, a);
+  u.morale = 11; // 2 extra tiles = 10 (ok), 3 = 15 (would surrender)
+  const { red } = R.moveOptions(s, u);
+  assert.ok(red.has('10,5') && !red.has('11,5'));
+  must(R.act(s, P1, { type: 'moveTo', unitId: a, x: 10, y: 5 }));
+  assert.strictEqual(u.morale, 1);
+  assert.ok(u.round.activated && !s.turn.activation, 'forced march ended the turn');
+});
+
+test('action menu: attack only with an enemy in range', () => {
+  const s = setup();
+  const [a] = turnFor(s, unitType('fighter'), [{ type: unitType('adjacent'), x: 5, y: 4 }]);
+  const menu = R.actionMenu(s, R.unitById(s, a));
+  assert.ok(menu.attack && menu.move && !menu.ability && !menu.heroic, JSON.stringify(menu));
+});

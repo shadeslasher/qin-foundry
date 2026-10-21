@@ -24,6 +24,36 @@ async function loadLibrary(packName) {
   libraryCache.set(packName, list);
   return list;
 }
+/** Hover-detail library pickers (.qin-picker): hover an entry for its details, click to choose it. */
+export function wirePickers(app, el, entries) {
+  const details = Object.fromEntries(entries.map(d => [d.uuid, d.details]));
+  el.querySelectorAll(".qin-picker").forEach(picker => {
+    const info = picker.querySelector(".qin-picker-info");
+    const close = () => picker.classList.remove("open", "show-info");
+    picker.querySelector(".qin-picker-toggle").addEventListener("click", ev => {
+      ev.preventDefault();
+      el.querySelectorAll(".qin-picker.open").forEach(p => { if (p !== picker) p.classList.remove("open", "show-info"); });
+      picker.classList.toggle("open");
+    });
+    picker.querySelectorAll("li[data-uuid]").forEach(li => {
+      li.addEventListener("mouseenter", () => { info.innerHTML = details[li.dataset.uuid] ?? ""; picker.classList.add("show-info"); });
+      li.addEventListener("click", () => {
+        if (li.classList.contains("owned")) return;
+        picker.dataset.value = li.dataset.uuid;
+        picker.querySelector(".qin-picker-label").textContent = li.textContent.trim();
+        close();
+      });
+    });
+    picker.addEventListener("mouseleave", () => picker.classList.remove("show-info"));
+  });
+  if (!app._qinPickerCloser) {
+    app._qinPickerCloser = true;
+    el.addEventListener("click", ev => {
+      if (!ev.target.closest(".qin-picker")) el.querySelectorAll(".qin-picker.open").forEach(p => p.classList.remove("open", "show-info"));
+    });
+  }
+}
+
 function libraryDetails(doc) {
   const s = doc.system;
   let html = `<h4>${esc(doc.name)}</h4>`;
@@ -33,6 +63,9 @@ function libraryDetails(doc) {
   } else if (doc.type === "technique") {
     const used = { attack: "Attack Test", defense: "Active Defense", other: "Special" }[s.roll] ?? s.roll;
     html += `<p class="qin-muted">${s.kind === "distance" ? "Distance" : "Close"} combat · ${used} · ST +${s.stIncrease}</p>${s.description || ""}`;
+  } else if (doc.type === "formation") {
+    const fx = formationSummary(s);
+    html += (fx ? `<p class="qin-info-fx">${esc(fx)}</p>` : "") + (s.description || "");
   } else html += s.description || "";
   return html;
 }
@@ -182,32 +215,7 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
       this.actor.items.get(sel.dataset.taoLevel)?.update({ "system.level": Number(sel.value) });
     }));
     // Library pickers: hover an entry for its details, click to choose it
-    const details = Object.fromEntries([...(context.taoLibrary ?? []), ...(context.techniqueLibrary ?? [])].map(d => [d.uuid, d.details]));
-    el.querySelectorAll(".qin-picker").forEach(picker => {
-      const info = picker.querySelector(".qin-picker-info");
-      const close = () => picker.classList.remove("open", "show-info");
-      picker.querySelector(".qin-picker-toggle").addEventListener("click", ev => {
-        ev.preventDefault();
-        el.querySelectorAll(".qin-picker.open").forEach(p => { if (p !== picker) p.classList.remove("open", "show-info"); });
-        picker.classList.toggle("open");
-      });
-      picker.querySelectorAll("li[data-uuid]").forEach(li => {
-        li.addEventListener("mouseenter", () => { info.innerHTML = details[li.dataset.uuid] ?? ""; picker.classList.add("show-info"); });
-        li.addEventListener("click", () => {
-          if (li.classList.contains("owned")) return;
-          picker.dataset.value = li.dataset.uuid;
-          picker.querySelector(".qin-picker-label").textContent = li.textContent.trim();
-          close();
-        });
-      });
-      picker.addEventListener("mouseleave", () => picker.classList.remove("show-info"));
-    });
-    if (!this._qinPickerCloser) {
-      this._qinPickerCloser = true;
-      el.addEventListener("click", ev => {
-        if (!ev.target.closest(".qin-picker")) el.querySelectorAll(".qin-picker.open").forEach(p => p.classList.remove("open", "show-info"));
-      });
-    }
+    wirePickers(this, el, [...(context.taoLibrary ?? []), ...(context.techniqueLibrary ?? [])]);
   }
 
   /** Copy the chosen compendium entry (a Tao or technique) onto the character. */
@@ -401,6 +409,7 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
 
   _onRender(context, options) {
     super._onRender(context, options);
+    wirePickers(this, this.element, context.formationLibrary ?? []);
     // Drop a character actor onto the sheet to make them this unit's officer.
     const zone = this.element.querySelector(".qin-officer-drop");
     zone?.addEventListener("dragover", ev => ev.preventDefault());
@@ -431,7 +440,7 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
     openItemDraft(this.document, { name: type === "formation" ? "New Formation" : `New ${type}`, type });
   }
   static async #addFormation() {
-    const uuid = this.element.querySelector("select[data-formation-library]")?.value;
+    const uuid = this.element.querySelector('.qin-picker[data-library="formations"]')?.dataset.value;
     if (!uuid) return ui.notifications.info("Choose a formation from the list first.");
     const doc = await fromUuid(uuid);
     if (doc) await this.document.createEmbeddedDocuments("Item", [doc.toObject()]);
