@@ -261,6 +261,32 @@ Hooks.on("updateActor", async (actor, change, options, userId) => {
   }
 });
 
+/* Several tokens of one linked unit actor would all share one health/morale pool. Only the first token
+ * on a scene stays linked (it keeps the actor's health between battles); extra copies become independent. */
+const pendingLinked = new Set();
+Hooks.on("preCreateToken", (doc, data) => {
+  const actor = doc.actor ?? game.actors.get(data.actorId);
+  if (actor?.type !== "unit" || !doc.actorLink) return;
+  const scene = doc.parent, key = `${scene?.id}.${actor.id}`;
+  const taken = pendingLinked.has(key) || scene?.tokens.some(t => t.actorLink && t.actorId === actor.id);
+  if (taken) doc.updateSource({ actorLink: false });
+  else { pendingLinked.add(key); setTimeout(() => pendingLinked.delete(key), 0); }
+});
+
+async function unlinkDuplicateUnits(scene) {
+  if (!scene || !game.user.isActiveGM) return;
+  const seen = new Set(), updates = [];
+  for (const t of scene.tokens) {
+    if (!t.actorLink || t.actor?.type !== "unit") continue;
+    if (seen.has(t.actorId)) updates.push({ _id: t.id, actorLink: false });
+    else seen.add(t.actorId);
+  }
+  if (!updates.length) return;
+  await scene.updateEmbeddedDocuments("Token", updates);
+  ui.notifications.info(`${updates.length} extra unit token${updates.length === 1 ? "" : "s"} on "${scene.name}" now track their own health and morale.`);
+}
+Hooks.on("canvasReady", (c) => { unlinkDuplicateUnits(c.scene).catch(e => console.warn("Qin | unlinking unit copies", e)); });
+
 // New characters start with sensible tokens
 Hooks.on("preCreateActor", (actor, data) => {
   if (data.prototypeToken) return;
