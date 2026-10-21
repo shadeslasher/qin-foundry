@@ -373,7 +373,7 @@ function gainMorale(s, u, n, why) {
 }
 
 // Apply defeats, surrenders, adjacency penalties and encirclement until stable.
-function settle(s) {
+function settle(s, opts = {}) {
   for (let guard = 0; guard < 50; guard++) {
     let changed = false;
     for (const u of liveUnits(s)) {
@@ -391,7 +391,8 @@ function settle(s) {
         }
       }
     }
-    if (checkEncirclement(s)) changed = true;
+    // a normal (undoable) move waits: encirclement is only applied once the move is committed
+    if (!opts.deferEncirclement && checkEncirclement(s)) changed = true;
     if (!changed) return;
   }
 }
@@ -802,7 +803,7 @@ const ACTIONS = {
     ac.tilesMoved = blue.get(k);
     ac.undo = { from, facing: prevFacing, hidden: prevHidden, started: prevStarted };
     log(s, u.name + ' moves ' + blue.get(k) + ' tile' + (blue.get(k) === 1 ? '' : 's') + '.');
-    settle(s);
+    settle(s, { deferEncirclement: true });
   },
   undoMove(s, actor, a) { // only a normal (blue) move, and only if nothing else happened since
     const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
@@ -847,6 +848,9 @@ const ACTIONS = {
     if (!d || !alive(d) || !hostile(u, d)) return err('Pick an enemy unit');
     if (!visibleTo(s, d, alliance(u.side))) return err('You cannot see that unit');
     if (!rangeOk(s, u, d)) return err('Target out of range');
+    // attacking commits the move: apply any encirclement it caused first
+    settle(s);
+    if (!alive(d)) { log(s, d.name + ' gave up before the attack landed.'); if (alive(u)) finishActivation(s, u); return; }
     resolveAttack(s, u, d, { movedThisActivation: ac.movedThisActivation, tilesMoved: ac.tilesMoved || 0, ambush: ac.startedHidden });
     if (alive(u)) finishActivation(s, u);
   },

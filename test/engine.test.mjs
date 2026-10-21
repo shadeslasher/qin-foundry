@@ -148,6 +148,26 @@ test('Fierce Charge tiers', () => {
   assert.strictEqual(50 - rear.morale, Math.min(50, 3 * rear.r.diff));
 });
 
+test('encirclement from a move waits until the move is committed (undo leaves morale alone)', () => {
+  const s = setup();
+  // enemy at (5,5) with a wall of player units on three sides; the fourth side gets closed by the mover
+  const d = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 5 });
+  for (const [x, y] of [[4, 5], [6, 5], [5, 4]]) add(s, { typeId: 'han_ji_inf', side: 'player', owner: 'p1', x, y });
+  const m = add(s, { typeId: 'han_ji_inf', side: 'player', owner: 'p1', x: 5, y: 8 });
+  must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'startRound' }));
+  const start = R.unitById(s, d).morale;
+  must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: m }));
+  s.freeMovement = false;
+  must(R.act(s, P1, { type: 'moveTo', unitId: m, x: 5, y: 6 }));
+  assert.strictEqual(R.unitById(s, d).morale, start, 'not applied yet');
+  must(R.act(s, P1, { type: 'undoMove', unitId: m }));
+  assert.strictEqual(R.unitById(s, d).morale, start, 'undo: nothing to give back');
+  must(R.act(s, P1, { type: 'moveTo', unitId: m, x: 5, y: 6 }));
+  must(R.act(s, P1, { type: 'holdPosition', unitId: m }));
+  assert.ok(R.unitById(s, d).morale <= Math.max(0, start - 50), 'hold commits the move: -50');
+  assert.ok(R.unitById(s, d).surrounded);
+});
+
 test('initiative: officers first, hold, interject chain, officer-less alternation, final pass', () => {
   const s = setup();
   const o1 = add(s, { typeId: 'han_ji_inf', officerId: 'xu_chu', side: 'player', owner: 'p1', x: 1, y: 1 });
