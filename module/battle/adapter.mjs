@@ -1,4 +1,5 @@
 import { Chat } from "../dice.mjs";
+import { showFloatOnScene } from "../attack-fx.mjs";
 // Bridges Foundry (scene tokens, unit actors, officer characters) and the pure battle
 // engine. Runs only on the active GM's client; players reach it through queries.
 import * as E from "./engine.mjs";
@@ -6,6 +7,9 @@ import { FORMATIONS, HEROIC_ACTIONS } from "./engine-data.mjs";
 import { SYSTEM_ID } from "../config.mjs";
 
 const SETTING = "battle";
+let writing = false;
+/** True while the battle itself is moving tokens (so the token lock lets those moves through). */
+export const isWritingBack = () => writing;
 const BIG = 100000;
 let queue = Promise.resolve();
 
@@ -121,8 +125,9 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
       officerId = officer.uuid;
     }
     const meta = battle.meta?.[tok.id] ?? {};
-    // A token that was just dragged is already at its new tile; the engine needs where it came from.
-    const fromPos = useLastPosition === tok.id && meta.pos ? meta.pos : null;
+    // During rounds the battle's own record of positions is the truth (tokens may still be animating);
+    // a token that was just dragged is already at its new tile, so the engine needs where it came from.
+    const fromPos = (useLastPosition === tok.id || battle.turn?.phase !== "setup") && meta.pos ? meta.pos : null;
     s.units.push({
       id: tok.id, typeId: tok.id, officerId, name: tok.name, side: sys.side, owner: ownerUserId(a),
       x: fromPos ? fromPos.x : gx, y: fromPos ? fromPos.y : gy, men: sys.men.value, maxMen: sys.men.max, morale: sys.morale, xp: sys.xp?.value ?? 0,
@@ -196,7 +201,11 @@ async function writeBack(battle, s, scene) {
     if (Object.keys(t).length > 1) tokenUpdates.push(t);
   }
   await Promise.all(actorUpdates);
-  if (scene && tokenUpdates.length) await scene.updateEmbeddedDocuments("Token", tokenUpdates, { qinBattle: true });
+  if (scene && tokenUpdates.length) {
+    writing = true;
+    try { await scene.updateEmbeddedDocuments("Token", tokenUpdates, { qinBattle: true }); }
+    finally { writing = false; }
+  }
   battle.turn = s.turn;
   battle.log = s.log.slice(-60);
   await game.settings.set(SYSTEM_ID, SETTING, battle);
@@ -205,15 +214,58 @@ async function writeBack(battle, s, scene) {
 async function postLog(entries, s) {
   if (!entries.length) return;
   const nameOf = (id) => E.unitById(s, id)?.name ?? "?";
-  const parts = entries.map(e => {
-    if (e.detail?.type === "attack") {
-      const r = e.detail.result;
-      const col = (roll, title) => `<div><b>${title}: ${roll.total}</b>${roll.parts.filter(([k, v]) => v !== 0 || /Yin/.test(k)).map(([k, v]) => `<div class="qin-row"><span>${k}</span><span>${v > 0 ? "+" : ""}${v}</span></div>`).join("")}</div>`;
-      return `<div class="qin-battle-attack"><p>${e.text}</p><details><summary>Roll breakdown</summary><div class="qin-breakdown">${col(r.attackRoll, nameOf(r.attacker))}${col(r.defendRoll, nameOf(r.defender))}</div></details></div>`;
+  const signed = (n) => (n > 0 ? `+${n}` : `${n}`);
+  const attackIds = new Set();
+  for (const e of entries) if (e.detail?.type === "attack") { attackIds.add(e.detail.result.attacker); attackIds.add(e.detail.result.defender); }
+  const parts = [];
+  for (const e of entries) {
+    const d = e.detail;
+    if (d?.type === "attack") {
+      const r = d.result;
+      const A = nameOf(r.attacker), D = nameOf(r.defender);
+      const tags = [r.ranged ? "Ranged" : "Melee", r.charge && "Cavalry charge", r.rear && "Rear", r.ambush && "Ambush"].filter(Boolean).join(" · ");
+      const win = r.winner === "attacker" ? A : r.winner === "defender" ? D : null;
+      const col = (roll) => roll.parts.filter(([k, v]) => v !== 0 || /Yin/.test(k)).map(([k, v]) => `<div class="qin-row"><span>${k}</span><span>${signed(v)}</span></div>`).join("");
+      const line = (cls, label, a, b) => (a || b) ? `<div class="qin-bc-line ${cls}"><span>${a || "—"}</span><span class="qin-bc-label">${label}</span><span>${b || "—"}</span></div>` : "";
+      const moraleA = (r.loser === r.attacker ? -r.moraleLoss : 0) + (r.killedBy === r.attacker ? r.killMorale || 0 : 0);
+      const moraleD = (r.loser === r.defender ? -r.moraleLoss : 0) + (r.killedBy === r.defender ? r.killMorale || 0 : 0);
+      parts.push(`<div class="qin-battle-card">
+        <div class="qin-bc-head"><b>${A}</b> <i class="fa-solid fa-swords"></i> <b>${D}</b><div class="qin-bc-tags">${tags}</div></div>
+        <div class="qin-bc-rolls"><div class="${r.winner === "attacker" ? "win" : ""}"><span>${A}</span><b>${r.attackRoll.total}</b></div><div class="qin-bc-vs">vs</div><div class="${r.winner === "defender" ? "win" : ""}"><span>${D}</span><b>${r.defendRoll.total}</b></div></div>
+        <div class="qin-bc-result">${win ? `${win} wins by ${r.diff}` : "Tie"}${r.moraleMultiplier > 1 ? ` · morale loss ×${r.moraleMultiplier}` : ""}</div>
+        ${line("cas", "Casualties", r.casualtiesAttacker ? `−${r.casualtiesAttacker}` : "", r.casualtiesDefender ? `−${r.casualtiesDefender}` : "")}
+        ${line("mor", "Morale", moraleA ? signed(moraleA) : "", moraleD ? signed(moraleD) : "")}
+        ${line("xp", "XP", r.xpAttacker ? `+${r.xpAttacker}` : "", r.xpDefender ? `+${r.xpDefender}` : "")}
+        <details><summary>Roll breakdown</summary><div class="qin-breakdown"><div><b>${A}: ${r.attackRoll.total}</b>${col(r.attackRoll)}</div><div><b>${D}: ${r.defendRoll.total}</b>${col(r.defendRoll)}</div></div></details>
+      </div>`);
+      continue;
     }
-    return `<p class="${e.detail?.type === "warning" ? "qin-warn" : ""}">${e.text}</p>`;
-  });
+    // XP and killing-blow morale for an attack are already on its card
+    if ((d?.type === "xp" || d?.type === "moraleGain") && attackIds.has(d.unit) && /XP|killing blow/.test(e.text)) continue;
+    if (/ ends its turn\.$/.test(e.text)) continue;
+    parts.push(`<p class="qin-bc-note ${d?.type === "warning" ? "qin-warn" : ""}">${e.text}</p>`);
+  }
+  if (!parts.length) return;
   await Chat().create({ content: `<div class="qin-chat qin-battle-log">${parts.join("")}</div>`, speaker: { alias: "Battle" } });
+}
+
+/** After an action: red casualties, then blue morale, then gold XP floating over the units, half a second apart. */
+function floatChanges(scene, before, s) {
+  if (!scene) return;
+  const size = scene.grid.size;
+  const at = (id) => { const t = scene.tokens.get(id); return t ? { x: t.x + (t.width ?? 1) * size / 2, y: t.y + (t.height ?? 1) * size / 2 } : null; };
+  const men = [], morale = [], xp = [];
+  for (const u of s.units) {
+    const b = before[u.id];
+    if (!b) continue;
+    if (u.men < b.men) men.push([u.id, `−${b.men - u.men}`]);
+    if (u.morale !== b.morale) morale.push([u.id, `${u.morale > b.morale ? "+" : "−"}${Math.abs(u.morale - b.morale)} morale`, u.morale > b.morale]);
+    if ((u.xp || 0) > (b.xp || 0)) xp.push([u.id, `+${(u.xp || 0) - (b.xp || 0)} XP`]);
+  }
+  const later = (ms, list, style) => list.length && setTimeout(() => list.forEach(([id, text, up]) => showFloatOnScene(scene.id, at(id), typeof style === "function" ? style(up) : style, text)), ms);
+  later(500, men, "unitDamage");
+  later(1000, morale, (up) => (up ? "moraleUp" : "moraleDown"));
+  later(1500, xp, "xp");
 }
 
 /* ------------------------------------------------------------ run actions (GM only) */
@@ -264,11 +316,13 @@ async function runActionNow(userId, action) {
   const { s, scene } = buildState(battle, { useLastPosition: moving, terrainFor: action.type === "moveTo" ? action.unitId : null });
   if (action.type === "moveTo") s.freeMovement = false;
   const logLen = s.log.length;
+  const before = Object.fromEntries(s.units.map(u => [u.id, { men: u.men, morale: u.morale, xp: u.xp || 0 }]));
   E.setRng(() => CONFIG.Dice.randomUniform());
   const res = E.act(s, actor, action.type === "startBattle" ? { type: "startBattle" } : action);
   if (!res.ok && action.type === "startBattle") return res;
   await writeBack(battle, s, scene);
   await postLog(s.log.slice(logLen), s);
+  if (res.ok) floatChanges(scene, before, s);
   return res;
 }
 

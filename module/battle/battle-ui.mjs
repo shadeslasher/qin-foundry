@@ -1,7 +1,7 @@
 // Fire Emblem-style battle controls on the canvas: an action menu beside the active unit,
 // blue/red movement squares, attack target highlights, and a "which unit is this" highlight.
 import * as E from "./engine.mjs";
-import { getBattle, buildState } from "./adapter.mjs";
+import { getBattle, buildState, isWritingBack } from "./adapter.mjs";
 import { SYSTEM_ID } from "../config.mjs";
 
 let requestFn = null;            // battleRequest, injected by battle.mjs (avoids a circular import)
@@ -173,12 +173,17 @@ function hideMenu() {
   menuEl = null;
 }
 
+let menuSide = "right";
 function placeMenu() {
   if (!menuEl || !current?.token) return;
   const t = current.token;
-  const p = toClient({ x: t.x + t.w, y: t.y });
-  menuEl.style.left = `${Math.round(p.x + 8)}px`;
-  menuEl.style.top = `${Math.round(p.y)}px`;
+  const w = menuEl.offsetWidth || 180;
+  const right = toClient({ x: t.x + t.w, y: t.y }), left = toClient({ x: t.x, y: t.y });
+  let side = menuSide;
+  if (side === "right" && right.x + 8 + w > window.innerWidth) side = "left";
+  if (side === "left" && left.x - 8 - w < 0) side = "right";
+  menuEl.style.left = `${Math.round(side === "right" ? right.x + 8 : left.x - 8 - w)}px`;
+  menuEl.style.top = `${Math.round(right.y)}px`;
 }
 
 function renderMenu(sub = null) {
@@ -189,6 +194,12 @@ function renderMenu(sub = null) {
     menuEl.className = "qin qin-fe-menu";
     document.body.append(menuEl);
     menuEl.addEventListener("click", onMenuClick);
+    // While picking a square, the menu jumps to the other side of the unit if the cursor goes over it
+    menuEl.addEventListener("mouseenter", () => {
+      if (!mode) return;
+      menuSide = menuSide === "right" ? "left" : "right";
+      placeMenu();
+    });
   }
   const b = (act, label, enabled, tip = "", extra = "") =>
     `<button type="button" data-fe="${act}" ${enabled && !busy ? "" : "disabled"} ${tip ? `data-tooltip="${esc(tip)}"` : ""} ${extra}>${label}</button>`;
@@ -308,7 +319,7 @@ export function onUnitSelected(token, controlled) {
 
 /** Unit tokens can't be dragged during a battle round: units move with the Move action. */
 export function lockUnitTokens(tokenDoc, change, options) {
-  if (options?.qinBattle || !("x" in change || "y" in change)) return;
+  if (options?.qinBattle || isWritingBack() || !("x" in change || "y" in change)) return;
   if (tokenDoc.actor?.type !== "unit") return;
   const battle = game.settings.get(SYSTEM_ID, "battle");
   if (!battle?.active || tokenDoc.parent?.id !== battle.sceneId || battle.turn?.phase === "setup") return;

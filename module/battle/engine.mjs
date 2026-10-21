@@ -331,26 +331,28 @@ function resolveAttack(s, attacker, defender, opts) {
 
   // XP: casualties inflicted x (enemy tier / own tier), rounded down
   // (only the men the enemy actually had count)
-  gainXp(s, attacker, (menBefore.d - defender.men) * (dt.tier || 1) / (at.tier || 1), 'casualties dealt');
-  gainXp(s, defender, (menBefore.a - attacker.men) * (at.tier || 1) / (dt.tier || 1), 'casualties dealt');
+  result.xpAttacker = gainXp(s, attacker, (menBefore.d - defender.men) * (dt.tier || 1) / (at.tier || 1), 'casualties dealt');
+  result.xpDefender = gainXp(s, defender, (menBefore.a - attacker.men) * (at.tier || 1) / (dt.tier || 1), 'casualties dealt');
   // Killing blows: morale 5 x enemy tier, XP 25 x (enemy tier / own tier)
-  if (defender.men <= 0 && attacker.men > 0) { gainMorale(s, attacker, 5 * (dt.tier || 1), 'killing blow'); gainXp(s, attacker, 25 * (dt.tier || 1) / (at.tier || 1), 'killing blow'); }
-  if (attacker.men <= 0 && defender.men > 0) { gainMorale(s, defender, 5 * (at.tier || 1), 'killing blow'); gainXp(s, defender, 25 * (at.tier || 1) / (dt.tier || 1), 'killing blow'); }
+  if (defender.men <= 0 && attacker.men > 0) { result.killedBy = attacker.id; result.killMorale = gainMorale(s, attacker, 5 * (dt.tier || 1), 'killing blow'); result.xpAttacker += gainXp(s, attacker, 25 * (dt.tier || 1) / (at.tier || 1), 'killing blow'); }
+  if (attacker.men <= 0 && defender.men > 0) { result.killedBy = defender.id; result.killMorale = gainMorale(s, defender, 5 * (at.tier || 1), 'killing blow'); result.xpDefender += gainXp(s, defender, 25 * (at.tier || 1) / (dt.tier || 1), 'killing blow'); }
   settle(s);
   return result;
 }
 
 function gainXp(s, u, amount, why) {
   const n = Math.floor(amount);
-  if (n <= 0) return;
+  if (n <= 0) return 0;
   u.xp = (u.xp || 0) + n;
-  log(s, u.name + ' gains ' + n + ' XP (' + why + ').');
+  log(s, u.name + ' gains ' + n + ' XP (' + why + ').', { type: 'xp', unit: u.id, amount: n });
+  return n;
 }
 
 function gainMorale(s, u, n, why) {
   const before = u.morale;
   u.morale = clamp(u.morale + n, 0, 100); // kill morale may exceed the 75 regen cap
-  log(s, u.name + ' gains ' + (u.morale - before) + ' morale (' + why + ').');
+  log(s, u.name + ' gains ' + (u.morale - before) + ' morale (' + why + ').', { type: 'moraleGain', unit: u.id });
+  return u.morale - before;
 }
 
 // Apply defeats, surrenders, adjacency penalties and encirclement until stable.

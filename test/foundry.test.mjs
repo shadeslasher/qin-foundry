@@ -92,7 +92,7 @@ test("battle adapter: a full officer turn through Foundry tokens", async () => {
   assert.strictEqual(ally.system.xp.value, 100 - foe.system.men.value, "XP equals casualties dealt at equal tier");
   const allyCasualties = 100 - ally.system.men.value;
   const allyXpBefore = ally.system.xp.value;
-  assert.ok(M.chat.length > chatBefore && /attacks/.test(M.chat.at(-1).content), "attack posted to chat");
+  assert.ok(M.chat.length > chatBefore && /qin-battle-card/.test(M.chat.at(-1).content), "attack card posted to chat");
   b = A.getBattle();
   assert.strictEqual(b.turn.phase, "officerless", "turn handed on after the attack");
 

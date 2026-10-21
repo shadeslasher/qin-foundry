@@ -260,6 +260,10 @@ async function playSequencer({ source, target, to, weapon, kind, hit }) {
 
 const FLOAT_STYLES = {
   hit: { text: "Hit!", fill: "#ffd36b", fontSize: 30 },
+  unitDamage: { fill: "#ff3b30", fontSize: 40 },
+  moraleDown: { fill: "#5aa9ff", fontSize: 32 },
+  moraleUp: { fill: "#8fd3ff", fontSize: 32 },
+  xp: { fill: "#ffd84a", fontSize: 30 },
   miss: { text: "Miss", fill: "#dddddd", fontSize: 28 },
   block: { text: "Blocked", fill: "#8ab8ff", fontSize: 30 },
   dodge: { text: "Dodged", fill: "#8fe08f", fontSize: 30 },
@@ -281,6 +285,14 @@ function floatLocal(at, style, text) {
 const missText = (to) => floatLocal(to, "miss");
 
 /** Show a floating label at a point for every client. style: hit, miss, block, dodge, blockFail, dodgeFail, damage, heal. */
+/** Floating text on a given scene for every client (used by the battle, which runs on the GM's client). */
+export function showFloatOnScene(sceneId, at, style, text = null) {
+  if (!at) return;
+  const data = { type: "float", sceneId, at: { x: at.x, y: at.y }, style, text };
+  game.socket?.emit(SOCKET, data);
+  if (canvas?.ready && canvas.scene?.id === sceneId) floatLocal(data.at, style, text);
+}
+
 export function showFloat(at, style, text = null) {
   if (!canvas?.ready || !at) return;
   const data = { type: "float", sceneId: canvas.scene.id, at: { x: at.x, y: at.y }, style, text };
