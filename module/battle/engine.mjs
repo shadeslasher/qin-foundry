@@ -156,6 +156,7 @@ function actionMenu(s, u) {
     hold: canStillAct,
     ability: skillOk || artOk, skill: skillOk, art: artOk,
     heroic: !!(o && (o.heroicActions || []).length && !u.round.heroicUsed && (u.heroicUsed || 0) < (o.fire || 0)),
+    undo: !!ac.undo,
     endTurn: true,
   };
 }
@@ -340,11 +341,18 @@ function resolveAttack(s, attacker, defender, opts) {
   return result;
 }
 
+const XP_PER_LEVEL = 100;
 function gainXp(s, u, amount, why) {
   const n = Math.floor(amount);
   if (n <= 0) return 0;
   u.xp = (u.xp || 0) + n;
   log(s, u.name + ' gains ' + n + ' XP (' + why + ').', { type: 'xp', unit: u.id, amount: n });
+  // Every 100 XP is a level (tier doesn't change; levels feed the promotion tree later)
+  while (u.xp >= XP_PER_LEVEL) {
+    u.xp -= XP_PER_LEVEL;
+    u.level = (u.level || 1) + 1;
+    log(s, u.name + ' reaches level ' + u.level + '!', { type: 'levelUp', unit: u.id, level: u.level });
+  }
   return n;
 }
 
@@ -553,6 +561,7 @@ function act(s, actor, a) {
     const hostOnly = HOST_ONLY.has(a.type);
     if (hostOnly && !actor.host) return err('Only the host can do that');
     const res = fn(s, actor, a) || ok();
+    if (res.ok && s.turn.activation && a.type !== 'moveTo' && a.type !== 'undoMove') delete s.turn.activation.undo;
     // A unit that died during its own turn still hands the turn on.
     if (s.turn.pendingFinish) {
       const u = unitById(s, s.turn.pendingFinish); s.turn.pendingFinish = null;
@@ -766,6 +775,7 @@ const ACTIONS = {
     const forced = !blue.has(k) && red.has(k);
     if (!blue.has(k) && !forced) return err("Can't move there");
     const from = { x: u.x, y: u.y };
+    const prevFacing = u.facing ? { ...u.facing } : null, prevHidden = !!u.hidden, prevStarted = !!ac.started;
     u.x = a.x; u.y = a.y; u.round.moved = true;
     u.facing = { dx: sign(u.x - from.x), dy: sign(u.y - from.y) };
     if (Math.abs(u.x - from.x) > Math.abs(u.y - from.y)) u.facing.dy = 0; else if (u.y !== from.y) u.facing.dx = 0;
@@ -780,8 +790,19 @@ const ACTIONS = {
       if (alive(u)) finishActivation(s, u);
       return;
     }
+    ac.undo = { from, facing: prevFacing, hidden: prevHidden, started: prevStarted };
     log(s, u.name + ' moves ' + blue.get(k) + ' tile' + (blue.get(k) === 1 ? '' : 's') + '.');
     settle(s);
+  },
+  undoMove(s, actor, a) { // only a normal (blue) move, and only if nothing else happened since
+    const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
+    const { u, act: ac } = r;
+    if (!ac.undo) return err('Nothing to undo');
+    if (unitAt(s, ac.undo.from.x, ac.undo.from.y) && unitAt(s, ac.undo.from.x, ac.undo.from.y) !== u) return err('Its old tile is taken');
+    u.x = ac.undo.from.x; u.y = ac.undo.from.y; u.facing = ac.undo.facing; u.hidden = ac.undo.hidden;
+    u.round.moved = false; ac.step = 'move'; ac.movedThisActivation = false; ac.started = ac.undo.started;
+    delete ac.undo;
+    log(s, u.name + ' takes back its move.');
   },
   forcedMarch(s, actor, a) { return doMove(s, actor, a, true); },
   skipMove(s, actor, a) {

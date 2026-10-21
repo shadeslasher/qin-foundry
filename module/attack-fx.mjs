@@ -264,6 +264,7 @@ const FLOAT_STYLES = {
   moraleDown: { fill: "#5aa9ff", fontSize: 32 },
   moraleUp: { fill: "#8fd3ff", fontSize: 32 },
   xp: { fill: "#ffd84a", fontSize: 30 },
+  levelUp: { fill: "#ffe680", fontSize: 44 },
   miss: { text: "Miss", fill: "#dddddd", fontSize: 28 },
   block: { text: "Blocked", fill: "#8ab8ff", fontSize: 30 },
   dodge: { text: "Dodged", fill: "#8fe08f", fontSize: 30 },
@@ -342,6 +343,7 @@ export function registerAttackFxSocket() {
     else if (data.type === "skull") skullLocal(data);
     else if (data.type === "defense") defenseLocal(data);
     else if (data.type === "slice") sliceLocal(data);
+    else if (data.type === "battleAnim") playBattleAnim(data);
   });
 }
 
@@ -778,4 +780,102 @@ function burst(at, size) {
       g.moveTo(at.x + Math.cos(r) * r0, at.y + Math.sin(r) * r0).lineTo(at.x + Math.cos(r) * r1, at.y + Math.sin(r) * r1);
     }
   });
+}
+
+/* ---------------------------------------- Battle (unit) combat choreography */
+
+const wait = (ms) => new Promise(r => setTimeout(r, ms));
+
+/** Send a battle animation script to everyone (the battle runs on the GM's client). */
+export function broadcastBattleAnim(sceneId, steps) {
+  if (!steps?.length) return;
+  const data = { type: "battleAnim", sceneId, steps };
+  game.socket?.emit(SOCKET, data);
+  playBattleAnim(data);
+}
+
+/** Shift a token part of the way toward a point and back (visual only). */
+function lunge(token, toward, ms = 520) {
+  if (!token || token.destroyed) return Promise.resolve();
+  const c = token.center, dx = toward.x - c.x, dy = toward.y - c.y, d = Math.hypot(dx, dy) || 1;
+  const reach = Math.min(d * 0.45, Math.max(token.w, token.h) * 0.4);
+  const ux = (dx / d) * reach, uy = (dy / d) * reach;
+  const base = { x: token.position.x, y: token.position.y };
+  const mesh = token.mesh, mBase = mesh ? { x: mesh.position.x, y: mesh.position.y } : null;
+  return new Promise(resolve => {
+    let t = 0;
+    const tick = () => {
+      t += canvas.app.ticker.deltaMS;
+      const k = Math.min(1, t / ms);
+      const off = k < 0.45 ? ease.out(k / 0.45) : 1 - ease.inOut((k - 0.45) / 0.55);
+      if (!token.destroyed) {
+        token.position.set(base.x + ux * off, base.y + uy * off);
+        if (mesh && !mesh.destroyed) mesh.position.set(mBase.x + ux * off, mBase.y + uy * off);
+      }
+      if (k >= 1) {
+        canvas.app.ticker.remove(tick);
+        if (!token.destroyed) {
+          token.position.set(base.x, base.y);
+          if (mesh && !mesh.destroyed) mesh.position.set(mBase.x, mBase.y);
+          try { token.renderFlags?.set({ refreshPosition: true }); } catch { /* fine */ }
+        }
+        resolve();
+      }
+    };
+    canvas.app.ticker.add(tick);
+  });
+}
+
+function levelUpLocal(token, level) {
+  if (!token) return;
+  const c = token.center, size = Math.max(token.w, token.h);
+  floatLocal({ x: c.x, y: c.y - size * 0.2 }, "levelUp", `LEVEL UP!  Lv ${level}`);
+  return animate(1300, (g, t) => {
+    const k = ease.out(t), a = 1 - t;
+    g.lineStyle(0).beginFill(0xffe680, 0.35 * a).drawCircle(c.x, c.y, size * (0.45 + 0.35 * k)).endFill();
+    g.lineStyle(size * 0.05, 0xfff3b0, 0.9 * a).drawCircle(c.x, c.y, size * (0.5 + 0.55 * k));
+    g.lineStyle(size * 0.025, 0xffffff, 0.8 * a);
+    for (let i = 0; i < 12; i++) {
+      const ang = (i / 12) * Math.PI * 2 + t * 1.5, r0 = size * (0.55 + 0.3 * k), r1 = r0 + size * 0.18;
+      g.moveTo(c.x + Math.cos(ang) * r0, c.y + Math.sin(ang) * r0).lineTo(c.x + Math.cos(ang) * r1, c.y + Math.sin(ang) * r1);
+    }
+  });
+}
+
+/**
+ * Steps: { kind: "attack", attacker, defender, toDefender: [[style,text]...], toAttacker: [...], returnStrike: bool }
+ *        { kind: "floats", items: [[tokenId, style, text], ...] }   (shown together)
+ *        { kind: "levelUp", unit, level }
+ */
+export async function playBattleAnim({ sceneId, steps }) {
+  if (!canvas?.ready || (sceneId && canvas.scene?.id !== sceneId)) return;
+  const tok = (id) => canvas.tokens?.get(id);
+  const showAll = (id, list) => { const t = tok(id); if (t) list.forEach(([style, text], i) => setTimeout(() => floatLocal(t.center, style, text), i * 180)); };
+  for (const st of steps) {
+    try {
+      if (st.kind === "attack") {
+        const A = tok(st.attacker), D = tok(st.defender);
+        if (A && D) {
+          const lungeA = lunge(A, D.center);
+          await wait(240);
+          showAll(st.defender, st.toDefender);
+          await lungeA;
+          await wait(180);
+          if (st.returnStrike) {
+            const lungeD = lunge(D, A.center);
+            await wait(240);
+            showAll(st.attacker, st.toAttacker);
+            await lungeD;
+          } else showAll(st.attacker, st.toAttacker);
+          await wait(450);
+        }
+      } else if (st.kind === "floats") {
+        for (const [id, style, text] of st.items) { const t = tok(id); if (t) floatLocal(t.center, style, text); }
+        await wait(500);
+      } else if (st.kind === "levelUp") {
+        levelUpLocal(tok(st.unit), st.level);
+        await wait(700);
+      }
+    } catch (e) { console.warn("Qin | battle animation", e); }
+  }
 }

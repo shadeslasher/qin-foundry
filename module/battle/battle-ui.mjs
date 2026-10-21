@@ -176,9 +176,11 @@ function hideMenu() {
 let menuSide = "right";
 function placeMenu() {
   if (!menuEl || !current?.token) return;
-  const t = current.token;
+  // Use the unit's square from the battle record: the token may still be gliding there
+  const t = current.token, size = gridSize(), u = current.u;
+  const tx = u ? u.x * size : t.x, ty = u ? u.y * size : t.y, tw = t.w || size;
   const w = menuEl.offsetWidth || 180;
-  const right = toClient({ x: t.x + t.w, y: t.y }), left = toClient({ x: t.x, y: t.y });
+  const right = toClient({ x: tx + tw, y: ty }), left = toClient({ x: tx, y: ty });
   let side = menuSide;
   if (side === "right" && right.x + 8 + w > window.innerWidth) side = "left";
   if (side === "left" && left.x - 8 - w < 0) side = "right";
@@ -218,6 +220,7 @@ function renderMenu(sub = null) {
     html += b("back", "Back", true);
   } else {
     const abilityTip = !officer ? "No officer" : officer.skill ? `${officer.skill.name}: ${officer.skill.text || ""}` : "This officer has no battle ability";
+    if (flags.undo) html += b("undo", "↶ Undo move", true, "Go back to where the unit started (only for a normal move, before doing anything else)");
     html += b("move", "Move", flags.move, flags.move ? "" : "Already moved or can't move");
     html += b("attack", "Attack", flags.attack, flags.attack ? "" : "No enemy in range");
     html += b("hold", "Hold", flags.hold, "No more action this turn; enemy attacks against it −2 this round");
@@ -240,6 +243,7 @@ function onMenuClick(ev) {
     case "back": return renderMenu();
     case "hold": return send({ type: "holdPosition", unitId: id });
     case "end": return send({ type: "endTurn", unitId: id });
+    case "undo": return send({ type: "undoMove", unitId: id });
     case "heroic": return renderMenu("heroic");
     case "heroicPick": return send({ type: "heroic", unitId: id, index: Number(btn.dataset.index) });
     case "ability": {

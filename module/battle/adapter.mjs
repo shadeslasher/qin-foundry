@@ -1,5 +1,5 @@
 import { Chat } from "../dice.mjs";
-import { showFloatOnScene } from "../attack-fx.mjs";
+import { broadcastBattleAnim } from "../attack-fx.mjs";
 // Bridges Foundry (scene tokens, unit actors, officer characters) and the pure battle
 // engine. Runs only on the active GM's client; players reach it through queries.
 import * as E from "./engine.mjs";
@@ -130,7 +130,7 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
     const fromPos = (useLastPosition === tok.id || battle.turn?.phase !== "setup") && meta.pos ? meta.pos : null;
     s.units.push({
       id: tok.id, typeId: tok.id, officerId, name: tok.name, side: sys.side, owner: ownerUserId(a),
-      x: fromPos ? fromPos.x : gx, y: fromPos ? fromPos.y : gy, men: sys.men.value, maxMen: sys.men.max, morale: sys.morale, xp: sys.xp?.value ?? 0,
+      x: fromPos ? fromPos.x : gx, y: fromPos ? fromPos.y : gy, men: sys.men.value, maxMen: sys.men.max, morale: sys.morale, xp: sys.xp?.value ?? 0, level: sys.level ?? 1,
       formation: a.items.get(sys.formation)?.type === "formation" ? `${tok.id}.${sys.formation}` : "none",
       facing: meta.facing ?? { dx: 0, dy: sys.side === "enemy" ? 1 : -1 }, hidden: sys.hidden, status: sys.status,
       mods: meta.mods ?? [], heroicUsed: meta.heroicUsed ?? 0, lastHeroic: meta.lastHeroic ?? null,
@@ -177,6 +177,7 @@ async function writeBack(battle, s, scene) {
     if (sys.men.value !== u.men) upd["system.men.value"] = u.men;
     if (sys.morale !== u.morale) upd["system.morale"] = u.morale;
     if ((sys.xp?.value ?? 0) !== (u.xp || 0)) upd["system.xp.value"] = u.xp || 0;
+    if ((sys.level ?? 1) !== (u.level || 1)) upd["system.level"] = u.level || 1;
     const formItem = u.formation && u.formation !== "none" ? u.formation.split(".").pop() : "none";
     if ((sys.formation || "none") !== formItem) upd["system.formation"] = formItem;
     // Health at the start of the battle (post-battle XP loss = casualties suffered)
@@ -249,23 +250,43 @@ async function postLog(entries, s) {
   await Chat().create({ content: `<div class="qin-chat qin-battle-log">${parts.join("")}</div>`, speaker: { alias: "Battle" } });
 }
 
-/** After an action: red casualties, then blue morale, then gold XP floating over the units, half a second apart. */
-function floatChanges(scene, before, s) {
+/**
+ * After an action, animate it for everyone: for each attack the attacker lunges (casualties and morale
+ * over the defender), then the defender strikes back (numbers over the attacker), then both gain XP;
+ * level-ups glow; any other changes (e.g. end-of-turn morale) float last.
+ */
+function animateChanges(scene, before, s, entries) {
   if (!scene) return;
-  const size = scene.grid.size;
-  const at = (id) => { const t = scene.tokens.get(id); return t ? { x: t.x + (t.width ?? 1) * size / 2, y: t.y + (t.height ?? 1) * size / 2 } : null; };
-  const men = [], morale = [], xp = [];
-  for (const u of s.units) {
-    const b = before[u.id];
-    if (!b) continue;
-    if (u.men < b.men) men.push([u.id, `−${b.men - u.men}`]);
-    if (u.morale !== b.morale) morale.push([u.id, `${u.morale > b.morale ? "+" : "−"}${Math.abs(u.morale - b.morale)} morale`, u.morale > b.morale]);
-    if ((u.xp || 0) > (b.xp || 0)) xp.push([u.id, `+${(u.xp || 0) - (b.xp || 0)} XP`]);
+  const steps = [];
+  const covered = {}; // what the attack steps already showed, per unit
+  const add = (id, k, n) => { (covered[id] ??= { men: 0, morale: 0, xp: 0 })[k] += n; };
+  for (const e of entries) {
+    const r = e.detail?.type === "attack" ? e.detail.result : null;
+    if (!r) continue;
+    const toD = [], toA = [];
+    if (r.casualtiesDefender) { toD.push(["unitDamage", `−${r.casualtiesDefender}`]); add(r.defender, "men", r.casualtiesDefender); }
+    if (r.loser === r.defender && r.moraleLoss) { toD.push(["moraleDown", `−${r.moraleLoss} morale`]); add(r.defender, "morale", -r.moraleLoss); }
+    if (r.casualtiesAttacker) { toA.push(["unitDamage", `−${r.casualtiesAttacker}`]); add(r.attacker, "men", r.casualtiesAttacker); }
+    if (r.loser === r.attacker && r.moraleLoss) { toA.push(["moraleDown", `−${r.moraleLoss} morale`]); add(r.attacker, "morale", -r.moraleLoss); }
+    steps.push({ kind: "attack", attacker: r.attacker, defender: r.defender, toDefender: toD, toAttacker: toA, returnStrike: r.damageToAttacker > 0 });
+    const gains = [];
+    if (r.xpAttacker) { gains.push([r.attacker, "xp", `+${r.xpAttacker} XP`]); add(r.attacker, "xp", r.xpAttacker); }
+    if (r.xpDefender) { gains.push([r.defender, "xp", `+${r.xpDefender} XP`]); add(r.defender, "xp", r.xpDefender); }
+    if (r.killedBy && r.killMorale) { gains.push([r.killedBy, "moraleUp", `+${r.killMorale} morale`]); add(r.killedBy, "morale", r.killMorale); }
+    if (gains.length) steps.push({ kind: "floats", items: gains });
   }
-  const later = (ms, list, style) => list.length && setTimeout(() => list.forEach(([id, text, up]) => showFloatOnScene(scene.id, at(id), typeof style === "function" ? style(up) : style, text)), ms);
-  later(500, men, "unitDamage");
-  later(1000, morale, (up) => (up ? "moraleUp" : "moraleDown"));
-  later(1500, xp, "xp");
+  for (const e of entries) if (e.detail?.type === "levelUp") steps.push({ kind: "levelUp", unit: e.detail.unit, level: e.detail.level });
+  // anything else that changed (end-of-turn morale, forced march, adjacent defeats...)
+  const rest = [];
+  for (const u of s.units) {
+    const b = before[u.id]; if (!b) continue;
+    const c = covered[u.id] ?? { men: 0, morale: 0, xp: 0 };
+    const men = b.men - u.men - c.men, morale = u.morale - b.morale - c.morale;
+    if (men > 0) rest.push([u.id, "unitDamage", `−${men}`]);
+    if (morale) rest.push([u.id, morale > 0 ? "moraleUp" : "moraleDown", `${morale > 0 ? "+" : "−"}${Math.abs(morale)} morale`]);
+  }
+  if (rest.length) steps.push({ kind: "floats", items: rest });
+  broadcastBattleAnim(scene.id, steps);
 }
 
 /* ------------------------------------------------------------ run actions (GM only) */
@@ -322,7 +343,7 @@ async function runActionNow(userId, action) {
   if (!res.ok && action.type === "startBattle") return res;
   await writeBack(battle, s, scene);
   await postLog(s.log.slice(logLen), s);
-  if (res.ok) floatChanges(scene, before, s);
+  if (res.ok) animateChanges(scene, before, s, s.log.slice(logLen));
   return res;
 }
 

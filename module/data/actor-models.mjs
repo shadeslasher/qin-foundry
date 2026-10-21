@@ -135,6 +135,7 @@ export class UnitData extends foundry.abstract.TypeDataModel {
       range: int(1, { min: 1 }),                                    // 1 = melee; 2+ = ranged
       rangeMin: int(1, { min: 1 }),
       unitValue: int(1, { min: 0 }),
+      level: int(1, { min: 1 }),                                    // every 100 XP; for the promotion tree (not tier)
       xp: new fields.SchemaField({ value: int(0, { min: 0 }), max: int(100, { min: 1 }) }),
       morale: int(50, { min: 0, max: 100 }),
       formation: new fields.StringField({ initial: "none" }),      // id of one of this unit's formation items

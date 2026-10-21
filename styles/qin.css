@@ -291,3 +291,4 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin-battle-card .qin-bc-line.cas span:not(.qin-bc-label) { color: #c0392b; }
 .qin-battle-card .qin-bc-line.mor span:not(.qin-bc-label) { color: #2f6fb2; }
 .qin-battle-card .qin-bc-line.xp span:not(.qin-bc-label) { color: #a8820f; }
+.qin input.qin-short { width: calc(48px * var(--qin-scale, 1.15)); }

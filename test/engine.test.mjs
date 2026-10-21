@@ -396,3 +396,25 @@ test('holding gives enemy attacks -2', () => {
   const roll = R.buildRoll(s, R.unitById(s, a), 'attacker', { attacker: R.unitById(s, a), defender: R.unitById(s, d), ranged: false });
   assert.ok(roll.parts.some(([k, v]) => /holding/.test(k) && v === -2));
 });
+
+test('undo: only a normal move, and only until something else happens', () => {
+  const s = setup();
+  const [a] = turnFor(s, unitType('undoer', { move: 3 }), [{ type: unitType('farU'), x: 20, y: 12 }]);
+  const u = R.unitById(s, a);
+  must(R.act(s, P1, { type: 'moveTo', unitId: a, x: 7, y: 5 }));
+  assert.ok(R.actionMenu(s, u).undo);
+  must(R.act(s, P1, { type: 'undoMove', unitId: a }));
+  assert.deepStrictEqual([u.x, u.y, s.turn.activation.step, u.round.moved], [5, 5, 'move', false]);
+  must(R.act(s, P1, { type: 'moveTo', unitId: a, x: 6, y: 5 }));
+  s.library.officers = []; // no officer: try a heroic (fails) — failed actions keep the undo
+  assert.ok(!R.act(s, P1, { type: 'heroic', unitId: a, index: 0 }).ok);
+  assert.ok(R.actionMenu(s, u).undo);
+});
+
+test('levels: every 100 XP is a level', () => {
+  const s = setup();
+  const [A] = duel(s, unitType('lv', { tier: 1 }), unitType('big', { tier: 4 }), [7, 2, 0, 0], (a, d) => { a.xp = 90; });
+  // 10 casualties x 4/1 = 40 XP -> 130 -> level 2 with 30 XP
+  assert.strictEqual(A.level, 2);
+  assert.strictEqual(A.xp, 30);
+});

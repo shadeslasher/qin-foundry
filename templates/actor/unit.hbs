@@ -17,7 +17,8 @@
       <div class="qin-bar"><i style="width:{{menPct}}%"></i></div></div>
     <div><b>Morale</b> <input type="number" name="system.morale" value="{{system.morale}}" min="0" max="100"> <span class="qin-tag qin-{{system.moraleState}}">{{system.moraleState}}</span>
       <div class="qin-bar morale"><i style="width:{{system.morale}}%"></i></div></div>
-    <div><b>XP</b> <input type="number" name="system.xp.value" value="{{system.xp.value}}" min="0"> / {{system.xp.max}}
+    <div><b>Level</b> <input type="number" name="system.level" value="{{system.level}}" min="1" class="qin-short">
+      <b>XP</b> <input type="number" name="system.xp.value" value="{{system.xp.value}}" min="0"> / {{system.xp.max}}
       <div class="qin-bar xp"><i style="width:{{xpPct}}%"></i></div></div>
   </section>
 
@@ -39,7 +40,7 @@
         <label>Unit Value <input type="number" name="system.unitValue" value="{{system.unitValue}}" min="0"></label>
       </div>
       <label class="qin-inline"><input type="checkbox" name="system.hidden" {{checked system.hidden}}> Hidden (attacks from hiding are ambushes)</label>
-      <p class="qin-muted">XP: casualties dealt × (enemy tier ÷ this unit's tier), rounded down; a kill adds 25 × the same ratio. After a battle the unit loses XP equal to the casualties it suffered.</p>
+      <p class="qin-muted">XP: casualties dealt × (enemy tier ÷ this unit's tier), rounded down; a kill adds 25 × the same ratio. Every 100 XP the unit gains a level (tier stays the same; levels are for the promotion tree). After a battle the unit loses XP equal to the casualties it suffered.</p>
     </section>
 
     <section class="qin-tab" data-tab="formations">
