@@ -78,7 +78,7 @@ test('ranged attacker loses +2 after moving; ranged defender returns fire', () =
   assert.strictEqual(R.unitById(s, a).men, 100 - (3 - 2)); // ranged defender returns base damage
 });
 
-test('rear cavalry charge triples morale loss', () => {
+test('cavalry charge: +1 per 2 tiles moved, no morale multiplier (rear still doubles)', () => {
   const s = setup();
   const a = add(s, { typeId: 'han_lancer_cav', side: 'player', owner: 'p1', x: 5, y: 2 });
   const d = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 5 });
@@ -86,13 +86,34 @@ test('rear cavalry charge triples morale loss', () => {
   assert.deepStrictEqual(R.unitById(s, d).facing, { dx: 0, dy: -1 }, 'starts facing the nearest enemy');
   R.unitById(s, d).facing = { dx: 0, dy: 1 }; // turned away from the cavalry
   must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: a }));
-  must(R.act(s, P1, { type: 'move', unitId: a, x: 5, y: 4 }));
-  dice([3, 0, 0, 0]); // A: 3+2+2(att)+1(charge)+2(rear)=10, D: 0+2-1=1 -> diff 9
+  s.freeMovement = false;
+  must(R.act(s, P1, { type: 'moveTo', unitId: a, x: 5, y: 4 })); // 2 tiles -> +1
+  dice([3, 0, 0, 0]); // A: 3+2+2(att)+1(charge)+2(rear)=10, D: 0+2=2 -> diff 8
   must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
   const r = s.log.filter(e => e.detail && e.detail.type === 'attack').pop().detail.result;
   assert.ok(r.charge && r.rear);
-  assert.strictEqual(r.diff, 9);
-  assert.strictEqual(R.unitById(s, d).morale, Math.max(0, 50 - 27));
+  assert.ok(r.attackRoll.parts.some(([l, v]) => /Cavalry charge \(2 tiles/.test(l) && v === 1));
+  assert.ok(!r.defendRoll.parts.some(([l]) => /charg/i.test(l)), 'no defender penalty');
+  assert.strictEqual(r.diff, 8);
+  assert.strictEqual(R.unitById(s, d).morale, Math.max(0, 50 - 16), 'rear doubles; the charge does not');
+});
+
+test('cavalry charge scales with distance; one tile is no charge', () => {
+  for (const [startY, bonus] of [[0, 2], [3, 0]]) {
+    const s = setup();
+    const a = add(s, { typeId: 'han_lancer_cav', side: 'player', owner: 'p1', x: 5, y: startY });
+    const d = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 5 });
+    must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'startRound' }));
+    must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: a }));
+    s.freeMovement = false;
+    must(R.act(s, P1, { type: 'moveTo', unitId: a, x: 5, y: 4 }));
+    dice([3, 0, 0, 0]);
+    must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
+    const r = s.log.filter(e => e.detail && e.detail.type === 'attack').pop().detail.result;
+    const part = r.attackRoll.parts.find(([l]) => /Cavalry charge/.test(l));
+    assert.strictEqual(part ? part[1] : 0, bonus);
+    assert.strictEqual(r.charge, bonus > 0);
+  }
 });
 
 test('initiative: officers first, hold, interject chain, officer-less alternation, final pass', () => {

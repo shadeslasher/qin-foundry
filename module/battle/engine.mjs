@@ -214,7 +214,7 @@ function buildRoll(s, unit, role, ctx) {
     else if (ctx.ranged && unit.round.moved) parts.push(['Attacker bonus (lost: moved before shooting)', 0]);
     else parts.push(['Attacker bonus', 2]);
     if (!ctx.ranged && f.frontMelee && isFront(s, other, unit)) parts.push(['Formation front (' + f.name + ')', f.frontMelee]);
-    if (ctx.charge) parts.push(['Cavalry charge', 1]);
+    if (ctx.charge) parts.push(['Cavalry charge (' + ctx.tilesMoved + ' tiles moved)', ctx.chargeBonus]);
     if (ctx.charge && f.chargeBonus) parts.push(['Formation charge bonus (' + f.name + ')', f.chargeBonus]);
     if (ctx.charge && p.chargeAttackBonus) parts.push(['Officer passive: charge', p.chargeAttackBonus]);
     if (ctx.rear) parts.push(['Rear attack', 2]);
@@ -227,7 +227,6 @@ function buildRoll(s, unit, role, ctx) {
     }
     if (other.round.holding) parts.push(['Target is holding', -2]);
   } else {
-    if (ctx.charge) parts.push(['Charged by cavalry', -1]);
     if (f.defFront && isFront(s, ctx.attacker, unit)) parts.push(['Formation front defense (' + f.name + ')', f.defFront]);
     if (f.defAll) parts.push(['Formation defense (' + f.name + ')', f.defAll]);
     if (!ctx.ranged && f.frontMelee && isFront(s, ctx.attacker, unit)) parts.push(['Formation front vs melee (' + f.name + ')', f.frontMelee]);
@@ -255,11 +254,14 @@ function damageValue(s, u) { // formation damage modifier applies to the unit's 
 function resolveAttack(s, attacker, defender, opts) {
   const at = typeOf(s, attacker), dt = typeOf(s, defender);
   const ranged = at.weapon === 'ranged';
-  const charge = !ranged && at.category === 'cavalry' && !!opts.movedThisActivation;
+  // Charge: a cavalry unit's melee attack gains +1 for every 2 tiles it moved this turn (rounded down)
+  const tilesMoved = opts.movedThisActivation ? (opts.tilesMoved || 0) : 0;
+  const chargeBonus = !ranged && at.category === 'cavalry' ? Math.floor(tilesMoved / 2) : 0;
+  const charge = chargeBonus > 0;
   const df = formationOf(s, defender);
   let rear = isRear(s, attacker, defender) && !df.noRear && !passive(s, defender).noRearAgainst;
   const ambush = !!opts.ambush;
-  const ctx = { attacker, defender, ranged, charge, rear, ambush };
+  const ctx = { attacker, defender, ranged, charge, chargeBonus, tilesMoved, rear, ambush };
 
   const A = buildRoll(s, attacker, 'attacker', ctx);
   const D = buildRoll(s, defender, 'defender', ctx);
@@ -293,7 +295,7 @@ function resolveAttack(s, attacker, defender, opts) {
     loser = winner === 'attacker' ? defender : attacker;
     moraleLoss = diff;
     if (winner === 'attacker') {
-      if (charge && rear) mult = 3; else if (charge || rear) mult = 2;
+      if (rear) mult = 2; // a charge no longer multiplies morale loss
       moraleLoss = diff * mult + (passive(s, attacker).extraMoraleLossOnWin || 0);
     } else {
       moraleLoss = diff + (passive(s, defender).extraMoraleLossOnWin || 0);
@@ -506,7 +508,7 @@ function endRound(s) {
 
 function startActivation(s, u, extra) {
   s.turn.activation = Object.assign({ unitId: u.id, step: 'move', started: false, startedHidden: !!u.hidden,
-    movedThisActivation: false, forcedMarched: false, interject: false }, extra || {});
+    movedThisActivation: false, tilesMoved: 0, forcedMarched: false, interject: false }, extra || {});
 }
 
 function finishActivation(s, u) {
@@ -790,6 +792,7 @@ const ACTIONS = {
       if (alive(u)) finishActivation(s, u);
       return;
     }
+    ac.tilesMoved = blue.get(k);
     ac.undo = { from, facing: prevFacing, hidden: prevHidden, started: prevStarted };
     log(s, u.name + ' moves ' + blue.get(k) + ' tile' + (blue.get(k) === 1 ? '' : 's') + '.');
     settle(s);
@@ -800,7 +803,7 @@ const ACTIONS = {
     if (!ac.undo) return err('Nothing to undo');
     if (unitAt(s, ac.undo.from.x, ac.undo.from.y) && unitAt(s, ac.undo.from.x, ac.undo.from.y) !== u) return err('Its old tile is taken');
     u.x = ac.undo.from.x; u.y = ac.undo.from.y; u.facing = ac.undo.facing; u.hidden = ac.undo.hidden;
-    u.round.moved = false; ac.step = 'move'; ac.movedThisActivation = false; ac.started = ac.undo.started;
+    u.round.moved = false; ac.step = 'move'; ac.movedThisActivation = false; ac.tilesMoved = 0; ac.started = ac.undo.started;
     delete ac.undo;
     log(s, u.name + ' takes back its move.');
   },
@@ -837,7 +840,7 @@ const ACTIONS = {
     if (!d || !alive(d) || !hostile(u, d)) return err('Pick an enemy unit');
     if (!visibleTo(s, d, alliance(u.side))) return err('You cannot see that unit');
     if (!rangeOk(s, u, d)) return err('Target out of range');
-    resolveAttack(s, u, d, { movedThisActivation: ac.movedThisActivation, ambush: ac.startedHidden });
+    resolveAttack(s, u, d, { movedThisActivation: ac.movedThisActivation, tilesMoved: ac.tilesMoved || 0, ambush: ac.startedHidden });
     if (alive(u)) finishActivation(s, u);
   },
   endTurn(s, actor, a) {
@@ -902,10 +905,12 @@ function doMove(s, actor, a, forced) {
     if (!reach.has(a.x + ',' + a.y)) return err('Out of movement range or blocked');
   }
   const from = { x: u.x, y: u.y };
+  const tiles = s.freeMovement ? Math.abs(a.x - u.x) + Math.abs(a.y - u.y) : (reachable(s, u, budget).get(a.x + ',' + a.y) ?? 0);
   u.x = a.x; u.y = a.y; u.round.moved = true;
   u.facing = { dx: sign(u.x - from.x), dy: sign(u.y - from.y) };
   if (!(data.TERRAIN[terrainAt(s, u.x, u.y)] || {}).cover) u.hidden = false;
   ac.started = true; ac.movedThisActivation = true;
+  if (!forced) ac.tilesMoved = tiles;
   if (forced) {
     ac.forcedMarched = true;
     u.morale = clamp(u.morale - 5, 0, 100);
