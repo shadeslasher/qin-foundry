@@ -13,7 +13,8 @@ import { registerCombatQuery, onRenderCombatTracker } from "./module/combat-acti
 import { registerAttackFxSocket, registerDamageFloats } from "./module/attack-fx.mjs";
 import { registerUnitBars, redrawAllUnitBars } from "./module/unit-bars.mjs";
 import { registerFactions, factionList } from "./module/factions.mjs";
-import { refreshBattleUI, repositionBattleUI, lockUnitTokens, onUnitSelected } from "./module/battle/battle-ui.mjs";
+import { refreshBattleUI, repositionBattleUI, lockUnitTokens, onUnitSelected, registerUnitClicks } from "./module/battle/battle-ui.mjs";
+import { registerUnitInfo, openUnitInfo, openOfficerView } from "./module/unit-info.mjs";
 
 const { SYSTEM_ID } = CFG;
 
@@ -28,7 +29,7 @@ Hooks.once("init", () => {
   console.log("Qin | Initializing Qin: The Warring States");
   CONFIG.QIN = CFG;
   CONFIG.qinFactions ??= {};
-  globalThis.qin = game.qin = { config: CFG, rules: QinRules, openBattle: () => BattlePanel.open(), battleRequest, registerFactions, factionList };
+  globalThis.qin = game.qin = { config: CFG, rules: QinRules, openBattle: () => BattlePanel.open(), battleRequest, registerFactions, factionList, openUnitInfo, openOfficerView };
 
   CONFIG.Actor.documentClass = QinActor;
   CONFIG.Item.documentClass = QinItem;
@@ -148,6 +149,8 @@ Hooks.on("renderChatMessageHTML", onRenderChatMessage);
 registerTokenHover();
 registerDamageFloats();
 registerUnitBars();
+registerUnitInfo();
+registerUnitClicks();
 Hooks.on("renderCombatTracker", onRenderCombatTracker);
 Hooks.on("updateToken", (doc, change, options) => {
   onTokenMoved(doc, change, options);

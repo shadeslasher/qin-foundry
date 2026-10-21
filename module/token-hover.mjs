@@ -1,4 +1,4 @@
-import { factionOf } from "./factions.mjs";
+import { unitTooltipHTML } from "./unit-info.mjs";
 // Small stat box under a character's token while it's hovered, for observers and owners.
 let box = null;
 let current = null;
@@ -10,7 +10,7 @@ function canSee(token) {
   const actor = token?.actor;
   if (!actor || !["character", "henchman", "unit"].includes(actor.type)) return null;
   if (token.document?.hidden && !game.user.isGM) return null;
-  if (actor.type === "unit") return actor.system.faction ? "unit" : null; // everyone sees a unit's banner
+  if (actor.type === "unit") return "unit"; // everyone sees a unit's officer and stats
   if (actor.testUserPermission(game.user, "OBSERVER")) return "stats";
   return actor.type === "character" && actor.system.details?.title ? "title" : null;
 }
@@ -26,13 +26,10 @@ function place() {
 
 function draw() {
   const actor = current.actor, s = actor.system;
+  if (level === "unit") { box.innerHTML = unitTooltipHTML(current); return place(); }
   const title = actor.type === "character" ? s.details?.title : "";
   let html = `<div class="qin-th-name">${esc(current.document.name)}</div>`;
   if (title) html += `<div class="qin-th-title">${esc(title)}</div>`;
-  if (level === "unit") {
-    const f = factionOf(s.faction);
-    if (f) html += `<div class="qin-th-faction">${f.img ? `<img src="${esc(f.img)}" alt="">` : ""}<span>${esc(f.name)}</span></div>`;
-  }
   if (level === "stats") {
     const row = (k, v) => `<div class="qin-th-row"><span>${k}</span><b>${v}</b></div>`;
     if (actor.type === "character") {

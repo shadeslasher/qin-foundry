@@ -3,6 +3,9 @@
 import * as E from "./engine.mjs";
 import { getBattle, buildState, isWritingBack } from "./adapter.mjs";
 import { SYSTEM_ID } from "../config.mjs";
+import { openUnitInfo, unitVisible, setPickingCheck } from "../unit-info.mjs";
+
+setPickingCheck(() => !!mode);
 
 let requestFn = null;            // battleRequest, injected by battle.mjs (avoids a circular import)
 let menuEl = null;
@@ -293,15 +296,13 @@ export function repositionBattleUI() { placeMenu(); hidePick(); }
 let pickEl = null;
 function hidePick() { pickEl?.remove(); pickEl = null; }
 
-/** When a unit token is selected, offer the turn-start choices that apply to it right now. */
-export function onUnitSelected(token, controlled) {
-  hidePick();
-  if (!controlled || token.actor?.type !== "unit" || !canvas?.ready) return;
+/** Turn-start choices that apply to this unit right now (empty outside a battle round). */
+function turnButtons(token) {
   const battle = getBattle();
-  if (!battle.active || canvas.scene?.id !== battle.sceneId || battle.turn?.activation) return;
+  if (!battle.active || canvas.scene?.id !== battle.sceneId || battle.turn?.activation) return [];
   const { s } = buildState(battle);
   const u = E.unitById(s, token.id);
-  if (!u || u.status !== "active" || u.round.activated) return;
+  if (!u || u.status !== "active" || u.round.activated) return [];
   const p = E.prompt(s);
   const me = game.user.isGM ? "host" : game.user.id;
   const mineToMove = u.owner === game.user.id || (game.user.isGM && !u.owner);
@@ -314,22 +315,66 @@ export function onUnitSelected(token, controlled) {
     buttons.push(["Act", [{ type: "decide", unitId: u.id, choice: "act" }]]);
     buttons.push([p.kind === "decide" ? "Hold" : "Give up turn", [{ type: "decide", unitId: u.id, choice: p.kind === "decide" ? "hold" : "forfeit" }]]);
   }
-  if (!buttons.length) return;
+  return buttons;
+}
+
+/**
+ * The little box beside a clicked unit: its turn-start choices during a battle round (if any apply
+ * to this user) and an "Info" button that opens the unit's details for anyone.
+ */
+export function showUnitBox(token) {
+  hidePick();
+  if (!canvas?.ready || !unitVisible(token)) return;
+  const buttons = token.actor.isOwner || game.user.isGM ? turnButtons(token) : [];
   pickEl = document.createElement("div");
   pickEl.className = "qin qin-fe-menu qin-fe-pick";
-  pickEl.innerHTML = `<div class="qin-fe-title">${esc(u.name)}</div>` + buttons.map(([label], i) => `<button type="button" data-i="${i}">${label}</button>`).join("");
+  pickEl.dataset.tokenId = token.id;
+  pickEl.innerHTML = `<div class="qin-fe-title">${esc(token.document.name)}</div>`
+    + buttons.map(([label], i) => `<button type="button" data-i="${i}">${label}</button>`).join("")
+    + `<button type="button" data-info="1"><i class="fa-solid fa-circle-info"></i> Info</button>`;
   document.body.append(pickEl);
   const pos = toClient({ x: token.x + token.w, y: token.y });
   pickEl.style.left = `${Math.round(pos.x + 8)}px`;
   pickEl.style.top = `${Math.round(pos.y)}px`;
   pickEl.addEventListener("click", async (ev) => {
-    const btn = ev.target.closest("button[data-i]");
-    if (!btn || !requestFn) return;
+    const btn = ev.target.closest("button");
+    if (!btn) return;
     hidePick();
+    if (btn.dataset.info) return openUnitInfo(token);
+    if (!requestFn) return;
     for (const action of buttons[Number(btn.dataset.i)][1]) {
       const res = await requestFn(action);
       if (res && !res.ok) break;
     }
+  });
+}
+
+/** Selecting your own unit token (or picking it from the battle panel) opens its box. */
+export function onUnitSelected(token, controlled) {
+  if (!controlled) { if (pickEl?.dataset.tokenId === token.id) hidePick(); return; }
+  if (token.actor?.type === "unit") showUnitBox(token);
+}
+
+/**
+ * Clicks on the map: players can't select units they don't own, so watch plain left-clicks on the
+ * board ourselves. A click on a unit opens its box; a click on empty ground closes it.
+ */
+export function registerUnitClicks() {
+  let down = null;
+  Hooks.on("canvasReady", () => {
+    const view = canvas.app?.view;
+    if (!view || view.qinUnitClicks) return;
+    view.qinUnitClicks = true;
+    view.addEventListener("pointerdown", (ev) => { down = ev.button === 0 ? { x: ev.clientX, y: ev.clientY } : null; });
+    view.addEventListener("pointerup", (ev) => {
+      const d = down; down = null;
+      if (!d || mode || ev.button !== 0 || Math.hypot(ev.clientX - d.x, ev.clientY - d.y) > 6) return;
+      const p = toWorld(ev.clientX, ev.clientY);
+      const hit = (canvas.tokens?.placeables ?? []).filter(t => unitVisible(t) && t.visible !== false
+        && p.x >= t.x && p.x < t.x + t.w && p.y >= t.y && p.y < t.y + t.h).sort((a, b) => (b.document.sort ?? 0) - (a.document.sort ?? 0))[0];
+      if (hit) setTimeout(() => showUnitBox(hit), 0); // after Foundry's own control/release handling
+      else hidePick();
+    });
   });
 }
 
