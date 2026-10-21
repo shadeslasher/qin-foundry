@@ -124,4 +124,4 @@ export const SIGNATURE_SLOTS = {
 };
 
 export const UNIT_CATEGORIES = { infantry: "Infantry", cavalry: "Cavalry", ranged: "Ranged" };
-export const SIDES = { player: "Player", enemy: "Enemy", ally: "Ally" };
+export const SIDES = { player: "Player", enemy: "Enemy", ally: "Ally", neutral: "Neutral" };

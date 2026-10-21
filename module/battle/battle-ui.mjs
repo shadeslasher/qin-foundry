@@ -209,7 +209,7 @@ function renderMenu(sub = null) {
     const abilityTip = !officer ? "No officer" : officer.skill ? `${officer.skill.name}: ${officer.skill.text || ""}` : "This officer has no battle ability";
     html += b("move", "Move", flags.move, flags.move ? "" : "Already moved or can't move");
     html += b("attack", "Attack", flags.attack, flags.attack ? "" : "No enemy in range");
-    html += b("hold", "Hold", flags.hold, "No more action this turn; enemy attacks against it −1 until next turn");
+    html += b("hold", "Hold", flags.hold, "No more action this turn; enemy attacks against it −2 this round");
     html += b("ability", "Ability", flags.ability, abilityTip);
     html += b("heroic", "Heroic action", flags.heroic, officer ? "Free action from the heroic action list" : "Needs an officer");
     html += b("end", "End turn", flags.endTurn);
@@ -247,6 +247,7 @@ export function refreshBattleUI() {
   if (!canvas?.ready) return;
   const battle = getBattle();
   const ac = battle.active ? battle.turn?.activation : null;
+  if (ac) hidePick();
   if (!ac || canvas.scene?.id !== battle.sceneId) { current = null; mode = null; clearSquares(); return hideMenu(); }
   const { s } = buildState(battle, { terrainFor: ac.unitId });
   const u = E.unitById(s, ac.unitId);
@@ -258,7 +259,52 @@ export function refreshBattleUI() {
   if (!mode) renderMenu();
 }
 
-export function repositionBattleUI() { placeMenu(); }
+export function repositionBattleUI() { placeMenu(); hidePick(); }
+
+/* ------------------------------------------------------------ click a unit on the map to take its turn */
+
+let pickEl = null;
+function hidePick() { pickEl?.remove(); pickEl = null; }
+
+/** When a unit token is selected, offer the turn-start choices that apply to it right now. */
+export function onUnitSelected(token, controlled) {
+  hidePick();
+  if (!controlled || token.actor?.type !== "unit" || !canvas?.ready) return;
+  const battle = getBattle();
+  if (!battle.active || canvas.scene?.id !== battle.sceneId || battle.turn?.activation) return;
+  const { s } = buildState(battle);
+  const u = E.unitById(s, token.id);
+  if (!u || u.status !== "active" || u.round.activated) return;
+  const p = E.prompt(s);
+  const me = game.user.isGM ? "host" : game.user.id;
+  const mineToMove = u.owner === game.user.id || (game.user.isGM && !u.owner);
+  const buttons = [];
+  if (!u.officerId) {
+    if (p.kind === "pick" && p.player === me && u.side === "player" && mineToMove) buttons.push(["Take turn", [{ type: "begin", unitId: u.id }]]);
+    else if (p.kind === "claim" && u.side === "player" && mineToMove) buttons.push(["Take turn", [{ type: "claim" }, { type: "begin", unitId: u.id }]]);
+    else if (p.kind === "host-pick" && game.user.isGM && u.side === p.side) buttons.push(["Take turn", [{ type: "begin", unitId: u.id }]]);
+  } else if ((p.kind === "decide" || p.kind === "final") && p.unitId === u.id && iControl(u)) {
+    buttons.push(["Act", [{ type: "decide", unitId: u.id, choice: "act" }]]);
+    buttons.push([p.kind === "decide" ? "Hold" : "Give up turn", [{ type: "decide", unitId: u.id, choice: p.kind === "decide" ? "hold" : "forfeit" }]]);
+  }
+  if (!buttons.length) return;
+  pickEl = document.createElement("div");
+  pickEl.className = "qin qin-fe-menu qin-fe-pick";
+  pickEl.innerHTML = `<div class="qin-fe-title">${esc(u.name)}</div>` + buttons.map(([label], i) => `<button type="button" data-i="${i}">${label}</button>`).join("");
+  document.body.append(pickEl);
+  const pos = toClient({ x: token.x + token.w, y: token.y });
+  pickEl.style.left = `${Math.round(pos.x + 8)}px`;
+  pickEl.style.top = `${Math.round(pos.y)}px`;
+  pickEl.addEventListener("click", async (ev) => {
+    const btn = ev.target.closest("button[data-i]");
+    if (!btn || !requestFn) return;
+    hidePick();
+    for (const action of buttons[Number(btn.dataset.i)][1]) {
+      const res = await requestFn(action);
+      if (res && !res.ok) break;
+    }
+  });
+}
 
 /** Unit tokens can't be dragged during a battle round: units move with the Move action. */
 export function lockUnitTokens(tokenDoc, change, options) {

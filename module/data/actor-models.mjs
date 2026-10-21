@@ -120,7 +120,7 @@ export class HenchmanData extends QinBaseActor {
 export class UnitData extends foundry.abstract.TypeDataModel {
   static defineSchema() {
     return {
-      side: new fields.StringField({ initial: "player", choices: ["player", "enemy", "ally"] }),
+      side: new fields.StringField({ initial: "player", choices: ["player", "enemy", "ally", "neutral"] }),
       faction: new fields.StringField({ initial: "" }),
       unitType: new fields.StringField({ initial: "" }),          // e.g. "Spear and Shield", "Mounted Spear"
       tier: int(1, { min: 1, max: 6 }),

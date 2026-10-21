@@ -260,3 +260,6 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 }
 .qin-fe-menu button:hover:not([disabled]) { background: linear-gradient(#5c86d1, #3d64a8); border-color: #f2d48a; }
 .qin-fe-menu button[disabled] { background: #3a3f4b; border-color: #555; color: #8a8f99; cursor: not-allowed; }
+.qin-units li.qin-side-neutral img { border-color: #d4a017; }
+.qin-units li.qin-side-player img { border-color: #3a78c8; }
+.qin-units li select[data-side-unit] { width: auto; margin: 2px 0; }

@@ -11,8 +11,8 @@ import * as QinRules from "./module/rules/qin-rules.mjs";
 import { registerTokenHover } from "./module/token-hover.mjs";
 import { registerCombatQuery, onRenderCombatTracker } from "./module/combat-actions.mjs";
 import { registerAttackFxSocket, registerDamageFloats } from "./module/attack-fx.mjs";
-import { registerUnitBars } from "./module/unit-bars.mjs";
-import { refreshBattleUI, repositionBattleUI, lockUnitTokens } from "./module/battle/battle-ui.mjs";
+import { registerUnitBars, redrawAllUnitBars } from "./module/unit-bars.mjs";
+import { refreshBattleUI, repositionBattleUI, lockUnitTokens, onUnitSelected } from "./module/battle/battle-ui.mjs";
 
 const { SYSTEM_ID } = CFG;
 
@@ -54,6 +54,7 @@ Hooks.once("init", () => {
     onChange: () => {
       BattlePanel.refresh();
       refreshBattleUI();
+      redrawAllUnitBars();
       if (getBattle().active && !BattlePanel.instance?.rendered && game.settings.get(SYSTEM_ID, "autoOpenBattle")) BattlePanel.open();
     },
   });
@@ -157,6 +158,7 @@ Hooks.on("updateActor", () => { BattlePanel.refresh(); refreshBattleUI(); });
 Hooks.on("canvasReady", () => refreshBattleUI());
 Hooks.on("canvasPan", () => repositionBattleUI());
 Hooks.on("preUpdateToken", lockUnitTokens);
+Hooks.on("controlToken", onUnitSelected);
 
 Hooks.on("getSceneControlButtons", (controls) => {
   const tool = {

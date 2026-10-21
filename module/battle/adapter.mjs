@@ -187,7 +187,7 @@ async function writeBack(battle, s, scene) {
       const rot = ((Math.atan2(u.facing.dy, u.facing.dx) * 180 / Math.PI) - 90 + 360) % 360;
       if (Math.round(tok.rotation) !== Math.round(rot)) t.rotation = rot;
     }
-    if (manage && u.side === "enemy") {
+    if (manage && u.side !== "player") {
       const unseen = u.status === "active" && !E.visibleTo(s, u, "player");
       const flagged = tok.getFlag(SYSTEM_ID, "stealthHidden");
       if (unseen && !tok.hidden) { t.hidden = true; t[`flags.${SYSTEM_ID}.stealthHidden`] = true; }

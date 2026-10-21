@@ -371,3 +371,28 @@ test('action menu: attack only with an enemy in range', () => {
   const menu = R.actionMenu(s, R.unitById(s, a));
   assert.ok(menu.attack && menu.move && !menu.ability && !menu.heroic, JSON.stringify(menu));
 });
+
+test('four sides: different sides are hostile (allies included), the same side never is', () => {
+  const s = setup();
+  s.library.unitTypes.push(unitType('pl'), unitType('al'), unitType('ne'), unitType('pl2'));
+  const p = add(s, { typeId: 'pl', side: 'player', owner: 'p1', x: 5, y: 5 });
+  add(s, { typeId: 'al', side: 'ally', x: 5, y: 4 });
+  add(s, { typeId: 'ne', side: 'neutral', x: 6, y: 5 });
+  add(s, { typeId: 'pl2', side: 'player', owner: 'p1', x: 4, y: 5 });
+  must(R.act(s, HOST, { type: 'startBattle' }));
+  dice([0, 0]); must(R.act(s, HOST, { type: 'startRound' }));
+  must(R.act(s, P1, { type: 'claim' }));
+  must(R.act(s, P1, { type: 'begin', unitId: p }));
+  const names = R.attackTargets(s, R.unitById(s, p)).map(u => u.typeId).sort();
+  assert.deepStrictEqual(names, ['al', 'ne'], 'player can hit the ally and the neutral, not its own side');
+});
+
+test('holding gives enemy attacks -2', () => {
+  const s = setup();
+  s.library.unitTypes.push(unitType('h1'), unitType('h2'));
+  const a = add(s, { typeId: 'h1', side: 'player', owner: 'p1', x: 5, y: 5 });
+  const d = add(s, { typeId: 'h2', side: 'enemy', x: 5, y: 4 });
+  R.unitById(s, d).round = Object.assign(R.unitById(s, d).round || {}, { holding: true });
+  const roll = R.buildRoll(s, R.unitById(s, a), 'attacker', { attacker: R.unitById(s, a), defender: R.unitById(s, d), ranged: false });
+  assert.ok(roll.parts.some(([k, v]) => /holding/.test(k) && v === -2));
+});

@@ -3,7 +3,8 @@
 
 import * as data from './engine-data.mjs';
 
-const SIDES = ['player', 'enemy', 'ally'];
+// Four sides. Any two different sides are hostile; units of the same side never attack each other.
+const SIDES = ['player', 'enemy', 'ally', 'neutral'];
 const MAX_LOG = 400;
 
 // ---------------------------------------------------------------- state
@@ -50,7 +51,7 @@ const formationOf = (s, u) => s.library.formations.find(f => f.id === u.formatio
 const unitById = (s, id) => s.units.find(u => u.id === id) || null;
 const alive = u => u.status === 'active';
 const liveUnits = s => s.units.filter(alive);
-const alliance = side => (side === 'enemy' ? 'enemy' : 'player');
+const alliance = side => side || 'player';
 const hostile = (a, b) => alliance(a.side) !== alliance(b.side);
 const friendly = (a, b) => !hostile(a, b);
 const passive = (s, u) => { const o = officerOf(s, u); return (o && o.passive && o.passive.effects) || {}; };
@@ -223,7 +224,7 @@ function buildRoll(s, unit, role, ctx) {
       const m = ctx.charge && of.vsCharge !== undefined ? of.vsCharge : of.vsMelee;
       if (m) parts.push(['Target formation vs ' + (ctx.charge ? 'charge' : 'melee') + ' (' + of.name + ')', m]);
     }
-    if (other.round.holding) parts.push(['Target is holding', -1]);
+    if (other.round.holding) parts.push(['Target is holding', -2]);
   } else {
     if (ctx.charge) parts.push(['Charged by cavalry', -1]);
     if (f.defFront && isFront(s, ctx.attacker, unit)) parts.push(['Formation front defense (' + f.name + ')', f.defFront]);
@@ -802,7 +803,7 @@ const ACTIONS = {
     const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
     if (r.u.round.attacked || r.act.forcedMarched) return err('Too late to hold this turn');
     r.u.round.holding = true;
-    log(s, r.u.name + ' holds position (enemy attacks against it -1 this round).');
+    log(s, r.u.name + ' holds position (enemy attacks against it -2 this round).');
     finishActivation(s, r.u);
   },
   attack(s, actor, a) {

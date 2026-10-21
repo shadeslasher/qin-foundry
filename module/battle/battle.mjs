@@ -65,8 +65,11 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
 
   async _prepareContext() {
     const battle = getBattle();
-    const ctx = { isGM: game.user.isGM, active: battle.active, sceneName: canvas.scene?.name ?? "—" };
-    if (!battle.active) return ctx;
+    const ctx = { isGM: game.user.isGM, active: battle.active, sceneName: canvas.scene?.name ?? "—", sideChoices: SIDES };
+    if (!battle.active) {
+      ctx.sceneUnits = unitTokens(canvas.scene).map(t => ({ id: t.id, name: t.name, img: t.texture?.src, side: t.actor.system.side }));
+      return ctx;
+    }
     const { s, scene } = buildState(battle);
     const t = s.turn;
     const p = E.prompt(s);
@@ -148,6 +151,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
       id: u.id, name: u.name, side: u.side, men: u.men, maxMen: u.maxMen ?? 100, xp: u.xp ?? 0, morale: u.morale, moraleState: E.moraleState(u.morale), status: u.status,
       formation: s.library.formations.find(f => f.id === u.formation)?.name ?? "—", officer: E.officerOf(s, u)?.name ?? null,
       done: u.round.activated, mine: mine(u), img: tokenImg(u.id), pickable: pickable.includes(u),
+      sideEditable: game.user.isGM && (t.phase === "formations" || t.phase === "setup"),
       formationOptions: (t.phase === "formations" || t.phase === "setup") && mine(u)
         ? s.library.formations.filter(f => { const ty = E.typeOf(s, u); return !ty?.formations || ty.formations.includes(f.id); }).map(f => ({ id: f.id, name: f.name, selected: f.id === u.formation }))
         : null,
@@ -169,6 +173,12 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
       el.addEventListener("mouseenter", () => highlightUnit(el.dataset.unitId, true));
       el.addEventListener("mouseleave", () => highlightUnit(el.dataset.unitId, false));
     });
+    // Sides: before the battle, and between rounds (before initiative) for betrayals
+    this.element.querySelectorAll("select[data-side-unit]").forEach(sel => sel.addEventListener("change", async () => {
+      const tok = canvas.scene?.tokens.get(sel.dataset.sideUnit);
+      if (tok?.actor) await tok.actor.update({ "system.side": sel.value });
+      BattlePanel.refresh();
+    }));
     this.element.querySelectorAll("select[data-formation-unit]").forEach(sel => sel.addEventListener("change", () => {
       battleRequest({ type: "setFormation", unitId: sel.dataset.formationUnit, formation: sel.value });
     }));

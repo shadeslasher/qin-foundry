@@ -6,6 +6,18 @@
       <p>Place Unit tokens on the scene (<b>{{sceneName}}</b>), give officer units their officer, then start.</p>
       <button type="button" data-action="startBattle" class="qin-primary">Start battle on this scene</button>
       <p class="qin-muted">Name scene Regions "Trees", "Tall grass" or "Impassable" to give terrain to stealth and encirclement.</p>
+      {{#if sceneUnits.length}}
+      <h4>Sides</h4>
+      <p class="qin-muted">Different sides fight each other; units on the same side never do.</p>
+      <ul class="qin-units">
+        {{#each sceneUnits}}
+        <li class="qin-side-{{side}}"><img src="{{img}}" data-action="selectUnit" data-unit-id="{{id}}" title="Select token">
+          <div class="qin-uinfo"><b>{{name}}</b></div>
+          <select data-side-unit="{{id}}">{{#each ../sideChoices}}<option value="{{@key}}" {{#if (eq @key ../side)}}selected{{/if}}>{{this}}</option>{{/each}}</select>
+        </li>
+        {{/each}}
+      </ul>
+      {{/if}}
     {{else}}
       <p>The GM hasn't started a battle.</p>
     {{/if}}
@@ -60,6 +72,7 @@
           <div class="qin-uinfo">
             <div><b>{{name}}</b>{{#if officer}} <span class="qin-muted">({{officer}})</span>{{/if}}</div>
             <div class="qin-muted">{{men}}/{{maxMen}} health · {{morale}} morale · {{xp}} XP ({{moraleState}}){{#unless (eq status "active")}} · {{status}}{{/unless}}</div>
+            {{#if sideEditable}}<select data-side-unit="{{id}}" title="Side (can change before initiative)">{{#each ../sideChoices}}<option value="{{@key}}" {{#if (eq @key ../side)}}selected{{/if}}>{{this}}</option>{{/each}}</select>{{/if}}
             {{#if formationOptions}}
               <select data-formation-unit="{{id}}">{{#each formationOptions}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{name}}</option>{{/each}}</select>
             {{else}}<div class="qin-muted">{{formation}}</div>{{/if}}
