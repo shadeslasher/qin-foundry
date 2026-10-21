@@ -116,6 +116,38 @@ test('cavalry charge scales with distance; one tile is no charge', () => {
   }
 });
 
+test('Fierce Charge tiers', () => {
+  const run = (fierce, startY, rearFacing = false) => {
+    const s = setup();
+    const a = add(s, { typeId: 'han_lancer_cav', side: 'player', owner: 'p1', x: 5, y: startY });
+    const d = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 5 });
+    R.unitById(s, a).fierceCharge = fierce;
+    must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'startRound' }));
+    if (rearFacing) R.unitById(s, d).facing = { dx: 0, dy: 1 };
+    must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: a }));
+    s.freeMovement = false;
+    must(R.act(s, P1, { type: 'moveTo', unitId: a, x: 5, y: 4 }));
+    dice([3, 0, 0, 0]);
+    must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
+    const r = s.log.filter(e => e.detail && e.detail.type === 'attack').pop().detail.result;
+    const sum = (re) => r.attackRoll.parts.filter(([l]) => re.test(l)).reduce((t, [, v]) => t + v, 0);
+    return { r, charge: sum(/Cavalry charge/), fierceFlat: sum(/^Fierce Charge$/), morale: R.unitById(s, d).morale };
+  };
+  let x = run(1, 2); // 2 tiles: +1 distance, +1 Fierce Charge
+  assert.strictEqual(x.charge, 1); assert.strictEqual(x.fierceFlat, 1);
+  x = run(1, 3); // 1 tile: no charge, so no Fierce Charge either
+  assert.strictEqual(x.charge, 0); assert.strictEqual(x.fierceFlat, 0);
+  x = run(2, 1); // 3 tiles at +1 per tile
+  assert.strictEqual(x.charge, 3); assert.strictEqual(x.fierceFlat, 0);
+  x = run(2, 3); // 1 tile is a charge for Fierce Charge+
+  assert.strictEqual(x.charge, 1); assert.ok(x.r.charge);
+  const plain = run(2, 1), dbl = run(3, 1); // same roll; ++ doubles the morale loss
+  assert.strictEqual(dbl.charge, 3);
+  assert.strictEqual(50 - dbl.morale, Math.min(50, 2 * (50 - plain.morale)));
+  const rear = run(3, 1, true); // rear + Fierce Charge++ = x3
+  assert.strictEqual(50 - rear.morale, Math.min(50, 3 * rear.r.diff));
+});
+
 test('initiative: officers first, hold, interject chain, officer-less alternation, final pass', () => {
   const s = setup();
   const o1 = add(s, { typeId: 'han_ji_inf', officerId: 'xu_chu', side: 'player', owner: 'p1', x: 1, y: 1 });

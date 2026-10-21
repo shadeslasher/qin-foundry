@@ -214,7 +214,8 @@ function buildRoll(s, unit, role, ctx) {
     else if (ctx.ranged && unit.round.moved) parts.push(['Attacker bonus (lost: moved before shooting)', 0]);
     else parts.push(['Attacker bonus', 2]);
     if (!ctx.ranged && f.frontMelee && isFront(s, other, unit)) parts.push(['Formation front (' + f.name + ')', f.frontMelee]);
-    if (ctx.charge) parts.push(['Cavalry charge (' + ctx.tilesMoved + ' tiles moved)', ctx.chargeBonus]);
+    if (ctx.charge) parts.push(['Cavalry charge (' + ctx.tilesMoved + ' tile' + (ctx.tilesMoved === 1 ? '' : 's') + ' moved' + (ctx.fierce >= 2 ? ', ' + FIERCE_NAMES[ctx.fierce] : '') + ')', ctx.chargeBonus]);
+    if (ctx.charge && ctx.fierce === 1) parts.push(['Fierce Charge', 1]);
     if (ctx.charge && f.chargeBonus) parts.push(['Formation charge bonus (' + f.name + ')', f.chargeBonus]);
     if (ctx.charge && p.chargeAttackBonus) parts.push(['Officer passive: charge', p.chargeAttackBonus]);
     if (ctx.rear) parts.push(['Rear attack', 2]);
@@ -245,6 +246,8 @@ function buildRoll(s, unit, role, ctx) {
   return { total, parts, dice };
 }
 
+const FIERCE_NAMES = ['', 'Fierce Charge', 'Fierce Charge+', 'Fierce Charge++'];
+
 function damageValue(s, u) { // formation damage modifier applies to the unit's damage value
   const t = typeOf(s, u), f = formationOf(s, u);
   return Math.max(0, (t.damage || 0) + (f.dmgMod || 0));
@@ -256,12 +259,14 @@ function resolveAttack(s, attacker, defender, opts) {
   const ranged = at.weapon === 'ranged';
   // Charge: a cavalry unit's melee attack gains +1 for every 2 tiles it moved this turn (rounded down)
   const tilesMoved = opts.movedThisActivation ? (opts.tilesMoved || 0) : 0;
-  const chargeBonus = !ranged && at.category === 'cavalry' ? Math.floor(tilesMoved / 2) : 0;
+  // Fierce Charge trait: 1 = +1 on a charge; 2 (+) and 3 (++) = +1 per tile instead of per 2; 3 also doubles morale loss on a win
+  const fierce = attacker.fierceCharge || 0;
+  const chargeBonus = !ranged && at.category === 'cavalry' ? Math.floor(fierce >= 2 ? tilesMoved : tilesMoved / 2) : 0;
   const charge = chargeBonus > 0;
   const df = formationOf(s, defender);
   let rear = isRear(s, attacker, defender) && !df.noRear && !passive(s, defender).noRearAgainst;
   const ambush = !!opts.ambush;
-  const ctx = { attacker, defender, ranged, charge, chargeBonus, tilesMoved, rear, ambush };
+  const ctx = { attacker, defender, ranged, charge, chargeBonus, tilesMoved, fierce, rear, ambush };
 
   const A = buildRoll(s, attacker, 'attacker', ctx);
   const D = buildRoll(s, defender, 'defender', ctx);
@@ -295,7 +300,9 @@ function resolveAttack(s, attacker, defender, opts) {
     loser = winner === 'attacker' ? defender : attacker;
     moraleLoss = diff;
     if (winner === 'attacker') {
-      if (rear) mult = 2; // a charge no longer multiplies morale loss
+      // a charge alone doesn't multiply morale loss; rear attacks and Fierce Charge++ double it (both: x3)
+      const fierceDouble = charge && fierce >= 3;
+      if (rear && fierceDouble) mult = 3; else if (rear || fierceDouble) mult = 2;
       moraleLoss = diff * mult + (passive(s, attacker).extraMoraleLossOnWin || 0);
     } else {
       moraleLoss = diff + (passive(s, defender).extraMoraleLossOnWin || 0);

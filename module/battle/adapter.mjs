@@ -125,6 +125,7 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
       officerId = officer.uuid;
     }
     const meta = battle.meta?.[tok.id] ?? {};
+    const fierce = String(sys.traits ?? "").match(/^\s*Fierce Charge(\+{0,2})\s*(?:-|–|:|$)/mi);
     // During rounds the battle's own record of positions is the truth (tokens may still be animating);
     // a token that was just dragged is already at its new tile, so the engine needs where it came from.
     const fromPos = (useLastPosition === tok.id || battle.turn?.phase !== "setup") && meta.pos ? meta.pos : null;
@@ -133,6 +134,7 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
       x: fromPos ? fromPos.x : gx, y: fromPos ? fromPos.y : gy, men: sys.men.value, maxMen: sys.men.max, morale: sys.morale, xp: sys.xp?.value ?? 0, level: sys.level ?? 1,
       formation: a.items.get(sys.formation)?.type === "formation" ? `${tok.id}.${sys.formation}` : "none",
       facing: meta.facing ?? { dx: 0, dy: sys.side === "enemy" ? 1 : -1 }, hidden: sys.hidden, status: sys.status,
+      fierceCharge: fierce ? 1 + fierce[1].length : 0,
       mods: meta.mods ?? [], heroicUsed: meta.heroicUsed ?? 0, lastHeroic: meta.lastHeroic ?? null,
       surrounded: meta.surrounded ?? false, round: meta.round ?? { activated: false, moved: false, cannotMove: false, holding: false, attacked: false, skillUsed: false, heroicUsed: false, meleeTarget: null, meleeAttacker: null },
     });
