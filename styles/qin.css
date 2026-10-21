@@ -313,7 +313,8 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 
 /* ---------- unit hover tooltip */
 .qin-token-hover .gold, .qin-token-hover .qin-th-title.gold { color: #f0c24a; font-weight: bold; text-align: center; }
-.qin-token-hover .qin-th-officer { text-align: center; font-weight: bold; color: #f3ead8; }
+.qin-token-hover .qin-th-title.gold { margin: 0; }
+.qin-token-hover .qin-th-officer { text-align: center; font-weight: bold; color: #f3ead8; margin-bottom: 4px; }
 .qin-token-hover .qin-th-tier { color: #cdb98a; font-weight: normal; }
 .qin-token-hover .qin-th-grid { display: grid; grid-template-columns: auto auto auto auto; column-gap: 8px; row-gap: 1px; align-items: baseline; }
 .qin-token-hover .qin-th-grid span { color: #cdbf9f; }

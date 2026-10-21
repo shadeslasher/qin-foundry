@@ -13,11 +13,17 @@ export function unitVisible(token) {
   return token?.actor?.type === "unit" && !(token.document?.hidden && !game.user.isGM);
 }
 
-function weaponLine(sys) {
+function rangeText(sys) {
   if (!(sys.range > 1)) return "";
   const lo = Math.min(sys.rangeMin || 1, sys.range);
-  const range = lo > 1 ? `${lo}–${sys.range}` : `${sys.range}`;
-  return `${esc(sys.unitType || "Ranged")} [Range: ${range}]`;
+  return lo > 1 ? `${lo}–${sys.range}` : `${sys.range}`;
+}
+
+/** Every unit shows its weapon; ranged units add their range. */
+function weaponLine(sys) {
+  const r = rangeText(sys);
+  const weapon = esc(sys.unitType || (r ? "Ranged" : "Melee"));
+  return r ? `${weapon} [Range: ${r}]` : weapon;
 }
 
 /** Officer actor for a unit (world actors resolve synchronously). */
@@ -150,7 +156,7 @@ export class UnitInfoApp extends Base {
       </header>
       <section class="qin-ui-stats">
         ${stat("Damage", sys.damage ?? 0)}${stat("Armor", sys.armor ?? 0, sys.armorNote)}${stat("Armor Pen", sys.armorPen ?? 0)}
-        ${stat("Movement", sys.move ?? 0)}${stat("Range", w ? w.replace(/^.*\[Range: (.*)\]$/, "$1") : "Melee")}${stat("Unit Value", sys.unitValue ?? 0)}
+        ${stat("Movement", sys.move ?? 0)}${stat("Range", rangeText(sys) || "Melee")}${stat("Unit Value", sys.unitValue ?? 0)}
       </section>
       <section><h3>Officer</h3>${officer ? `
         <a class="qin-ui-officer" data-officer="${esc(officer.uuid)}" title="View ${esc(officer.name)}'s sheet">
