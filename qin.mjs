@@ -261,31 +261,42 @@ Hooks.on("updateActor", async (actor, change, options, userId) => {
   }
 });
 
-/* Several tokens of one linked unit actor would all share one health/morale pool. Only the first token
- * on a scene stays linked (it keeps the actor's health between battles); extra copies become independent. */
+/* Unit tokens: only Player units are linked to their actor sheet (health and morale carry between battles).
+ * Ally, Enemy and Neutral units are always placed as independent copies, even the first one. A second token
+ * of the same Player unit on a scene is also a copy, so two tokens never share one health pool. */
 const pendingLinked = new Set();
 Hooks.on("preCreateToken", (doc, data) => {
   const actor = doc.actor ?? game.actors.get(data.actorId);
-  if (actor?.type !== "unit" || !doc.actorLink) return;
+  if (actor?.type !== "unit") return;
+  if (actor.system.side !== "player") { if (doc.actorLink) doc.updateSource({ actorLink: false }); return; }
   const scene = doc.parent, key = `${scene?.id}.${actor.id}`;
   const taken = pendingLinked.has(key) || scene?.tokens.some(t => t.actorLink && t.actorId === actor.id);
-  if (taken) doc.updateSource({ actorLink: false });
-  else { pendingLinked.add(key); setTimeout(() => pendingLinked.delete(key), 0); }
+  if (taken) { if (doc.actorLink) doc.updateSource({ actorLink: false }); return; }
+  if (!doc.actorLink) doc.updateSource({ actorLink: true });
+  pendingLinked.add(key); setTimeout(() => pendingLinked.delete(key), 0);
 });
 
-async function unlinkDuplicateUnits(scene) {
+// Changing a unit's side updates what its future tokens do
+Hooks.on("preUpdateActor", (actor, change) => {
+  const side = foundry.utils.getProperty(change, "system.side");
+  if (actor.type !== "unit" || side === undefined || actor.isToken) return;
+  foundry.utils.setProperty(change, "prototypeToken.actorLink", side === "player");
+});
+
+/** Existing scenes: unlink non-Player unit tokens and extra copies of a Player unit. */
+async function unlinkSharedUnits(scene) {
   if (!scene || !game.user.isActiveGM) return;
   const seen = new Set(), updates = [];
   for (const t of scene.tokens) {
     if (!t.actorLink || t.actor?.type !== "unit") continue;
-    if (seen.has(t.actorId)) updates.push({ _id: t.id, actorLink: false });
+    if (t.actor.system.side !== "player" || seen.has(t.actorId)) updates.push({ _id: t.id, actorLink: false });
     else seen.add(t.actorId);
   }
   if (!updates.length) return;
   await scene.updateEmbeddedDocuments("Token", updates);
-  ui.notifications.info(`${updates.length} extra unit token${updates.length === 1 ? "" : "s"} on "${scene.name}" now track their own health and morale.`);
+  ui.notifications.info(`${updates.length} unit token${updates.length === 1 ? "" : "s"} on "${scene.name}" now track their own health and morale.`);
 }
-Hooks.on("canvasReady", (c) => { unlinkDuplicateUnits(c.scene).catch(e => console.warn("Qin | unlinking unit copies", e)); });
+Hooks.on("canvasReady", (c) => { unlinkSharedUnits(c.scene).catch(e => console.warn("Qin | unlinking unit tokens", e)); });
 
 // New characters start with sensible tokens
 Hooks.on("preCreateActor", (actor, data) => {
