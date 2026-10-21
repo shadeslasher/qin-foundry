@@ -791,7 +791,46 @@ export function broadcastBattleAnim(sceneId, steps) {
   if (!steps?.length) return;
   const data = { type: "battleAnim", sceneId, steps };
   game.socket?.emit(SOCKET, data);
-  playBattleAnim(data);
+  return playBattleAnim(data);
+}
+
+/** A white flag raised and waved over a unit that surrenders. */
+function whiteFlagLocal({ at, size }) {
+  return animate(2600, (g, t) => {
+    const rise = ease.out(seg(t, 0, 0.2));
+    const alpha = 1 - seg(t, 0.8, 1);
+    const k = size * 0.6;
+    const baseX = at.x - k * 0.2, footY = at.y + k * 0.15, topY = footY - k * (0.4 + 0.6 * rise);
+    // pole
+    g.lineStyle(Math.max(2, k * 0.05), 0x5a3b1e, alpha).moveTo(baseX, footY).lineTo(baseX, topY);
+    g.lineStyle(0).beginFill(0xd8b25a, alpha).drawCircle(baseX, topY, k * 0.035).endFill();
+    // waving cloth: a strip whose edges ripple along its length
+    const len = k * 0.62, hgt = k * 0.36, n = 14, top = [], bot = [];
+    for (let i = 0; i <= n; i++) {
+      const f = i / n, wave = Math.sin(f * 5 - t * 22) * hgt * 0.14 * f;
+      const x = baseX + f * len * (0.92 + 0.08 * Math.cos(t * 9));
+      top.push(x, topY + k * 0.03 + wave);
+      bot.unshift(x, topY + k * 0.03 + hgt + wave - f * hgt * 0.08);
+    }
+    g.lineStyle(Math.max(1.5, k * 0.03), 0x333333, alpha).beginFill(0xffffff, alpha).drawPolygon([...top, ...bot]).endFill();
+  });
+}
+
+/** Fade a token (art, bars, ring) to nothing over ms. Visual only: the GM hides the token afterwards. */
+function fadeOutToken(token, ms = 1200) {
+  if (!token || token.destroyed) return Promise.resolve();
+  const parts = [token, token.mesh].filter(Boolean);
+  const start = parts.map(p => p.alpha ?? 1);
+  return new Promise(resolve => {
+    let t = 0;
+    const tick = () => {
+      t += canvas.app.ticker.deltaMS;
+      const k = Math.min(1, t / ms);
+      parts.forEach((p, i) => { if (!p.destroyed) p.alpha = start[i] * (1 - k); });
+      if (k >= 1) { canvas.app.ticker.remove(tick); resolve(); }
+    };
+    canvas.app.ticker.add(tick);
+  });
 }
 
 /** Shift a token part of the way toward a point and back (visual only). */
@@ -846,6 +885,7 @@ function levelUpLocal(token, level) {
  * Steps: { kind: "attack", attacker, defender, toDefender: [[style,text]...], toAttacker: [...], returnStrike: bool }
  *        { kind: "floats", items: [[tokenId, style, text], ...] }   (shown together)
  *        { kind: "levelUp", unit, level }
+ *        { kind: "fallen", units: [[tokenId, "skull" | "flag"], ...] }
  */
 export async function playBattleAnim({ sceneId, steps }) {
   if (!canvas?.ready || (sceneId && canvas.scene?.id !== sceneId)) return;
@@ -875,6 +915,16 @@ export async function playBattleAnim({ sceneId, steps }) {
       } else if (st.kind === "levelUp") {
         levelUpLocal(tok(st.unit), st.level);
         await wait(700);
+      } else if (st.kind === "fallen") {
+        // every unit that fell in this action goes together: skull (destroyed) or white flag (surrendered),
+        // half a second, then a slow fade
+        const fallen = st.units.map(([id, how]) => [tok(id), how]).filter(([t]) => t);
+        for (const [t, how] of fallen) {
+          const fx = { at: t.center, size: Math.max(t.w, t.h) };
+          if (how === "flag") whiteFlagLocal(fx); else skullLocal(fx);
+        }
+        await wait(500);
+        await Promise.all(fallen.map(([t]) => fadeOutToken(t)));
       }
     } catch (e) { console.warn("Qin | battle animation", e); }
   }

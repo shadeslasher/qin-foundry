@@ -256,7 +256,7 @@ async function postLog(entries, s) {
  * level-ups glow; any other changes (e.g. end-of-turn morale) float last.
  */
 function animateChanges(scene, before, s, entries) {
-  if (!scene) return;
+  if (!scene) return null;
   const steps = [];
   const covered = {}; // what the attack steps already showed, per unit
   const add = (id, k, n) => { (covered[id] ??= { men: 0, morale: 0, xp: 0 })[k] += n; };
@@ -286,7 +286,10 @@ function animateChanges(scene, before, s, entries) {
     if (morale) rest.push([u.id, morale > 0 ? "moraleUp" : "moraleDown", `${morale > 0 ? "+" : "−"}${Math.abs(morale)} morale`]);
   }
   if (rest.length) steps.push({ kind: "floats", items: rest });
-  broadcastBattleAnim(scene.id, steps);
+  const fallen = s.units.filter(u => before[u.id]?.status === "active" && u.status !== "active")
+    .map(u => [u.id, u.status === "surrendered" ? "flag" : "skull"]);
+  if (fallen.length) steps.push({ kind: "fallen", units: fallen });
+  return broadcastBattleAnim(scene.id, steps);
 }
 
 /* ------------------------------------------------------------ run actions (GM only) */
@@ -339,13 +342,19 @@ async function runActionNow(userId, action) {
   const { s, scene } = buildState(battle, { useLastPosition: moving, terrainFor: action.type === "moveTo" ? action.unitId : null });
   if (action.type === "moveTo") s.freeMovement = false;
   const logLen = s.log.length;
-  const before = Object.fromEntries(s.units.map(u => [u.id, { men: u.men, morale: u.morale, xp: u.xp || 0 }]));
+  const before = Object.fromEntries(s.units.map(u => [u.id, { men: u.men, morale: u.morale, xp: u.xp || 0, status: u.status }]));
   E.setRng(() => CONFIG.Dice.randomUniform());
   const res = E.act(s, actor, action.type === "startBattle" ? { type: "startBattle" } : action);
   if (!res.ok && action.type === "startBattle") return res;
   await writeBack(battle, s, scene);
   await postLog(s.log.slice(logLen), s);
-  if (res.ok) animateChanges(scene, before, s, s.log.slice(logLen));
+  if (res.ok) {
+    const shown = animateChanges(scene, before, s, s.log.slice(logLen));
+    // Units destroyed or surrendered this action: hide their tokens once the skull/flag and fade have played
+    const fallen = s.units.filter(u => before[u.id]?.status === "active" && u.status !== "active" && scene?.tokens.get(u.id) && !scene.tokens.get(u.id).hidden);
+    if (fallen.length) Promise.resolve(shown).catch(() => {}).then(() =>
+      scene.updateEmbeddedDocuments("Token", fallen.map(u => ({ _id: u.id, hidden: true })), { qinBattle: true }).catch(e => console.warn("Qin | hiding fallen units", e)));
+  }
   return res;
 }
 
