@@ -110,6 +110,24 @@ Hooks.once("init", () => {
   Handlebars.registerHelper("qinObj", (options) => options.hash);
   if (!Handlebars.helpers.eq) Handlebars.registerHelper("eq", (a, b) => a === b);
 
+  // Combat turn hotkeys (change them in Configure Controls)
+  const turnKey = (dir) => () => {
+    const combat = game.combat;
+    if (!combat?.started) return false;
+    if (!game.user.isGM && !combat.combatant?.isOwner) { ui.notifications.warn("It isn't your turn."); return true; }
+    if (dir > 0) combat.nextTurn();
+    else if (game.user.isGM) combat.previousTurn();
+    return true;
+  };
+  game.keybindings.register(SYSTEM_ID, "nextTurn", {
+    name: "Next turn (combat)", hint: "End the current turn. Players can use it on their own turn.",
+    editable: [{ key: "PageDown" }], onDown: turnKey(1), precedence: CONST.KEYBINDING_PRECEDENCE?.NORMAL,
+  });
+  game.keybindings.register(SYSTEM_ID, "previousTurn", {
+    name: "Previous turn (combat)", hint: "Step back one turn (GM only).",
+    editable: [{ key: "PageUp" }], onDown: turnKey(-1), restricted: true, precedence: CONST.KEYBINDING_PRECEDENCE?.NORMAL,
+  });
+
   registerBattleQuery();
   registerCombatQuery();
 });
