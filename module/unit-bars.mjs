@@ -9,7 +9,7 @@ const SIDE_COLORS = { player: 0x3a78c8, enemy: 0xc8443a, ally: 0x3fa66a, neutral
 // Layout, as fractions of the token's size
 const L = {
   pad: 0.03, fig: 0.36, ringCrop: 0.115, officer: 0.33,
-  back: [[0.29, 0.33], [0.50, 0.31], [0.71, 0.33]], front: [[0.395, 0.53], [0.605, 0.53]],
+  back: [[0.29, 0.295], [0.50, 0.275], [0.71, 0.295]], front: [[0.395, 0.495], [0.605, 0.495]],
   flagX: 0.87, flagY: 0.055, flagH: 0.26, rollW: 0.075, bar: 0.15,
 };
 // Slots in loss order: slot 1 is lost first, slot 5 (back-middle) is the last man standing

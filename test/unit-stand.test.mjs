@@ -10,7 +10,7 @@ test('figures: one per 20% of strength (cavalry of 50), at least 1 while alive',
 
 test('loss order 4 5 3 / 2 1: front-right goes first, back-middle is the last man; back row layered left to right', () => {
   const key = (p) => p.join(',');
-  const back = ['0.29,0.33', '0.5,0.31', '0.71,0.33'], front = ['0.395,0.53', '0.605,0.53'];
+  const back = ['0.29,0.295', '0.5,0.275', '0.71,0.295'], front = ['0.395,0.495', '0.605,0.495'];
   assert.deepStrictEqual(U.figureSlots(5).map(key), [...back, ...front]);
   assert.deepStrictEqual(U.figureSlots(4).map(key), [...back, front[0]]);
   assert.deepStrictEqual(U.figureSlots(3).map(key), back);
