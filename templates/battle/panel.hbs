@@ -19,6 +19,11 @@
         {{/each}}
       </ul>
       {{/if}}
+      <h4>GM controls</h4>
+      <div class="qin-btns">
+        <button type="button" data-action="setHidden" data-hidden="1" title="Hide the unit tokens you have selected"><i class="fa-solid fa-eye-slash"></i> Hide selected</button>
+        <button type="button" data-action="setHidden" data-hidden="0" title="Reveal the unit tokens you have selected"><i class="fa-solid fa-eye"></i> Reveal selected</button>
+      </div>
     {{else}}
       <p>The GM hasn't started a battle.</p>
     {{/if}}
@@ -90,7 +95,11 @@
     </div>
 
     {{#if isGM}}
-    <div class="qin-card"><h4>GM</h4>
+    <div class="qin-card"><h4>GM controls</h4>
+      <div class="qin-btns">
+        <button type="button" data-action="setHidden" data-hidden="1" title="Hide the unit tokens you have selected"><i class="fa-solid fa-eye-slash"></i> Hide selected</button>
+        <button type="button" data-action="setHidden" data-hidden="0" title="Reveal the unit tokens you have selected"><i class="fa-solid fa-eye"></i> Reveal selected</button>
+      </div>
       <div class="qin-btns">
         {{#if showSkip}}<button type="button" data-action="do" data-type="skipPrompt">Skip current turn</button>{{/if}}
         <button type="button" data-action="do" data-type="resetBattle">Back to setup</button>

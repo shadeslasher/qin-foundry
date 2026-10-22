@@ -331,7 +331,7 @@ test('full encirclement: -50 morale once', () => {
   assert.strictEqual(R.unitById(s, u).morale, 20, 'not applied twice');
 });
 
-test('stealth: hidden in trees, unseen beyond 4 tiles, ambush removes defender Command', () => {
+test('stealth: forests hide; hidden units stay unseen by other sides until revealed', () => {
   const s = setup();
   must(R.act(s, HOST, { type: 'paintTerrain', cells: [[2, 2]], terrain: 'trees' }));
   const e = add(s, { typeId: 'yt_warriors', officerId: 'wen_ping', side: 'enemy', x: 2, y: 3 });
@@ -342,11 +342,30 @@ test('stealth: hidden in trees, unseen beyond 4 tiles, ambush removes defender C
   must(R.act(s, HOST, { type: 'move', unitId: e, x: 2, y: 2 }));
   must(R.act(s, HOST, { type: 'endTurn', unitId: e }));
   const E = R.unitById(s, e);
-  assert.ok(E.hidden);
+  assert.ok(E.hidden, 'ended its turn in the forest');
   assert.ok(!R.visibleTo(s, E, 'player'));
+  assert.ok(!R.visibleTo(s, E, 'neutral'));
   assert.strictEqual(R.viewFor(s, P1).units.find(u => u.id === e), undefined);
-  R.unitById(s, p).x = 4; R.unitById(s, p).y = 4; // 4 tiles away: spotted
+  R.unitById(s, p).x = 3; R.unitById(s, p).y = 2; // a player unit right next to it doesn't spot it by itself
+  assert.ok(!R.visibleTo(s, E, 'player'));
+  // a hidden ally is still seen by players
+  assert.ok(R.visibleTo(s, { side: 'ally', hidden: true }, 'player'));
+  // the GM can reveal it
+  must(R.act(s, HOST, { type: 'setHidden', unitId: e, hidden: false }));
   assert.ok(R.visibleTo(s, E, 'player'));
+  assert.ok(!R.act(s, P1, { type: 'setHidden', unitId: e, hidden: true }).ok, 'GM only');
+});
+
+test('stealth: ending a turn next to a hostile unit reveals; Player and Ally do not reveal each other', () => {
+  const s = setup();
+  const e = add(s, { typeId: 'yt_warriors', officerId: 'wen_ping', side: 'enemy', x: 5, y: 5 });
+  add(s, { typeId: 'han_ji_inf', side: 'ally', x: 5, y: 4 });
+  must(R.act(s, HOST, { type: 'startBattle' }));
+  R.unitById(s, e).hidden = true;
+  dice([0, 0, 0]); must(R.act(s, HOST, { type: 'startRound' }));
+  must(R.act(s, HOST, { type: 'decide', unitId: e, choice: 'act' }));
+  must(R.act(s, HOST, { type: 'endTurn', unitId: e }));
+  assert.ok(!R.unitById(s, e).hidden, 'enemy ended next to an ally: spotted');
 });
 
 test('formations: circle cannot move and blocks rear attacks', () => {
@@ -367,9 +386,8 @@ test('players cannot control other players units', () => {
   assert.ok(!R.act(s, P2, { type: 'addUnit', typeId: 'han_ji_inf', side: 'player', x: 1, y: 1 }).ok);
 });
 
-test('kill morale above 75 is kept (regen does not lower it); ambush omits defender Command', () => {
+test('attacking from hiding: +2, no strike back (defender still rolls), revealed', () => {
   const s = setup();
-  must(R.act(s, HOST, { type: 'paintTerrain', cells: [[5, 6]], terrain: 'grass' }));
   const a = add(s, { typeId: 'han_ji_inf', officerId: 'wen_ping', side: 'player', owner: 'p1', x: 5, y: 6, morale: 80 });
   const d = add(s, { typeId: 'yt_warriors', officerId: 'xu_chu', side: 'enemy', x: 5, y: 5 });
   R.unitById(s, a).hidden = true;
@@ -378,13 +396,16 @@ test('kill morale above 75 is kept (regen does not lower it); ambush omits defen
   dice([9, 0, 0, 0, 0, 0]); must(R.act(s, HOST, { type: 'startRound' }));
   assert.strictEqual(R.prompt(s).unitId, a);
   must(R.act(s, P1, { type: 'decide', unitId: a, choice: 'act' }));
-  dice([0, 0, 0, 0]);
+  dice([0, 0, 9, 0]);
+  const menBefore = R.unitById(s, a).men;
   must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
   const r = s.log.filter(e => e.detail && e.detail.type === 'attack').pop().detail.result;
   assert.ok(r.ambush);
-  assert.strictEqual(r.defendRoll.total, 0 + 0 + 3 + 0 + 2 - 2); // Command omitted, Fire 3, no Jianshu, UV 2, below 25 men -2
-  assert.strictEqual(R.unitById(s, a).morale, 90);           // 80 + 5*2 (tier 2 kill)
-  assert.ok(R.unitById(s, a).hidden, 'ended turn in grass: hidden again');
+  assert.ok(r.attackRoll.parts.some(([l, v]) => l === 'Attacking from hiding' && v === 2));
+  assert.ok(r.defendRoll.parts.some(([l, v]) => l === 'Command' && v > 0), 'defender keeps its Command');
+  assert.strictEqual(r.damageToAttacker || 0, 0);
+  assert.strictEqual(R.unitById(s, a).men, menBefore, 'no strike back');
+  assert.ok(!R.unitById(s, a).hidden, 'attacking reveals it');
 });
 
 test('homebrew: a double counts as its face value in unit rolls', () => {

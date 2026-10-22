@@ -183,11 +183,18 @@ function isFront(s, attacker, defender) {
 
 // Can units of alliance `viewerAlliance` see unit `u`?
 function visibleTo(s, u, viewerAlliance) {
-  if (!alive(u)) return true;
-  if (alliance(u.side) === viewerAlliance || !u.hidden) return true;
-  const cover = (data.TERRAIN[terrainAt(s, u.x, u.y)] || {}).cover || 0;
-  return liveUnits(s).some(o => alliance(o.side) === viewerAlliance && manhattan(o, u) <= cover);
+  // Hidden units can't be seen by other sides (players and their NPC allies share what they see).
+  // They're only revealed by attacking, ending their turn next to a hostile unit, or an ability/the GM.
+  if (!u.hidden) return true;
+  return stealthFriends(alliance(u.side), viewerAlliance);
 }
+/** Sides that share sight and don't reveal each other: the same side, or Player with Ally. */
+function stealthFriends(a, b) {
+  if (a === b) return true;
+  return (a === 'player' && b === 'ally') || (a === 'ally' && b === 'player');
+}
+/** Does terrain hide a unit that ends its turn there? (forests) */
+function hidesIn(s, u) { return terrainAt(s, u.x, u.y) === 'trees'; }
 
 // ---------------------------------------------------------------- combat
 
@@ -203,8 +210,7 @@ function buildRoll(s, unit, role, ctx) {
   const of = formationOf(s, other);
   const dice = yinYang();
   const parts = [['Yin/Yang (' + dice.yin + ' vs ' + dice.yang + ')', dice.value]];
-  const commandOmitted = role === 'defender' && ctx.ambush;
-  parts.push(['Command' + (commandOmitted ? ' (ambushed: omitted)' : ''), o && !commandOmitted ? o.command : 0]);
+  parts.push(['Command', o ? o.command : 0]);
   parts.push(['Fire', o ? o.fire : 0]);
   parts.push(['Skill (' + t.skill + ')', o ? (o.skills && o.skills[t.skill]) || 0 : 0]);
   parts.push(['Unit Value', t.unitValue || 0]);
@@ -219,6 +225,7 @@ function buildRoll(s, unit, role, ctx) {
     if (ctx.charge && f.chargeBonus) parts.push(['Formation charge bonus (' + f.name + ')', f.chargeBonus]);
     if (ctx.charge && p.chargeAttackBonus) parts.push(['Officer passive: charge', p.chargeAttackBonus]);
     if (ctx.rear) parts.push(['Rear attack', 2]);
+    if (ctx.ambush) parts.push(['Attacking from hiding', 2]);
     // defender's formation modifies the attacker's roll
     if (of.vsAttack) parts.push(['Target formation (' + of.name + ')', of.vsAttack]);
     if (ctx.ranged && of.vsRanged) parts.push(['Target formation vs ranged (' + of.name + ')', of.vsRanged]);
@@ -291,11 +298,13 @@ function resolveAttack(s, attacker, defender, opts) {
     if (!aNeg) dmgToDef = base(attacker) + winBonus('attacker');
     // ranged defenders deal no return damage against melee attackers
     if (!dNeg && dt.weapon !== 'ranged') dmgToAtt = base(defender) + winBonus('defender');
+    if (ambush) dmgToAtt = 0; // attacked from hiding: the defender rolls but can't strike back
   } else {
     if (!aNeg && winner === 'attacker') dmgToDef = base(attacker) + diff;
     const canReturn = dt.weapon === 'ranged' ? rangeOk(s, defender, attacker)
       : manhattan(attacker, defender) === 1;
     if (!dNeg && canReturn) dmgToAtt = base(defender) + winBonus('defender');
+    if (ambush) dmgToAtt = 0;
   }
   // Casualties = damage - (armor reduced by the other side's armor penetration) - formation damage reduction
   const af = formationOf(s, attacker);
@@ -341,7 +350,7 @@ function resolveAttack(s, attacker, defender, opts) {
     casualtiesDefender: casDef, casualtiesAttacker: casAtt,
     moraleLoss, moraleMultiplier: mult, loser: loser ? loser.id : null,
   };
-  const tags = [ranged ? 'ranged' : 'melee', charge && 'cavalry charge', rear && 'rear', ambush && 'ambush'].filter(Boolean).join(', ');
+  const tags = [ranged ? 'ranged' : 'melee', charge && 'cavalry charge', rear && 'rear', ambush && 'from hiding'].filter(Boolean).join(', ');
   const wtxt = winner ? (winner === 'attacker' ? attacker.name : defender.name) + ' wins by ' + diff : 'Tie';
   log(s, attacker.name + ' attacks ' + defender.name + ' (' + tags + '): ' + A.total + ' vs ' + D.total + '. ' + wtxt +
     '. Casualties: ' + defender.name + ' -' + casDef + ', ' + attacker.name + ' -' + casAtt +
@@ -538,9 +547,14 @@ function finishActivation(s, u) {
     u.morale = Math.min(75, u.morale + o.fire + o.command);
     if (u.morale !== before) log(s, u.name + ' regains ' + (u.morale - before) + ' morale (officer Fire + Command).');
   }
-  // Stealth: ending the turn in cover hides the unit
-  const cover = (data.TERRAIN[terrainAt(s, u.x, u.y)] || {}).cover || 0;
-  u.hidden = alive(u) && cover > 0;
+  // Stealth: ending the turn in a forest hides the unit; ending it next to a hostile unit reveals it
+  if (alive(u)) {
+    if (hidesIn(s, u)) u.hidden = true;
+    if (u.hidden && liveUnits(s).some(o => o !== u && !stealthFriends(alliance(o.side), alliance(u.side)) && manhattan(o, u) === 1)) {
+      u.hidden = false;
+      log(s, u.name + ' is spotted (ended its turn next to an enemy).', { type: 'revealed', unit: u.id });
+    }
+  } else u.hidden = false;
   if (t.pendingFinish === u.id) t.pendingFinish = null;
   bookkeep(s, u);
   t.activation = null;
@@ -594,7 +608,7 @@ function act(s, actor, a) {
   }
 }
 
-const HOST_ONLY = new Set(['setMap', 'paintTerrain', 'setLibrary', 'addUnit', 'editUnit', 'removeUnit',
+const HOST_ONLY = new Set(['setHidden', 'setMap', 'paintTerrain', 'setLibrary', 'addUnit', 'editUnit', 'removeUnit',
   'startBattle', 'resetBattle', 'startRound', 'skipPrompt', 'addMod', 'removeMod', 'adjust', 'setFacing']);
 
 const ACTIONS = {
@@ -717,6 +731,14 @@ const ACTIONS = {
     advance(s);
   },
 
+  // ---------- GM: hide or reveal a unit (abilities, landmarks, rulings)
+  setHidden(s, actor, a) {
+    const u = unitById(s, a.unitId);
+    if (!u || !alive(u)) return err('No such unit');
+    u.hidden = !!a.hidden;
+    log(s, u.name + (u.hidden ? ' is now hidden.' : ' is revealed.'), { type: u.hidden ? 'hidden' : 'revealed', unit: u.id });
+  },
+
   // ---------- formations
   setFormation(s, actor, a) {
     const u = unitById(s, a.unitId);
@@ -799,7 +821,6 @@ const ACTIONS = {
     u.x = a.x; u.y = a.y; u.round.moved = true;
     u.facing = { dx: sign(u.x - from.x), dy: sign(u.y - from.y) };
     if (Math.abs(u.x - from.x) > Math.abs(u.y - from.y)) u.facing.dy = 0; else if (u.y !== from.y) u.facing.dx = 0;
-    if (!(data.TERRAIN[terrainAt(s, u.x, u.y)] || {}).cover) u.hidden = false;
     ac.started = true; ac.movedThisActivation = true; ac.step = 'act';
     if (forced) {
       const { cost, dist } = red.get(k);
@@ -861,7 +882,7 @@ const ACTIONS = {
     // attacking commits the move: apply any encirclement it caused first
     settle(s);
     if (!alive(d)) { log(s, d.name + ' gave up before the attack landed.'); if (alive(u)) finishActivation(s, u); return; }
-    resolveAttack(s, u, d, { movedThisActivation: ac.movedThisActivation, tilesMoved: ac.tilesMoved || 0, ambush: ac.startedHidden });
+    resolveAttack(s, u, d, { movedThisActivation: ac.movedThisActivation, tilesMoved: ac.tilesMoved || 0, ambush: !!u.hidden });
     if (alive(u)) finishActivation(s, u);
   },
   endTurn(s, actor, a) {
@@ -929,7 +950,6 @@ function doMove(s, actor, a, forced) {
   const tiles = s.freeMovement ? Math.abs(a.x - u.x) + Math.abs(a.y - u.y) : (reachable(s, u, budget).get(a.x + ',' + a.y) ?? 0);
   u.x = a.x; u.y = a.y; u.round.moved = true;
   u.facing = { dx: sign(u.x - from.x), dy: sign(u.y - from.y) };
-  if (!(data.TERRAIN[terrainAt(s, u.x, u.y)] || {}).cover) u.hidden = false;
   ac.started = true; ac.movedThisActivation = true;
   if (!forced) ac.tilesMoved = tiles;
   if (forced) {

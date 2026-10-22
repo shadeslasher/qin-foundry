@@ -45,6 +45,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
       attackTarget: BattlePanel.#attackTarget,
       swapTarget: BattlePanel.#swapTarget,
       selectUnit: BattlePanel.#selectUnit,
+      setHidden: BattlePanel.#setHidden,
     },
   };
   static PARTS = { body: { template: systemPath("templates/battle/panel.hbs"), scrollable: [".qin-battle-scroll"] } };
@@ -210,6 +211,30 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
     const t = [...game.user.targets][0];
     if (!t) return ui.notifications.warn("Target the adjacent allied unit to swap with first.");
     await battleRequest({ type: "swap", unitId: target.dataset.unitId, targetId: t.id });
+  }
+  /** GM: hide or reveal the selected unit tokens (abilities, landmarks, rulings). */
+  static async #setHidden(event, target) {
+    if (!game.user.isGM) return;
+    const hidden = target.dataset.hidden === "1";
+    const toks = (canvas.tokens?.controlled ?? []).filter(t => t.actor?.type === "unit");
+    if (!toks.length) return ui.notifications.warn("Select one or more unit tokens on the map first.");
+    const battle = getBattle();
+    if (battle.active && battle.sceneId === canvas.scene?.id) {
+      for (const t of toks) await battleRequest({ type: "setHidden", unitId: t.id, hidden });
+    } else {
+      // no battle: mark the unit, and keep hidden enemy/neutral tokens out of players' sight
+      const manage = game.settings.get(SYSTEM_ID, "manageStealth");
+      for (const t of toks) {
+        await t.actor.update({ "system.hidden": hidden });
+        const side = t.actor.system.side;
+        if (manage && (side === "enemy" || side === "neutral")) {
+          const flagged = t.document.getFlag(SYSTEM_ID, "stealthHidden");
+          if (hidden && !t.document.hidden) await t.document.update({ hidden: true, [`flags.${SYSTEM_ID}.stealthHidden`]: true });
+          else if (!hidden && flagged) await t.document.update({ hidden: false, [`flags.${SYSTEM_ID}.stealthHidden`]: false });
+        }
+      }
+    }
+    ui.notifications.info(`${toks.length} unit${toks.length === 1 ? "" : "s"} ${hidden ? "hidden" : "revealed"}.`);
   }
   static async #selectUnit(event, target) {
     const tok = canvas.tokens?.get(target.dataset.unitId);

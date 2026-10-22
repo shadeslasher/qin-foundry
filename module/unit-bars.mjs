@@ -84,7 +84,7 @@ export function unitStatus(token) {
   const both = (Number(f.defAll) || 0) - (Number(f.vsAttack) || 0); // formation effects on every attack
   const defense = (round.holding ? 2 : 0) + both - (Number(f.vsMelee) || 0);
   const rangedDefense = both - (Number(f.vsRanged) || 0);
-  return { attack, defense, rangedDefense, range: 0, holding: !!round.holding };
+  return { attack, defense, rangedDefense, range: 0, holding: !!round.holding, hidden: !!s.hidden };
 }
 
 /** A heater shield centred on (0,0), w wide and h tall. */
@@ -118,6 +118,17 @@ function drawBow(size) {
   g.lineStyle(Math.max(1, u * 0.6), 0xcfd6dd, 1).moveTo(-4 * u, 0).lineTo(7 * u, 0);                               // arrow
   g.lineStyle(0).beginFill(0xcfd6dd, 1).drawPolygon([7 * u, -1.2 * u, 9.2 * u, 0, 7 * u, 1.2 * u]).endFill();
   g.beginFill(0xc0281e, 1).drawPolygon([-4 * u, 0, -5.6 * u, -1.4 * u, -3 * u, -1.4 * u, -1.6 * u, 0, -3 * u, 1.4 * u, -5.6 * u, 1.4 * u]).endFill();
+  return g;
+}
+
+/** A closed eye with a slash: this unit is hidden. */
+function drawHiddenEye(size) {
+  const g = new PIXI.Graphics(), u = size / 20;
+  g.lineStyle(Math.max(1.5, u * 1.3), 0xe8f2ff, 1);
+  g.moveTo(-7 * u, 0).quadraticCurveTo(0, -6.5 * u, 7 * u, 0).quadraticCurveTo(0, 6.5 * u, -7 * u, 0);
+  g.lineStyle(0).beginFill(0xe8f2ff, 1).drawCircle(0, 0, 2.2 * u).endFill();
+  g.lineStyle(Math.max(2, u * 1.8), 0x1a140e, 1).moveTo(-6 * u, -6 * u).lineTo(6 * u, 6 * u);
+  g.lineStyle(Math.max(1.5, u * 1.1), 0xe8f2ff, 1).moveTo(-6 * u, -6 * u).lineTo(6 * u, 6 * u);
   return g;
 }
 
@@ -319,6 +330,7 @@ export async function drawUnitBars(token) {
   const stand = new PIXI.Container();
   c.addChild(stand);
 
+  if (st.hidden) stand.alpha = 0.55; // hidden: see-through for those who can still see it
   // base in the side colour
   const color = SIDE_COLORS[s.side] ?? 0x888888, pad = T * L.pad;
   stand.addChild(new PIXI.Graphics().lineStyle(Math.max(2, T * 0.03), color, 1).beginFill(color, 0.27)
@@ -409,6 +421,7 @@ export async function drawUnitBars(token) {
   if (st.defense) icons.push([(sz) => drawShield(sz * 0.62, sz * 0.72), plain(st.defense), st.defense < 0]);
   if (st.rangedDefense) icons.push([drawArrowShield, plain(st.rangedDefense), st.rangedDefense < 0]);
   if (st.range) icons.push([drawBow, signed(st.range), st.range < 0]);
+  if (st.hidden) icons.push([drawHiddenEye, "", false]);
   const isz = T * 0.17;
   icons.forEach(([fn, label, bad], i) => {
     const cx = pad + T * 0.02 + isz / 2 + i * (isz + T * 0.015), cy = top - isz / 2 - T * 0.012;
