@@ -2,6 +2,7 @@
 // Animations use Sequencer + JB2A when both modules are active, otherwise built-in PIXI effects
 // that are broadcast to every client over the system socket.
 import { SYSTEM_ID } from "./config.mjs";
+import { drawUnitBars } from "./unit-bars.mjs";
 
 const SOCKET = `system.${SYSTEM_ID}`;
 
@@ -896,6 +897,9 @@ export async function playBattleAnim({ sceneId, steps }) {
       if (st.kind === "attack") {
         const A = tok(st.attacker), D = tok(st.defender);
         if (A && D) {
+          // the attacker's sword icon shows this attack's bonus while the exchange plays
+          A.qinAttackBonus = st.attackBonus ?? 0;
+          drawUnitBars(A);
           const lungeA = lunge(A, D.center);
           await wait(240);
           showAll(st.defender, st.toDefender);
@@ -908,6 +912,9 @@ export async function playBattleAnim({ sceneId, steps }) {
             await lungeD;
           } else showAll(st.attacker, st.toAttacker);
           await wait(450);
+          await wait(500);
+          A.qinAttackBonus = null;
+          if (!A.destroyed) drawUnitBars(A);
         }
       } else if (st.kind === "floats") {
         for (const [id, style, text] of st.items) { const t = tok(id); if (t) floatLocal(t.center, style, text); }

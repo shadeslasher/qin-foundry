@@ -17,3 +17,33 @@ test('loss order (2 back, 3 front): front-right first, then front-left, back-rig
   assert.deepStrictEqual(U.figureSlots(2).map(key), [BL, FM]);
   assert.deepStrictEqual(U.figureSlots(1).map(key), [FM]);
 });
+
+test('status icons: Command roll bonus/penalty, defense, ranged defense', () => {
+  let battle = { active: true, sceneId: 's', turn: { activation: null }, meta: {} };
+  globalThis.game = { settings: { get: () => battle } };
+  const form = (sys) => ({ get: (id) => (id === 'f' ? { type: 'formation', system: sys } : null) });
+  const tok = (sys, items = form({}), id = 't') => ({ id, document: { parent: { id: 's' } }, actor: { system: { formation: 'f', range: 1, category: 'infantry', men: { value: 100, max: 100 }, morale: 50, traits: '', ...sys }, items } });
+  // morale and losses
+  assert.strictEqual(U.unitStatus(tok({ morale: 80 })).attack, 2);
+  assert.strictEqual(U.unitStatus(tok({ morale: 20, men: { value: 15, max: 100 } })).attack, -4, 'demoralised and down to 1 soldier');
+  // ranged unit on its turn, not moved: +2
+  battle.turn.activation = { unitId: 't' };
+  assert.strictEqual(U.unitStatus(tok({ range: 3 })).attack, 2);
+  battle.meta.t = { round: { moved: true } };
+  assert.strictEqual(U.unitStatus(tok({ range: 3 })).attack, 0, 'moved: keeps nothing');
+  // cavalry after a 4-tile move: +2, Fierce Charge+ makes it +4, Wedge adds +4
+  battle.meta = {}; battle.turn.activation = { unitId: 't', movedThisActivation: true, tilesMoved: 4 };
+  assert.strictEqual(U.unitStatus(tok({ category: 'cavalry' })).attack, 2);
+  assert.strictEqual(U.unitStatus(tok({ category: 'cavalry', traits: 'Fierce Charge+ - x' })).attack, 4);
+  assert.strictEqual(U.unitStatus(tok({ category: 'cavalry' }, form({ chargeBonus: 4 }))).attack, 6);
+  // undone / not its turn: no charge
+  battle.turn.activation = null;
+  assert.strictEqual(U.unitStatus(tok({ category: 'cavalry' })).attack, 0);
+  // during an attack the sword shows that attack's total
+  const t = tok({}); t.qinAttackBonus = -1; assert.strictEqual(U.unitStatus(t).attack, -1);
+  // defense: Hold +2, Turtle defAll +2; ranged defense: Loose (enemy ranged -3) = 3, Spear Wall (enemy ranged +2) = -2
+  battle.meta.t = { round: { holding: true } };
+  assert.strictEqual(U.unitStatus(tok({}, form({ defAll: 2 }))).defense, 4);
+  assert.strictEqual(U.unitStatus(tok({}, form({ vsRanged: -3 }))).rangedDefense, 3);
+  assert.strictEqual(U.unitStatus(tok({}, form({ vsRanged: 2 }))).rangedDefense, -2);
+});

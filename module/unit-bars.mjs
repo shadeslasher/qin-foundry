@@ -41,6 +41,49 @@ function isHolding(token) {
   return !!battle.meta?.[token.id]?.round?.holding;
 }
 
+function battleRecord(token) {
+  let battle;
+  try { battle = game.settings.get("qin", "battle"); } catch { return null; }
+  return battle?.active && battle.sceneId === token.document?.parent?.id ? battle : null;
+}
+
+/**
+ * What the status icons show, all as changes to Command rolls:
+ *  attack - situational bonus/penalty to this unit's rolls: morale (+2 Encouraged / -2 Demoralized),
+ *           losses (2 soldiers -1, 1 soldier -2), and on its own turn the cavalry charge bonus after a
+ *           2+ tile move, or the ranged attacker's +2 kept by not moving. During an attack it shows that
+ *           attack's whole situational total instead (token.qinAttackBonus).
+ *  defense - against every attack: Hold (+2), formation defense, formation modifier to enemy attacks.
+ *  rangedDefense - against ranged attacks only: formation modifier to enemy ranged attacks.
+ *  range - extra range (nothing grants this automatically yet).
+ */
+export function unitStatus(token) {
+  const actor = token.actor, s = actor.system, battle = battleRecord(token);
+  const round = battle?.meta?.[token.id]?.round ?? {};
+  const form = actor.items?.get?.(s.formation);
+  const f = form?.type === "formation" ? form.system : {};
+  let attack = 0;
+  const m = s.morale ?? 0;
+  if (m >= 75) attack += 2; else if (m > 0 && m <= 25) attack -= 2;
+  const figs = figureCount(s.men?.value ?? 0, s.men?.max || 100);
+  if (figs === 1) attack -= 2; else if (figs === 2) attack -= 1;
+  const ac = battle?.turn?.activation;
+  if (ac?.unitId === token.id && !ac.forcedMarched && !round.attacked) {
+    if (s.range > 1) { if (!round.moved) attack += 2; }
+    else if (s.category === "cavalry" && ac.movedThisActivation) {
+      const tiles = ac.tilesMoved || 0;
+      const fm = String(s.traits ?? "").match(/^\s*Fierce Charge(\+{0,2})\s*(?:-|–|:|$)/mi);
+      const fierce = fm ? 1 + fm[1].length : 0;
+      const charge = Math.floor(fierce >= 2 ? tiles : tiles / 2);
+      if (charge > 0) attack += charge + (fierce === 1 ? 1 : 0) + (Number(f.chargeBonus) || 0);
+    }
+  }
+  if (token.qinAttackBonus !== undefined && token.qinAttackBonus !== null) attack = token.qinAttackBonus;
+  const defense = (round.holding ? 2 : 0) + (Number(f.defAll) || 0) - (Number(f.vsAttack) || 0);
+  const rangedDefense = -(Number(f.vsRanged) || 0);
+  return { attack, defense, rangedDefense, range: 0, holding: !!round.holding };
+}
+
 /** A heater shield centred on (0,0), w wide and h tall. */
 function shieldPoints(w, h) {
   const pts = [-w / 2, -h / 2, w / 2, -h / 2];
@@ -50,6 +93,43 @@ function shieldPoints(w, h) {
   }
   return pts;
 }
+/** A sword pointing up: steel blade, gold guard, red hilt. Centred on (0,0), fits a size x size box. */
+function drawSword(size) {
+  const g = new PIXI.Graphics(), u = size / 20;
+  g.rotation = Math.PI / 4;
+  g.lineStyle(Math.max(1, u * 0.6), 0x22262c, 1).beginFill(0xdfe6ee, 1)
+    .drawPolygon([0, -9 * u, 1.3 * u, -7.4 * u, 1.3 * u, 3 * u, -1.3 * u, 3 * u, -1.3 * u, -7.4 * u]).endFill();
+  g.lineStyle(0).beginFill(0xffffff, 0.7).drawRect(-0.3 * u, -7.2 * u, 0.6 * u, 9.6 * u).endFill();
+  g.lineStyle(Math.max(1, u * 0.5), 0x3a2a08, 1).beginFill(0xd9a441, 1).drawRoundedRect(-4 * u, 3 * u, 8 * u, 1.6 * u, 0.6 * u).endFill();
+  g.beginFill(0xc0281e, 1).drawRoundedRect(-1 * u, 4.6 * u, 2 * u, 3.6 * u, 0.6 * u).endFill();
+  g.beginFill(0xd9a441, 1).drawCircle(0, 9.1 * u, 1.2 * u).endFill();
+  return g;
+}
+
+/** A recurve bow with its string and a nocked arrow. */
+function drawBow(size) {
+  const g = new PIXI.Graphics(), u = size / 20;
+  g.rotation = Math.PI / 4;
+  g.lineStyle(Math.max(1, u * 0.5), 0xe8e0d0, 0.95).moveTo(-1 * u, -7.5 * u).lineTo(-1 * u, 7.5 * u);           // string
+  g.lineStyle(Math.max(1.5, u * 1.6), 0x8a5a2b, 1).moveTo(-1 * u, -7.5 * u).bezierCurveTo(5 * u, -6 * u, 5 * u, 6 * u, -1 * u, 7.5 * u); // limbs
+  g.lineStyle(Math.max(1, u * 0.6), 0xcfd6dd, 1).moveTo(-4 * u, 0).lineTo(7 * u, 0);                               // arrow
+  g.lineStyle(0).beginFill(0xcfd6dd, 1).drawPolygon([7 * u, -1.2 * u, 9.2 * u, 0, 7 * u, 1.2 * u]).endFill();
+  g.beginFill(0xc0281e, 1).drawPolygon([-4 * u, 0, -5.6 * u, -1.4 * u, -3 * u, -1.4 * u, -1.6 * u, 0, -3 * u, 1.4 * u, -5.6 * u, 1.4 * u]).endFill();
+  return g;
+}
+
+function drawArrowShield(size) {
+  const c = new PIXI.Container();
+  c.addChild(drawShield(size * 0.6, size * 0.7));
+  const g = new PIXI.Graphics(), u = size / 20;
+  g.rotation = -Math.PI / 5;
+  g.lineStyle(Math.max(1, u * 0.7), 0xf2f2f2, 1).moveTo(-8 * u, 0).lineTo(6 * u, 0);
+  g.lineStyle(0).beginFill(0xf2f2f2, 1).drawPolygon([6 * u, -1.4 * u, 8.6 * u, 0, 6 * u, 1.4 * u]).endFill();
+  g.beginFill(0xc0281e, 1).drawPolygon([-8 * u, 0, -9.6 * u, -1.5 * u, -6.8 * u, -1.5 * u, -5.4 * u, 0, -6.8 * u, 1.5 * u, -9.6 * u, 1.5 * u]).endFill();
+  c.addChild(g);
+  return c;
+}
+
 function drawShield(w, h) {
   const g = new PIXI.Graphics();
   g.beginFill(0x000000, 0.45).drawPolygon(shieldPoints(w, h).map((v, i) => v + (i % 2 ? h * 0.06 : w * 0.04))).endFill();
@@ -208,7 +288,8 @@ export async function drawUnitBars(token) {
   const art = unitArt(token), off = officerArt(actor), fac = factionOf(s.faction);
   const n = figureCount(men, max);
   if (token.mesh && !token.mesh.destroyed) token.mesh.renderable = false; // the stand replaces the picture
-  const key = JSON.stringify([men, max, morale, w, h, s.side, acted, active, holding, n, art, off, fac?.img ?? null]);
+  const st = unitStatus(token);
+  const key = JSON.stringify([men, max, morale, w, h, s.side, acted, active, holding, st, n, art, off, fac?.img ?? null]);
   let c = token[KEY];
   if (c && !c.destroyed && c.parent === token && c.qinKey === key) return;
   const my = (gen.get(token) ?? 0) + 1;
@@ -307,23 +388,32 @@ export async function drawUnitBars(token) {
     if (holding) { // small shield beside "Hold"
       const sw = T * 0.15, sh = T * 0.18, gapX = T * 0.025, total = sw + gapX + t.width;
       const icon = drawShield(sw, sh);
-      const ly = top * 0.62; // a little lower than "Done", clear of the badge
+      const ly = top / 2;
       icon.position.set(w / 2 - total / 2 + sw / 2, ly);
       t.position.set(w / 2 - total / 2 + sw + gapX + t.width / 2, ly);
       c.addChild(icon);
-    } else t.position.set(w / 2, top * 0.62); // same height as "Hold"
+    } else t.position.set(w / 2, top / 2);
   }
 
-  // holding this round: a shield badge on the top edge showing its +2 (attackers suffer -2 against it)
-  if (holding) {
-    const bw = T * 0.22, bhh = T * 0.25;
-    const badge = drawShield(bw, bhh);
-    badge.position.set(w / 2, T * 0.135);
-    const lbl = new Txt("2", new PIXI.TextStyle({ ...styleOpts, fontSize: Math.round(bhh * 0.42), strokeThickness: Math.max(2, Math.round(bhh * 0.08)) }));
-    lbl.anchor?.set?.(0.5, 0.5);
-    lbl.position.set(w / 2, T * 0.135 + bhh * 0.02);
-    c.addChild(badge, lbl);
-  }
+  // status icons just above the health bar, left-aligned: Command roll (sword), defense (shield),
+  // ranged defense (shield + arrow), range (bow). Positive numbers plain on the shields, signed on sword/bow.
+  const signed = (v) => (v > 0 ? `+${v}` : `\u2212${Math.abs(v)}`);
+  const plain = (v) => (v > 0 ? `${v}` : `\u2212${Math.abs(v)}`);
+  const icons = [];
+  if (st.attack) icons.push([drawSword, signed(st.attack), st.attack < 0]);
+  if (st.defense) icons.push([(sz) => drawShield(sz * 0.62, sz * 0.72), plain(st.defense), st.defense < 0]);
+  if (st.rangedDefense) icons.push([drawArrowShield, plain(st.rangedDefense), st.rangedDefense < 0]);
+  if (st.range) icons.push([drawBow, signed(st.range), st.range < 0]);
+  const isz = T * 0.17;
+  icons.forEach(([fn, label, bad], i) => {
+    const cx = pad + T * 0.02 + isz / 2 + i * (isz + T * 0.015), cy = top - isz / 2 - T * 0.012;
+    const chip = new PIXI.Graphics().lineStyle(Math.max(1, T * 0.012), 0xd9a441, 1).beginFill(0x1a140e, 0.82).drawCircle(0, 0, isz / 2).endFill();
+    chip.position.set(cx, cy);
+    const ic = fn(isz); ic.position.set(cx, cy);
+    const num = new Txt(label, new PIXI.TextStyle({ ...styleOpts, fill: bad ? "#ff6b5a" : "#ffffff", fontSize: Math.round(isz * 0.46), strokeThickness: Math.max(2, Math.round(isz * 0.12)) }));
+    num.anchor?.set?.(0.5, 0.5); num.position.set(cx + isz * 0.3, cy + isz * 0.28);
+    c.addChild(chip, ic, num);
+  });
 
   if (fall && !fall.destroyed) c.addChildAt(fall, c.getChildIndex(stand) + 1);
 

@@ -270,7 +270,11 @@ function animateChanges(scene, before, s, entries) {
     if (r.loser === r.defender && r.moraleLoss) { toD.push(["moraleDown", `−${r.moraleLoss} morale`]); add(r.defender, "morale", -r.moraleLoss); }
     if (r.casualtiesAttacker) { toA.push(["unitDamage", `−${r.casualtiesAttacker}`]); add(r.attacker, "men", r.casualtiesAttacker); }
     if (r.loser === r.attacker && r.moraleLoss) { toA.push(["moraleDown", `−${r.moraleLoss} morale`]); add(r.attacker, "morale", -r.moraleLoss); }
-    steps.push({ kind: "attack", attacker: r.attacker, defender: r.defender, toDefender: toD, toAttacker: toA, returnStrike: r.damageToAttacker > 0 });
+    // the attacker's sword icon shows this attack's situational total (not the dice or the officer's stats)
+    const base = /^(Yin\/Yang|Command|Fire|Skill|Unit Value)/;
+    const attackBonus = (r.attackRoll?.parts ?? []).reduce((t, [label, v]) =>
+      base.test(label) || (!r.ranged && /^Attacker bonus/.test(label)) ? t : t + (Number(v) || 0), 0);
+    steps.push({ kind: "attack", attacker: r.attacker, defender: r.defender, toDefender: toD, toAttacker: toA, returnStrike: r.damageToAttacker > 0, attackBonus });
     const gains = [];
     if (r.xpAttacker) { gains.push([r.attacker, "xp", `+${r.xpAttacker} XP`]); add(r.attacker, "xp", r.xpAttacker); }
     if (r.xpDefender) { gains.push([r.defender, "xp", `+${r.xpDefender} XP`]); add(r.defender, "xp", r.xpDefender); }
