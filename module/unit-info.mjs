@@ -78,6 +78,15 @@ export function setPickingCheck(fn) { pickingCheck = fn; }
 export function clearMovePreview() {
   if (preview && !preview.destroyed) preview.destroy();
   preview = null;
+  dimDanger(false);
+}
+
+// While a unit is hovered, the danger zone fades so that unit's own move/attack squares stand out
+const DANGER_DIM = 0.4;
+let hoverDim = false;
+function dimDanger(on) {
+  hoverDim = on;
+  if (danger && !danger.destroyed) danger.alpha = on ? DANGER_DIM : 1;
 }
 
 /** The battle state for previews (outside a battle, the scene as it stands). */
@@ -111,6 +120,7 @@ export function showMovePreview(token) {
   for (const k of move) sq(k, mcol, 0.25);
   (canvas.interface ?? canvas.controls ?? canvas.stage).addChild(g);
   preview = g;
+  dimDanger(true);
 }
 
 /* ------------------------------------------------------------ danger zone (Z): every tile the enemy threatens */
@@ -155,6 +165,7 @@ export function drawDangerZone() {
   }
   const layer = canvas.interface ?? canvas.controls ?? canvas.stage;
   layer.addChildAt?.(g, 0) ?? layer.addChild(g);
+  g.alpha = hoverDim ? DANGER_DIM : 1;
   danger = g;
 }
 
