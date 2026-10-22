@@ -96,10 +96,10 @@ function previewState(focusId) {
   try { return buildState(battle, focusId ? { terrainFor: focusId } : {}).s; } catch (e) { console.warn("Qin | preview", e); return null; }
 }
 
-const MOVE_ENEMY = 0xdc3232, MOVE_OTHER = 0x3fbf5f, ATTACK = 0xff961e;
+const MOVE_ENEMY = 0xdc3232, MOVE_PLAYER = 0x2f80ed, MOVE_OTHER = 0x3fbf5f, ATTACK = 0xff961e;
 
 /**
- * Hovered unit: where it can move this turn (red for enemies, green otherwise) and, in orange,
+ * Hovered unit: where it can move this turn (red for enemies, blue for player units, green for allies) and, in orange,
  * how much further it can attack from there.
  */
 export function showMovePreview(token) {
@@ -109,7 +109,8 @@ export function showMovePreview(token) {
   const u = s && E.unitById(s, token.id);
   if (!u || u.status !== "active") return;
   const { move, attack } = E.threatArea(s, u);
-  const size = canvas.scene.grid.size, mcol = token.actor.system.side === "enemy" ? MOVE_ENEMY : MOVE_OTHER;
+  const size = canvas.scene.grid.size, side = token.actor.system.side;
+  const mcol = side === "enemy" ? MOVE_ENEMY : side === "player" ? MOVE_PLAYER : MOVE_OTHER;
   const g = new PIXI.Graphics();
   g.eventMode = "none";
   const sq = (k, col, a) => {
