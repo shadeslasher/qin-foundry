@@ -131,6 +131,8 @@ function officerArt(actor) {
 
 function clear(token) {
   const c = token[KEY];
+  if (token.qinFall && !token.qinFall.destroyed) token.qinFall.destroy({ children: true });
+  token.qinFall = null;
   if (c?.qinTick) canvas.app?.ticker?.remove(c.qinTick);
   if (c && !c.destroyed) c.destroy({ children: true });
   token[KEY] = null;
@@ -224,6 +226,9 @@ export async function drawUnitBars(token) {
   }
   c.qinKey = key;
   if (c.qinTick) { canvas.app?.ticker?.remove(c.qinTick); c.qinTick = null; }
+  const prevN = c.qinFigN;
+  let fall = token.qinFall;                       // soldiers still falling survive the redraw
+  if (fall && !fall.destroyed && fall.parent === c) c.removeChild(fall);
   for (const ch of c.removeChildren()) ch.destroy({ children: true });
   const stand = new PIXI.Container();
   c.addChild(stand);
@@ -240,6 +245,18 @@ export async function drawUnitBars(token) {
     f.position.set(fx * w, fy * h);
     stand.addChild(f);
   }
+  // soldiers lost since the last draw topple over and fade (slot 1 first)
+  if (prevN !== undefined && n < prevN) {
+    if (!fall || fall.destroyed) { fall = token.qinFall = new PIXI.Container(); fall.eventMode = "none"; }
+    let i = 0;
+    for (let k = 6 - prevN; k <= 5 - n; k++, i++) {
+      const [fx, fy] = SLOTS[k];
+      const f = circleFigure(figTex, fd, true);
+      fall.addChild(f);
+      topple(f, fx * w, fy * h, fd, 650 + i * 160, fx < 0.5 ? -1 : 1);
+    }
+  }
+  c.qinFigN = n;
   // officer medallion (their own token art, frame and all)
   if (offTex) {
     const od = T * L.officer, o = circleFigure(offTex, od, false);
@@ -307,6 +324,8 @@ export async function drawUnitBars(token) {
     c.addChild(badge, lbl);
   }
 
+  if (fall && !fall.destroyed) c.addChildAt(fall, c.getChildIndex(stand) + 1);
+
   // this unit's turn: pulsing gold glow behind, gold border, and a bobbing arrow above
   if (active) {
     const gold = 0xffd34d;
@@ -329,6 +348,29 @@ export async function drawUnitBars(token) {
     c.qinTick();
     canvas.app?.ticker?.add(c.qinTick);
   }
+}
+
+/**
+ * A lost soldier: after `delay` ms (so the attack's numbers show first) it tips over sideways from its
+ * feet, then slowly fades away and is removed.
+ */
+function topple(f, x, y, size, delay, dir) {
+  const r = size / 2;
+  f.pivot.set(0, r);                 // rotate around the bottom of the figure
+  f.position.set(x, y + r);
+  let t = -delay;
+  const fallMs = 520, fadeMs = 1300;
+  const tick = () => {
+    t += canvas.app.ticker.deltaMS;
+    if (f.destroyed) return canvas.app.ticker.remove(tick);
+    if (t < 0) return;
+    const k = Math.min(1, t / fallMs), e = k * k;              // accelerating fall
+    f.rotation = dir * 1.35 * e;
+    f.position.y = y + r + size * 0.06 * e;
+    if (t > fallMs * 0.6) f.alpha = Math.max(0, 1 - (t - fallMs * 0.6) / fadeMs);
+    if (f.alpha <= 0) { canvas.app.ticker.remove(tick); f.destroy({ children: true }); }
+  };
+  canvas.app.ticker.add(tick);
 }
 
 /* ------------------------------------------------------------ banner unrolling on hover */
