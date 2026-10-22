@@ -42,6 +42,8 @@ export function unitTooltipHTML(token) {
     html += `<div class="qin-th-officer">${esc(officer.name)}</div>`;
   }
   html += `<div class="qin-th-name">${esc(token.document.name)} <span class="qin-th-tier">[Tier ${sys.tier}]</span></div>`;
+  const fac = factionOf(sys.faction);
+  if (fac) html += `<div class="qin-th-faction">${esc(fac.name)}</div>`;
   html += `<div class="qin-th-grid">
     <span>Damage</span><b>${sys.damage ?? 0}</b><span>Armor</span><b>${sys.armor ?? 0}</b>
     <span>Armor Pen</span><b>${sys.armorPen ?? 0}</b><span>Movement</span><b>${sys.move ?? 0}</b>
