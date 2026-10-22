@@ -1,2 +1,5 @@
 node_modules/
 dist/system.json
+module/battle/mapmaker-core.mjs
+tools/mapmaker/
+tools/build-mapmaker.py
