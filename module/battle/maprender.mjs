@@ -57,15 +57,10 @@ function battleEdits(scene) {
   return edits;
 }
 
-async function toWebp(blob) {
-  try {
-    const bmp = await createImageBitmap(blob);
-    const oc = new OffscreenCanvas(bmp.width, bmp.height);
-    oc.getContext("2d").drawImage(bmp, 0, 0);
-    bmp.close?.();
-    return await oc.convertToBlob({ type: "image/webp", quality: 0.92 });
-  } catch { return blob; }
-}
+// What the scene's current background shows, so the next redraw only redraws what changed
+const DRAWN = "battlemapDrawn";
+const currentSrc = (scene) => (scene.levels?.size ? scene.levels.contents[0]?.background?.src : null) ?? scene.background?.src ?? null;
+const absUrl = (src) => { try { return new URL(/^[a-z]+:/i.test(src) ? src : (foundry.utils.getRoute?.(src) ?? src), window.location.href).href; } catch { return src; } };
 
 async function setBackground(scene, src) {
   if (scene.levels?.size) {
@@ -99,12 +94,24 @@ export async function redrawScene(scene, { edits = [], look = null, quiet = fals
         const r = await work({ code, edits, px, image: false });
         code = r.code; data = r.data;
       }
-      const shown = await work({ code, edits: battleEdits(scene), px, blend, vignette, image: true });
-      const file = await toWebp(shown.blob);
+      // a partial redraw when the background is the last image we drew with the same look
+      const drawn = scene.getFlag(SYSTEM_ID, DRAWN), src0 = currentSrc(scene);
+      const prev = drawn && drawn.src === src0 && drawn.px === px && drawn.blend === blend && drawn.vignette === vignette
+        ? { code: drawn.code, edits: drawn.edits ?? [], key: drawn.key, url: absUrl(src0) } : null;
+      const shownEdits = battleEdits(scene), key = foundry.utils.randomID?.() ?? String(Date.now());
+      const t0 = performance.now();
+      const shown = await work({ code, edits: shownEdits, px, blend, vignette, image: true, type: "image/jpeg", key, prev }); // JPEG saves in a fraction of the time; the worker keeps the lossless image between redraws
+      console.log(`Qin | battle map ${shown.unchanged ? "unchanged" : shown.region ? `partly redrawn (${shown.region.w}×${shown.region.h} px)` : "redrawn"} in ${Math.round(performance.now() - t0)} ms`);
+      if (shown.unchanged) {
+        if (data || look) { await scene.unsetFlag(SYSTEM_ID, FLAG); await scene.setFlag(SYSTEM_ID, FLAG, { ...flag, ...(data ? encodeBattleMap({ ...data, name: flag.name ?? data.name, layoutCode: code, scene: { ...data.scene, gridSize: px } }).data : {}), blend, vignette }); }
+        if (!quiet) ui.notifications.info("Nothing on the map changed.");
+        return;
+      }
+      const file = shown.blob;
       const FP = foundry.applications?.apps?.FilePicker?.implementation ?? globalThis.FilePicker;
       const dir = `worlds/${game.world.id}/battlemaps`;
       try { await FP.createDirectory("data", dir); } catch { /* already there */ }
-      const ext = file.type === "image/webp" ? "webp" : "png";
+      const ext = { "image/jpeg": "jpg", "image/webp": "webp" }[file.type] ?? "png";
       const name = `${(scene.name || "battle-map").replace(/[^\w-]+/g, "-")}-${Date.now()}.${ext}`;
       const res = await FP.upload("data", dir, new File([file], name, { type: file.type }), {}, { notify: false });
       const src = res?.path ?? `${dir}/${name}`;
@@ -118,6 +125,7 @@ export async function redrawScene(scene, { edits = [], look = null, quiet = fals
         await scene.setFlag(SYSTEM_ID, FLAG, next);
       }
       await setBackground(scene, src);
+      await scene.setFlag(SYSTEM_ID, DRAWN, { code, edits: shownEdits, key, src, px, blend, vignette });
       if (!quiet) ui.notifications.info("Battle map redrawn.");
     } catch (e) {
       console.error("Qin | redrawing the battle map", e);
