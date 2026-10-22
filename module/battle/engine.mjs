@@ -238,8 +238,11 @@ function buildRoll(s, unit, role, ctx) {
   if (ms === 'Demoralized') parts.push(['Demoralized' + (p.ignoreMoralePenalty ? ' (ignored: officer passive)' : ''), p.ignoreMoralePenalty ? 0 : -2]);
   // Strength penalties scale with the unit's full health (cavalry have 50)
   const full = unit.maxMen || 100;
-  if (unit.men < full * 0.25) parts.push(['Below a quarter strength', -2]);
-  else if (unit.men < full * 0.5) parts.push(['Below half strength', -1]);
+  // Strength penalties follow the soldier figures on the token (one per 20% of full strength):
+  // 2 soldiers left (21-40%) -1, 1 soldier left (1-20%) -2
+  const figures = soldierFigures(unit.men, full);
+  if (figures === 1) parts.push(['One soldier left (1-20% strength)', -2]);
+  else if (figures === 2) parts.push(['Two soldiers left (21-40% strength)', -1]);
   for (const m of unit.mods || []) parts.push(['Modifier: ' + m.label, Number(m.value) || 0]);
 
   const total = parts.reduce((a, [, v]) => a + v, 0);
@@ -247,6 +250,12 @@ function buildRoll(s, unit, role, ctx) {
 }
 
 const FIERCE_NAMES = ['', 'Fierce Charge', 'Fierce Charge+', 'Fierce Charge++'];
+
+/** Soldier figures a unit shows: one per 20% of its full strength (matches the token). */
+function soldierFigures(men, full) {
+  if (!(men > 0)) return 0;
+  return Math.max(1, Math.min(5, Math.ceil((5 * men) / (full || 100) - 1e-9)));
+}
 
 function damageValue(s, u) { // formation damage modifier applies to the unit's damage value
   const t = typeOf(s, u), f = formationOf(s, u);

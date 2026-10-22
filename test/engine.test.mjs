@@ -182,6 +182,29 @@ test('only Player units earn XP', () => {
   assert.strictEqual(R.unitById(s, e).xp || 0, 0);
 });
 
+test('strength penalties follow the soldier figures: 2 left -1, 1 left -2 (cavalry of 50)', () => {
+  const pen = (men, maxMen, typeId = 'han_ji_inf') => {
+    const s = setup();
+    const p = add(s, { typeId, side: 'player', owner: 'p1', x: 5, y: 4 });
+    const e = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 5 });
+    Object.assign(R.unitById(s, p), { men, maxMen });
+    must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'startRound' }));
+    must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: p }));
+    dice([3, 0, 3, 0]);
+    must(R.act(s, P1, { type: 'attack', unitId: p, targetId: e }));
+    const r = s.log.filter(x => x.detail && x.detail.type === 'attack').pop().detail.result;
+    return r.attackRoll.parts.filter(([l]) => /soldier/.test(l)).reduce((t, [, v]) => t + v, 0);
+  };
+  assert.strictEqual(pen(100, 100), 0);
+  assert.strictEqual(pen(41, 100), 0, '3 soldiers: no penalty');
+  assert.strictEqual(pen(40, 100), -1);
+  assert.strictEqual(pen(21, 100), -1);
+  assert.strictEqual(pen(20, 100), -2);
+  assert.strictEqual(pen(1, 100), -2);
+  assert.strictEqual(pen(20, 50), -1, 'cavalry: 20 of 50 is 2 soldiers');
+  assert.strictEqual(pen(10, 50), -2);
+});
+
 test('initiative: officers first, hold, interject chain, officer-less alternation, final pass', () => {
   const s = setup();
   const o1 = add(s, { typeId: 'han_ji_inf', officerId: 'xu_chu', side: 'player', owner: 'p1', x: 1, y: 1 });
