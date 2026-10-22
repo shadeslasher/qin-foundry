@@ -83,7 +83,7 @@ export function unitStatus(token) {
   if (figs === 1) rolls -= 2; else if (figs === 2) rolls -= 1;
   // attack: changes that only count when attacking
   attack += Number(f.atkMod) || 0; // the formation's attack modifier always shows (it only counts when attacking)
-  if (fx.stillLast) attack += tierVal(tr.precision, [2, 4]);
+  if (!round.moved) attack += tierVal(tr.precision, [2, 4]); // Precision: hasn't moved before attacking
   if (round.moved && tr["hefty weapon"]) attack -= 2;
   const ac = battle?.turn?.activation;
   if (ac?.unitId === token.id && !ac.forcedMarched && !round.attacked) {
@@ -102,7 +102,7 @@ export function unitStatus(token) {
     + (fx.stillLast && tr["shield battery"] ? 2 : 0);
   const range = s.range > 1 && fx.stillLast ? tierVal(tr["range up"], [1, 2]) : 0;
   return { rolls, attack, defense, rangedDefense, range, holding: !!round.holding, hidden: !!s.hidden,
-    reloading: fx.reload === "reloading" };
+    reloading: !!fx.reload };
 }
 
 /** A heater shield centred on (0,0), w wide and h tall. */

@@ -38,11 +38,11 @@ test('Anti-Cavalry / Anti-Infantry: Command rolls against that category, both at
   assert.strictEqual(part(r.defendRoll, /^Anti-Infantry/), 2);
 });
 
-test('Precision needs the unit to have ended its last turn without moving; Hefty Weapon -2 after moving', () => {
-  let { r } = duel(unitType('a'), unitType('d'), [3, 0, 0, 0], (a) => { a.traitTiers = { precision: 2 }; a.fx = { stillLast: true }; });
-  assert.strictEqual(part(r.attackRoll, /^Precision/), 4);
-  ({ r } = duel(unitType('a'), unitType('d'), [3, 0, 0, 0], (a) => { a.traitTiers = { precision: 1 }; }));
-  assert.strictEqual(part(r.attackRoll, /^Precision/), 0);
+test('Precision: Attack +2/+4 if the unit has not moved before attacking; Hefty Weapon -2 after moving', () => {
+  const p = duel(unitType('a'), unitType('d'), [3, 0, 0, 0], traits({ precision: 2 }));
+  assert.strictEqual(part(p.r.attackRoll, /^Precision/), 4);
+  p.A.round.moved = true;
+  assert.strictEqual(part(R.buildRoll(p.s, p.A, 'attacker', { attacker: p.A, defender: p.D, ranged: false }), /^Precision/), 0, 'moved first');
   const h = duel(unitType('a'), unitType('d'), [3, 0, 0, 0], traits({ 'hefty weapon': 1 }));
   assert.strictEqual(part(h.r.attackRoll, /^Hefty/), 0, 'did not move');
   h.A.round.moved = true;
@@ -109,14 +109,18 @@ test('Terror: +2 morale loss; Terror+: double; Fragile loser loses 5 more', () =
   assert.strictEqual(D.morale, 50 - 16);
 });
 
-test('Reload: after attacking, the next turn is spent reloading', () => {
-  const { s, A } = duel(unitType('a', { weapon: 'ranged', rangeMax: 3 }), unitType('d'), [3, 0, 0, 0], traits({ reload: 1 }));
-  assert.strictEqual(A.fx.reload, 'reloading');
-  const D = s.units.find(u => u.side === 'enemy');
-  assert.ok(R.actionMenu(s, A).attack === false || !s.turn.activation || s.turn.activation.unitId !== A.id);
-  // on its next activation it can't attack
-  s.turn.activation = { unitId: A.id, step: 'act', started: true }; A.round.attacked = false;
+test('Reload: after attacking it must take the Reload action (allowed after moving, ends the turn) before attacking again', () => {
+  const { s, A, D } = duel(unitType('a', { weapon: 'ranged', rangeMax: 3 }), unitType('d'), [3, 0, 0, 0], traits({ reload: 1 }));
+  assert.strictEqual(A.fx.reload, 'empty');
+  // its next activation: can't attack, can move and then reload
+  s.turn.activation = { unitId: A.id, step: 'move', started: true, movedThisActivation: false, tilesMoved: 0 }; A.round = { ...A.round, attacked: false, moved: false };
+  const menu = R.actionMenu(s, A);
+  assert.ok(!menu.attack && menu.reload);
   assert.ok(!R.act(s, P1, { type: 'attack', unitId: A.id, targetId: D.id }).ok);
+  must(R.act(s, P1, { type: 'moveTo', unitId: A.id, x: 5, y: 6 }));
+  must(R.act(s, P1, { type: 'reload', unitId: A.id }));
+  assert.ok(!A.fx.reload);
+  assert.ok(!s.turn.activation || s.turn.activation.unitId !== A.id, 'reloading ends the turn');
 });
 
 test('Barbed Arrows: a hit target moves 1 less on its next turn; Expendable gives no kill morale; Mercenary earns no XP', () => {
@@ -177,10 +181,50 @@ test('Charge Reflection: a defender that beats a charge adds the charge bonus to
   assert.ok(r.charge);
 });
 
-test('Inspiration: allies next to it gain 4 morale when its turn ends', () => {
-  const ally = { type: unitType('al'), side: 'player', x: 6, y: 5 };
-  const { s } = duel(unitType('a'), unitType('d'), [3, 0, 0, 0], traits({ inspiration: 1 }), [ally]);
-  assert.strictEqual(R.unitById(s, ally.id).morale, 54);
+test('Inspiration: allies next to it gain 4 morale at the end of the round, not the end of its turn', () => {
+  const s = setup();
+  s.library.unitTypes.push(unitType('i'), unitType('al'), unitType('e'));
+  const i = add(s, { typeId: 'i', side: 'player', owner: 'p1', x: 5, y: 5 });
+  const al = add(s, { typeId: 'al', side: 'player', owner: 'p1', x: 6, y: 5 });
+  add(s, { typeId: 'e', side: 'enemy', x: 15, y: 15 });
+  R.unitById(s, i).traitTiers = { inspiration: 1 };
+  must(R.act(s, HOST, { type: 'startBattle' })); dice([0, 0]); must(R.act(s, HOST, { type: 'startRound' }));
+  const round = s.turn.round;
+  for (let g = 0; g < 20 && s.turn.round === round; g++) {
+    if (!s.turn.activation) {
+      const cand = s.units.filter(u => u.status === 'active');
+      let ok = false;
+      for (const u of cand) for (const actor of [P1, HOST]) if (!ok && R.act(s, actor, { type: 'begin', unitId: u.id }).ok) ok = true;
+      if (!ok) for (const actor of [P1, HOST]) R.act(s, actor, { type: 'claim' });
+      continue;
+    }
+    if (s.turn.activation.unitId === i) assert.strictEqual(R.unitById(s, al).morale, 50, 'nothing at the end of its own turn');
+    const ac = s.turn.activation.unitId;
+    R.act(s, R.unitById(s, ac).side === 'player' ? P1 : HOST, { type: 'endTurn', unitId: ac });
+  }
+  assert.strictEqual(s.turn.round, round + 1, 'round ended');
+  assert.strictEqual(R.unitById(s, al).morale, 54);
+});
+
+test('Wedge + Dual Weapons: moves up after winning, then gets the second attack from the new tile', () => {
+  const s = setup();
+  s.library.unitTypes.push(unitType('w'), unitType('d'), unitType('o'));
+  s.library.formations.push({ id: 'wd', name: 'Wedge', defAll: -2, winReposition: true });
+  const a = add(s, { typeId: 'w', side: 'player', owner: 'p1', x: 5, y: 4 });
+  const d = add(s, { typeId: 'd', side: 'enemy', x: 5, y: 5 });
+  const o = add(s, { typeId: 'o', side: 'enemy', x: 7, y: 5 }); // only adjacent after moving to (6,5)
+  const A = R.unitById(s, a); A.formation = 'wd'; A.traitTiers = { 'dual weapons': 1 };
+  must(R.act(s, HOST, { type: 'startBattle' })); dice([0, 0]); must(R.act(s, HOST, { type: 'startRound' }));
+  must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: a }));
+  dice([9, 0, 0, 0]);
+  must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
+  assert.strictEqual(s.turn.activation.step, 'reposition');
+  must(R.act(s, P1, { type: 'reposition', unitId: a, x: 6, y: 5 }));
+  assert.strictEqual(s.turn.activation.step, 'second');
+  assert.deepStrictEqual(s.turn.activation.second.targets, [o]);
+  dice([3, 0, 0, 0]);
+  must(R.act(s, P1, { type: 'secondAttack', unitId: a, targetId: o }));
+  assert.ok(!s.turn.activation || s.turn.activation.unitId !== a);
 });
 
 test('Allies can be moved through but Heavy units and enemies block', () => {

@@ -55,7 +55,7 @@ test('status icons: Command roll bonus/penalty, defense, ranged defense', () => 
   const st = U.unitStatus(tok({ traits: '<p>Brace - x</p><p>Shielded+ - y</p>' }, form({})));
   assert.strictEqual(st.defense, 3, 'hold 2 + brace 2 - poison 1');
   assert.strictEqual(st.rangedDefense, 3, 'shielded+ 4 - poison 1');
-  // stood still last turn: Precision+, Range Up+, Shield Battery
+  // not moved this round: Precision+; stood still last turn: Range Up+, Shield Battery
   battle.meta.t = { round: {}, fx: { stillLast: true } };
   const p = U.unitStatus(tok({ range: 3, traits: '<p>Precision+ - a</p><p>Range Up+ - b</p><p>Shield Battery - c</p>' }, form({})));
   assert.deepStrictEqual([p.attack, p.range, p.rangedDefense], [4, 2, 2]);

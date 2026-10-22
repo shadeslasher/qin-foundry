@@ -162,12 +162,13 @@ function actionMenu(s, u) {
   const o = officerOf(s, u);
   const opts = moveOptions(s, u);
   const canStillAct = !u.round.attacked && !ac.forcedMarched;
-  const reloading = fx(u).reload === 'reloading';
+  const reloading = !!fx(u).reload;
   const skillOk = !!(o && o.skill && !u.round.skillUsed && u.morale >= (Number(o.skill.moraleCost) || 0));
   const artOk = !!(o && o.battleArt && !u.round.skillUsed && moraleState(u.morale) === 'Encouraged');
   return {
     move: opts.blue.size + opts.red.size > 0,
     attack: canStillAct && !reloading && attackTargets(s, u).length > 0, reloading,
+    reload: reloading && !u.round.attacked,
     hold: canStillAct,
     ability: skillOk || artOk, skill: skillOk, art: artOk,
     heroic: !!(o && (o.heroicActions || []).length && !u.round.heroicUsed && (u.heroicUsed || 0) < (o.fire || 0)),
@@ -274,7 +275,7 @@ function buildRoll(s, unit, role, ctx) {
     if (ctx.hybridMelee) parts.push(['Hybrid: melee attack', -2]);
     if (ctx.second) parts.push(['Second attack (Dual Weapons)', -2]);
     if (trait(unit, 'hefty weapon') && unit.round.moved) parts.push(['Hefty Weapon (moved)', -2]);
-    if (fx(unit).stillLast && trait(unit, 'precision')) parts.push(['Precision', tierVal(trait(unit, 'precision'), [2, 4])]);
+    if (!unit.round.moved && trait(unit, 'precision')) parts.push(['Precision', tierVal(trait(unit, 'precision'), [2, 4])]);
     if (trait(unit, 'swarm') && liveUnits(s).some(o => o !== unit && friendly(o, unit) && manhattan(o, other) === 1))
       parts.push(['Swarm', tierVal(trait(unit, 'swarm'), [1, 2])]);
     if (trait(unit, 'volley fire') && other.round && other.round.hitByRanged) parts.push(['Volley Fire', 1]);
@@ -417,7 +418,7 @@ function resolveAttack(s, attacker, defender, opts) {
   }
   if (casDef > 0 && trait(attacker, 'barbed arrows')) fx(defender).slow = true;          // -1 movement on its next turn
   if (ranged) defender.round.hitByRanged = true;                                          // for Volley Fire
-  if (trait(attacker, 'reload')) fx(attacker).reload = 'pending';                         // spends its next turn reloading
+  if (trait(attacker, 'reload')) fx(attacker).reload = 'empty';                           // must take the Reload action before attacking again
 
   // Facing and memory for this round
   attacker.round.attacked = true;
@@ -613,6 +614,13 @@ function advance(s) {
 
 function endRound(s) {
   const next = s.turn.round + 1;
+  // Inspiration: at the end of the round, allied units next to it gain 4 morale
+  for (const u of liveUnits(s)) if (trait(u, 'inspiration')) {
+    for (const o of liveUnits(s)) if (o !== u && friendly(o, u) && manhattan(o, u) === 1 && o.morale < 100) {
+      o.morale = Math.min(100, o.morale + 4);
+      log(s, o.name + ' gains 4 morale (Inspiration from ' + u.name + ').');
+    }
+  }
   log(s, 'Round ' + s.turn.round + ' ends.');
   s.turn = freshTurn('formations', next);
   for (const u of s.units) u.round = newRoundFlags();
@@ -635,16 +643,8 @@ function finishActivation(s, u) {
   }
   if (alive(u)) {
     const f = fx(u);
-    f.stillLast = !u.round.moved;                       // Precision, Shield Battery, Range Up: "ended its turn without moving"
-    if (f.reload === 'reloading') delete f.reload;      // Reload: this turn was spent reloading
-    else if (f.reload === 'pending') f.reload = 'reloading';
+    f.stillLast = !u.round.moved;                       // Shield Battery, Range Up: "ended its last turn without moving"
     delete f.slow;                                      // Barbed Arrows lasts one turn
-    if (trait(u, 'inspiration')) {                      // Inspiration: adjacent allies +4 morale
-      for (const o of liveUnits(s)) if (o !== u && friendly(o, u) && manhattan(o, u) === 1 && o.morale < 100) {
-        o.morale = Math.min(100, o.morale + 4);
-        log(s, o.name + ' gains 4 morale (Inspiration from ' + u.name + ').');
-      }
-    }
   }
   // Stealth: ending the turn in a forest hides the unit; ending it next to a hostile unit reveals it
   if (alive(u)) {
@@ -978,7 +978,7 @@ const ACTIONS = {
     const { u, act: ac } = r; const d = unitById(s, a.targetId);
     if (ac.forcedMarched) return err('A forced march replaces the attack');
     if (u.round.attacked) return err('Already attacked');
-    if (fx(u).reload === 'reloading') return err('This unit is reloading this turn');
+    if (fx(u).reload) return err('This unit must reload before it can attack again');
     if (!d || !alive(d) || !hostile(u, d)) return err('Pick an enemy unit');
     if (!visibleTo(s, d, alliance(u.side))) return err('You cannot see that unit');
     if (!rangeOk(s, u, d)) return err('Target out of range');
@@ -990,7 +990,7 @@ const ACTIONS = {
     // Wedge: after winning, the attacker may move to any empty tile next to the enemy unit
     if (formationOf(s, u).winReposition && res && res.winner === 'attacker') {
       const tiles = repositionTiles(s, d, u);
-      if (tiles.length) { ac.step = 'reposition'; ac.reposition = { targetId: d.id, tiles }; log(s, u.name + ' may move next to ' + d.name + '.'); return; }
+      if (tiles.length) { ac.step = 'reposition'; ac.reposition = { targetId: d.id, tiles, dual: !!trait(u, 'dual weapons') }; log(s, u.name + ' may move next to ' + d.name + '.'); return; }
     }
     // Dual Weapons: a second attack (Attack -2) against another adjacent enemy
     if (trait(u, 'dual weapons')) {
@@ -1024,7 +1024,22 @@ const ACTIONS = {
       log(s, u.name + ' moves up beside the enemy.');
       revealAround(s, u);
     }
+    const { dual, targetId } = ac.reposition;
     delete ac.reposition;
+    // Wedge + Dual Weapons: after moving up, the second attack comes from the new tile
+    if (dual) {
+      const targets = secondTargets(s, u, unitById(s, targetId));
+      if (targets.length) { ac.step = 'second'; ac.second = { targets }; log(s, u.name + ' may strike a second enemy.'); return; }
+    }
+    finishActivation(s, u);
+  },
+  reload(s, actor, a) { // Reload trait: reloads the weapon; allowed after moving, ends the turn
+    const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
+    const { u } = r;
+    if (!fx(u).reload) return err('Nothing to reload');
+    if (u.round.attacked) return err('Already attacked this turn');
+    delete fx(u).reload;
+    log(s, u.name + ' reloads.');
     finishActivation(s, u);
   },
   endTurn(s, actor, a) {
