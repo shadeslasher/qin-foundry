@@ -11,10 +11,10 @@ const TERRAIN = {
 // Formation fields (all optional, default 0/false):
 //   moveMod        added to the unit's movement
 //   immobile       unit cannot move
-//   vsAttack       added to the ATTACKER's roll when this unit is attacked (any attack)
-//   vsMelee        added to the attacker's roll for melee attacks against this unit
-//   vsRanged       added to the attacker's roll for ranged attacks against this unit
-//   vsCharge       replaces vsMelee when the attack is a cavalry charge
+//   defAll         melee & ranged defense: added to THIS unit's roll whenever it defends
+//   defMelee       melee defense: added to this unit's roll against melee attacks
+//   defRanged      ranged defense: added to this unit's roll against ranged attacks
+//   defCharge      defense against cavalry charges (replaces defMelee for a charge)
 //   defFront       added to THIS unit's roll when defending against attacks from the front
 //   chargeBonus    added to this unit's roll when it makes a cavalry charge
 //   dmgMod         added to this unit's damage value
@@ -25,22 +25,22 @@ const TERRAIN = {
 //   noAttackerBonus  this unit loses the +2 attacker bonus
 const FORMATIONS = [
   { id: 'none', name: 'No formation', desc: 'No modifiers.' },
-  { id: 'loose', name: 'Loose', vsRanged: -3, vsMelee: 1, vsCharge: 2,
-    desc: 'Missile attacks against this unit -3. Melee attacks against it +1. Cavalry charges against it +2.' },
+  { id: 'loose', name: 'Loose', defRanged: 3, defMelee: -1, defCharge: -2,
+    desc: 'Ranged defense +3. Melee defense -1. Defense against cavalry charges -2.' },
   { id: 'diamond', name: 'Diamond', moveMod: -2, chargeBonus: 2,
     desc: 'Movement -2. +2 to its roll when it makes a cavalry charge.' },
-  { id: 'wedge', name: 'Wedge', vsAttack: 2, chargeBonus: 4,
-    desc: 'Enemy melee and ranged attacks against this unit +2. +4 to its roll when it makes a cavalry charge.' },
-  { id: 'circle', name: 'Circle', immobile: true, vsMelee: -3, dmgMod: -2, noRear: true,
-    desc: 'Cannot move. Enemy melee attacks -3 (ranged attacks unaffected). Deals -2 damage. Cannot be attacked in the rear.' },
-  { id: 'hollow_square', name: 'Hollowed Square', immobile: true, vsMelee: -2, vsCharge: -4, dmgMod: -2, noRear: true,
-    desc: 'Cannot move. Enemy melee attacks -2, cavalry charges -4 (ranged attacks unaffected). Deals -2 damage. Cannot be attacked in the rear.' },
+  { id: 'wedge', name: 'Wedge', defAll: -2, chargeBonus: 4,
+    desc: 'Melee and ranged defense -2. +4 to its roll when it makes a cavalry charge.' },
+  { id: 'circle', name: 'Circle', immobile: true, defMelee: 3, dmgMod: -2, noRear: true,
+    desc: 'Cannot move. Melee defense +3. Deals -2 damage. Cannot be attacked in the rear.' },
+  { id: 'hollow_square', name: 'Hollowed Square', immobile: true, defMelee: 2, defCharge: 4, dmgMod: -2, noRear: true,
+    desc: 'Cannot move. Melee defense +2, defense against cavalry charges +4. Deals -2 damage. Cannot be attacked in the rear.' },
   { id: 'shield_wall', name: 'Shield Wall', moveMod: -1, defFront: 2,
-    desc: 'Movement -1. +2 when defending against melee and ranged attacks from the front.' },
-  { id: 'spear_wall', name: 'Spear Wall', moveMod: -1, frontMelee: 2, vsRanged: 2,
-    desc: 'Movement -1. +2 when defending against or attacking in melee from the front. Enemy ranged attacks +2.' },
-  { id: 'turtle', name: 'Turtle', moveMod: -2, casReduce: 2, noAttackerBonus: true, vsAttack: -2,
-    desc: 'Movement -2. Takes 2 fewer casualties when attacking and defending. Loses the +2 attacker bonus. Enemy melee and ranged attacks against it -2.' },
+    desc: 'Movement -1. Melee and ranged defense +2 against attacks from the front.' },
+  { id: 'spear_wall', name: 'Spear Wall', moveMod: -1, frontMelee: 2, defRanged: -2,
+    desc: 'Movement -1. +2 when defending against or attacking in melee from the front. Ranged defense -2.' },
+  { id: 'turtle', name: 'Turtle', moveMod: -2, casReduce: 2, noAttackerBonus: true, defAll: 2,
+    desc: 'Movement -2. Takes 2 fewer casualties when attacking and defending. Loses the +2 attacker bonus. Melee and ranged defense +2.' },
 ];
 
 // Unit types. Damage and Defense come from the v1.9 compendium (Dmg, Armor).

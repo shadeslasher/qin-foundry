@@ -51,7 +51,7 @@ test("battle adapter: a full officer turn through Foundry tokens", async () => {
     return u;
   };
   const scene = M.makeScene("field");
-  const shieldWall = { id: "fsw", type: "formation", name: "Shield Wall", system: { moveMod: -1, defFront: 2, vsCharge: null, description: "" } };
+  const shieldWall = { id: "fsw", type: "formation", name: "Shield Wall", system: { moveMod: -1, defFront: 2, defCharge: null, description: "" } };
   const ally = M.makeActor({ type: "unit", owners: ["alice"], items: [shieldWall], system: unitSystem({ officer: "Actor.wenping" }) });
   const foe = M.makeActor({ type: "unit", system: unitSystem({ side: "enemy", faction: "Yellow Turban", weaponSkill: "jianshu" }) });
   const tA = M.addToken(scene, { id: "tokA", name: "Wen Ping's Ji Infantry", x: 2, y: 2, actor: ally });

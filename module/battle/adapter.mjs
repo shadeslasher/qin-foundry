@@ -68,8 +68,8 @@ function officerLibraryEntry(officer) {
 function formationEntry(tokenId, item) {
   const f = item.system;
   const e = { id: `${tokenId}.${item.id}`, name: item.name, desc: stripHtml(f.description) };
-  for (const k of ["moveMod", "vsAttack", "vsMelee", "vsRanged", "defAll", "defFront", "frontMelee", "chargeBonus", "dmgMod", "casReduce"]) if (f[k]) e[k] = f[k];
-  if (f.vsCharge !== null && f.vsCharge !== undefined) e.vsCharge = f.vsCharge;
+  for (const k of ["moveMod", "defAll", "defMelee", "defRanged", "defFront", "frontMelee", "chargeBonus", "dmgMod", "casReduce"]) if (f[k]) e[k] = f[k];
+  if (f.defCharge !== null && f.defCharge !== undefined) e.defCharge = f.defCharge;
   for (const k of ["immobile", "noAttackerBonus", "noRear"]) if (f[k]) e[k] = true;
   return e;
 }

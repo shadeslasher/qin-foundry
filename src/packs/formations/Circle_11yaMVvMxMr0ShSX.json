@@ -8,10 +8,9 @@
     "key": "circle",
     "moveMod": 0,
     "immobile": true,
-    "vsAttack": 0,
-    "vsMelee": -3,
-    "vsRanged": 0,
-    "vsCharge": null,
+    "defMelee": 3,
+    "defRanged": 0,
+    "defCharge": null,
     "defAll": 0,
     "defFront": 0,
     "frontMelee": 0,
@@ -20,7 +19,7 @@
     "casReduce": 0,
     "noAttackerBonus": false,
     "noRear": true,
-    "description": "<p>Command Unit forms a circular formation and can no longer move. Enemy <b>melee attacks suffer a -3 to rolls</b> (ranged attacks are unaffected), however, this <b>unit deals -2 damage</b>. This unit also <b>cannot be attacked in the rear.</b></p>"
+    "description": "<p>Command Unit forms a circular formation and can no longer move: <b>melee defense +3</b>, however, this <b>unit deals -2 damage</b>. This unit also <b>cannot be attacked in the rear.</b></p>"
   },
   "effects": [],
   "folder": null,

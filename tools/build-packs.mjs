@@ -48,8 +48,8 @@ const packs = {
     ...C.WEAKNESSES.map(([name, d]) => item("gifts-weaknesses", name, "weakness", { description: p(d) }, "icons/svg/skull.svg")),
   ],
   formations: C.FORMATIONS.map(([name, fx, desc]) => item("formations", name, "formation", {
-    key: fx.key, moveMod: fx.moveMod ?? 0, immobile: !!fx.immobile, vsAttack: fx.vsAttack ?? 0, vsMelee: fx.vsMelee ?? 0,
-    vsRanged: fx.vsRanged ?? 0, vsCharge: fx.vsCharge ?? null, defAll: fx.defAll ?? 0, defFront: fx.defFront ?? 0,
+    key: fx.key, moveMod: fx.moveMod ?? 0, immobile: !!fx.immobile, defMelee: fx.defMelee ?? 0,
+    defRanged: fx.defRanged ?? 0, defCharge: fx.defCharge ?? null, defAll: fx.defAll ?? 0, defFront: fx.defFront ?? 0,
     frontMelee: fx.frontMelee ?? 0, chargeBonus: fx.chargeBonus ?? 0, dmgMod: fx.dmgMod ?? 0, casReduce: fx.casReduce ?? 0,
     noAttackerBonus: !!fx.noAttackerBonus, noRear: !!fx.noRear, description: desc,
   }, "icons/svg/combat.svg")),

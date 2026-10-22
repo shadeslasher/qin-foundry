@@ -8,10 +8,9 @@
     "key": "spear_wall",
     "moveMod": -1,
     "immobile": false,
-    "vsAttack": 0,
-    "vsMelee": 0,
-    "vsRanged": 2,
-    "vsCharge": null,
+    "defMelee": 0,
+    "defRanged": -2,
+    "defCharge": null,
     "defAll": 0,
     "defFront": 0,
     "frontMelee": 2,
@@ -20,7 +19,7 @@
     "casReduce": 0,
     "noAttackerBonus": false,
     "noRear": false,
-    "description": "<p>Commanded Unit takes a defensive stance, pointing their spears forward. While in this stance, the <b>unit's movement decreases by 1, </b>but <b>gains +2 to rolls when defending against melee attacks and attacking from the front</b>. However, <b>enemy ranged attacks gain +2</b> when attacking this unit.</p>"
+    "description": "<p>Commanded Unit takes a defensive stance, pointing their spears forward. While in this stance, the <b>unit's movement decreases by 1, </b>but <b>gains +2 to rolls when defending against melee attacks and attacking from the front</b>. However, its <b>ranged defense is -2</b>.</p>"
   },
   "effects": [],
   "folder": null,

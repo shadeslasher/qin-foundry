@@ -33,7 +33,7 @@ function hasActed(token) {
   return !!battle.meta?.[token.id]?.round?.activated;
 }
 
-/** Did this unit Hold this round (enemy melee attacks against it -2 until the round ends)? */
+/** Did this unit Hold this round (+2 melee defense until the round ends)? */
 function isHolding(token) {
   let battle;
   try { battle = game.settings.get("qin", "battle"); } catch { return false; }
@@ -81,9 +81,9 @@ export function unitStatus(token) {
     }
   }
   if (token.qinAttackBonus !== undefined && token.qinAttackBonus !== null) attack = token.qinAttackBonus;
-  const both = (Number(f.defAll) || 0) - (Number(f.vsAttack) || 0); // formation effects on every attack
-  const defense = (round.holding ? 2 : 0) + both - (Number(f.vsMelee) || 0);
-  const rangedDefense = both - (Number(f.vsRanged) || 0);
+  const both = Number(f.defAll) || 0; // melee & ranged defense
+  const defense = (round.holding ? 2 : 0) + both + (Number(f.defMelee) || 0);
+  const rangedDefense = both + (Number(f.defRanged) || 0);
   return { attack, defense, rangedDefense, range: 0, holding: !!round.holding, hidden: !!s.hidden };
 }
 

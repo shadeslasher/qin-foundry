@@ -8,10 +8,9 @@
     "key": "shield_wall",
     "moveMod": -1,
     "immobile": false,
-    "vsAttack": 0,
-    "vsMelee": 0,
-    "vsRanged": 0,
-    "vsCharge": null,
+    "defMelee": 0,
+    "defRanged": 0,
+    "defCharge": null,
     "defAll": 0,
     "defFront": 2,
     "frontMelee": 0,
@@ -20,7 +19,7 @@
     "casReduce": 0,
     "noAttackerBonus": false,
     "noRear": false,
-    "description": "<p>Command Unit takes a defense stance, raising their shields. While in this stance, the <b>unit's movement decreases by 1</b>, but <b>gains +2 when defending</b> against both melee and ranged attacks from the front.</p>"
+    "description": "<p>Command Unit takes a defense stance, raising their shields. While in this stance, the <b>unit's movement decreases by 1</b>, but it gains <b>melee and ranged defense +2</b> against attacks from the front.</p>"
   },
   "effects": [],
   "folder": null,

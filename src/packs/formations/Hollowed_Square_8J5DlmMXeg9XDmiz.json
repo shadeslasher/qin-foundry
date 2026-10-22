@@ -8,10 +8,9 @@
     "key": "hollow_square",
     "moveMod": 0,
     "immobile": true,
-    "vsAttack": 0,
-    "vsMelee": -2,
-    "vsRanged": 0,
-    "vsCharge": -4,
+    "defMelee": 2,
+    "defRanged": 0,
+    "defCharge": 4,
     "defAll": 0,
     "defFront": 0,
     "frontMelee": 0,
@@ -20,7 +19,7 @@
     "casReduce": 0,
     "noAttackerBonus": false,
     "noRear": true,
-    "description": "<p>Command Unit forms a square formation and can no longer move. Enemy <b>melee attacks suffer a -2 to rolls</b>, <b>cavalry charges however suffer a -4 to rolls</b> (ranged attacks are unaffected). This <b>unit deals -2 damage</b>. This unit also <b>cannot be attacked in the rear.</b></p>"
+    "description": "<p>Command Unit forms a square formation and can no longer move: <b>melee defense +2</b>, and <b>defense against cavalry charges +4</b>. This <b>unit deals -2 damage</b>. This unit also <b>cannot be attacked in the rear.</b></p>"
   },
   "effects": [],
   "folder": null,

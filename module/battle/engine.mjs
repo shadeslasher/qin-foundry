@@ -239,17 +239,16 @@ function buildRoll(s, unit, role, ctx) {
     if (ctx.charge && p.chargeAttackBonus) parts.push(['Officer passive: charge', p.chargeAttackBonus]);
     if (ctx.rear) parts.push(['Rear attack', 2]);
     if (ctx.ambush) parts.push(['Attacking from hiding', 2]);
-    // defender's formation modifies the attacker's roll
-    if (of.vsAttack) parts.push(['Target formation (' + of.name + ')', of.vsAttack]);
-    if (ctx.ranged && of.vsRanged) parts.push(['Target formation vs ranged (' + of.name + ')', of.vsRanged]);
-    if (!ctx.ranged) {
-      const m = ctx.charge && of.vsCharge !== undefined ? of.vsCharge : of.vsMelee;
-      if (m) parts.push(['Target formation vs ' + (ctx.charge ? 'charge' : 'melee') + ' (' + of.name + ')', m]);
-    }
-    if (!ctx.ranged && other.round.holding) parts.push(['Target is holding (melee)', -2]); // Hold doesn't affect ranged attacks
   } else {
-    if (f.defFront && isFront(s, ctx.attacker, unit)) parts.push(['Formation front defense (' + f.name + ')', f.defFront]);
-    if (f.defAll) parts.push(['Formation defense (' + f.name + ')', f.defAll]);
+    // Defense bonuses: everything that makes a unit harder to hit is added to the defender's roll
+    if (!ctx.ranged && unit.round.holding) parts.push(['Holding: melee defense', 2]); // Hold doesn't help against ranged attacks
+    if (f.defAll) parts.push(['Melee & ranged defense (' + f.name + ')', f.defAll]);
+    if (ctx.ranged && f.defRanged) parts.push(['Ranged defense (' + f.name + ')', f.defRanged]);
+    if (!ctx.ranged) {
+      const m = ctx.charge && f.defCharge !== undefined && f.defCharge !== null ? f.defCharge : f.defMelee;
+      if (m) parts.push([(ctx.charge && f.defCharge !== undefined && f.defCharge !== null ? 'Defense vs cavalry charges' : 'Melee defense') + ' (' + f.name + ')', m]);
+    }
+    if (f.defFront && isFront(s, ctx.attacker, unit)) parts.push(['Defense from the front (' + f.name + ')', f.defFront]);
     if (!ctx.ranged && f.frontMelee && isFront(s, ctx.attacker, unit)) parts.push(['Formation front vs melee (' + f.name + ')', f.frontMelee]);
   }
 
@@ -884,7 +883,7 @@ const ACTIONS = {
     const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
     if (r.u.round.attacked || r.act.forcedMarched) return err('Too late to hold this turn');
     r.u.round.holding = true;
-    log(s, r.u.name + ' holds position (enemy melee attacks against it -2 this round).');
+    log(s, r.u.name + ' holds position (+2 melee defense this round).');
     finishActivation(s, r.u);
   },
   attack(s, actor, a) {

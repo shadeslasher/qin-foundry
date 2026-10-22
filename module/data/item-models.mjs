@@ -151,8 +151,8 @@ export class FormationData extends foundry.abstract.TypeDataModel {
     return {
       key: new fields.StringField({ initial: "" }),
       moveMod: n(), immobile: new fields.BooleanField({ initial: false }),
-      vsAttack: n(), vsMelee: n(), vsRanged: n(),
-      vsCharge: new fields.NumberField({ required: false, integer: true, nullable: true, initial: null }),
+      defMelee: n(), defRanged: n(),
+      defCharge: new fields.NumberField({ required: false, integer: true, nullable: true, initial: null }),
       defAll: n(), defFront: n(), frontMelee: n(), chargeBonus: n(), dmgMod: n(), casReduce: n(),
       noAttackerBonus: new fields.BooleanField({ initial: false }),
       noRear: new fields.BooleanField({ initial: false }),
@@ -163,9 +163,18 @@ export class FormationData extends foundry.abstract.TypeDataModel {
   /** Formation items copied before the melee/ranged split: update untouched defaults. */
   static migrateData(src) {
     const v = (k) => Number(src[k] ?? 0) || 0;
+    // older handout defaults (before melee/ranged were split)
     if (src.key === "circle" && v("vsAttack") === -3 && !v("vsMelee")) { src.vsAttack = 0; src.vsMelee = -3; }
     if (src.key === "hollow_square" && v("vsAttack") === -2 && src.vsCharge === -2 && !v("vsMelee")) { src.vsAttack = 0; src.vsMelee = -2; src.vsCharge = -4; }
     if (src.key === "turtle" && v("defAll") === 2 && !v("vsAttack")) { src.defAll = 0; src.vsAttack = -2; }
+    // "enemy attacks +/-N" (added to the attacker) became defense bonuses (added to this unit's roll)
+    if (["vsAttack", "vsMelee", "vsRanged", "vsCharge"].some(k => k in src)) {
+      src.defAll = v("defAll") - v("vsAttack");
+      src.defMelee = v("defMelee") - v("vsMelee");
+      src.defRanged = v("defRanged") - v("vsRanged");
+      if (src.vsCharge !== null && src.vsCharge !== undefined) src.defCharge = -Number(src.vsCharge);
+      for (const k of ["vsAttack", "vsMelee", "vsRanged", "vsCharge"]) delete src[k];
+    }
     return super.migrateData(src);
   }
 }

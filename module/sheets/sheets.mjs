@@ -345,12 +345,11 @@ export function formationSummary(f) {
   const sg = (n) => (n > 0 ? `+${n}` : `${n}`);
   if (f.immobile) out.push("Cannot move");
   else if (f.moveMod) out.push(`Movement ${sg(f.moveMod)}`);
-  if (f.vsAttack) out.push(`Enemy melee & ranged attacks ${sg(f.vsAttack)}`);
-  if (f.vsMelee) out.push(`Enemy melee ${sg(f.vsMelee)}`);
-  if (f.vsRanged) out.push(`Enemy ranged ${sg(f.vsRanged)}`);
-  if (f.vsCharge !== null && f.vsCharge !== undefined) out.push(`Enemy cavalry charges ${sg(f.vsCharge)}`);
-  if (f.defAll) out.push(`Defending vs melee & ranged ${sg(f.defAll)}`);
-  if (f.defFront) out.push(`Defending from the front ${sg(f.defFront)}`);
+  if (f.defAll) out.push(`Melee & ranged defense ${sg(f.defAll)}`);
+  if (f.defMelee) out.push(`Melee defense ${sg(f.defMelee)}`);
+  if (f.defRanged) out.push(`Ranged defense ${sg(f.defRanged)}`);
+  if (f.defCharge !== null && f.defCharge !== undefined) out.push(`Defense vs cavalry charges ${sg(f.defCharge)}`);
+  if (f.defFront) out.push(`Defense from the front ${sg(f.defFront)}`);
   if (f.frontMelee) out.push(`Melee from the front ${sg(f.frontMelee)}`);
   if (f.chargeBonus) out.push(`Own cavalry charge ${sg(f.chargeBonus)}`);
   if (f.dmgMod) out.push(`Damage ${sg(f.dmgMod)}`);

@@ -205,7 +205,7 @@ test('strength penalties follow the soldier figures: 2 left -1, 1 left -2 (caval
   assert.strictEqual(pen(10, 50), -2);
 });
 
-test('Hold gives -2 to enemy melee attacks only, not ranged', () => {
+test('Hold gives +2 melee defense only, not against ranged', () => {
   const s = setup();
   const h = add(s, { typeId: 'han_ji_inf', side: 'player', owner: 'p1', x: 5, y: 5 });
   const m = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 6 });
@@ -213,8 +213,8 @@ test('Hold gives -2 to enemy melee attacks only, not ranged', () => {
   must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'startRound' }));
   R.unitById(s, h).round.holding = true;
   const roll = (att) => { const A = R.unitById(s, att), D = R.unitById(s, h); const ranged = R.typeOf(s, A).weapon === 'ranged';
-    return R.buildRoll(s, A, 'attacker', { attacker: A, defender: D, ranged, charge: false, rear: false, ambush: false }).parts.filter(([l]) => /holding/.test(l)).reduce((t, [, v]) => t + v, 0); };
-  assert.strictEqual(roll(m), -2);
+    return R.buildRoll(s, D, 'defender', { attacker: A, defender: D, ranged, charge: false, rear: false, ambush: false }).parts.filter(([l]) => /Holding/.test(l)).reduce((t, [, v]) => t + v, 0); };
+  assert.strictEqual(roll(m), 2, '+2 melee defense');
   assert.strictEqual(roll(r), 0);
 });
 
@@ -557,14 +557,14 @@ test('four sides: different sides are hostile (allies included), the same side n
   assert.deepStrictEqual(names, ['al', 'ne'], 'player can hit the ally and the neutral, not its own side');
 });
 
-test('holding gives enemy attacks -2', () => {
+test('holding gives +2 melee defense', () => {
   const s = setup();
   s.library.unitTypes.push(unitType('h1'), unitType('h2'));
   const a = add(s, { typeId: 'h1', side: 'player', owner: 'p1', x: 5, y: 5 });
   const d = add(s, { typeId: 'h2', side: 'enemy', x: 5, y: 4 });
   R.unitById(s, d).round = Object.assign(R.unitById(s, d).round || {}, { holding: true });
-  const roll = R.buildRoll(s, R.unitById(s, a), 'attacker', { attacker: R.unitById(s, a), defender: R.unitById(s, d), ranged: false });
-  assert.ok(roll.parts.some(([k, v]) => /holding/.test(k) && v === -2));
+  const roll = R.buildRoll(s, R.unitById(s, d), 'defender', { attacker: R.unitById(s, a), defender: R.unitById(s, d), ranged: false });
+  assert.ok(roll.parts.some(([k, v]) => /Holding/.test(k) && v === 2));
 });
 
 test('undo: only a normal move, and only until something else happens', () => {
