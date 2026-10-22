@@ -5,7 +5,7 @@ import { getBattle, buildState, emptyBattle } from "./battle/adapter.mjs";
 import { formationSummary } from "./sheets/sheets.mjs";
 import { factionOf } from "./factions.mjs";
 import { SKILLS } from "./config.mjs";
-import { healthColor, moraleColor, SIDE_COLORS } from "./unit-bars.mjs";
+import { healthColor, moraleColor } from "./unit-bars.mjs";
 
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
 
@@ -44,22 +44,21 @@ export function unitTooltipHTML(token) {
   const facName = fac && !(officer && fac.name.toLowerCase() === officer.name.toLowerCase()) ? fac.name : "";
   const men = sys.men?.value ?? 0, max = sys.men?.max || 100, morale = sys.morale ?? 0;
   const pct = (v) => Math.max(0, Math.min(100, v));
-  let html = `<div class="qin-tt" style="--qin-side:${hex(SIDE_COLORS[sys.side] ?? 0x888888)}">`;
+  let html = `<div class="qin-tt">`;
   if (officer) {
     const title = officer.system?.details?.title;
     if (title) html += `<div class="qin-tt-title">${esc(title)}</div>`;
     html += `<div class="qin-tt-name">${esc(officer.name)}</div>`;
-    html += `<div class="qin-tt-sub">${esc(unitName)} <em>· Tier ${sys.tier}${facName ? ` · ${esc(facName)}` : ""}</em></div>`;
-  } else {
-    html += `<div class="qin-tt-name">${esc(unitName)}</div>`;
-    html += `<div class="qin-tt-sub"><em>Tier ${sys.tier}${facName ? ` · ${esc(facName)}` : ""}</em></div>`;
-  }
-  if (sys.hidden) html += `<div class="qin-tt-sub"><i class="fa-solid fa-eye-slash"></i> Hidden</div>`;
+  } else html += `<div class="qin-tt-name">${esc(unitName)}</div>`;
+  const sub = [officer ? esc(unitName) : "", `Tier ${sys.tier}`, facName ? esc(facName) : ""].filter(Boolean).join(" · ");
+  html += `<div class="qin-tt-sub">${fac?.img ? `<img src="${esc(fac.img)}" alt="">` : ""}<span>${sub}</span></div>`;
+  if (sys.hidden) html += `<div class="qin-tt-sub"><i class="fa-solid fa-eye-slash"></i><span>Hidden</span></div>`;
   html += `<div class="qin-tt-bl"><span>Health</span><span>${men} / ${max}</span></div>
     <div class="qin-tt-bar"><i style="width:${pct((100 * men) / max)}%;background:${hex(healthColor(men / max))}"></i></div>
     <div class="qin-tt-bl"><span>Morale</span><span>${morale}${sys.moraleState ? ` · ${esc(sys.moraleState)}` : ""}</span></div>
-    <div class="qin-tt-bar"><i style="width:${pct(morale)}%;background:${hex(moraleColor(morale))}"></i></div>
-    <div class="qin-tt-stats"><span>Dmg <b>${sys.damage ?? 0}</b></span><span>Arm <b>${sys.armor ?? 0}</b></span><span>Pen <b>${sys.armorPen ?? 0}</b></span><span>Mov <b>${sys.move ?? 0}</b></span></div>`;
+    <div class="qin-tt-bar"><i style="width:${pct(morale)}%;background:${hex(moraleColor(morale))}"></i></div>`;
+  const chip = (icon, v, label) => `<div class="qin-tt-chip"><i class="fa-solid ${icon}"></i><b>${v}</b><small>${label}</small></div>`;
+  html += `<div class="qin-tt-chips">${chip("fa-khanda", sys.damage ?? 0, "Dmg")}${chip("fa-shield-halved", sys.armor ?? 0, "Armor")}${chip("fa-crosshairs", sys.armorPen ?? 0, "Pen")}${chip("fa-shoe-prints", sys.move ?? 0, "Move")}</div>`;
   const w = weaponLine(sys);
   if (w) html += `<div class="qin-tt-weapon">${w}</div>`;
   return html + `</div>`;
