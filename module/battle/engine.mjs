@@ -193,6 +193,19 @@ function stealthFriends(a, b) {
   if (a === b) return true;
   return (a === 'player' && b === 'ally') || (a === 'ally' && b === 'player');
 }
+/** A unit that moves next to hidden hostile units reveals them. */
+function revealAround(s, u) {
+  for (const o of liveUnits(s)) {
+    if (o.hidden && !stealthFriends(alliance(o.side), alliance(u.side)) && manhattan(o, u) === 1) {
+      o.hidden = false;
+      log(s, o.name + ' is spotted by ' + u.name + '.', { type: 'revealed', unit: o.id });
+    }
+  }
+}
+/** Hostile troops next to this unit (they stop it hiding and reveal it at the end of its turn). */
+function hostileAdjacent(s, u) {
+  return liveUnits(s).some(o => o !== u && !stealthFriends(alliance(o.side), alliance(u.side)) && manhattan(o, u) === 1);
+}
 /** Does terrain hide a unit that ends its turn there? (forests) */
 function hidesIn(s, u) { return terrainAt(s, u.x, u.y) === 'trees'; }
 
@@ -549,8 +562,9 @@ function finishActivation(s, u) {
   }
   // Stealth: ending the turn in a forest hides the unit; ending it next to a hostile unit reveals it
   if (alive(u)) {
-    if (hidesIn(s, u)) u.hidden = true;
-    if (u.hidden && liveUnits(s).some(o => o !== u && !stealthFriends(alliance(o.side), alliance(u.side)) && manhattan(o, u) === 1)) {
+    // a unit can only go into hiding with no enemy troops next to it
+    if (hidesIn(s, u) && !hostileAdjacent(s, u)) u.hidden = true;
+    if (u.hidden && hostileAdjacent(s, u)) {
       u.hidden = false;
       log(s, u.name + ' is spotted (ended its turn next to an enemy).', { type: 'revealed', unit: u.id });
     }
@@ -822,6 +836,7 @@ const ACTIONS = {
     u.facing = { dx: sign(u.x - from.x), dy: sign(u.y - from.y) };
     if (Math.abs(u.x - from.x) > Math.abs(u.y - from.y)) u.facing.dy = 0; else if (u.y !== from.y) u.facing.dx = 0;
     ac.started = true; ac.movedThisActivation = true; ac.step = 'act';
+    revealAround(s, u);
     if (forced) {
       const { cost, dist } = red.get(k);
       ac.forcedMarched = true;
@@ -862,6 +877,7 @@ const ACTIONS = {
     u.round.moved = o.round.moved = true; u.round.cannotMove = o.round.cannotMove = true;
     ac.step = 'act'; ac.started = true;
     log(s, u.name + ' swaps places with ' + o.name + '.');
+    revealAround(s, u); revealAround(s, o);
     settle(s);
   },
   holdPosition(s, actor, a) {
@@ -951,6 +967,7 @@ function doMove(s, actor, a, forced) {
   u.x = a.x; u.y = a.y; u.round.moved = true;
   u.facing = { dx: sign(u.x - from.x), dy: sign(u.y - from.y) };
   ac.started = true; ac.movedThisActivation = true;
+  revealAround(s, u);
   if (!forced) ac.tilesMoved = tiles;
   if (forced) {
     ac.forcedMarched = true;

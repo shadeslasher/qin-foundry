@@ -386,6 +386,32 @@ test('players cannot control other players units', () => {
   assert.ok(!R.act(s, P2, { type: 'addUnit', typeId: 'han_ji_inf', side: 'player', x: 1, y: 1 }).ok);
 });
 
+test('stealth: moving next to a hidden enemy reveals it; no hiding with enemies adjacent', () => {
+  const s = setup();
+  must(R.act(s, HOST, { type: 'paintTerrain', cells: [[5, 5], [8, 8]], terrain: 'trees' }));
+  const e = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 5 });
+  const p = add(s, { typeId: 'han_ji_inf', side: 'player', owner: 'p1', x: 5, y: 8 });
+  must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'startRound' }));
+  R.unitById(s, e).hidden = true;
+  must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: p }));
+  s.freeMovement = false;
+  must(R.act(s, P1, { type: 'moveTo', unitId: p, x: 5, y: 6 }));
+  assert.ok(!R.unitById(s, e).hidden, 'moved adjacent: revealed');
+  must(R.act(s, P1, { type: 'undoMove', unitId: p }));
+  assert.ok(!R.unitById(s, e).hidden, 'undo does not hide it again');
+  // a player unit ending its turn in a forest next to an enemy cannot hide
+  const s2 = setup();
+  must(R.act(s2, HOST, { type: 'paintTerrain', cells: [[5, 6]], terrain: 'trees' }));
+  add(s2, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 5 });
+  const p2 = add(s2, { typeId: 'han_ji_inf', side: 'player', owner: 'p1', x: 5, y: 8 });
+  must(R.act(s2, HOST, { type: 'startBattle' })); must(R.act(s2, HOST, { type: 'startRound' }));
+  must(R.act(s2, P1, { type: 'claim' })); must(R.act(s2, P1, { type: 'begin', unitId: p2 }));
+  s2.freeMovement = false;
+  must(R.act(s2, P1, { type: 'moveTo', unitId: p2, x: 5, y: 6 }));
+  must(R.act(s2, P1, { type: 'endTurn', unitId: p2 }));
+  assert.ok(!R.unitById(s2, p2).hidden);
+});
+
 test('attacking from hiding: +2, no strike back (defender still rolls), revealed', () => {
   const s = setup();
   const a = add(s, { typeId: 'han_ji_inf', officerId: 'wen_ping', side: 'player', owner: 'p1', x: 5, y: 6, morale: 80 });
