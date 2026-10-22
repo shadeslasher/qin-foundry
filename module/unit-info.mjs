@@ -5,6 +5,7 @@ import { getBattle, buildState, emptyBattle } from "./battle/adapter.mjs";
 import { formationSummary } from "./sheets/sheets.mjs";
 import { factionOf } from "./factions.mjs";
 import { SKILLS } from "./config.mjs";
+import { healthColor, moraleColor, SIDE_COLORS } from "./unit-bars.mjs";
 
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
 
@@ -23,7 +24,7 @@ function rangeText(sys) {
 function weaponLine(sys) {
   const r = rangeText(sys);
   const weapon = esc(sys.unitType || (r ? "Ranged" : "Melee"));
-  return r ? `${weapon} [Range: ${r}]` : weapon;
+  return r ? `${weapon} · Range ${r}` : weapon;
 }
 
 /** Officer actor for a unit (world actors resolve synchronously). */
@@ -33,25 +34,35 @@ function officerOf(sys) {
 
 /* ------------------------------------------------------------ hover tooltip */
 
+const hex = (n) => "#" + Number(n).toString(16).padStart(6, "0");
+
 export function unitTooltipHTML(token) {
   const sys = token.actor.system, officer = officerOf(sys);
-  let html = "";
+  const unitName = token.document.name;
+  const fac = factionOf(sys.faction);
+  // the faction name is left out when it just repeats the officer's name (Sun Jian's army, led by Sun Jian)
+  const facName = fac && !(officer && fac.name.toLowerCase() === officer.name.toLowerCase()) ? fac.name : "";
+  const men = sys.men?.value ?? 0, max = sys.men?.max || 100, morale = sys.morale ?? 0;
+  const pct = (v) => Math.max(0, Math.min(100, v));
+  let html = `<div class="qin-tt" style="--qin-side:${hex(SIDE_COLORS[sys.side] ?? 0x888888)}">`;
   if (officer) {
     const title = officer.system?.details?.title;
-    if (title) html += `<div class="qin-th-title gold">${esc(title)}</div>`;
-    html += `<div class="qin-th-officer">${esc(officer.name)}</div>`;
+    if (title) html += `<div class="qin-tt-title">${esc(title)}</div>`;
+    html += `<div class="qin-tt-name">${esc(officer.name)}</div>`;
+    html += `<div class="qin-tt-sub">${esc(unitName)} <em>· Tier ${sys.tier}${facName ? ` · ${esc(facName)}` : ""}</em></div>`;
+  } else {
+    html += `<div class="qin-tt-name">${esc(unitName)}</div>`;
+    html += `<div class="qin-tt-sub"><em>Tier ${sys.tier}${facName ? ` · ${esc(facName)}` : ""}</em></div>`;
   }
-  html += `<div class="qin-th-name">${esc(token.document.name)} <span class="qin-th-tier">[Tier ${sys.tier}]</span></div>`;
-  const fac = factionOf(sys.faction);
-  if (fac) html += `<div class="qin-th-faction">${esc(fac.name)}</div>`;
-  if (sys.hidden) html += `<div class="qin-th-faction"><i class="fa-solid fa-eye-slash"></i> Hidden</div>`;
-  html += `<div class="qin-th-grid">
-    <span>Damage</span><b>${sys.damage ?? 0}</b><span>Armor</span><b>${sys.armor ?? 0}</b>
-    <span>Armor Pen</span><b>${sys.armorPen ?? 0}</b><span>Movement</span><b>${sys.move ?? 0}</b>
-  </div>`;
+  if (sys.hidden) html += `<div class="qin-tt-sub"><i class="fa-solid fa-eye-slash"></i> Hidden</div>`;
+  html += `<div class="qin-tt-bl"><span>Health</span><span>${men} / ${max}</span></div>
+    <div class="qin-tt-bar"><i style="width:${pct((100 * men) / max)}%;background:${hex(healthColor(men / max))}"></i></div>
+    <div class="qin-tt-bl"><span>Morale</span><span>${morale}${sys.moraleState ? ` · ${esc(sys.moraleState)}` : ""}</span></div>
+    <div class="qin-tt-bar"><i style="width:${pct(morale)}%;background:${hex(moraleColor(morale))}"></i></div>
+    <div class="qin-tt-stats"><span>Dmg <b>${sys.damage ?? 0}</b></span><span>Arm <b>${sys.armor ?? 0}</b></span><span>Pen <b>${sys.armorPen ?? 0}</b></span><span>Mov <b>${sys.move ?? 0}</b></span></div>`;
   const w = weaponLine(sys);
-  if (w) html += `<div class="qin-th-weapon">${w}</div>`;
-  return html;
+  if (w) html += `<div class="qin-tt-weapon">${w}</div>`;
+  return html + `</div>`;
 }
 
 /* ------------------------------------------------------------ hover movement preview */

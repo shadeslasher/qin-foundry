@@ -26,6 +26,7 @@ function place() {
 
 function draw() {
   const actor = current.actor, s = actor.system;
+  box.classList.toggle("qin-tt-box", level === "unit");
   if (level === "unit") { box.innerHTML = unitTooltipHTML(current); return place(); }
   const title = actor.type === "character" ? s.details?.title : "";
   let html = `<div class="qin-th-name">${esc(current.document.name)}</div>`;

@@ -355,3 +355,22 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin-ui-traits li span { color: inherit; }
 .qin-fe-pick button[data-info] { opacity: 0.95; }
 .qin-ui .qin-muted { color: inherit; opacity: 0.7; }
+
+/* Unit hover tooltip (slim card: side stripe, health/morale bars, stat row) */
+.qin-token-hover.qin-tt-box { padding: 0; border: none; background: none; box-shadow: none; min-width: 0; }
+.qin-tt {
+  width: calc(214px * var(--qin-scale, 1.15)); padding: 8px 11px 9px; border-radius: 6px; box-sizing: border-box;
+  background: rgba(16, 13, 10, 0.92); border-left: 3px solid var(--qin-side, #888); box-shadow: 0 4px 14px rgba(0,0,0,.5);
+  font-size: calc(12px * var(--qin-scale, 1.15)); line-height: 1.3; color: #f3ead8; text-align: left;
+}
+.qin-tt-title { color: #f0c24a; font-size: 0.9em; font-weight: 700; }
+.qin-tt-name { font-weight: 700; font-size: 1.22em; line-height: 1.15; }
+.qin-tt-sub { color: #cdbf9f; font-size: 0.95em; margin-bottom: 6px; }
+.qin-tt-sub em { color: #8f826a; font-style: normal; }
+.qin-tt-sub + .qin-tt-sub { margin-top: -4px; }
+.qin-tt-bl { display: flex; justify-content: space-between; font-size: 0.88em; color: #bfae8c; }
+.qin-tt-bar { height: 5px; border-radius: 3px; background: #3a2f25; margin: 2px 0 4px; overflow: hidden; }
+.qin-tt-bar i { display: block; height: 100%; border-radius: 3px; }
+.qin-tt-stats { display: flex; justify-content: space-between; margin-top: 5px; color: #bfae8c; }
+.qin-tt-stats b { color: #f3ead8; }
+.qin-tt-weapon { margin-top: 4px; color: #e8c170; }

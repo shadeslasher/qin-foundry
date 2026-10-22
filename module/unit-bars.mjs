@@ -5,13 +5,13 @@ import { factionOf } from "./factions.mjs";
 import { traitTiersOf } from "./battle/traits.mjs";
 
 const KEY = "qinUnitBars";
-const SIDE_COLORS = { player: 0x3a78c8, enemy: 0xc8443a, ally: 0x3fa66a, neutral: 0xd4a017 };
+export const SIDE_COLORS = { player: 0x3a78c8, enemy: 0xc8443a, ally: 0x3fa66a, neutral: 0xd4a017 };
 
 // Layout, as fractions of the token's size
 const L = {
   pad: 0.03, fig: 0.36, ringCrop: 0.115, officer: 0.33,
-  back: [[0.395, 0.23], [0.605, 0.23]], front: [[0.29, 0.44], [0.50, 0.45], [0.71, 0.44]],
-  flagX: 0.87, flagY: 0.055, flagH: 0.26, rollW: 0.075, bar: 0.15,
+  back: [[0.395, 0.31], [0.605, 0.31]], front: [[0.29, 0.52], [0.50, 0.53], [0.71, 0.52]],
+  flagX: 0.87, flagY: 0.055, flagH: 0.26, rollW: 0.075, bar: 0.085,
 };
 // Slots in loss order: slot 1 is lost first, slot 5 (front-middle) is the last man standing
 //   back row:   4 3       front row:  2 5 1
@@ -192,8 +192,8 @@ const loadTex = (src) => {
   return Promise.resolve(fn ? fn(src) : PIXI.Texture.from(src)).catch(() => null);
 };
 
-function healthColor(p) { return p > 0.5 ? 0x3f9b4a : p > 0.25 ? 0xd4a017 : 0xc0392b; }
-function moraleColor(m) { return m >= 75 ? 0x4aa3df : m <= 25 ? 0x7d5a9e : 0x2f6fb2; }
+export function healthColor(p) { return p > 0.5 ? 0x3f9b4a : p > 0.25 ? 0xd4a017 : 0xc0392b; }
+export function moraleColor(m) { return m >= 75 ? 0x4aa3df : m <= 25 ? 0x7d5a9e : 0x2f6fb2; }
 
 /** How many soldier figures a unit shows: one per 20% of its strength (cavalry: of 50). */
 export function figureCount(men, max) {
@@ -404,25 +404,19 @@ export async function drawUnitBars(token) {
   } else c.qinFlag = null;
 
   // health / morale bars along the bottom, inside the tile
-  const bh = Math.max(9, Math.round(T * L.bar)), tabW = Math.max(4, Math.round(bh * 0.45));
+  const bh = Math.max(5, Math.round(T * L.bar)), tabW = Math.max(4, Math.round(bh * 0.45));
   const barX = pad + tabW + 1, barW = w - barX - pad, top = h - pad - 2 * (bh + 1) + 1;
   const bars = new PIXI.Container(); // kept apart from the stand so it never greys out
   const g = new PIXI.Graphics();
   bars.addChild(g);
   g.lineStyle(1, 0x000000, 0.9).beginFill(color, 1).drawRoundedRect(pad, top, tabW, 2 * (bh + 1) - 1, 2).endFill();
   const Txt = textClass();
-  const styleOpts = { fontFamily: "Signika, sans-serif", fontSize: Math.round(bh * 0.85), fontWeight: "bold", fill: "#ffffff", stroke: "#000000", strokeThickness: Math.max(2, Math.round(bh * 0.25)) };
-  const style = new PIXI.TextStyle(styleOpts);
-  [[Math.max(0, Math.min(1, men / max)), healthColor(men / max), `${men} / ${max}`],
-   [Math.max(0, Math.min(1, morale / 100)), moraleColor(morale), `Morale ${morale}`]].forEach(([pct, col, label], i) => {
+  const styleOpts = { fontFamily: "Signika, sans-serif", fontSize: Math.round(T * 0.13), fontWeight: "bold", fill: "#ffffff", stroke: "#000000", strokeThickness: Math.max(2, Math.round(T * 0.035)) };
+  [[Math.max(0, Math.min(1, men / max)), healthColor(men / max)],
+   [Math.max(0, Math.min(1, morale / 100)), moraleColor(morale)]].forEach(([pct, col], i) => {
     const y = top + i * (bh + 1);
     g.lineStyle(1, 0x000000, 0.9).beginFill(0x111111, 0.8).drawRoundedRect(barX, y, barW, bh, 2).endFill();
     if (pct > 0) g.lineStyle(0).beginFill(col, 0.95).drawRoundedRect(barX + 1, y + 1, Math.max(2, (barW - 2) * pct), bh - 2, 2).endFill();
-    const t = new Txt(label, style);
-    t.anchor?.set?.(0.5, 0.5);
-    t.position.set(barX + barW / 2, y + bh / 2);
-    if (t.width > barW - 2) t.scale.set((barW - 2) / t.width);
-    bars.addChild(t);
   });
   c.addChild(bars);
 
@@ -432,7 +426,7 @@ export async function drawUnitBars(token) {
     if (CMF) { const f = new CMF(); f.desaturate(); f.brightness(0.75, true); stand.filters = [f]; }
     // the side colour stays: the outline is drawn on top, un-greyed (bars are never greyed)
     c.addChild(new PIXI.Graphics().lineStyle(Math.max(2, T * 0.03), color, 1).drawRoundedRect(pad, pad, w - 2 * pad, h - 2 * pad, T * 0.1));
-    const t = new Txt(holding ? "Hold" : "Done", new PIXI.TextStyle({ ...styleOpts, fontSize: Math.round(bh * 1.1), fill: "#dddddd" }));
+    const t = new Txt(holding ? "Hold" : "Done", new PIXI.TextStyle({ ...styleOpts, fontSize: Math.round(T * 0.165), fill: "#dddddd" }));
     t.anchor?.set?.(0.5, 0.5);
     c.addChild(t);
     if (holding) { // small shield beside "Hold"
