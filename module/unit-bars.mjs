@@ -33,6 +33,31 @@ function hasActed(token) {
   return !!battle.meta?.[token.id]?.round?.activated;
 }
 
+/** Did this unit Hold this round (enemy attacks against it -2 until the round ends)? */
+function isHolding(token) {
+  let battle;
+  try { battle = game.settings.get("qin", "battle"); } catch { return false; }
+  if (!battle?.active || battle.sceneId !== token.document?.parent?.id) return false;
+  return !!battle.meta?.[token.id]?.round?.holding;
+}
+
+/** A heater shield centred on (0,0), w wide and h tall. */
+function shieldPoints(w, h) {
+  const pts = [-w / 2, -h / 2, w / 2, -h / 2];
+  for (let k = 0; k <= 24; k++) {
+    const a = (Math.PI * k) / 24;
+    pts.push((w / 2) * Math.cos(a), -h / 2 + h * 0.45 + h * 0.55 * Math.sin(a));
+  }
+  return pts;
+}
+function drawShield(w, h) {
+  const g = new PIXI.Graphics();
+  g.beginFill(0x000000, 0.45).drawPolygon(shieldPoints(w, h).map((v, i) => v + (i % 2 ? h * 0.06 : w * 0.04))).endFill();
+  g.lineStyle(Math.max(1.5, w * 0.07), 0x14141e, 1).beginFill(0x3a78c8, 1).drawPolygon(shieldPoints(w, h)).endFill();
+  g.lineStyle(Math.max(1, w * 0.06), 0xffd34d, 1).drawPolygon(shieldPoints(w * 0.76, h * 0.76));
+  return g;
+}
+
 const textClass = () => foundry.canvas?.containers?.PreciseText ?? globalThis.PreciseText ?? PIXI.Text;
 const loadTex = (src) => {
   if (!src) return Promise.resolve(null);
@@ -177,11 +202,11 @@ export async function drawUnitBars(token) {
   const s = actor.system;
   const men = s.men?.value ?? 0, max = s.men?.max || 100, morale = s.morale ?? 0;
   const w = token.w, h = token.h, T = Math.min(w, h);
-  const acted = hasActed(token), active = !acted && isActive(token);
+  const acted = hasActed(token), active = !acted && isActive(token), holding = isHolding(token);
   const art = unitArt(token), off = officerArt(actor), fac = factionOf(s.faction);
   const n = figureCount(men, max);
   if (token.mesh && !token.mesh.destroyed) token.mesh.renderable = false; // the stand replaces the picture
-  const key = JSON.stringify([men, max, morale, w, h, s.side, acted, active, n, art, off, fac?.img ?? null]);
+  const key = JSON.stringify([men, max, morale, w, h, s.side, acted, active, holding, n, art, off, fac?.img ?? null]);
   let c = token[KEY];
   if (c && !c.destroyed && c.parent === token && c.qinKey === key) return;
   const my = (gen.get(token) ?? 0) + 1;
@@ -233,8 +258,9 @@ export async function drawUnitBars(token) {
   // health / morale bars along the bottom, inside the tile
   const bh = Math.max(9, Math.round(T * L.bar)), tabW = Math.max(4, Math.round(bh * 0.45));
   const barX = pad + tabW + 1, barW = w - barX - pad, top = h - pad - 2 * (bh + 1) + 1;
+  const bars = new PIXI.Container(); // kept apart from the stand so it never greys out
   const g = new PIXI.Graphics();
-  stand.addChild(g);
+  bars.addChild(g);
   g.lineStyle(1, 0x000000, 0.9).beginFill(color, 1).drawRoundedRect(pad, top, tabW, 2 * (bh + 1) - 1, 2).endFill();
   const Txt = textClass();
   const styleOpts = { fontFamily: "Signika, sans-serif", fontSize: Math.round(bh * 0.85), fontWeight: "bold", fill: "#ffffff", stroke: "#000000", strokeThickness: Math.max(2, Math.round(bh * 0.25)) };
@@ -248,20 +274,37 @@ export async function drawUnitBars(token) {
     t.anchor?.set?.(0.5, 0.5);
     t.position.set(barX + barW / 2, y + bh / 2);
     if (t.width > barW - 2) t.scale.set((barW - 2) / t.width);
-    stand.addChild(t);
+    bars.addChild(t);
   });
+  c.addChild(bars);
 
   // already acted this round: grey it out and say so
   if (acted) {
     const CMF = PIXI.ColorMatrixFilter ?? PIXI.filters?.ColorMatrixFilter;
     if (CMF) { const f = new CMF(); f.desaturate(); f.brightness(0.75, true); stand.filters = [f]; }
-    // the side colour stays: outline and side tab are drawn on top, un-greyed
-    c.addChild(new PIXI.Graphics().lineStyle(Math.max(2, T * 0.03), color, 1).drawRoundedRect(pad, pad, w - 2 * pad, h - 2 * pad, T * 0.1)
-      .lineStyle(1, 0x000000, 0.9).beginFill(color, 1).drawRoundedRect(pad, top, tabW, 2 * (bh + 1) - 1, 2).endFill());
-    const t = new Txt("Done", new PIXI.TextStyle({ ...styleOpts, fontSize: Math.round(bh * 1.1), fill: "#dddddd" }));
+    // the side colour stays: the outline is drawn on top, un-greyed (bars are never greyed)
+    c.addChild(new PIXI.Graphics().lineStyle(Math.max(2, T * 0.03), color, 1).drawRoundedRect(pad, pad, w - 2 * pad, h - 2 * pad, T * 0.1));
+    const t = new Txt(holding ? "Hold" : "Done", new PIXI.TextStyle({ ...styleOpts, fontSize: Math.round(bh * 1.1), fill: "#dddddd" }));
     t.anchor?.set?.(0.5, 0.5);
-    t.position.set(w / 2, top / 2);
     c.addChild(t);
+    if (holding) { // small shield beside "Hold"
+      const sw = T * 0.15, sh = T * 0.18, gapX = T * 0.025, total = sw + gapX + t.width;
+      const icon = drawShield(sw, sh);
+      icon.position.set(w / 2 - total / 2 + sw / 2, top / 2);
+      t.position.set(w / 2 - total / 2 + sw + gapX + t.width / 2, top / 2);
+      c.addChild(icon);
+    } else t.position.set(w / 2, top / 2);
+  }
+
+  // holding this round: a shield badge on the top edge showing the -2 attackers suffer
+  if (holding) {
+    const bw = T * 0.22, bhh = T * 0.25;
+    const badge = drawShield(bw, bhh);
+    badge.position.set(w / 2, T * 0.135);
+    const lbl = new Txt("-2", new PIXI.TextStyle({ ...styleOpts, fontSize: Math.round(bhh * 0.42), strokeThickness: Math.max(2, Math.round(bhh * 0.08)) }));
+    lbl.anchor?.set?.(0.5, 0.5);
+    lbl.position.set(w / 2, T * 0.135 + bhh * 0.02);
+    c.addChild(badge, lbl);
   }
 
   // this unit's turn: pulsing gold glow behind, gold border, and a bobbing arrow above
