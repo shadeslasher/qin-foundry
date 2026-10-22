@@ -278,63 +278,36 @@ let siegeLayer = null;
  * colour (blue friendly, red enemy).
  */
 function drawGate(g, size) {
+  // The map image already shows the generator's gatehouse, so only mark it: the owner's colour round it and a
+  // small badge for its state (locked, open, broken, burned). Burned gates get scorched until the map is redrawn.
   const xs = g.squares.map(([x]) => x), ys = g.squares.map(([, y]) => y);
   const X = Math.min(...xs) * size, Y = Math.min(...ys) * size;
   const W = (Math.max(...xs) - Math.min(...xs) + 1) * size, H = (Math.max(...ys) - Math.min(...ys) + 1) * size;
-  const across = W >= H; // the doors span the long side
-  const own = g.owner === "enemy" ? 0xc8443a : 0x3a78c8, wood = 0x7a4a22, dark = 0x2a1a0c, iron = 0x3b3f45;
-  const gr = new PIXI.Graphics(), p = size * 0.08, lw = Math.max(2, size * 0.035);
-  const x0 = X + p, y0 = Y + p, w = W - 2 * p, h = H - 2 * p;
-  if (g.state === "locked") {
-    gr.lineStyle(lw, dark, 1).beginFill(wood, 0.95).drawRect(x0, y0, w, h).endFill();
-    // planks and the seam between the two doors
-    gr.lineStyle(Math.max(1, size * 0.015), dark, 0.6);
-    const n = 6;
-    for (let i = 1; i < n; i++) across ? gr.moveTo(x0 + w * i / n, y0).lineTo(x0 + w * i / n, y0 + h) : gr.moveTo(x0, y0 + h * i / n).lineTo(x0 + w, y0 + h * i / n);
-    gr.lineStyle(lw * 1.2, dark, 1);
-    across ? gr.moveTo(x0 + w / 2, y0).lineTo(x0 + w / 2, y0 + h) : gr.moveTo(x0, y0 + h / 2).lineTo(x0 + w, y0 + h / 2);
-    // iron bands and the bar across
-    gr.lineStyle(lw, iron, 1);
-    for (const f of [0.25, 0.75]) across ? gr.moveTo(x0, y0 + h * f).lineTo(x0 + w, y0 + h * f) : gr.moveTo(x0 + w * f, y0).lineTo(x0 + w * f, y0 + h);
-    gr.lineStyle(lw * 2.2, 0x5a3a1a, 1);
-    across ? gr.moveTo(x0 + w * 0.15, y0 + h / 2).lineTo(x0 + w * 0.85, y0 + h / 2) : gr.moveTo(x0 + w / 2, y0 + h * 0.15).lineTo(x0 + w / 2, y0 + h * 0.85);
-    // padlock in the middle
-    const cx = x0 + w / 2, cy = y0 + h / 2, r = size * 0.11;
-    gr.lineStyle(Math.max(2, size * 0.03), 0xd9a441, 1).drawCircle(cx, cy - r * 0.7, r * 0.55);
-    gr.lineStyle(Math.max(1, size * 0.015), 0x5a4010, 1).beginFill(0xd9a441, 1).drawRoundedRect(cx - r * 0.8, cy - r * 0.5, r * 1.6, r * 1.3, r * 0.2).endFill();
-  } else if (g.state === "open") {
-    // the passage, then the two doors folded back against the sides
-    gr.lineStyle(0).beginFill(0x15100a, 0.55).drawRect(x0, y0, w, h).endFill();
-    const leaf = (across ? w : h) * 0.12;
-    gr.lineStyle(lw, dark, 1).beginFill(wood, 0.95);
-    if (across) { gr.drawRect(x0, y0, leaf, h); gr.drawRect(x0 + w - leaf, y0, leaf, h); }
-    else { gr.drawRect(x0, y0, w, leaf); gr.drawRect(x0, y0 + h - leaf, w, leaf); }
-    gr.endFill();
-    // arrows through the gateway: open passage
-    const cx = x0 + w / 2, cy = y0 + h / 2, a = size * 0.16;
-    gr.lineStyle(Math.max(2, size * 0.04), 0x8fe08f, 0.95);
-    if (across) gr.moveTo(cx, cy - a).lineTo(cx, cy + a).moveTo(cx - a * 0.5, cy - a * 0.5).lineTo(cx, cy - a).lineTo(cx + a * 0.5, cy - a * 0.5).moveTo(cx - a * 0.5, cy + a * 0.5).lineTo(cx, cy + a).lineTo(cx + a * 0.5, cy + a * 0.5);
-    else gr.moveTo(cx - a, cy).lineTo(cx + a, cy).moveTo(cx - a * 0.5, cy - a * 0.5).lineTo(cx - a, cy).lineTo(cx - a * 0.5, cy + a * 0.5).moveTo(cx + a * 0.5, cy - a * 0.5).lineTo(cx + a, cy).lineTo(cx + a * 0.5, cy + a * 0.5);
-  } else if (g.state === "broken") {
-    gr.lineStyle(0).beginFill(0x15100a, 0.5).drawRect(x0, y0, w, h).endFill();
-    // jagged splinters hanging from the frame
-    gr.lineStyle(lw, dark, 1).beginFill(0x6a4020, 0.95);
-    const teeth = 5;
-    for (const side of [0, 1]) {
-      const pts = [];
-      for (let i = 0; i <= teeth; i++) {
-        const f = i / teeth, d = (i % 2 ? 0.28 : 0.12) * (across ? h : w);
-        if (across) pts.push(x0 + w * f, side ? y0 + h - d : y0 + d);
-        else pts.push(side ? x0 + w - d : x0 + d, y0 + h * f);
-      }
-      if (across) gr.drawPolygon([x0, side ? y0 + h : y0, ...pts, x0 + w, side ? y0 + h : y0]);
-      else gr.drawPolygon([side ? x0 + w : x0, y0, ...pts, side ? x0 + w : x0, y0 + h]);
-    }
-    gr.endFill();
+  const own = g.owner === "enemy" ? 0xc8443a : 0x3a78c8;
+  const box = new PIXI.Container(), lw = Math.max(2, size * 0.035), inset = lw / 2 + 1;
+  let gr = box.addChild(new PIXI.Graphics());
+  if (g.state === "burned") {
+    gr.lineStyle(0).beginFill(0x120b06, 0.55).drawRect(X, Y, W, H).endFill();
+    gr.beginFill(0x2a1a10, 0.5).drawEllipse(X + W / 2, Y + H / 2, W * 0.42, H * 0.42).endFill();
   }
-  // the owner's colour round the frame
-  gr.lineStyle(Math.max(3, size * 0.05), own, 1).drawRect(X + p * 0.4, Y + p * 0.4, W - p * 0.8, H - p * 0.8);
-  return gr;
+  gr.lineStyle(lw, own, 0.9).drawRect(X + inset, Y + inset, W - 2 * inset, H - 2 * inset);
+  // badge in the top right corner
+  const r = Math.max(8, size * 0.17), cx = X + W - r * 0.9, cy = Y + r * 0.9, ink = 0xffffff, t = Math.max(1.5, r * 0.16);
+  gr.lineStyle(Math.max(1.5, r * 0.14), 0x1a1208, 1).beginFill(own, 1).drawCircle(cx, cy, r).endFill();
+  gr = box.addChild(new PIXI.Graphics()); // the icon in its own shape, so no stray line joins it to the circle
+  if (g.state === "locked") { // padlock
+    gr.lineStyle(t, ink, 1).moveTo(cx - r * 0.3, cy - r * 0.12).arc(cx, cy - r * 0.12, r * 0.3, Math.PI, 0);
+    gr.lineStyle(0).beginFill(ink, 1).drawRoundedRect(cx - r * 0.45, cy - r * 0.12, r * 0.9, r * 0.62, r * 0.1).endFill();
+  } else if (g.state === "open") { // two doors swung apart
+    gr.lineStyle(t, ink, 1).moveTo(cx - r * 0.55, cy + r * 0.45).lineTo(cx - r * 0.55, cy - r * 0.45).lineTo(cx - r * 0.15, cy - r * 0.3).lineTo(cx - r * 0.15, cy + r * 0.55).closePath()
+      .moveTo(cx + r * 0.55, cy + r * 0.45).lineTo(cx + r * 0.55, cy - r * 0.45).lineTo(cx + r * 0.15, cy - r * 0.3).lineTo(cx + r * 0.15, cy + r * 0.55).closePath();
+  } else if (g.state === "broken") { // a crack through the door
+    gr.lineStyle(t * 1.1, ink, 1).moveTo(cx - r * 0.1, cy - r * 0.6).lineTo(cx + r * 0.2, cy - r * 0.15).lineTo(cx - r * 0.2, cy + r * 0.1).lineTo(cx + r * 0.1, cy + r * 0.6);
+  } else if (g.state === "burned") { // flame
+    gr.lineStyle(0).beginFill(0xffb347, 1).moveTo(cx, cy - r * 0.62).bezierCurveTo(cx + r * 0.55, cy - r * 0.1, cx + r * 0.45, cy + r * 0.55, cx, cy + r * 0.55)
+      .bezierCurveTo(cx - r * 0.45, cy + r * 0.55, cx - r * 0.55, cy, cx - r * 0.1, cy - r * 0.25).bezierCurveTo(cx - r * 0.05, cy - r * 0.05, cx + r * 0.1, cy - r * 0.3, cx, cy - r * 0.62).endFill();
+  }
+  return box;
 }
 /** Ladders set against wall squares (leaning on the square), and siege equipment lying on the ground. */
 export function drawSiegeOverlays() {
@@ -346,7 +319,7 @@ export function drawSiegeOverlays() {
   const { ladders = [], dropped = [], gates = [] } = b.siege;
   if (!ladders.length && !dropped.length && !gates.length) return;
   const size = gridSize(), c = new PIXI.Container(); c.eventMode = "none";
-  for (const g of gates) if (g.state !== "burned") c.addChild(drawGate(g, size));
+  for (const g of gates) c.addChild(drawGate(g, size));
   for (const k of ladders) {
     const [x, y] = k.split(",").map(Number);
     const l = drawLadder(size * 0.95);
