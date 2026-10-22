@@ -274,7 +274,9 @@ function animateChanges(scene, before, s, entries) {
     const base = /^(Yin\/Yang|Command|Fire|Skill|Unit Value)/;
     const attackBonus = (r.attackRoll?.parts ?? []).reduce((t, [label, v]) =>
       base.test(label) || (!r.ranged && /^Attacker bonus/.test(label)) ? t : t + (Number(v) || 0), 0);
-    steps.push({ kind: "attack", attacker: r.attacker, defender: r.defender, toDefender: toD, toAttacker: toA, returnStrike: r.damageToAttacker > 0, attackBonus });
+    const dUnit = E.unitById(s, r.defender);
+    const returnRanged = !!dUnit && E.typeOf(s, dUnit)?.weapon === "ranged";
+    steps.push({ kind: "attack", attacker: r.attacker, defender: r.defender, toDefender: toD, toAttacker: toA, returnStrike: r.damageToAttacker > 0, attackBonus, ranged: !!r.ranged, returnRanged });
     const gains = [];
     if (r.xpAttacker) { gains.push([r.attacker, "xp", `+${r.xpAttacker} XP`]); add(r.attacker, "xp", r.xpAttacker); }
     if (r.xpDefender) { gains.push([r.defender, "xp", `+${r.xpDefender} XP`]); add(r.defender, "xp", r.xpDefender); }

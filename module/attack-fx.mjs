@@ -848,6 +848,45 @@ function fadeOutToken(token, ms = 1200) {
   });
 }
 
+/**
+ * A volley: a dozen arrows leave the shooter's tile at staggered moments, arc through the air and come
+ * down spread across the target's tile, stick for a moment and fade. Resolves when the last has landed.
+ */
+function volley(from, to, count = 12) {
+  if (!from || !to || from.destroyed || to.destroyed) return Promise.resolve();
+  const T = Math.min(to.w, to.h), rnd = (a, b) => a + Math.random() * (b - a);
+  const arrows = Array.from({ length: count }, (_, i) => ({
+    sx: from.x + from.w * rnd(0.25, 0.75), sy: from.y + from.h * rnd(0.3, 0.6),
+    ex: to.x + to.w * rnd(0.15, 0.85), ey: to.y + to.h * rnd(0.2, 0.75),
+    delay: i * 45 + rnd(0, 30), flight: rnd(520, 640),
+  }));
+  const total = Math.max(...arrows.map(a => a.delay + a.flight)) + 380;
+  const len = T * 0.26;
+  return animate(total, (g, t) => {
+    const now = t * total;
+    for (const a of arrows) {
+      const k = (now - a.delay) / a.flight;
+      if (k < 0) continue;
+      const dist = Math.hypot(a.ex - a.sx, a.ey - a.sy), arc = Math.min(dist * 0.25, T * 1.8);
+      const p = Math.min(1, k);
+      const x = a.sx + (a.ex - a.sx) * p, y = a.sy + (a.ey - a.sy) * p - arc * 4 * p * (1 - p);
+      // direction of travel (tangent of the arc); once landed, keep the last angle and fade
+      const q = Math.min(0.999, p), dx = a.ex - a.sx, dy = (a.ey - a.sy) - arc * 4 * (1 - 2 * q);
+      const ang = Math.atan2(dy, dx), ux = Math.cos(ang), uy = Math.sin(ang);
+      const alpha = k <= 1 ? 1 : Math.max(0, 1 - (now - a.delay - a.flight) / 380);
+      if (alpha <= 0) continue;
+      const tx = x - ux * len, ty = y - uy * len;
+      g.lineStyle(Math.max(3, T * 0.03), 0x1a120a, alpha * 0.7).moveTo(tx, ty).lineTo(x, y);        // dark edge
+      g.lineStyle(Math.max(1.5, T * 0.016), 0xe6cf9f, alpha).moveTo(tx, ty).lineTo(x, y);          // shaft
+      g.lineStyle(0).beginFill(0xd8dde2, alpha)                                                      // head
+        .drawPolygon([x + ux * T * 0.06, y + uy * T * 0.06, x - uy * T * 0.03, y + ux * T * 0.03, x + uy * T * 0.03, y - ux * T * 0.03]).endFill();
+      g.lineStyle(Math.max(1.5, T * 0.016), 0xc0281e, alpha)                                         // red fletching
+        .moveTo(tx, ty).lineTo(tx - ux * T * 0.05 - uy * T * 0.035, ty - uy * T * 0.05 + ux * T * 0.035)
+        .moveTo(tx, ty).lineTo(tx - ux * T * 0.05 + uy * T * 0.035, ty - uy * T * 0.05 - ux * T * 0.035);
+    }
+  });
+}
+
 /** Shift a token part of the way toward a point and back (visual only). */
 function lunge(token, toward, ms = 520) {
   if (!token || token.destroyed) return Promise.resolve();
@@ -915,16 +954,20 @@ export async function playBattleAnim({ sceneId, steps }) {
           // the attacker's sword icon shows this attack's bonus while the exchange plays
           A.qinAttackBonus = st.attackBonus ?? 0;
           drawUnitBars(A);
-          const lungeA = lunge(A, D.center);
-          await wait(240);
+          // ranged attacks loose a volley of arrows; melee attacks lunge at the target
+          const strike = (from, to, isRanged) => isRanged ? volley(from, to) : lunge(from, to.center).then(() => 0);
+          const hitAt = (isRanged) => (isRanged ? 620 : 240);
+          const goA = strike(A, D, st.ranged);
+          await wait(hitAt(st.ranged));
           showAll(st.defender, st.toDefender);
-          await lungeA;
+          await goA;
           await wait(180);
           if (st.returnStrike) {
-            const lungeD = lunge(D, A.center);
-            await wait(240);
+            const backRanged = !!st.returnRanged;
+            const goD = strike(D, A, backRanged);
+            await wait(hitAt(backRanged));
             showAll(st.attacker, st.toAttacker);
-            await lungeD;
+            await goD;
           } else showAll(st.attacker, st.toAttacker);
           await wait(450);
           await wait(500);
