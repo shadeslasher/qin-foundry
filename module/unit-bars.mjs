@@ -3,6 +3,8 @@
 // its faction banner rolled up in the corner (it unrolls while hovered), and health/morale bars.
 import { factionOf } from "./factions.mjs";
 import { traitTiersOf } from "./battle/traits.mjs";
+import { tileRules } from "./battle/engine.mjs";
+import { decodeTiles, FLAG as MAP_FLAG } from "./battle/battlemap.mjs";
 
 const KEY = "qinUnitBars";
 export const SIDE_COLORS = { player: 0x3a78c8, enemy: 0xc8443a, ally: 0x3fa66a, neutral: 0xd4a017 };
@@ -68,6 +70,19 @@ function tiersFor(text) {
 }
 const tierVal = (tier, vals) => (tier ? vals[Math.min(tier, vals.length) - 1] : 0);
 
+const mapTiles = new Map(); // sceneId -> { flag, tiles }
+/** Terrain effects of the square a token stands on (battle-map scenes only). */
+function terrainUnder(token) {
+  const scene = token.document?.parent;
+  const flag = scene?.flags?.qin?.[MAP_FLAG];
+  if (!flag) return null;
+  let c = mapTiles.get(scene.id);
+  if (!c || c.flag !== flag) { c = { flag, tiles: decodeTiles(flag) }; mapTiles.set(scene.id, c); }
+  const size = scene.grid?.size ?? 100;
+  const x = Math.round((token.document.x ?? token.x) / size), y = Math.round((token.document.y ?? token.y) / size);
+  return tileRules({ map: { tiles: c.tiles, cols: flag.cols, rows: flag.rows } }, x, y);
+}
+
 export function unitStatus(token) {
   const actor = token.actor, s = actor.system, battle = battleRecord(token);
   const meta = battle?.meta?.[token.id] ?? {};
@@ -100,8 +115,17 @@ export function unitStatus(token) {
   const defense = (round.holding ? 2 + (tr.brace ? 2 : 0) : 0) + both + (Number(f.defMelee) || 0);
   const rangedDefense = both + (Number(f.defRanged) || 0) + tierVal(tr.shielded, [2, 4, 6])
     + (fx.stillLast && tr["shield battery"] ? 2 : 0);
-  const range = s.range > 1 && fx.stillLast ? tierVal(tr["range up"], [1, 2]) : 0;
-  return { rolls, attack, defense, rangedDefense, range, holding: !!round.holding, hidden: !!s.hidden,
+  let range = s.range > 1 && fx.stillLast ? tierVal(tr["range up"], [1, 2]) : 0;
+  // the square it stands on (battle maps): command, defense, range
+  const ground = terrainUnder(token);
+  let groundDef = 0, groundRanged = 0;
+  if (ground) {
+    rolls += ground.command;
+    if (token.qinAttackBonus === undefined || token.qinAttackBonus === null) attack += ground.atk;
+    groundDef = ground.meleeDef; groundRanged = ground.rangedDef;
+    if (s.range > 1) range += ground.range;
+  }
+  return { rolls, attack, defense: defense + groundDef, rangedDefense: rangedDefense + groundRanged, range, holding: !!round.holding, hidden: !!s.hidden,
     reloading: !!fx.reload };
 }
 

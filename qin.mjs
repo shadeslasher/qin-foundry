@@ -15,6 +15,7 @@ import { registerUnitBars, redrawAllUnitBars } from "./module/unit-bars.mjs";
 import { registerFactions, factionList } from "./module/factions.mjs";
 import { refreshBattleUI, repositionBattleUI, lockUnitTokens, onUnitSelected, registerUnitClicks } from "./module/battle/battle-ui.mjs";
 import { refreshTactics, registerTactics } from "./module/battle/tactics-ui.mjs";
+import { importBattleMap } from "./module/battle/battlemap.mjs";
 import { registerUnitInfo, openUnitInfo, openOfficerView, registerDangerZoneKey, toggleDangerZone } from "./module/unit-info.mjs";
 
 const { SYSTEM_ID } = CFG;
@@ -30,7 +31,7 @@ Hooks.once("init", () => {
   console.log("Qin | Initializing Qin: The Warring States");
   CONFIG.QIN = CFG;
   CONFIG.qinFactions ??= {};
-  globalThis.qin = game.qin = { config: CFG, rules: QinRules, openBattle: () => BattlePanel.open(), battleRequest, registerFactions, factionList, openUnitInfo, openOfficerView };
+  globalThis.qin = game.qin = { config: CFG, rules: QinRules, openBattle: () => BattlePanel.open(), battleRequest, registerFactions, factionList, openUnitInfo, openOfficerView, importBattleMap: () => importBattleMap(SYSTEM_ID) };
 
   CONFIG.Actor.documentClass = QinActor;
   CONFIG.Item.documentClass = QinItem;

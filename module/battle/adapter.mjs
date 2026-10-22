@@ -7,6 +7,7 @@ import { traitTiersOf, shieldArmorOf } from "./traits.mjs";
 export { traitTiersOf, shieldArmorOf };
 import { FORMATIONS, HEROIC_ACTIONS } from "./engine-data.mjs";
 import { SYSTEM_ID } from "../config.mjs";
+import { decodeTiles, FLAG as MAP_FLAG } from "./battlemap.mjs";
 
 const SETTING = "battle";
 let writing = false;
@@ -101,6 +102,8 @@ export function unitTokens(scene) {
   return scene ? scene.tokens.filter(t => t.actor?.type === "unit") : [];
 }
 
+const tileCache = new Map(); // sceneId -> { flag, tiles } (decoded battle map squares)
+
 /** Engine state assembled from the battle setting and the scene's unit tokens. */
 export function buildState(battle, { useLastPosition = null, terrainFor = null } = {}) {
   const scene = game.scenes.get(battle.sceneId);
@@ -117,6 +120,10 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
   for (const u of game.users) if (!u.isGM) s.players[u.id] = { name: u.name, color: u.color?.css ?? String(u.color) };
   if (!scene) return { s, scene: null };
   const size = scene.grid.size;
+  // A scene imported from a battle map knows every square's terrain; others fall back to named regions
+  const bm = scene.getFlag?.(SYSTEM_ID, MAP_FLAG) ?? scene.flags?.[SYSTEM_ID]?.[MAP_FLAG];
+  const tiles = bm ? (tileCache.get(scene.id)?.flag === bm ? tileCache.get(scene.id).tiles : decodeTiles(bm)) : null;
+  if (tiles) { tileCache.set(scene.id, { flag: bm, tiles }); s.map.tiles = tiles; s.map.cols = bm.cols; s.map.rows = bm.rows; }
   const officers = new Map();
   for (const tok of unitTokens(scene)) {
     const a = tok.actor, sys = a.system;
@@ -153,7 +160,7 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
       surrounded: meta.surrounded ?? false, round: meta.round ?? { activated: false, moved: false, cannotMove: false, holding: false, attacked: false, skillUsed: false, heroicUsed: false, meleeTarget: null, meleeAttacker: null },
     });
     // Terrain for this tile and its neighbours (stealth cover, encirclement)
-    for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    if (!s.map.tiles) for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const k = (gx + dx) + "," + (gy + dy);
       if (k in s.map.terrain) continue;
       const t = terrainAt(scene, (gx + dx) * size + size / 2, (gy + dy) * size + size / 2);
@@ -162,7 +169,7 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
   }
   s.library.officers = [...officers.values()];
   // Full terrain around one unit (movement range, so impassable regions block its path)
-  const tu = terrainFor && s.units.find(u => u.id === terrainFor);
+  const tu = terrainFor && !s.map.tiles && s.units.find(u => u.id === terrainFor);
   if (tu) {
     const r = Math.min(30, (E.movementOf(s, tu) || 0) * 2 + 1);
     for (let x = tu.x - r; x <= tu.x + r; x++) for (let y = tu.y - r; y <= tu.y + r; y++) {

@@ -5,7 +5,8 @@
     {{#if isGM}}
       <p>Place Unit tokens on the scene (<b>{{sceneName}}</b>), give officer units their officer, then start.</p>
       <button type="button" data-action="startBattle" class="qin-primary">Start battle on this scene</button>
-      <p class="qin-muted">Name scene Regions "Trees", "Tall grass" or "Impassable" to give terrain to stealth and encirclement.</p>
+      <button type="button" data-action="importMap" title="Create a scene from a map generator file (.battlemap.json)"><i class="fa-solid fa-map"></i> Import battle map…</button>
+      <p class="qin-muted">Scenes imported from the map generator know every square's terrain. On other scenes, name Regions "Trees", "Tall grass" or "Impassable" for terrain.</p>
       {{#if sceneUnits.length}}
       <h4>Sides</h4>
       <p class="qin-muted">Different sides fight each other; units on the same side never do.</p>

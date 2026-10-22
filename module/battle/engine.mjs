@@ -58,7 +58,50 @@ const passive = (s, u) => { const o = officerOf(s, u); return (o && o.passive &&
 const unitAt = (s, x, y) => liveUnits(s).find(u => u.x === x && u.y === y) || null;
 const terrainAt = (s, x, y) => s.map.terrain[x + ',' + y] || 'flat';
 const inBounds = (s, x, y) => x >= 0 && y >= 0 && x < s.map.cols && y < s.map.rows;
-const passable = (s, x, y) => inBounds(s, x, y) && (data.TERRAIN[terrainAt(s, x, y)] || data.TERRAIN.flat).passable;
+/**
+ * A square's terrain effects from the battle map (terrain + overlays, added together), or null when the scene
+ * has no battle map (then the older region-based terrain applies).
+ */
+function tileRules(s, x, y) {
+  const tile = s.map.tiles && s.map.tiles[x + ',' + y];
+  if (!tile) return null;
+  const overlays = tile.overlays || [];
+  const parts = [data.MAP_TERRAIN[tile.terrain] || { name: tile.terrain }, ...overlays.map(o => data.MAP_OVERLAYS[o] || { name: o })];
+  const r = { move: 0, meleeDef: 0, rangedDef: 0, range: 0, atk: 0, command: 0, moraleTurn: 0, healthTurn: 0, campDef: 0,
+    hides: false, wall: false, water: false, names: [], camp: overlays.some(o => o === 'camp' || o.startsWith('camp-')) };
+  let none = false, noCav = false, bridge = false;
+  for (const p of parts) {
+    for (const k of ['move', 'meleeDef', 'rangedDef', 'range', 'atk', 'command', 'moraleTurn', 'healthTurn', 'campDef']) r[k] += p[k] || 0;
+    if (p.pass === 'none') none = true;
+    if (p.pass === 'noCavalry') noCav = true;
+    if (p.bridge) bridge = true;
+    if (p.hides) r.hides = true;
+    if (p.wall) r.wall = true;
+    if (p.water) r.water = true;
+    if (p.name) r.names.push(p.name);
+  }
+  // walls, gates and towers hold units, but units don't walk onto them (until ladders and gates are in)
+  r.pass = (none && !bridge) || r.wall ? 'none' : noCav ? 'noCavalry' : 'all';
+  return r;
+}
+/** Can a unit walk into this square? (u: the mover, for "not cavalry" squares) */
+function passable(s, x, y, u) {
+  if (!inBounds(s, x, y)) return false;
+  const r = tileRules(s, x, y);
+  if (r) return r.pass === 'all' || (r.pass === 'noCavalry' && !(u && (typeOf(s, u) || {}).category === 'cavalry'));
+  return (data.TERRAIN[terrainAt(s, x, y)] || data.TERRAIN.flat).passable;
+}
+/** Can a unit be in this square at all? (walls and towers can hold units even though they can't be walked onto) */
+function standable(s, x, y) {
+  if (!inBounds(s, x, y)) return false;
+  const r = tileRules(s, x, y);
+  return r ? r.pass !== 'none' || r.wall : passable(s, x, y);
+}
+/** Movement it costs to enter a square: 1 + its Move modifier, never below half a point (roads, paving). */
+function enterCost(s, x, y) {
+  const r = tileRules(s, x, y);
+  return r ? Math.max(0.5, 1 + r.move) : 1;
+}
 const manhattan = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 const sign = n => (n > 0 ? 1 : n < 0 ? -1 : 0);
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
@@ -155,22 +198,30 @@ function yinYang() { const yin = d10(), yang = d10(); return { yin, yang, value:
 // Tiles reachable by `u` with `budget` movement. Units block movement.
 function reachable(s, u, budget) {
   // Units may move through friendly units (not stop on them); Heavy units, and all enemies, block.
-  const out = new Map(), seen = new Map(); const key = (x, y) => x + ',' + y;
-  const q = [[u.x, u.y, 0]]; seen.set(key(u.x, u.y), 0);
+  // Squares cost 1 + their Move modifier (cheapest path wins); `out.steps` holds the squares walked on that path.
+  const out = new Map(), best = new Map(), steps = new Map(); const key = (x, y) => x + ',' + y;
+  const start = key(u.x, u.y);
+  best.set(start, 0); steps.set(start, 0);
+  const q = [[u.x, u.y, 0, 0]];
   while (q.length) {
-    const [x, y, d] = q.shift();
-    if (d >= budget) continue;
+    let bi = 0;
+    for (let i = 1; i < q.length; i++) if (q[i][2] < q[bi][2]) bi = i;
+    const [x, y, d, n] = q.splice(bi, 1)[0];
+    if (d > best.get(key(x, y))) continue;
     for (const [dx, dy] of ORTHO) {
       const nx = x + dx, ny = y + dy, k = key(nx, ny);
-      if (seen.has(k) || !passable(s, nx, ny)) continue;
+      if (!passable(s, nx, ny, u)) continue;
+      const nd = d + enterCost(s, nx, ny);
+      if (nd > budget || (best.has(k) && best.get(k) <= nd)) continue;
       const o = unitAt(s, nx, ny);
       if (o && (trait(o, 'heavy') || !stealthFriends(alliance(o.side), alliance(u.side)))) continue;
-      seen.set(k, d + 1); q.push([nx, ny, d + 1]);
-      if (!o) out.set(k, d + 1);
+      best.set(k, nd); steps.set(k, n + 1); q.push([nx, ny, nd, n + 1]);
+      if (!o) out.set(k, nd); else out.delete(k);
     }
   }
-  out.delete(key(u.x, u.y));
-  return out; // "x,y" -> distance (empty tiles only)
+  out.delete(start);
+  out.steps = steps;
+  return out; // "x,y" -> movement spent (empty squares only); out.steps: "x,y" -> squares walked
 }
 
 /**
@@ -192,7 +243,7 @@ function threatArea(s, u) {
       for (let dy = -r; dy <= r; dy++) {
         if (Math.abs(dx) + Math.abs(dy) < lo) continue;
         const x = ox + dx, y = oy + dy, k = key(x, y);
-        if (passable(s, x, y) && !moveSet.has(k)) attack.add(k);
+        if (standable(s, x, y) && !moveSet.has(k)) attack.add(k);
       }
     }
   }
@@ -212,10 +263,11 @@ function moveOptions(s, u) {
   if (!move) return { blue, red };
   const reach = reachable(s, u, move * 2);
   for (const [k, d] of reach) {
-    if (d <= move) blue.set(k, d);
+    const n = reach.steps.get(k);
+    if (d <= move) blue.set(k, n);
     else {
-      const cost = forcedMarchCost(s, u) * (d - move);
-      if (u.morale - cost > 0) red.set(k, { dist: d, cost });
+      const cost = forcedMarchCost(s, u) * Math.ceil(d - move);
+      if (u.morale - cost > 0) red.set(k, { dist: n, cost });
     }
   }
   return { blue, red };
@@ -317,14 +369,15 @@ function repositionTiles(s, d, u) {
   return out;
 }
 /** Does terrain hide a unit that ends its turn there? (forests) */
-function hidesIn(s, u) { return terrainAt(s, u.x, u.y) === 'trees'; }
+function hidesIn(s, u) { const r = tileRules(s, u.x, u.y); return r ? r.hides : terrainAt(s, u.x, u.y) === 'trees'; }
 
 // ---------------------------------------------------------------- combat
 
 function rangeOk(s, attacker, defender) {
   const t = typeOf(s, attacker); const d = manhattan(attacker, defender);
-  const bonus = t.weapon === 'ranged' ? rangeBonus(s, attacker) : 0;
-  return d >= (t.rangeMin || 1) && d <= (t.rangeMax || 1) + bonus;
+  const tr = t.weapon === 'ranged' ? tileRules(s, attacker.x, attacker.y) : null;
+  const bonus = t.weapon === 'ranged' ? rangeBonus(s, attacker) + (tr ? tr.range : 0) : 0;
+  return d >= (t.rangeMin || 1) && d <= Math.max(1, (t.rangeMax || 1) + bonus);
 }
 
 // Build one side's roll. role: 'attacker' | 'defender'.
@@ -400,6 +453,19 @@ function buildRoll(s, unit, role, ctx) {
   const figures = soldierFigures(unit.men, full);
   if (figures === 1) parts.push(['One soldier left (1-20% strength)', -2]);
   else if (figures === 2) parts.push(['Two soldiers left (21-40% strength)', -1]);
+  // terrain of the square the unit stands on
+  const tr = tileRules(s, unit.x, unit.y);
+  if (tr) {
+    const where = tr.names.join(', ');
+    if (tr.command) parts.push(['Terrain (' + where + '): command', tr.command]);
+    if (role === 'attacker' && tr.atk) parts.push(['Terrain (' + where + '): attack', tr.atk]);
+    if (role === 'defender') {
+      const def = ctx.ranged ? tr.rangedDef : tr.meleeDef;
+      if (def) parts.push(['Terrain (' + where + '): ' + (ctx.ranged ? 'ranged' : 'melee') + ' defense', def]);
+      const ar = tileRules(s, other.x, other.y);
+      if (tr.campDef && !(ar && ar.camp)) parts.push(['Camp defences (attacked from outside)', tr.campDef]);
+    }
+  }
   for (const m of unit.mods || []) parts.push(['Modifier: ' + m.label, Number(m.value) || 0]);
 
   const total = parts.reduce((a, [, v]) => a + v, 0);
@@ -808,6 +874,14 @@ function finishActivation(s, u) {
     const before = u.morale;
     u.morale = Math.min(75, u.morale + o.fire + o.command);
     if (u.morale !== before) log(s, u.name + ' regains ' + (u.morale - before) + ' morale (officer Fire + Command).');
+  }
+  // terrain where it ends its turn: command tents and supply depots lift morale, fire burns
+  const tr = alive(u) ? tileRules(s, u.x, u.y) : null;
+  if (tr && (tr.moraleTurn || tr.healthTurn)) {
+    if (tr.moraleTurn) u.morale = clamp(u.morale + tr.moraleTurn, 0, 100);
+    if (tr.healthTurn) u.men = Math.max(0, u.men + tr.healthTurn);
+    log(s, u.name + ' ends its turn on ' + tr.names.join(', ') + ':' + (tr.moraleTurn ? ' ' + (tr.moraleTurn > 0 ? '+' : '') + tr.moraleTurn + ' morale' : '') +
+      (tr.healthTurn ? ' ' + tr.healthTurn + ' troops' : '') + '.');
   }
   if (alive(u)) {
     const f = fx(u);
@@ -1412,7 +1486,7 @@ function doMove(s, actor, a, forced) {
   if (!alive(u)) return ok();
   if (forced) fireTactics(s, 'forcedMarch', u);
   const from = { x: u.x, y: u.y };
-  const tiles = s.freeMovement ? Math.abs(a.x - u.x) + Math.abs(a.y - u.y) : (reachable(s, u, budget).get(a.x + ',' + a.y) ?? 0);
+  const tiles = s.freeMovement ? Math.abs(a.x - u.x) + Math.abs(a.y - u.y) : (reachable(s, u, budget).steps.get(a.x + ',' + a.y) ?? 0);
   u.x = a.x; u.y = a.y; u.round.moved = true;
   u.facing = { dx: sign(u.x - from.x), dy: sign(u.y - from.y) };
   ac.started = true; ac.movedThisActivation = true;
@@ -1447,7 +1521,7 @@ function viewFor(s, viewer) {
 }
 
 export {
-  moveOptions, attackTargets, actionMenu, threatArea, TACTIC_SIDES,
+  moveOptions, attackTargets, actionMenu, threatArea, TACTIC_SIDES, tileRules,
   newState, act, viewFor, prompt, reachable, movementOf, moraleState, visibleTo, rangeOk,
   resolveAttack, buildRoll, setRng, yinYang, typeOf, officerOf, unitById, SIDES, settle, advance,
 };

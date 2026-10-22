@@ -5,6 +5,7 @@ import { getBattle, buildState, runAction, unitTokens } from "./adapter.mjs";
 import { scaledPosition } from "../sheets/sheets.mjs";
 import { setBattleRequest, highlightUnit } from "./battle-ui.mjs";
 import { TacticsApp } from "./tactics-ui.mjs";
+import { importBattleMap } from "./battlemap.mjs";
 
 const QUERY = `${SYSTEM_ID}.battle`;
 const PHASE_NAME = { tactics: "Tactics", setup: "Setup", formations: "Declare formations", officer: "Officer phase", officerless: "Officer-less phase", final: "Final pass" };
@@ -47,6 +48,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
       swapTarget: BattlePanel.#swapTarget,
       selectUnit: BattlePanel.#selectUnit,
       setHidden: BattlePanel.#setHidden,
+      importMap: () => importBattleMap(SYSTEM_ID),
     },
   };
   static PARTS = { body: { template: systemPath("templates/battle/panel.hbs"), scrollable: [".qin-battle-scroll"] } };
