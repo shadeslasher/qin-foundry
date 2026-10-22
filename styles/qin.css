@@ -446,3 +446,6 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin-mp .qin-mp-foot { display: flex; gap: 6px; align-items: center; margin-top: 10px; }
 .qin-mp .qin-mp-foot > span { flex: 1; }
 .qin-mp .qin-mp-foot button { flex: none; width: auto; padding: 0 10px; }
+.qin-mp .qin-mp-erase { grid-column: 1 / -1; }
+.qin-mp .qin-mp-erase i { border: none; width: auto; height: auto; }
+.qin-mp .qin-mp-erase small { opacity: 0.7; }

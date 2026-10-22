@@ -3,7 +3,8 @@
 //
 // The system doesn't ship the generator. A module provides it: in "setup", call
 //   game.qin.registerMapRenderer({ workerUrl: "modules/<id>/scripts/mapmaker-worker.js" })
-// where the worker answers { id, code, edits?, px, blend, vignette, grid, image? } with { id, ok, code, data, blob? }.
+// where the worker answers { id, code, edits?, px, blend, vignette, grid, image? } (edits: { x, y, terrain } |
+// { x, y, overlay, on } | { x, y, erase: true }) with { id, ok, code, data, blob? }.
 // Without one, imported maps still work; they just can't be redrawn.
 import { SYSTEM_ID } from "../config.mjs";
 import { FLAG, encodeBattleMap } from "./battlemap.mjs";
@@ -194,7 +195,8 @@ export class MapEditorApp extends Base {
     const ovs = PAINT_OVERLAYS.filter(id => MAP_OVERLAYS[id] || id === "catapult").map(id => `<button type="button" class="qin-mp-sw ${b.kind === "overlay" && b.id === id ? "on" : ""}" data-act="overlay" data-id="${id}">${esc(MAP_OVERLAYS[id]?.name ?? id)}</button>`).join("");
     const blend = this.look?.blend ?? flag.blend ?? 50, vig = this.look?.vignette ?? flag.vignette ?? true;
     return `<div class="qin-mp">
-      <p class="qin-muted">Pick a brush, then click or drag on the map. Changes show as coloured squares until you apply them. Right-click or Esc stops painting.</p>
+      <p class="qin-muted">Pick a brush, then click or drag on the map. Changes show as coloured squares until you apply them. Close this window to stop painting.</p>
+      <div class="qin-mp-grid"><button type="button" class="qin-mp-sw qin-mp-erase ${b.kind === "erase" ? "on" : ""}" data-act="erase"><i class="fa-solid fa-eraser"></i>Erase <small>(plain grass, nothing on it)</small></button></div>
       <h4>Terrain</h4><div class="qin-mp-grid">${terr}</div>
       <h4>Overlays <span class="qin-mp-mode"><label><input type="radio" name="mpOn" value="1" ${b.on ? "checked" : ""}> Add</label> <label><input type="radio" name="mpOn" value="0" ${b.on ? "" : "checked"}> Remove</label></span></h4>
       <div class="qin-mp-grid">${ovs}</div>
@@ -226,6 +228,7 @@ export class MapEditorApp extends Base {
     const el = ev.target.closest("[data-act]"); if (!el) return;
     const a = el.dataset.act;
     if (a === "terrain" || a === "overlay") { this.brush = { ...this.brush, kind: a, id: el.dataset.id }; return this.render(); }
+    if (a === "erase") { this.brush = { ...this.brush, kind: "erase" }; return this.render(); }
     if (a === "undo") { this.edits.pop(); return this.render(); }
     if (a === "discard") { this.edits = []; this.look = null; return this.render(); }
     if (a === "apply") {
@@ -262,9 +265,13 @@ export class MapEditorApp extends Base {
       if (x < 0 || y < 0 || x >= flag.cols || y >= flag.rows || last === `${x},${y}`) return;
       last = `${x},${y}`;
       const b = this.brush;
-      // a newer edit of the same kind on this square replaces the older one
-      this.edits = this.edits.filter(e => !(e.x === x && e.y === y && (b.kind === "terrain" ? e.terrain : e.overlay === b.id)));
-      this.edits.push(b.kind === "terrain" ? { x, y, terrain: b.id } : { x, y, overlay: b.id, on: b.on });
+      // a newer edit of the same kind on this square replaces the older one; erasing replaces everything there
+      const same = (e) => e.x === x && e.y === y;
+      if (b.kind === "erase") { this.edits = this.edits.filter(e => !same(e)); this.edits.push({ x, y, erase: true }); }
+      else {
+        this.edits = this.edits.filter(e => !(same(e) && (b.kind === "terrain" ? e.terrain : e.overlay === b.id)));
+        this.edits.push(b.kind === "terrain" ? { x, y, terrain: b.id } : { x, y, overlay: b.id, on: b.on });
+      }
       this.#drawPending();
     };
     const down = (ev) => {
@@ -276,19 +283,13 @@ export class MapEditorApp extends Base {
     };
     const move = (ev) => { if (dragging) put(ev); };
     const up = () => { if (dragging) { dragging = false; this.render(); } };
-    const key = (ev) => { if (ev.key === "Escape" && this.rendered) { ev.stopPropagation(); this.close(); } };
-    const ctx = (ev) => { if (ev.target === view) { ev.preventDefault(); this.close(); } };
     document.addEventListener("pointerdown", down, true);
     view.addEventListener("pointermove", move);
     document.addEventListener("pointerup", up, true);
-    document.addEventListener("keydown", key, true);
-    view.addEventListener("contextmenu", ctx, true);
     this.#paint = () => {
       document.removeEventListener("pointerdown", down, true);
       view.removeEventListener("pointermove", move);
       document.removeEventListener("pointerup", up, true);
-      document.removeEventListener("keydown", key, true);
-      view.removeEventListener("contextmenu", ctx, true);
     };
   }
 
@@ -304,10 +305,10 @@ export class MapEditorApp extends Base {
     for (const e of this.edits) { const k = `${e.x},${e.y}`; (bySquare.get(k) ?? bySquare.set(k, []).get(k)).push(e); }
     for (const [k, list] of bySquare) {
       const [x, y] = k.split(",").map(Number);
-      const t = [...list].reverse().find(e => e.terrain);
-      const col = t ? (TERRAIN_COLORS[t.terrain] ?? 0x888888) : 0xffffff;
-      g.lineStyle(Math.max(2, size * 0.03), 0xffd34d, 1).beginFill(col, t ? 0.7 : 0.18).drawRect(x * size + 2, y * size + 2, size - 4, size - 4).endFill();
-      const words = list.map(e => e.terrain ? (MAP_TERRAIN[e.terrain]?.name ?? e.terrain) : `${e.on ? "+" : "−"}${MAP_OVERLAYS[e.overlay]?.name ?? e.overlay}`);
+      const t = [...list].reverse().find(e => e.terrain || e.erase);
+      const col = t ? (t.erase ? TERRAIN_COLORS.plains : (TERRAIN_COLORS[t.terrain] ?? 0x888888)) : 0xffffff;
+      g.lineStyle(Math.max(2, size * 0.03), t?.erase ? 0xff7a59 : 0xffd34d, 1).beginFill(col, t ? 0.7 : 0.18).drawRect(x * size + 2, y * size + 2, size - 4, size - 4).endFill();
+      const words = list.map(e => e.erase ? "Erase" : e.terrain ? (MAP_TERRAIN[e.terrain]?.name ?? e.terrain) : `${e.on ? "+" : "−"}${MAP_OVERLAYS[e.overlay]?.name ?? e.overlay}`);
       const label = c.addChild(new Txt(words.join("\n"), style));
       label.anchor?.set?.(0.5); label.position.set(x * size + size / 2, y * size + size / 2);
     }
