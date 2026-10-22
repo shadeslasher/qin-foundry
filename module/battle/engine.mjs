@@ -129,6 +129,33 @@ function reachable(s, u, budget) {
 }
 
 /**
+ * Everywhere a unit threatens this turn: tiles it can move to (normal move), plus the tiles it could attack
+ * from any of them (range bonuses, minimum range and Hybrid melee included). Keys are "x,y".
+ */
+function threatArea(s, u) {
+  const key = (x, y) => x + ',' + y;
+  const move = movementOf(s, u);
+  const moveSet = new Set(move ? reachable(s, u, move).keys() : []);
+  const t = typeOf(s, u), ranged = t.weapon === 'ranged';
+  const bands = [[t.rangeMin || 1, (t.rangeMax || 1) + (ranged ? rangeBonus(s, u) : 0)]];
+  if (ranged && trait(u, 'hybrid')) bands.push([1, 1]);
+  const attack = new Set();
+  const origins = [[u.x, u.y], ...[...moveSet].map(k => k.split(',').map(Number))];
+  for (const [ox, oy] of origins) for (const [lo, hi] of bands) {
+    for (let dx = -hi; dx <= hi; dx++) {
+      const r = hi - Math.abs(dx);
+      for (let dy = -r; dy <= r; dy++) {
+        if (Math.abs(dx) + Math.abs(dy) < lo) continue;
+        const x = ox + dx, y = oy + dy, k = key(x, y);
+        if (passable(s, x, y) && !moveSet.has(k)) attack.add(k);
+      }
+    }
+  }
+  attack.delete(key(u.x, u.y));
+  return { move: moveSet, attack };
+}
+
+/**
  * Where a unit can go this turn. blue: normal move (keeps its action). red: forced march
  * (another move's worth, 5 morale per extra tile, never down to 0 morale; ends the turn).
  */
@@ -1138,7 +1165,7 @@ function viewFor(s, viewer) {
 }
 
 export {
-  moveOptions, attackTargets, actionMenu,
+  moveOptions, attackTargets, actionMenu, threatArea,
   newState, act, viewFor, prompt, reachable, movementOf, moraleState, visibleTo, rangeOk,
   resolveAttack, buildRoll, setRng, yinYang, typeOf, officerOf, unitById, SIDES, settle, advance,
 };

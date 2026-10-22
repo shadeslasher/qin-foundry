@@ -80,28 +80,99 @@ export function clearMovePreview() {
   preview = null;
 }
 
-/** Normal (non-forced-march) movement range of the hovered unit: orange-red for enemies, green otherwise. */
+/** The battle state for previews (outside a battle, the scene as it stands). */
+function previewState(focusId) {
+  let battle = getBattle();
+  if (!battle.active || battle.sceneId !== canvas.scene?.id) battle = { ...emptyBattle(), sceneId: canvas.scene?.id };
+  try { return buildState(battle, focusId ? { terrainFor: focusId } : {}).s; } catch (e) { console.warn("Qin | preview", e); return null; }
+}
+
+const MOVE_ENEMY = 0xdc3232, MOVE_OTHER = 0x3fbf5f, ATTACK = 0xff961e;
+
+/**
+ * Hovered unit: where it can move this turn (red for enemies, green otherwise) and, in orange,
+ * how much further it can attack from there.
+ */
 export function showMovePreview(token) {
   clearMovePreview();
   if (!canvas?.ready || !unitVisible(token) || pickingCheck()) return;
-  let battle = getBattle();
-  if (!battle.active || battle.sceneId !== canvas.scene?.id) battle = { ...emptyBattle(), sceneId: canvas.scene?.id };
-  let s;
-  try { ({ s } = buildState(battle, { terrainFor: token.id })); } catch (e) { return console.warn("Qin | move preview", e); }
-  const u = E.unitById(s, token.id);
+  const s = previewState(token.id);
+  const u = s && E.unitById(s, token.id);
   if (!u || u.status !== "active") return;
-  const move = E.movementOf(s, u);
-  if (!move) return;
-  const tiles = E.reachable(s, u, move);
-  const size = canvas.scene.grid.size, color = token.actor.system.side === "enemy" ? 0xff5a24 : 0x3fbf5f;
+  const { move, attack } = E.threatArea(s, u);
+  const size = canvas.scene.grid.size, mcol = token.actor.system.side === "enemy" ? MOVE_ENEMY : MOVE_OTHER;
   const g = new PIXI.Graphics();
   g.eventMode = "none";
-  for (const k of tiles.keys()) {
+  const sq = (k, col, a) => {
     const [x, y] = k.split(",").map(Number);
-    g.lineStyle(2, color, 0.75).beginFill(color, 0.22).drawRect(x * size + 3, y * size + 3, size - 6, size - 6).endFill();
-  }
+    g.lineStyle(2, col, 0.8).beginFill(col, a).drawRect(x * size + 3, y * size + 3, size - 6, size - 6).endFill();
+  };
+  for (const k of attack) sq(k, ATTACK, 0.2);
+  for (const k of move) sq(k, mcol, 0.25);
   (canvas.interface ?? canvas.controls ?? canvas.stage).addChild(g);
   preview = g;
+}
+
+/* ------------------------------------------------------------ danger zone (Z): every tile the enemy threatens */
+
+let dangerOn = false, danger = null;
+
+function clearDanger() {
+  if (danger && !danger.destroyed) danger.destroy();
+  danger = null;
+}
+
+/** Redraw the danger zone if it's on: the combined move + attack reach of every enemy unit the viewer can see. */
+export function drawDangerZone() {
+  clearDanger();
+  if (!dangerOn || !canvas?.ready) return;
+  const s = previewState(null);
+  if (!s) return;
+  const zone = new Set();
+  for (const u of s.units) {
+    if (u.status !== "active" || u.side !== "enemy") continue;
+    const tok = canvas.tokens.get(u.id);
+    if (!tok || !unitVisible(tok) || (u.hidden && !game.user.isGM)) continue; // hidden enemies stay secret
+    const { move, attack } = E.threatArea(s, u);
+    for (const k of move) zone.add(k);
+    for (const k of attack) zone.add(k);
+    zone.add(u.x + "," + u.y);
+  }
+  const size = canvas.scene.grid.size;
+  const g = new PIXI.Graphics();
+  g.eventMode = "none";
+  g.beginFill(MOVE_ENEMY, 0.28);
+  for (const k of zone) { const [x, y] = k.split(",").map(Number); g.drawRect(x * size, y * size, size, size); }
+  g.endFill();
+  // a bright edge around the zone
+  g.lineStyle(3, 0xff463c, 0.95);
+  for (const k of zone) {
+    const [x, y] = k.split(",").map(Number), X = x * size, Y = y * size;
+    if (!zone.has(`${x + 1},${y}`)) g.moveTo(X + size, Y).lineTo(X + size, Y + size);
+    if (!zone.has(`${x - 1},${y}`)) g.moveTo(X, Y).lineTo(X, Y + size);
+    if (!zone.has(`${x},${y + 1}`)) g.moveTo(X, Y + size).lineTo(X + size, Y + size);
+    if (!zone.has(`${x},${y - 1}`)) g.moveTo(X, Y).lineTo(X + size, Y);
+  }
+  const layer = canvas.interface ?? canvas.controls ?? canvas.stage;
+  layer.addChildAt?.(g, 0) ?? layer.addChild(g);
+  danger = g;
+}
+
+export function toggleDangerZone() {
+  dangerOn = !dangerOn;
+  drawDangerZone();
+  ui.notifications?.info(dangerOn ? "Danger zone on (press Z again to hide)." : "Danger zone off.");
+}
+
+/** Z toggles the danger zone; rebindable in Configure Controls. Call during init. */
+export function registerDangerZoneKey(systemId) {
+  game.keybindings.register(systemId, "dangerZone", {
+    name: "Toggle danger zone",
+    hint: "Show every tile any visible enemy unit could move to or attack this turn.",
+    editable: [{ key: "KeyZ" }],
+    onDown: () => { if (!canvas?.ready) return false; toggleDangerZone(); return true; },
+    precedence: CONST.KEYBINDING_PRECEDENCE.NORMAL,
+  });
 }
 
 /* ------------------------------------------------------------ officer sheet, view only */
@@ -219,4 +290,9 @@ export function registerUnitInfo() {
   Hooks.on("deleteItem", (i) => refresh(i.parent));
   Hooks.on("hoverToken", (token, hovered) => { if (hovered) showMovePreview(token); else clearMovePreview(); });
   for (const h of ["updateToken", "deleteToken", "canvasTearDown"]) Hooks.on(h, () => clearMovePreview());
+  // keep the danger zone current as units move, change or the battle advances
+  let pending = null;
+  const redraw = () => { if (!dangerOn) return; clearTimeout(pending); pending = setTimeout(drawDangerZone, 60); };
+  for (const h of ["updateToken", "createToken", "deleteToken", "updateActor", "updateSetting", "canvasReady"]) Hooks.on(h, redraw);
+  Hooks.on("canvasTearDown", clearDanger);
 }

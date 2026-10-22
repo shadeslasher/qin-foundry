@@ -254,3 +254,16 @@ test('Precision stacks on top of the ranged attacker bonus', () => {
   assert.strictEqual(part(r.attackRoll, /^Attacker bonus/), 2);
   assert.strictEqual(part(r.attackRoll, /^Precision/), 2);
 });
+
+test('threatArea: move tiles plus attack reach beyond them (archer move 3, range 3 reaches 6)', () => {
+  const s = setup();
+  s.library.unitTypes.push(unitType('r', { weapon: 'ranged', rangeMin: 1, rangeMax: 3, move: 3 }), unitType('m', { move: 3 }));
+  const r = R.unitById(s, add(s, { typeId: 'r', side: 'enemy', x: 10, y: 8 }));
+  const { move, attack } = R.threatArea(s, r);
+  assert.ok(move.has('10,5') && !move.has('10,4'));
+  assert.ok(attack.has('10,2') && !attack.has('10,1'), 'range 3 beyond a 3-tile move');
+  assert.ok(!attack.has('10,6'), 'move tiles are not repeated as attack tiles');
+  const m = R.unitById(s, add(s, { typeId: 'm', side: 'enemy', x: 3, y: 8 }));
+  const mt = R.threatArea(s, m);
+  assert.ok(mt.attack.has('3,4') && !mt.attack.has('3,3'), 'melee reaches one tile past its move');
+});
