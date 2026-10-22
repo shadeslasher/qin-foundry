@@ -67,7 +67,8 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
     const battle = getBattle();
     const ctx = { isGM: game.user.isGM, active: battle.active, sceneName: canvas.scene?.name ?? "—", sideChoices: SIDES };
     if (!battle.active) {
-      ctx.sceneUnits = unitTokens(canvas.scene).map(t => ({ id: t.id, name: t.name, img: t.texture?.src, side: t.actor.system.side }));
+      // players only see the units they control; the GM sees every unit
+      ctx.sceneUnits = unitTokens(canvas.scene).filter(t => game.user.isGM || t.actor?.isOwner).map(t => ({ id: t.id, name: t.name, img: t.texture?.src, side: t.actor.system.side }));
       return ctx;
     }
     const { s, scene } = buildState(battle);
@@ -119,7 +120,8 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
 
     // Held officers (interject portraits)
     const blocked = a && a.started;
-    const held = t.held.map(id => unit(id)).filter(u => u && u.status === "active").map(u => ({
+    const shown = (u) => game.user.isGM || (u && u.owner === game.user.id); // players see only their own units
+    const held = t.held.map(id => unit(id)).filter(u => u && u.status === "active" && shown(u)).map(u => ({
       id: u.id, name: u.name, img: tokenImg(u.id), init: t.init[u.id]?.total,
       mine: mine(u), can: mine(u) && !blocked && t.order.indexOf(u.id) < (p.rank ?? Infinity) && !(a && a.unitId === u.id),
     }));
@@ -142,12 +144,12 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
 
     const order = t.order.map(id => {
       const u = unit(id);
-      if (!u) return null;
+      if (!u || !shown(u)) return null;
       const st = u.status !== "active" ? u.status : u.round.activated ? "done" : t.held.includes(id) ? "holding" : (a?.unitId === id ? "acting" : "waiting");
       return { name: u.name, init: t.init[id]?.total, state: st, now: p.unitId === id };
     }).filter(Boolean);
 
-    const units = s.units.map(u => ({
+    const units = s.units.filter(shown).map(u => ({
       id: u.id, name: u.name, side: u.side, men: u.men, maxMen: u.maxMen ?? 100, xp: u.xp ?? 0, morale: u.morale, moraleState: E.moraleState(u.morale), status: u.status,
       formation: s.library.formations.find(f => f.id === u.formation)?.name ?? "—", officer: E.officerOf(s, u)?.name ?? null,
       done: u.round.activated, mine: mine(u), img: tokenImg(u.id), pickable: pickable.includes(u),

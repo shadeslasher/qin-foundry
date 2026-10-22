@@ -13,8 +13,9 @@
         {{#each sceneUnits}}
         <li class="qin-side-{{side}}"><img src="{{img}}" data-action="selectUnit" data-unit-id="{{id}}" title="Select token">
           <div class="qin-uinfo"><b>{{name}}</b></div>
-          <select data-side-unit="{{id}}">{{#each ../sideChoices}}<option value="{{@key}}" {{#if (eq @key ../side)}}selected{{/if}}>{{this}}</option>{{/each}}</select>
+          {{#if @root.isGM}}<select data-side-unit="{{id}}">{{#each ../sideChoices}}<option value="{{@key}}" {{#if (eq @key ../side)}}selected{{/if}}>{{this}}</option>{{/each}}</select>{{/if}}
         </li>
+        {{else}}<li class="qin-muted">{{#if isGM}}No unit tokens on this scene yet.{{else}}You don't control any units on this scene.{{/if}}</li>
         {{/each}}
       </ul>
       {{/if}}
@@ -71,7 +72,7 @@
           <img src="{{img}}" data-action="selectUnit" data-unit-id="{{id}}" title="Select token">
           <div class="qin-uinfo">
             <div><b>{{name}}</b>{{#if officer}} <span class="qin-muted">({{officer}})</span>{{/if}}</div>
-            <div class="qin-muted">{{men}}/{{maxMen}} health · {{morale}} morale · {{xp}} XP ({{moraleState}}){{#unless (eq status "active")}} · {{status}}{{/unless}}</div>
+            <div class="qin-muted">{{men}}/{{maxMen}} health · {{morale}} morale{{#if (eq side "player")}} · {{xp}} XP{{/if}} ({{moraleState}}){{#unless (eq status "active")}} · {{status}}{{/unless}}</div>
             {{#if sideEditable}}<select data-side-unit="{{id}}" title="Side (can change before initiative)">{{#each ../sideChoices}}<option value="{{@key}}" {{#if (eq @key ../side)}}selected{{/if}}>{{this}}</option>{{/each}}</select>{{/if}}
             {{#if formationOptions}}
               <select data-formation-unit="{{id}}">{{#each formationOptions}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{name}}</option>{{/each}}</select>
@@ -79,6 +80,7 @@
           </div>
           {{#if pickable}}<button type="button" class="qin-primary" data-action="do" data-type="begin" data-unit-id="{{id}}">Take turn</button>{{/if}}
         </li>
+        {{else}}<li class="qin-muted">You don't control any units in this battle.</li>
         {{/each}}
       </ul>
     </div>
