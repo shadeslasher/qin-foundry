@@ -9,7 +9,7 @@ const SIDE_COLORS = { player: 0x3a78c8, enemy: 0xc8443a, ally: 0x3fa66a, neutral
 // Layout, as fractions of the token's size
 const L = {
   pad: 0.03, fig: 0.36, ringCrop: 0.115, officer: 0.33,
-  back: [[0.395, 0.285], [0.605, 0.285]], front: [[0.29, 0.495], [0.50, 0.505], [0.71, 0.495]],
+  back: [[0.395, 0.23], [0.605, 0.23]], front: [[0.29, 0.44], [0.50, 0.45], [0.71, 0.44]],
   flagX: 0.87, flagY: 0.055, flagH: 0.26, rollW: 0.075, bar: 0.15,
 };
 // Slots in loss order: slot 1 is lost first, slot 5 (front-middle) is the last man standing
@@ -64,11 +64,13 @@ export function unitStatus(token) {
   const round = battle?.meta?.[token.id]?.round ?? {};
   const form = actor.items?.get?.(s.formation);
   const f = form?.type === "formation" ? form.system : {};
-  let attack = 0;
+  // rolls: changes to ALL Command rolls (attacking and defending): morale and losses
+  let rolls = 0, attack = 0;
   const m = s.morale ?? 0;
-  if (m >= 75) attack += 2; else if (m > 0 && m <= 25) attack -= 2;
+  if (m >= 75) rolls += 2; else if (m > 0 && m <= 25) rolls -= 2;
   const figs = figureCount(s.men?.value ?? 0, s.men?.max || 100);
-  if (figs === 1) attack -= 2; else if (figs === 2) attack -= 1;
+  if (figs === 1) rolls -= 2; else if (figs === 2) rolls -= 1;
+  // attack: changes that only count when attacking
   attack += Number(f.atkMod) || 0; // the formation's attack modifier always shows (it only counts when attacking)
   const ac = battle?.turn?.activation;
   if (ac?.unitId === token.id && !ac.forcedMarched && !round.attacked) {
@@ -85,7 +87,7 @@ export function unitStatus(token) {
   const both = Number(f.defAll) || 0; // melee & ranged defense
   const defense = (round.holding ? 2 : 0) + both + (Number(f.defMelee) || 0);
   const rangedDefense = both + (Number(f.defRanged) || 0);
-  return { attack, defense, rangedDefense, range: 0, holding: !!round.holding, hidden: !!s.hidden };
+  return { rolls, attack, defense, rangedDefense, range: 0, holding: !!round.holding, hidden: !!s.hidden };
 }
 
 /** A heater shield centred on (0,0), w wide and h tall. */
@@ -130,6 +132,21 @@ function drawHiddenEye(size) {
   g.lineStyle(0).beginFill(0xe8f2ff, 1).drawCircle(0, 0, 2.2 * u).endFill();
   g.lineStyle(Math.max(2, u * 1.8), 0x1a140e, 1).moveTo(-6 * u, -6 * u).lineTo(6 * u, 6 * u);
   g.lineStyle(Math.max(1.5, u * 1.1), 0xe8f2ff, 1).moveTo(-6 * u, -6 * u).lineTo(6 * u, 6 * u);
+  return g;
+}
+
+/** Yin and yang: a change to ALL of this unit's Command rolls. */
+function drawYinYang(size) {
+  const g = new PIXI.Graphics(), r = size * 0.36;
+  const half = [];
+  for (let k = 0; k <= 24; k++) { const a = -Math.PI / 2 + Math.PI * k / 24; half.push(Math.cos(a) * r, Math.sin(a) * r); }
+  g.lineStyle(0).beginFill(0xf2ece0, 1).drawCircle(0, 0, r).endFill();
+  g.beginFill(0x15110c, 1).drawPolygon(half).endFill();
+  g.beginFill(0xf2ece0, 1).drawCircle(0, -r / 2, r / 2).endFill();
+  g.beginFill(0x15110c, 1).drawCircle(0, r / 2, r / 2).endFill();
+  g.beginFill(0x15110c, 1).drawCircle(0, -r / 2, r / 6).endFill();
+  g.beginFill(0xf2ece0, 1).drawCircle(0, r / 2, r / 6).endFill();
+  g.lineStyle(Math.max(1, size * 0.03), 0x15110c, 1).drawCircle(0, 0, r);
   return g;
 }
 
@@ -418,6 +435,7 @@ export async function drawUnitBars(token) {
   const signed = (v) => (v > 0 ? `+${v}` : `\u2212${Math.abs(v)}`);
   const plain = (v) => (v > 0 ? `${v}` : `\u2212${Math.abs(v)}`);
   const icons = [];
+  if (st.rolls) icons.push([drawYinYang, signed(st.rolls), st.rolls < 0]);
   if (st.attack) icons.push([drawSword, signed(st.attack), st.attack < 0]);
   if (st.defense) icons.push([(sz) => drawShield(sz * 0.62, sz * 0.72), plain(st.defense), st.defense < 0]);
   if (st.rangedDefense) icons.push([drawArrowShield, plain(st.rangedDefense), st.rangedDefense < 0]);

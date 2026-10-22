@@ -10,7 +10,7 @@ test('figures: one per 20% of strength (cavalry of 50), at least 1 while alive',
 
 test('loss order (2 back, 3 front): front-right first, then front-left, back-right, back-left; front-middle is the last man', () => {
   const key = (p) => p.join(',');
-  const BL = '0.395,0.285', BR = '0.605,0.285', FL = '0.29,0.495', FM = '0.5,0.505', FR = '0.71,0.495';
+  const BL = '0.395,0.23', BR = '0.605,0.23', FL = '0.29,0.44', FM = '0.5,0.45', FR = '0.71,0.44';
   assert.deepStrictEqual(U.figureSlots(5).map(key), [BL, BR, FL, FM, FR]);
   assert.deepStrictEqual(U.figureSlots(4).map(key), [BL, BR, FL, FM]);
   assert.deepStrictEqual(U.figureSlots(3).map(key), [BL, BR, FM]);
@@ -24,8 +24,9 @@ test('status icons: Command roll bonus/penalty, defense, ranged defense', () => 
   const form = (sys) => ({ get: (id) => (id === 'f' ? { type: 'formation', system: sys } : null) });
   const tok = (sys, items = form({}), id = 't') => ({ id, document: { parent: { id: 's' } }, actor: { system: { formation: 'f', range: 1, category: 'infantry', men: { value: 100, max: 100 }, morale: 50, traits: '', ...sys }, items } });
   // morale and losses
-  assert.strictEqual(U.unitStatus(tok({ morale: 80 })).attack, 2);
-  assert.strictEqual(U.unitStatus(tok({ morale: 20, men: { value: 15, max: 100 } })).attack, -4, 'demoralised and down to 1 soldier');
+  assert.strictEqual(U.unitStatus(tok({ morale: 80 })).rolls, 2);
+  assert.strictEqual(U.unitStatus(tok({ morale: 80 })).attack, 0, 'morale is on all rolls, not the sword');
+  assert.strictEqual(U.unitStatus(tok({ morale: 20, men: { value: 15, max: 100 } })).rolls, -4, 'demoralised and down to 1 soldier');
   // ranged unit on its turn, not moved: +2
   battle.turn.activation = { unitId: 't' };
   assert.strictEqual(U.unitStatus(tok({ range: 3 })).attack, 2);

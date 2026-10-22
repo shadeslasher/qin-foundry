@@ -270,7 +270,7 @@ function animateChanges(scene, before, s, entries) {
     if (r.casualtiesAttacker) { toA.push(["unitDamage", `−${r.casualtiesAttacker}`]); add(r.attacker, "men", r.casualtiesAttacker); }
     if (r.loser === r.attacker && r.moraleLoss) { toA.push(["moraleDown", `−${r.moraleLoss} morale`]); add(r.attacker, "morale", -r.moraleLoss); }
     // the attacker's sword icon shows this attack's situational total (not the dice or the officer's stats)
-    const base = /^(Yin\/Yang|Command|Fire|Skill|Unit Value)/;
+    const base = /^(Yin\/Yang|Command|Fire|Skill|Unit Value|Encouraged|Demoralized|One soldier left|Two soldiers left|Modifier:)/;
     const attackBonus = (r.attackRoll?.parts ?? []).reduce((t, [label, v]) =>
       base.test(label) || (!r.ranged && /^Attacker bonus/.test(label)) ? t : t + (Number(v) || 0), 0);
     const dUnit = E.unitById(s, r.defender);
