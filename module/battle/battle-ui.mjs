@@ -119,7 +119,7 @@ function cancelMode() {
 
 function enterMove() {
   const { s, u } = current;
-  const { blue, red } = E.moveOptions(s, u);
+  const { blue, red, climb } = E.moveOptions(s, u);
   // adjacent allies that haven't moved can be swapped with
   const allies = s.units.filter(o => o.status === "active" && o.id !== u.id && E.unitById(s, o.id) && o.side !== "enemy" === (u.side !== "enemy")
     && Math.abs(o.x - u.x) + Math.abs(o.y - u.y) === 1 && !o.round.moved && !u.round.moved);
@@ -132,7 +132,7 @@ function enterMove() {
   const Txt = foundry.canvas?.containers?.PreciseText ?? PIXI.Text;
   const size = gridSize();
   const style = new PIXI.TextStyle({ fontFamily: "Signika, sans-serif", fontSize: Math.round(size * 0.22), fontWeight: "bold", fill: "#ffffff", stroke: "#000000", strokeThickness: 3 });
-  for (const k of blue.keys()) { const [x, y] = k.split(",").map(Number); drawSquare(overlay, x, y, 0x2f80ed, 0.35); }
+  for (const k of blue.keys()) { const [x, y] = k.split(",").map(Number); drawSquare(overlay, x, y, climb?.has(k) ? 0x9b59d0 : 0x2f80ed, 0.35); }
   for (const [k, v] of red) {
     const [x, y] = k.split(",").map(Number);
     drawSquare(overlay, x, y, 0xd63c3c, 0.3);
@@ -203,6 +203,23 @@ function enterSecond() {
   });
 }
 
+/** Place Ladder: gold wall squares next to the unit; click one. */
+function enterLadder() {
+  const { s, u } = current;
+  const tiles = E.ladderTiles(s, u);
+  mode = "ladder";
+  clearSquares();
+  overlay = new PIXI.Graphics();
+  overlay.eventMode = "none";
+  layer().addChild(overlay);
+  for (const [x, y] of tiles) drawSquare(overlay, x, y, 0xd9a441, 0.35, 1);
+  renderMenu();
+  startPicking((x, y) => {
+    if (!tiles.some(([tx, ty]) => tx === x && ty === y)) return ui.notifications.warn("Click one of the gold wall squares.");
+    send({ type: "placeLadder", unitId: current.u.id, x, y });
+  });
+}
+
 /** Set Aflame: orange tiles around the unit; click one to set it alight. */
 function enterSetFire() {
   const { u } = current;
@@ -269,8 +286,9 @@ function renderMenu(sub = null) {
   const b = (act, label, enabled, tip = "", extra = "") =>
     `<button type="button" data-fe="${act}" ${enabled && !busy ? "" : "disabled"} ${tip ? `data-tooltip="${esc(tip)}"` : ""} ${extra}>${label}</button>`;
   let html = `<div class="qin-fe-title">${esc(u.name)}</div>`;
-  if (mode === "move") html += `<div class="qin-fe-hint">Blue: move · Red: forced march (ends turn) · Green: swap<br>Right-click or Esc to go back</div>` + b("cancel", "Back", true);
+  if (mode === "move") html += `<div class="qin-fe-hint">Blue: move · Purple: climb the ladder (all movement) · Red: forced march (ends turn) · Green: swap<br>Right-click or Esc to go back</div>` + b("cancel", "Back", true);
   else if (mode === "attack") html += `<div class="qin-fe-hint">Click an enemy marked in red.<br>Right-click or Esc to go back</div>` + b("cancel", "Back", true);
+  else if (mode === "ladder") html += `<div class="qin-fe-hint">Click a gold wall square next to the unit to set the ladders there.<br>Right-click or Esc to go back</div>` + b("cancel", "Back", true);
   else if (mode === "fire") html += `<div class="qin-fe-hint">Click an orange tile next to the unit to set it on fire (forest or tall grass).<br>Right-click or Esc to go back</div>` + b("cancel", "Back", true);
   else if (mode === "second") html += `<div class="qin-fe-hint">Dual Weapons: strike another enemy marked in red (Attack −2), or skip.</div>` + b("skipSecond", "Skip", true);
   else if (mode === "reposition") html += `<div class="qin-fe-hint">Won the attack: move to a green tile beside the enemy, or stay.</div>` + b("stay", "Stay here", true);
@@ -288,6 +306,8 @@ function renderMenu(sub = null) {
     const abilityTip = !officer ? "No officer" : officer.skill ? `${officer.skill.name}: ${officer.skill.text || ""}` : "This officer has no battle ability";
     if (flags.undo) html += b("undo", "↶ Undo move", true, "Go back to where the unit started (only for a normal move, before doing anything else)");
     html += b("move", "Move", flags.move, flags.move ? "" : "Already moved or can't move");
+    if (flags.placeLadder) html += b("placeLadder", "Place Ladder", true, "Set siege ladders against a city wall square next to this unit. Ends the turn.");
+    if (flags.drop) html += b("drop", "Drop equipment", true, "Put down the siege equipment this unit carries (free). Another unit can pick it up.");
     if (flags.raiseFlag) html += b("raiseFlag", "Raise Flag", true, "Raise Flag tactic: instead of attacking, units in the area below 50 morale rally to 50. Ends the turn.");
     if (flags.setFire) html += b("setFire", "Set Fire", true, "Set Aflame tactic: instead of attacking, set an adjacent flammable tile on fire. Ends the turn.");
     if (flags.reloading) html += b("reload", "Reload", flags.reload, "Reload the weapon (needed before it can attack again). Can follow a move; ends the turn.");
@@ -312,6 +332,8 @@ function onMenuClick(ev) {
     case "stay": return send({ type: "reposition", unitId: id });
     case "reload": return send({ type: "reload", unitId: id });
     case "raiseFlag": return send({ type: "raiseFlag", unitId: id });
+    case "placeLadder": return enterLadder();
+    case "drop": return send({ type: "dropEquipment", unitId: id });
     case "setFire": return enterSetFire();
     case "skipSecond": return send({ type: "secondAttack", unitId: id });
     case "back": return renderMenu();

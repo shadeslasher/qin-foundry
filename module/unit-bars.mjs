@@ -152,7 +152,7 @@ function drawSword(size) {
 }
 
 /** A wooden siege ladder, centred on (0,0), about size tall. */
-function drawLadder(size) {
+export function drawLadder(size) {
   const g = new PIXI.Graphics(), h = size * 0.68, wd = size * 0.3, lw = Math.max(1.5, size * 0.07);
   const y0 = -h / 2, x0 = -wd / 2, x1 = wd / 2;
   for (const [col, wid] of [[0x37200e, lw * 1.9], [0xb0763a, lw]]) {
@@ -162,7 +162,7 @@ function drawLadder(size) {
   return g;
 }
 /** A covered battering ram on wheels. */
-function drawSiegeEngine(size) {
+export function drawSiegeEngine(size) {
   const g = new PIXI.Graphics(), s = size * 0.72, lw = Math.max(1, size * 0.03);
   g.lineStyle(lw, 0x2d1c0c, 1).beginFill(0x78502a).drawPolygon([-s * 0.55, 0, 0, -s * 0.45, s * 0.55, 0]).endFill();
   g.lineStyle(Math.max(2, size * 0.08), 0x96969f, 1).moveTo(-s * 0.75, s * 0.05).lineTo(s * 0.6, s * 0.05);
@@ -506,10 +506,13 @@ export async function drawUnitBars(token) {
   });
 
   // siege equipment badges down the right side, under the banner: ladder, then siege engine
+  // what it carries: the battle's record once a battle runs (it can drop or pick up equipment), else its traits
   const siege = [];
   const tiers = tiersFor(s.traits);
-  if (tiers["siege ladders"] || tiers["siege ladder"]) siege.push([drawLadder, 0xd9a441]);
-  if (tiers["siege engine"]) siege.push([drawSiegeEngine, 0xa0a0aa]);
+  const carried = battleRecord(token)?.meta?.[token.id]?.carry;
+  const carry = carried !== undefined ? carried : (tiers["siege ladders"] || tiers["siege ladder"]) ? "ladders" : tiers["siege engine"] ? "engine" : null;
+  if (carry === "ladders") siege.push([drawLadder, 0xd9a441]);
+  if (carry === "engine") siege.push([drawSiegeEngine, 0xa0a0aa]);
   siege.forEach(([fn, ring], i) => {
     const r = T * 0.083, cx = w - pad - r - T * 0.005, cy = T * (0.43 + i * 0.2);
     const b = new PIXI.Graphics().lineStyle(Math.max(1, T * 0.01), ring, 1).beginFill(0x18120c, 0.92).drawCircle(0, 0, r).endFill();

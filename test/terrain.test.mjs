@@ -42,8 +42,8 @@ test('movement: costs, impassable squares, bridges, roads and "not cavalry"', ()
   assert.ok(reach.has('5,4') && reach.get('5,4') === 3, 'marsh costs 1 + 2');
   assert.ok(!reach.has('5,6'), 'river blocks');
   assert.ok(reach.has('6,6'), 'bridge crosses the river');
-  assert.strictEqual(reach.get('6,5'), 0.5, 'road: half a point');
-  assert.strictEqual(reach.get('7,5'), 1, 'road on paving: still half a point each');
+  assert.strictEqual(reach.get('6,5'), 1, 'roads cost the normal 1');
+  assert.strictEqual(reach.get('7,5'), 2, 'road on paving: still 1 each');
   assert.strictEqual(reach.steps.get('7,5'), 2);
   assert.ok(reach.has('4,5'), 'infantry crosses abatis');
   const c = R.unitById(s, add(s, { typeId: 'cav', side: 'player', owner: 'p1', x: 5, y: 8 }));

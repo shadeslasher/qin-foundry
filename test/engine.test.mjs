@@ -387,7 +387,9 @@ test('stealth: forests hide; hidden units stay unseen by other sides until revea
   must(R.act(s, HOST, { type: 'move', unitId: e, x: 2, y: 2 }));
   must(R.act(s, HOST, { type: 'endTurn', unitId: e }));
   const E = R.unitById(s, e);
-  assert.ok(E.hidden, 'ended its turn in the forest');
+  assert.ok(!E.hidden, 'not until the round ends');
+  for (let i = 0; i < 10 && s.turn.round === 1; i++) R.act(s, HOST, { type: 'skipPrompt' });
+  assert.ok(E.hidden, 'in the forest when the round ended');
   assert.ok(!R.visibleTo(s, E, 'player'));
   assert.ok(!R.visibleTo(s, E, 'neutral'));
   assert.strictEqual(R.viewFor(s, P1).units.find(u => u.id === e), undefined);

@@ -2,6 +2,7 @@
 // themselves on the map, and the animation when one fires.
 import { TACTICS } from "./engine-data.mjs";
 import { getBattle } from "./adapter.mjs";
+import { drawLadder, drawSiegeEngine } from "../unit-bars.mjs";
 // battle requests go through game.qin (set up at init) so this file stays free of the panel and sheet modules
 const battleRequest = (action) => game.qin.battleRequest(action);
 
@@ -158,6 +159,7 @@ export class TacticsApp extends Base {
 export function refreshTactics() {
   const b = tacticsNow();
   const app = TacticsApp.instance;
+  drawSiegeOverlays();
   if (!b) { if (app?.rendered) app.close(); drawTacticOverlays(); return; }
   if (app?.rendered) app.render();
   else TacticsApp.open();
@@ -265,6 +267,38 @@ export function drawTacticOverlays() {
   overlay = c;
 }
 
+/* ------------------------------------------------------------ ladders on the walls, dropped siege equipment */
+
+let siegeLayer = null;
+/** Ladders set against wall squares (leaning on the square), and siege equipment lying on the ground. */
+export function drawSiegeOverlays() {
+  if (siegeLayer && !siegeLayer.destroyed) siegeLayer.destroy({ children: true });
+  siegeLayer = null;
+  if (!canvas?.ready) return;
+  const b = getBattle();
+  if (!b.active || b.sceneId !== canvas.scene?.id || !b.siege) return;
+  const { ladders = [], dropped = [] } = b.siege;
+  if (!ladders.length && !dropped.length) return;
+  const size = gridSize(), c = new PIXI.Container(); c.eventMode = "none";
+  for (const k of ladders) {
+    const [x, y] = k.split(",").map(Number);
+    const l = drawLadder(size * 0.95);
+    l.position.set(x * size + size * 0.5, y * size + size * 0.5); l.rotation = 0.35; l.alpha = 0.95;
+    c.addChild(l);
+  }
+  for (const d of dropped) {
+    const ring = new PIXI.Graphics().lineStyle(Math.max(1, size * 0.02), d.kind === "ladders" ? 0xd9a441 : 0xa0a0aa, 1).beginFill(0x18120c, 0.85).drawCircle(0, 0, size * 0.2).endFill();
+    ring.position.set(x0(d) + size * 0.78, y0(d) + size * 0.78);
+    const ic = (d.kind === "ladders" ? drawLadder : drawSiegeEngine)(size * 0.4);
+    ic.position.copyFrom(ring.position);
+    c.addChild(ring, ic);
+  }
+  function x0(d) { return d.x * size; } function y0(d) { return d.y * size; }
+  const layer = canvas.tokens ?? canvas.interface ?? canvas.stage;
+  layer.addChildAt?.(c, 0) ?? layer.addChild(c);
+  siegeLayer = c;
+}
+
 /* ------------------------------------------------------------ the trigger animation */
 
 /**
@@ -338,7 +372,7 @@ export function playSetFire(x, y) {
 }
 
 export function registerTactics() {
-  Hooks.on("canvasReady", () => drawTacticOverlays());
+  Hooks.on("canvasReady", () => { drawTacticOverlays(); drawSiegeOverlays(); });
   Hooks.on("canvasTearDown", () => stopPlacement());
 }
 

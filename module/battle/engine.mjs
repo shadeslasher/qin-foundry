@@ -97,10 +97,86 @@ function standable(s, x, y) {
   const r = tileRules(s, x, y);
   return r ? r.pass !== 'none' || r.wall : passable(s, x, y);
 }
-/** Movement it costs to enter a square: 1 + its Move modifier, never below half a point (roads, paving). */
+/** Movement it costs to enter a square: 1 + its Move modifier, never less than 1 (roads and paving cost the normal 1). */
 function enterCost(s, x, y) {
   const r = tileRules(s, x, y);
-  return r ? Math.max(0.5, 1 + r.move) : 1;
+  return r ? Math.max(1, 1 + r.move) : 1;
+}
+
+// ---------------------------------------------------------------- walls and siege
+// Wall level: city walls and fortress towers (units stand on top). Gates are ground level and can't be entered.
+const overlaysAt = (s, x, y) => { const t = s.map.tiles && s.map.tiles[x + ',' + y]; return (t && t.overlays) || []; };
+const isWallTop = (s, x, y) => overlaysAt(s, x, y).some(o => o === 'city-wall' || o === 'fortress-tower');
+const isWallish = (s, x, y) => overlaysAt(s, x, y).some(o => o === 'city-wall' || o === 'fortress-tower' || o === 'city-gate');
+const onWall = (s, u) => isWallTop(s, u.x, u.y);
+function siegeState(s) { if (!s.siege) s.siege = { ladders: [], dropped: [] }; return s.siege; }
+const hasLadder = (s, x, y) => !!(s.siege && s.siege.ladders.includes(x + ',' + y));
+/** Squares inside the city walls: everything the map edge can't reach without crossing a wall, gate or tower. */
+function insideSet(s) {
+  if (s._inside) return s._inside;
+  const out = new Set();
+  if (!s.map.tiles || !Object.values(s.map.tiles).some(t => (t.overlays || []).some(o => o === 'city-wall' || o === 'city-gate' || o === 'fortress-tower'))) return (s._inside = out);
+  const { cols, rows } = s.map, seen = new Set(), q = [];
+  for (let x = 0; x < cols; x++) for (const y of [0, rows - 1]) q.push([x, y]);
+  for (let y = 0; y < rows; y++) for (const x of [0, cols - 1]) q.push([x, y]);
+  while (q.length) {
+    const [x, y] = q.pop(), k = x + ',' + y;
+    if (seen.has(k) || !inBounds(s, x, y) || isWallish(s, x, y)) continue;
+    seen.add(k);
+    for (const [dx, dy] of ORTHO) q.push([x + dx, y + dy]);
+  }
+  for (let x = 0; x < cols; x++) for (let y = 0; y < rows; y++) { const k = x + ',' + y; if (!seen.has(k) && !isWallish(s, x, y)) out.add(k); }
+  return (s._inside = out);
+}
+const insideCity = (s, x, y) => insideSet(s).has(x + ',' + y);
+/**
+ * Can these two adjacent units fight in melee? Same level always; a wall top and the city inside always;
+ * a wall top and the ground outside only where a ladder stands on that wall square.
+ */
+function meleeLevelOk(s, a, b) {
+  const wa = onWall(s, a), wb = onWall(s, b);
+  if (wa === wb) return true;
+  const g = wa ? b : a, w = wa ? a : b;
+  return insideCity(s, g.x, g.y) || hasLadder(s, w.x, w.y);
+}
+/** A ranged shot from the ground stops at the walls: any wall, gate or tower between the two squares blocks it. */
+function wallBlocksShot(s, a, d) {
+  if (!s.map.tiles || onWall(s, a)) return false;
+  const n = Math.max(Math.abs(d.x - a.x), Math.abs(d.y - a.y)) * 4;
+  for (let i = 1; i < n; i++) {
+    const x = Math.round(a.x + (d.x - a.x) * i / n), y = Math.round(a.y + (d.y - a.y) * i / n);
+    if ((x === a.x && y === a.y) || (x === d.x && y === d.y)) continue;
+    if (isWallish(s, x, y)) return true;
+  }
+  return false;
+}
+/** What siege equipment a unit carries: 'ladders' | 'engine' | null. */
+const carrying = (u) => (u && u.carry) || null;
+/** Drop a unit's equipment on its square (by choice, or when it falls). */
+function dropEquipment(s, u, why) {
+  const kind = carrying(u); if (!kind) return;
+  siegeState(s).dropped.push({ x: u.x, y: u.y, kind });
+  u.carry = null;
+  log(s, u.name + (why || ' drops its ') + (kind === 'ladders' ? 'siege ladders' : 'siege engine') + '.', { type: 'dropEquipment', x: u.x, y: u.y, kind });
+}
+/** Pick up equipment lying on the unit's square (only with empty hands). */
+function pickUpEquipment(s, u) {
+  if (carrying(u) || !s.siege) return;
+  const i = s.siege.dropped.findIndex(d => d.x === u.x && d.y === u.y);
+  if (i < 0) return;
+  const [d] = s.siege.dropped.splice(i, 1);
+  u.carry = d.kind;
+  log(s, u.name + ' picks up the ' + (d.kind === 'ladders' ? 'siege ladders' : 'siege engine') + '.', { type: 'pickUpEquipment', x: u.x, y: u.y, kind: d.kind });
+}
+/** Empty wall squares with a ladder next to the unit that it may climb (not cavalry, nor units carrying equipment). */
+function climbTiles(s, u) {
+  if (!s.siege || onWall(s, u) || carrying(u) || (typeOf(s, u) || {}).category === 'cavalry') return [];
+  return ORTHO.map(([dx, dy]) => [u.x + dx, u.y + dy]).filter(([x, y]) => hasLadder(s, x, y) && !unitAt(s, x, y));
+}
+/** Wall squares next to the unit where it could set a ladder (carrying ladders, from the ground). */
+function ladderTiles(s, u) {
+  if (carrying(u) !== 'ladders' || onWall(s, u)) return [];
+  return ORTHO.map(([dx, dy]) => [u.x + dx, u.y + dy]).filter(([x, y]) => isWallTop(s, x, y) && !hasLadder(s, x, y));
 }
 const manhattan = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 const sign = n => (n > 0 ? 1 : n < 0 ? -1 : 0);
@@ -177,7 +253,8 @@ function movementOf(s, u) {
   const t = typeOf(s, u); const f = formationOf(s, u);
   if (f.immobile) return 0;
   const slowed = fx(u).slow ? 1 : 0; // Barbed Arrows
-  return Math.max(0, (t ? t.move : 4) + (f.moveMod || 0) + (passive(s, u).moveBonus || 0) - slowed);
+  const load = carrying(u) === 'ladders' ? 1 : carrying(u) === 'engine' ? 2 : 0; // siege equipment is heavy
+  return Math.max(0, (t ? t.move : 4) + (f.moveMod || 0) + (passive(s, u).moveBonus || 0) - slowed - load);
 }
 
 function newRoundFlags() {
@@ -210,7 +287,8 @@ function reachable(s, u, budget) {
     if (d > best.get(key(x, y))) continue;
     for (const [dx, dy] of ORTHO) {
       const nx = x + dx, ny = y + dy, k = key(nx, ny);
-      if (!passable(s, nx, ny, u)) continue;
+      // along the wall top: wall to wall is open ground for units already up there
+      if (isWallTop(s, x, y) ? !isWallTop(s, nx, ny) : !passable(s, nx, ny, u)) continue; // wall tops: only along the wall
       const nd = d + enterCost(s, nx, ny);
       if (nd > budget || (best.has(k) && best.get(k) <= nd)) continue;
       const o = unitAt(s, nx, ny);
@@ -256,11 +334,13 @@ function threatArea(s, u) {
  * (another move's worth, 5 morale per extra tile, never down to 0 morale; ends the turn).
  */
 function moveOptions(s, u) {
-  const blue = new Map(), red = new Map();
+  const blue = new Map(), red = new Map(), climb = new Set();
   const ac = s.turn.activation;
-  if (!u || !ac || ac.unitId !== u.id || ac.step !== 'move' || u.round.cannotMove) return { blue, red };
+  if (!u || !ac || ac.unitId !== u.id || ac.step !== 'move' || u.round.cannotMove) return { blue, red, climb };
   const move = movementOf(s, u);
-  if (!move) return { blue, red };
+  if (!move) return { blue, red, climb };
+  // up a ladder onto an empty wall square: takes all its movement
+  for (const [x, y] of climbTiles(s, u)) { blue.set(x + ',' + y, 1); climb.add(x + ',' + y); }
   const reach = reachable(s, u, move * 2);
   for (const [k, d] of reach) {
     const n = reach.steps.get(k);
@@ -270,7 +350,7 @@ function moveOptions(s, u) {
       if (u.morale - cost > 0) red.set(k, { dist: n, cost });
     }
   }
-  return { blue, red };
+  return { blue, red, climb };
 }
 
 /** Morale per extra tile of forced march: 5, or 2 under Rapid Advance, Swift Retreat (active, or about to fire). */
@@ -297,6 +377,8 @@ function actionMenu(s, u) {
     attack: canStillAct && !reloading && attackTargets(s, u).length > 0, reloading,
     reload: reloading && !u.round.attacked,
     raiseFlag: canStillAct && pendingTactic(s, u, 'raiseFlag'),
+    placeLadder: canStillAct && ladderTiles(s, u).length > 0,
+    drop: !!carrying(u),
     setFire: canStillAct && pendingTactic(s, u, 'setFire'),
     hold: canStillAct,
     ability: skillOk || artOk, skill: skillOk, art: artOk,
@@ -377,7 +459,11 @@ function rangeOk(s, attacker, defender) {
   const t = typeOf(s, attacker); const d = manhattan(attacker, defender);
   const tr = t.weapon === 'ranged' ? tileRules(s, attacker.x, attacker.y) : null;
   const bonus = t.weapon === 'ranged' ? rangeBonus(s, attacker) + (tr ? tr.range : 0) : 0;
-  return d >= (t.rangeMin || 1) && d <= Math.max(1, (t.rangeMax || 1) + bonus);
+  // Hybrid units may fight next to them in melee
+  if (d === 1 && t.weapon === 'ranged' && trait(attacker, 'hybrid')) return meleeLevelOk(s, attacker, defender);
+  if (!(d >= (t.rangeMin || 1) && d <= Math.max(1, (t.rangeMax || 1) + bonus))) return false;
+  if (t.weapon !== 'ranged') return meleeLevelOk(s, attacker, defender); // walls: melee needs the same level or a ladder
+  return !wallBlocksShot(s, attacker, defender);
 }
 
 // Build one side's roll. role: 'attacker' | 'defender'.
@@ -531,12 +617,12 @@ function resolveAttack(s, attacker, defender, opts) {
   if (!ranged) {
     if (!aNeg) dmgToDef = base(attacker) + winBonus('attacker');
     // ranged defenders deal no return damage against melee attackers
-    if (!dNeg && (dt.weapon !== 'ranged' || trait(defender, 'hybrid'))) dmgToAtt = base(defender) + winBonus('defender');
+    if (!dNeg && (dt.weapon !== 'ranged' || trait(defender, 'hybrid')) && meleeLevelOk(s, defender, attacker)) dmgToAtt = base(defender) + winBonus('defender');
     if (ambush) dmgToAtt = 0; // attacked from hiding: the defender rolls but can't strike back
   } else {
     if (!aNeg && winner === 'attacker') dmgToDef = base(attacker) + diff;
     const canReturn = dt.weapon === 'ranged' ? rangeOk(s, defender, attacker)
-      : manhattan(attacker, defender) === 1;
+      : manhattan(attacker, defender) === 1 && meleeLevelOk(s, defender, attacker);
     if (!dNeg && canReturn) dmgToAtt = base(defender) + winBonus('defender');
     if (ambush) dmgToAtt = 0;
   }
@@ -686,6 +772,7 @@ function settleLoop(s, opts) {
       changed = true;
       log(s, u.name + ' ' + ended + '.', { type: 'defeat', unit: u.id });
       if (u.status === 'surrendered') surrenderTactics(s, u);
+      if (carrying(u)) dropEquipment(s, u, ' falls, leaving its ');
       for (const tc of s.tactics ? s.tactics.placed : []) if (tc.key === 'fear' && tc.unitId === u.id && tc.state === 'active') tc.state = 'spent';
       removeFromTurn(s, u.id);
       for (const n of liveUnits(s)) {
@@ -854,6 +941,11 @@ function endRound(s) {
       log(s, o.name + ' gains 4 morale (Inspiration from ' + u.name + ').');
     }
   }
+  // Hiding: a unit in cover (forest, tall grass) at the end of the round hides, unless an enemy is next to it
+  for (const u of liveUnits(s)) if (!u.hidden && hidesIn(s, u) && !hostileAdjacent(s, u)) {
+    u.hidden = true;
+    log(s, u.name + ' disappears into cover.', { type: 'hidden', unit: u.id });
+  }
   log(s, 'Round ' + s.turn.round + ' ends.');
   for (const tc of s.tactics ? s.tactics.placed : []) if (tc.state === 'active' && tc.untilRound !== undefined && tc.untilRound < next) tc.state = 'spent';
   s.turn = freshTurn('formations', next);
@@ -890,8 +982,6 @@ function finishActivation(s, u) {
   }
   // Stealth: ending the turn in a forest hides the unit; ending it next to a hostile unit reveals it
   if (alive(u)) {
-    // a unit can only go into hiding with no enemy troops next to it
-    if (hidesIn(s, u) && !hostileAdjacent(s, u)) u.hidden = true;
     if (u.hidden && hostileAdjacent(s, u)) {
       u.hidden = false;
       log(s, u.name + ' is spotted (ended its turn next to an enemy).', { type: 'revealed', unit: u.id });
@@ -1215,11 +1305,11 @@ const ACTIONS = {
     const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
     const { u, act: ac } = r;
     const k = a.x + ',' + a.y;
-    const { blue, red } = moveOptions(s, u);
+    const { blue, red, climb } = moveOptions(s, u);
     const forced = !blue.has(k) && red.has(k);
     if (!blue.has(k) && !forced) return err("Can't move there");
     const from = { x: u.x, y: u.y };
-    const prevFacing = u.facing ? { ...u.facing } : null, prevHidden = !!u.hidden, prevStarted = !!ac.started;
+    const prevFacing = u.facing ? { ...u.facing } : null, prevHidden = !!u.hidden, prevStarted = !!ac.started, prevCarry = carrying(u);
     // Backs Turned: enemies it leaves behind may strike it as it goes
     const struck = backsTurned(s, u, { x: a.x, y: a.y });
     if (!alive(u)) return;
@@ -1235,13 +1325,22 @@ const ACTIONS = {
       ac.forcedMarched = true;
       u.morale = clamp(u.morale - cost, 0, 100);
       log(s, u.name + ' force-marches ' + dist + ' tiles (-' + cost + ' morale).');
+      pickUpEquipment(s, u);
       settle(s);
       if (alive(u)) finishActivation(s, u);
       return;
     }
     ac.tilesMoved = blue.get(k);
+    if (climb && climb.has(k)) {
+      ac.tilesMoved = 0; // climbing is no charge, and can't be taken back
+      log(s, u.name + ' climbs the ladder onto the wall.', { type: 'climb', unit: u.id });
+      settle(s);
+      return;
+    }
     if (!struck) ac.undo = { from, facing: prevFacing, hidden: prevHidden, started: prevStarted };
     log(s, u.name + ' moves ' + blue.get(k) + ' tile' + (blue.get(k) === 1 ? '' : 's') + '.');
+    pickUpEquipment(s, u);
+    if (carrying(u) && !prevCarry) delete ac.undo;
     settle(s, { deferEncirclement: true });
   },
   undoMove(s, actor, a) { // only a normal (blue) move, and only if nothing else happened since
@@ -1358,6 +1457,23 @@ const ACTIONS = {
     delete fx(u).reload;
     log(s, u.name + ' reloads.');
     finishActivation(s, u);
+  },
+  placeLadder(s, actor, a) { // Siege Ladders: set a ladder against an adjacent city wall square; ends the turn
+    const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
+    const { u, act: ac } = r;
+    if (u.round.attacked || ac.forcedMarched) return err('Placing a ladder is the unit\'s action for the turn');
+    if (carrying(u) !== 'ladders') return err('This unit has no siege ladders');
+    if (!ladderTiles(s, u).some(([x, y]) => x === a.x && y === a.y)) return err('Pick a city wall square next to the unit without a ladder');
+    siegeState(s).ladders.push(a.x + ',' + a.y);
+    u.carry = null; // the ladders are up
+    u.round.attacked = true;
+    log(s, u.name + ' sets ladders against the wall.', { type: 'ladder', x: a.x, y: a.y });
+    finishActivation(s, u);
+  },
+  dropEquipment(s, actor, a) { // free: put down siege ladders or a siege engine on the unit's square
+    const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
+    if (!carrying(r.u)) return err('Nothing to drop');
+    dropEquipment(s, r.u);
   },
   raiseFlag(s, actor, a) { // Raise Flag tactic: instead of attacking, from the tactic's centre tile
     const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
@@ -1499,6 +1615,7 @@ function doMove(s, actor, a, forced) {
     log(s, u.name + ' force-marches (-' + fc + ' morale).');
   } else ac.step = 'act';
   if (warning) log(s, 'Warning: ' + warning, { type: 'warning' });
+  pickUpEquipment(s, u);
   settle(s);
   if (forced && alive(u)) finishActivation(s, u);
   return ok(warning ? { warning } : {});
@@ -1521,7 +1638,7 @@ function viewFor(s, viewer) {
 }
 
 export {
-  moveOptions, attackTargets, actionMenu, threatArea, TACTIC_SIDES, tileRules,
+  moveOptions, attackTargets, actionMenu, threatArea, TACTIC_SIDES, tileRules, ladderTiles, climbTiles, insideCity, isWallTop,
   newState, act, viewFor, prompt, reachable, movementOf, moraleState, visibleTo, rangeOk,
   resolveAttack, buildRoll, setRng, yinYang, typeOf, officerOf, unitById, SIDES, settle, advance,
 };

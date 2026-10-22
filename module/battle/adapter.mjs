@@ -19,7 +19,7 @@ let queue = Promise.resolve();
 export const defaultFormations = () => foundry.utils.deepClone(FORMATIONS);
 
 export function emptyBattle() {
-  return { active: false, sceneId: null, turn: E.newState().turn, log: [], meta: {}, tactics: null };
+  return { active: false, sceneId: null, turn: E.newState().turn, log: [], meta: {}, tactics: null, siege: null };
 }
 
 export function getBattle() {
@@ -102,6 +102,12 @@ export function unitTokens(scene) {
   return scene ? scene.tokens.filter(t => t.actor?.type === "unit") : [];
 }
 
+/** Siege equipment a unit starts a battle with, from its traits (one or the other, ladders first). */
+export function startingCarry(traits) {
+  const t = traitTiersOf(traits);
+  return t["siege ladders"] || t["siege ladder"] ? "ladders" : t["siege engine"] ? "engine" : null;
+}
+
 const tileCache = new Map(); // sceneId -> { flag, tiles } (decoded battle map squares)
 
 /** Engine state assembled from the battle setting and the scene's unit tokens. */
@@ -112,6 +118,7 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
   s.turn = battle.turn;
   s.log = battle.log ?? [];
   s.tactics = battle.tactics ?? null;
+  s.siege = battle.siege ?? null;
   s.library.formations = [{ id: "none", name: "No formation", desc: "No modifiers." }];
   s.library.unitTypes = [];
   s.library.officers = [];
@@ -156,6 +163,7 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
       facing: meta.facing ?? { dx: 0, dy: sys.side === "enemy" ? 1 : -1 }, hidden: sys.hidden, status: sys.status,
       fierceCharge: fierce ? 1 + fierce[1].length : 0,
       traitTiers: traitTiersOf(sys.traits), fx: meta.fx ?? {},
+      carry: meta.carry !== undefined ? meta.carry : startingCarry(sys.traits),
       mods: meta.mods ?? [], heroicUsed: meta.heroicUsed ?? 0, lastHeroic: meta.lastHeroic ?? null,
       surrounded: meta.surrounded ?? false, round: meta.round ?? { activated: false, moved: false, cannotMove: false, holding: false, attacked: false, skillUsed: false, heroicUsed: false, meleeTarget: null, meleeAttacker: null },
     });
@@ -194,7 +202,7 @@ async function writeBack(battle, s, scene) {
   for (const u of s.units) {
     const tok = scene?.tokens.get(u.id);
     if (!tok) continue;
-    battle.meta[u.id] = { pos: { x: u.x, y: u.y }, facing: u.facing, mods: u.mods, heroicUsed: u.heroicUsed, lastHeroic: u.lastHeroic, surrounded: u.surrounded, round: u.round, fx: u.fx ?? {} };
+    battle.meta[u.id] = { pos: { x: u.x, y: u.y }, facing: u.facing, mods: u.mods, heroicUsed: u.heroicUsed, lastHeroic: u.lastHeroic, surrounded: u.surrounded, round: u.round, fx: u.fx ?? {}, carry: u.carry ?? null };
     const sys = tok.actor.system;
     const upd = {};
     if (sys.men.value !== u.men) upd["system.men.value"] = u.men;
@@ -232,6 +240,7 @@ async function writeBack(battle, s, scene) {
   }
   battle.turn = s.turn;
   battle.tactics = s.tactics ?? null;
+  battle.siege = s.siege ?? null;
   battle.log = s.log.slice(-60);
   await game.settings.set(SYSTEM_ID, SETTING, battle);
 }
