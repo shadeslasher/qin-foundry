@@ -96,10 +96,10 @@ function previewState(focusId) {
   try { return buildState(battle, focusId ? { terrainFor: focusId } : {}).s; } catch (e) { console.warn("Qin | preview", e); return null; }
 }
 
-const MOVE_ENEMY = 0xdc3232, MOVE_PLAYER = 0x2f80ed, MOVE_OTHER = 0x3fbf5f, ATTACK = 0xff961e;
+const MOVE_COLORS = { enemy: 0xdc3232, player: 0x2f80ed, ally: 0x3fbf5f, neutral: 0xf2d22e }, ATTACK = 0xff961e;
 
 /**
- * Hovered unit: where it can move this turn (red for enemies, blue for player units, green for allies) and, in orange,
+ * Hovered unit: where it can move this turn (red for enemies, blue for player units, green for allies, yellow for neutrals) and, in orange,
  * how much further it can attack from there.
  */
 export function showMovePreview(token) {
@@ -110,7 +110,7 @@ export function showMovePreview(token) {
   if (!u || u.status !== "active") return;
   const { move, attack } = E.threatArea(s, u);
   const size = canvas.scene.grid.size, side = token.actor.system.side;
-  const mcol = side === "enemy" ? MOVE_ENEMY : side === "player" ? MOVE_PLAYER : MOVE_OTHER;
+  const mcol = MOVE_COLORS[side] ?? MOVE_COLORS.ally;
   const g = new PIXI.Graphics();
   g.eventMode = "none";
   const sq = (k, col, a) => {
@@ -152,7 +152,7 @@ export function drawDangerZone() {
   const size = canvas.scene.grid.size;
   const g = new PIXI.Graphics();
   g.eventMode = "none";
-  g.beginFill(MOVE_ENEMY, 0.28);
+  g.beginFill(MOVE_COLORS.enemy, 0.28);
   for (const k of zone) { const [x, y] = k.split(",").map(Number); g.drawRect(x * size, y * size, size, size); }
   g.endFill();
   // a bright edge around the zone
