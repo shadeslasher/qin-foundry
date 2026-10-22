@@ -14,7 +14,10 @@ const TERRAIN = {
 //   defAll         melee & ranged defense: added to THIS unit's roll whenever it defends
 //   defMelee       melee defense: added to this unit's roll against melee attacks
 //   defRanged      ranged defense: added to this unit's roll against ranged attacks
-//   defCharge      defense against cavalry charges (replaces defMelee for a charge)
+//   atkMod         attack: added to THIS unit's roll only when it attacks
+//   rearAtk        extra attack for enemies attacking this unit from the rear (on top of the usual +2)
+//   noChargeBonus  enemies charging this unit get no charge bonus
+//   winReposition  after winning as the attacker, may move to an empty tile next to the enemy unit
 //   defFront       added to THIS unit's roll when defending against attacks from the front
 //   chargeBonus    added to this unit's roll when it makes a cavalry charge
 //   dmgMod         added to this unit's damage value
@@ -25,22 +28,22 @@ const TERRAIN = {
 //   noAttackerBonus  this unit loses the +2 attacker bonus
 const FORMATIONS = [
   { id: 'none', name: 'No formation', desc: 'No modifiers.' },
-  { id: 'loose', name: 'Loose', defRanged: 3, defMelee: -1, defCharge: -2,
-    desc: 'Ranged defense +3. Melee defense -1. Defense against cavalry charges -2.' },
-  { id: 'diamond', name: 'Diamond', moveMod: -2, chargeBonus: 2,
-    desc: 'Movement -2. +2 to its roll when it makes a cavalry charge.' },
-  { id: 'wedge', name: 'Wedge', defAll: -2, chargeBonus: 4,
-    desc: 'Melee and ranged defense -2. +4 to its roll when it makes a cavalry charge.' },
-  { id: 'circle', name: 'Circle', immobile: true, defMelee: 3, dmgMod: -2, noRear: true,
-    desc: 'Cannot move. Melee defense +3. Deals -2 damage. Cannot be attacked in the rear.' },
-  { id: 'hollow_square', name: 'Hollowed Square', immobile: true, defMelee: 2, defCharge: 4, dmgMod: -2, noRear: true,
-    desc: 'Cannot move. Melee defense +2, defense against cavalry charges +4. Deals -2 damage. Cannot be attacked in the rear.' },
-  { id: 'shield_wall', name: 'Shield Wall', moveMod: -1, defFront: 2,
-    desc: 'Movement -1. Melee and ranged defense +2 against attacks from the front.' },
-  { id: 'spear_wall', name: 'Spear Wall', moveMod: -1, frontMelee: 2, defRanged: -2,
-    desc: 'Movement -1. +2 when defending against or attacking in melee from the front. Ranged defense -2.' },
-  { id: 'turtle', name: 'Turtle', moveMod: -2, casReduce: 2, noAttackerBonus: true, defAll: 2,
-    desc: 'Movement -2. Takes 2 fewer casualties when attacking and defending. Loses the +2 attacker bonus. Melee and ranged defense +2.' },
+  { id: 'loose', name: 'Loose', defRanged: 3, defMelee: -2, atkMod: -1,
+    desc: 'Ranged defense +3. Melee defense -2. Attack -1. (Most infantry units.)' },
+  { id: 'diamond', name: 'Diamond', moveMod: -3, atkMod: -1, defAll: 2,
+    desc: 'Movement -3. Attack -1. Melee and ranged defense +2. (Cavalry only.)' },
+  { id: 'wedge', name: 'Wedge', defAll: -2, winReposition: true,
+    desc: 'Melee and ranged defense -2. If it wins the Command roll when attacking, it may move to any empty tile next to the enemy unit. (Cavalry.)' },
+  { id: 'circle', name: 'Circle', immobile: true, defMelee: 2, defRanged: -1, noAttackerBonus: true, noRear: true,
+    desc: 'Cannot move. Melee defense +2. Ranged defense -1. No attacker bonus. Cannot be attacked in the rear. (Melee infantry.)' },
+  { id: 'hollow_square', name: 'Hollowed Square', immobile: true, defMelee: 2, noChargeBonus: true, defRanged: -2, noAttackerBonus: true, noRear: true,
+    desc: 'Cannot move. Melee defense +2. Enemies charging it get no charge bonus. Ranged defense -2. No attacker bonus. Cannot be attacked in the rear. (Melee infantry.)' },
+  { id: 'shield_wall', name: 'Shield Wall', moveMod: -1, defAll: 2, rearAtk: 2,
+    desc: 'Movement -1. Melee and ranged defense +2. Rear attacks against it get Attack +2 more. (Infantry with shields.)' },
+  { id: 'spear_wall', name: 'Spear Wall', moveMod: -1, defMelee: 3, noChargeBonus: true, defRanged: -2, rearAtk: 2,
+    desc: 'Movement -1. Melee defense +3. Enemies charging it get no charge bonus. Ranged defense -2. Rear attacks against it get Attack +2 more. (Infantry with spears.)' },
+  { id: 'turtle', name: 'Turtle', moveMod: -2, defAll: 3, noAttackerBonus: true, noRear: true,
+    desc: 'Movement -2. Melee and ranged defense +3. No attacker bonus. Cannot be attacked in the rear. (Infantry with shields.)' },
 ];
 
 // Unit types. Damage and Defense come from the v1.9 compendium (Dmg, Armor).

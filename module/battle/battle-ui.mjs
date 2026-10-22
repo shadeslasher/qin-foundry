@@ -110,6 +110,7 @@ function startPicking(onTile) {
 }
 
 function cancelMode() {
+  if (mode === "reposition" && current) return send({ type: "reposition", unitId: current.u.id });
   mode = null;
   clearSquares();
   renderMenu();
@@ -165,6 +166,23 @@ function enterAttack() {
   });
 }
 
+/** Wedge follow-up: green tiles next to the beaten enemy; click one to move there, or stay. */
+function enterReposition() {
+  const ac = current?.s?.turn?.activation;
+  const tiles = ac?.reposition?.tiles ?? [];
+  mode = "reposition";
+  clearSquares();
+  overlay = new PIXI.Graphics();
+  overlay.eventMode = "none";
+  layer().addChild(overlay);
+  for (const [x, y] of tiles) drawSquare(overlay, x, y, 0x3fbf5f, 0.3, 1);
+  renderMenu();
+  startPicking((x, y) => {
+    if (!tiles.some(([tx, ty]) => tx === x && ty === y)) return ui.notifications.warn("Click a green tile next to the enemy, or press Stay here.");
+    send({ type: "reposition", unitId: current.u.id, x, y });
+  });
+}
+
 async function send(action) {
   if (!requestFn || busy) return;
   busy = true;
@@ -216,6 +234,7 @@ function renderMenu(sub = null) {
   let html = `<div class="qin-fe-title">${esc(u.name)}</div>`;
   if (mode === "move") html += `<div class="qin-fe-hint">Blue: move · Red: forced march (ends turn) · Green: swap<br>Right-click or Esc to go back</div>` + b("cancel", "Back", true);
   else if (mode === "attack") html += `<div class="qin-fe-hint">Click an enemy marked in red.<br>Right-click or Esc to go back</div>` + b("cancel", "Back", true);
+  else if (mode === "reposition") html += `<div class="qin-fe-hint">Won the attack: move to a green tile beside the enemy, or stay.</div>` + b("stay", "Stay here", true);
   else if (sub === "heroic") {
     html += `<div class="qin-fe-hint">Heroic action (free, doesn't end the turn) · ${officer.fire - (u.heroicUsed || 0)}/${officer.fire} left</div>`;
     (officer.heroicActions || []).forEach((h, i) => {
@@ -248,6 +267,7 @@ function onMenuClick(ev) {
     case "move": return enterMove();
     case "attack": return enterAttack();
     case "cancel": return cancelMode();
+    case "stay": return send({ type: "reposition", unitId: id });
     case "back": return renderMenu();
     case "hold": return send({ type: "holdPosition", unitId: id });
     case "end": return send({ type: "endTurn", unitId: id });
@@ -286,6 +306,7 @@ export function refreshBattleUI() {
   const changed = current?.u?.id !== u.id || current?.key !== JSON.stringify([u.x, u.y, ac.step, u.round, u.morale]);
   current = { s, u, token, flags: E.actionMenu(s, u), officer: E.officerOf(s, u), key: JSON.stringify([u.x, u.y, ac.step, u.round, u.morale]) };
   if (changed) { mode = null; clearSquares(); }
+  if (ac.step === "reposition") { if (mode !== "reposition") enterReposition(); return; }
   if (!mode) renderMenu();
 }
 

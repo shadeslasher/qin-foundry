@@ -348,7 +348,10 @@ export function formationSummary(f) {
   if (f.defAll) out.push(`Melee & ranged defense ${sg(f.defAll)}`);
   if (f.defMelee) out.push(`Melee defense ${sg(f.defMelee)}`);
   if (f.defRanged) out.push(`Ranged defense ${sg(f.defRanged)}`);
-  if (f.defCharge !== null && f.defCharge !== undefined) out.push(`Defense vs cavalry charges ${sg(f.defCharge)}`);
+  if (f.atkMod) out.push(`Attack ${sg(f.atkMod)}`);
+  if (f.noChargeBonus) out.push("Enemies charging it get no charge bonus");
+  if (f.rearAtk) out.push(`Rear attacks against it: attack ${sg(f.rearAtk)} more`);
+  if (f.winReposition) out.push("Moves beside the enemy after winning an attack");
   if (f.defFront) out.push(`Defense from the front ${sg(f.defFront)}`);
   if (f.frontMelee) out.push(`Melee from the front ${sg(f.frontMelee)}`);
   if (f.chargeBonus) out.push(`Own cavalry charge ${sg(f.chargeBonus)}`);

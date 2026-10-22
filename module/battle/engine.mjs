@@ -206,6 +206,19 @@ function revealAround(s, u) {
 function hostileAdjacent(s, u) {
   return liveUnits(s).some(o => o !== u && !stealthFriends(alliance(o.side), alliance(u.side)) && manhattan(o, u) === 1);
 }
+/** Empty, passable tiles next to the defender (Wedge's follow-up move). */
+function repositionTiles(s, d, u) {
+  const out = [];
+  for (const [dx, dy] of ORTHO) {
+    const x = d.x + dx, y = d.y + dy;
+    if (!passable(s, x, y)) continue;
+    const o = unitAt(s, x, y);
+    if (o && o !== u) continue;
+    if (o === u) continue; // already there
+    out.push([x, y]);
+  }
+  return out;
+}
 /** Does terrain hide a unit that ends its turn there? (forests) */
 function hidesIn(s, u) { return terrainAt(s, u.x, u.y) === 'trees'; }
 
@@ -237,17 +250,17 @@ function buildRoll(s, unit, role, ctx) {
     if (ctx.charge && ctx.fierce === 1) parts.push(['Fierce Charge', 1]);
     if (ctx.charge && f.chargeBonus) parts.push(['Formation charge bonus (' + f.name + ')', f.chargeBonus]);
     if (ctx.charge && p.chargeAttackBonus) parts.push(['Officer passive: charge', p.chargeAttackBonus]);
+    if (f.atkMod) parts.push(['Attack (' + f.name + ')', f.atkMod]); // attack modifiers only count when attacking
+    if (ctx.chargeCancelled) parts.push(['Charge bonus (cancelled: ' + of.name + ')', 0]);
     if (ctx.rear) parts.push(['Rear attack', 2]);
+    if (ctx.rear && of.rearAtk) parts.push(['Rear attack vs ' + of.name, of.rearAtk]);
     if (ctx.ambush) parts.push(['Attacking from hiding', 2]);
   } else {
     // Defense bonuses: everything that makes a unit harder to hit is added to the defender's roll
     if (!ctx.ranged && unit.round.holding) parts.push(['Holding: melee defense', 2]); // Hold doesn't help against ranged attacks
     if (f.defAll) parts.push(['Melee & ranged defense (' + f.name + ')', f.defAll]);
     if (ctx.ranged && f.defRanged) parts.push(['Ranged defense (' + f.name + ')', f.defRanged]);
-    if (!ctx.ranged) {
-      const m = ctx.charge && f.defCharge !== undefined && f.defCharge !== null ? f.defCharge : f.defMelee;
-      if (m) parts.push([(ctx.charge && f.defCharge !== undefined && f.defCharge !== null ? 'Defense vs cavalry charges' : 'Melee defense') + ' (' + f.name + ')', m]);
-    }
+    if (!ctx.ranged && f.defMelee) parts.push(['Melee defense (' + f.name + ')', f.defMelee]);
     if (f.defFront && isFront(s, ctx.attacker, unit)) parts.push(['Defense from the front (' + f.name + ')', f.defFront]);
     if (!ctx.ranged && f.frontMelee && isFront(s, ctx.attacker, unit)) parts.push(['Formation front vs melee (' + f.name + ')', f.frontMelee]);
   }
@@ -289,12 +302,15 @@ function resolveAttack(s, attacker, defender, opts) {
   const tilesMoved = opts.movedThisActivation ? (opts.tilesMoved || 0) : 0;
   // Fierce Charge trait: 1 = +1 on a charge; 2 (+) and 3 (++) = +1 per tile instead of per 2; 3 also doubles morale loss on a win
   const fierce = attacker.fierceCharge || 0;
-  const chargeBonus = !ranged && at.category === 'cavalry' ? Math.floor(fierce >= 2 ? tilesMoved : tilesMoved / 2) : 0;
+  const dfF = formationOf(s, defender);
+  const rawCharge = !ranged && at.category === 'cavalry' ? Math.floor(fierce >= 2 ? tilesMoved : tilesMoved / 2) : 0;
+  const chargeCancelled = rawCharge > 0 && !!dfF.noChargeBonus; // e.g. Spear Wall, Hollowed Square
+  const chargeBonus = chargeCancelled ? 0 : rawCharge;
   const charge = chargeBonus > 0;
   const df = formationOf(s, defender);
   let rear = isRear(s, attacker, defender) && !df.noRear && !passive(s, defender).noRearAgainst;
   const ambush = !!opts.ambush;
-  const ctx = { attacker, defender, ranged, charge, chargeBonus, tilesMoved, fierce, rear, ambush };
+  const ctx = { attacker, defender, ranged, charge, chargeBonus, chargeCancelled, tilesMoved, fierce, rear, ambush };
 
   const A = buildRoll(s, attacker, 'attacker', ctx);
   const D = buildRoll(s, defender, 'defender', ctx);
@@ -897,8 +913,30 @@ const ACTIONS = {
     // attacking commits the move: apply any encirclement it caused first
     settle(s);
     if (!alive(d)) { log(s, d.name + ' gave up before the attack landed.'); if (alive(u)) finishActivation(s, u); return; }
-    resolveAttack(s, u, d, { movedThisActivation: ac.movedThisActivation, tilesMoved: ac.tilesMoved || 0, ambush: !!u.hidden });
-    if (alive(u)) finishActivation(s, u);
+    const res = resolveAttack(s, u, d, { movedThisActivation: ac.movedThisActivation, tilesMoved: ac.tilesMoved || 0, ambush: !!u.hidden });
+    if (!alive(u)) return;
+    // Wedge: after winning, the attacker may move to any empty tile next to the enemy unit
+    if (formationOf(s, u).winReposition && res && res.winner === 'attacker') {
+      const tiles = repositionTiles(s, d, u);
+      if (tiles.length) { ac.step = 'reposition'; ac.reposition = { targetId: d.id, tiles }; log(s, u.name + ' may move next to ' + d.name + '.'); return; }
+    }
+    finishActivation(s, u);
+  },
+  reposition(s, actor, a) { // Wedge follow-up: pick one of the offered tiles, or stay (no x/y)
+    const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
+    const { u, act: ac } = r;
+    if (ac.step !== 'reposition' || !ac.reposition) return err('Nothing to reposition');
+    if (a.x !== undefined && a.y !== undefined) {
+      if (!ac.reposition.tiles.some(([x, y]) => x === a.x && y === a.y)) return err('Pick one of the marked tiles');
+      const from = { x: u.x, y: u.y };
+      u.x = a.x; u.y = a.y;
+      u.facing = { dx: sign(u.x - from.x), dy: sign(u.y - from.y) };
+      if (u.facing.dx && u.facing.dy) u.facing.dy = 0;
+      log(s, u.name + ' moves up beside the enemy.');
+      revealAround(s, u);
+    }
+    delete ac.reposition;
+    finishActivation(s, u);
   },
   endTurn(s, actor, a) {
     const r = activeUnit(s, actor, a.unitId); if (r.error) return r;

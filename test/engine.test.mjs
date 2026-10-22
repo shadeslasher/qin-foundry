@@ -218,6 +218,51 @@ test('Hold gives +2 melee defense only, not against ranged', () => {
   assert.strictEqual(roll(r), 0);
 });
 
+test('formation attack modifiers, charge cancelling, extra rear bonus', () => {
+  const s = setup();
+  s.library.formations.push(
+    { id: 'lz', name: 'Loose', defRanged: 3, defMelee: -2, atkMod: -1 },
+    { id: 'sw', name: 'Spear Wall', moveMod: -1, defMelee: 3, noChargeBonus: true, defRanged: -2, rearAtk: 2 });
+  const a = add(s, { typeId: 'han_lancer_cav', side: 'player', owner: 'p1', x: 5, y: 1 });
+  const d = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 5 });
+  R.unitById(s, a).formation = 'lz';
+  R.unitById(s, d).formation = 'sw';
+  R.typeOf(s, R.unitById(s, a)).formations = null; R.typeOf(s, R.unitById(s, d)).formations = null;
+  must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'startRound' }));
+  R.unitById(s, d).facing = { dx: 0, dy: 1 }; // facing away: the cavalry hits its rear
+  must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: a }));
+  s.freeMovement = false;
+  must(R.act(s, P1, { type: 'moveTo', unitId: a, x: 5, y: 4 }));
+  dice([3, 0, 0, 0]);
+  must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
+  const r = s.log.filter(e => e.detail && e.detail.type === 'attack').pop().detail.result;
+  const has = (roll, re, v) => roll.parts.some(([l, x]) => re.test(l) && x === v);
+  assert.ok(has(r.attackRoll, /^Attack \(Loose\)/, -1), 'Loose: attack -1 when attacking');
+  assert.ok(!r.charge && has(r.attackRoll, /cancelled/, 0), 'Spear Wall cancels the charge bonus');
+  assert.ok(has(r.attackRoll, /^Rear attack$/, 2) && has(r.attackRoll, /^Rear attack vs Spear Wall/, 2), 'rear +2 and +2 more');
+  assert.ok(has(r.defendRoll, /^Melee defense \(Spear Wall\)/, 3));
+  // when the Loose unit defends, its attack -1 doesn't count
+  const D = R.buildRoll(s, R.unitById(s, a), 'defender', { attacker: R.unitById(s, d), defender: R.unitById(s, a), ranged: false });
+  assert.ok(!D.parts.some(([l]) => /^Attack/.test(l)));
+});
+
+test('Wedge: winning attacker may move next to the enemy, or stay', () => {
+  const s = setup();
+  s.library.formations.push({ id: 'wd', name: 'Wedge', defAll: -2, winReposition: true });
+  const a = add(s, { typeId: 'han_lancer_cav', side: 'player', owner: 'p1', x: 5, y: 4 });
+  const d = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 5 });
+  R.unitById(s, a).formation = 'wd'; R.typeOf(s, R.unitById(s, a)).formations = null;
+  must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'startRound' }));
+  must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: a }));
+  dice([9, 0, 0, 0]);
+  must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
+  assert.strictEqual(s.turn.activation.step, 'reposition');
+  assert.ok(!R.act(s, P1, { type: 'reposition', unitId: a, x: 9, y: 9 }).ok, 'only the offered tiles');
+  must(R.act(s, P1, { type: 'reposition', unitId: a, x: 6, y: 5 }));
+  assert.deepStrictEqual([R.unitById(s, a).x, R.unitById(s, a).y], [6, 5]);
+  assert.ok(!s.turn.activation || s.turn.activation.unitId !== a, 'turn over');
+});
+
 test('initiative: officers first, hold, interject chain, officer-less alternation, final pass', () => {
   const s = setup();
   const o1 = add(s, { typeId: 'han_ji_inf', officerId: 'xu_chu', side: 'player', owner: 'p1', x: 1, y: 1 });
