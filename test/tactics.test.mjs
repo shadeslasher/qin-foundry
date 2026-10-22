@@ -207,3 +207,16 @@ test('Surrounded by Fear: no surrender or morale loss; free attacks until an att
   assert.ok(P.morale >= 50, 'no -50 for being surrounded');
   assert.strictEqual(R.unitById(s, ring[0].id).status, 'defeated', 'it struck until one attacker fell');
 });
+
+test('surrounded: impassable tiles count toward the ring, but at least one enemy is needed', () => {
+  const s = setup();
+  s.library.unitTypes.push(unitType('p'), unitType('e'));
+  const p = add(s, { typeId: 'p', side: 'player', owner: 'p1', x: 5, y: 5 });
+  for (const k of ['4,5', '6,5', '5,4']) s.map.terrain[k] = 'impassable';
+  R.settle(s);
+  assert.ok(!R.unitById(s, p).surrounded, 'walls alone do not surround');
+  add(s, { typeId: 'e', side: 'enemy', x: 5, y: 6 });
+  R.settle(s);
+  assert.ok(R.unitById(s, p).surrounded, '3 impassable + 1 enemy');
+  assert.strictEqual(R.unitById(s, p).morale, 0);
+});

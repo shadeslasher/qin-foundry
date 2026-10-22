@@ -675,7 +675,8 @@ function checkEncirclement(s) {
       const o = unitAt(s, x, y);
       if (o && hostile(o, u)) enemies++; else open++;
     }
-    const surrounded = enemies >= 2 && open === 0;
+    // surrounded: every side blocked by an enemy or by impassable ground, with at least one enemy
+    const surrounded = enemies >= 1 && open === 0;
     if (surrounded && !u.surrounded) {
       u.surrounded = true;
       if (fireTactics(s, 'surrounded', u).length || hasTactic(s, u, 'fear')) {
