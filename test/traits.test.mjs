@@ -248,3 +248,9 @@ test('Trait text parses to tiers; shield armor is read from the armor note', asy
   assert.strictEqual(T.shieldArmorOf('1 (Shield) + 1 (Helmet)'), 1);
   assert.strictEqual(T.shieldArmorOf('3'), 0);
 });
+
+test('Precision stacks on top of the ranged attacker bonus', () => {
+  const { r } = duel(unitType('a', { weapon: 'ranged', rangeMax: 3 }), unitType('d'), [3, 0, 0, 0], traits({ precision: 1 }));
+  assert.strictEqual(part(r.attackRoll, /^Attacker bonus/), 2);
+  assert.strictEqual(part(r.attackRoll, /^Precision/), 2);
+});
