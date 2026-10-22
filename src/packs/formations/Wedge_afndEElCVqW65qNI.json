@@ -20,7 +20,7 @@
     "casReduce": 0,
     "noAttackerBonus": false,
     "noRear": false,
-    "description": "<p>Commanded Unit forms into a wedge shape. <b>Enemy attacks gain +2</b> to their rolls when targeting this unit. If this unit performs a c<b>avalry charge, add +4</b> to its roll.</p>"
+    "description": "<p>Commanded Unit forms into a wedge shape. <b>Enemy melee and ranged attacks gain +2</b> to their rolls when targeting this unit. If this unit performs a c<b>avalry charge, add +4</b> to its roll.</p>"
   },
   "effects": [],
   "folder": null,

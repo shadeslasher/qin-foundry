@@ -33,6 +33,7 @@ export class ArmorData extends foundry.abstract.TypeDataModel {
       description: desc(),
     };
   }
+
 }
 
 export class TaoData extends foundry.abstract.TypeDataModel {
@@ -157,5 +158,14 @@ export class FormationData extends foundry.abstract.TypeDataModel {
       noRear: new fields.BooleanField({ initial: false }),
       description: desc(),
     };
+  }
+
+  /** Formation items copied before the melee/ranged split: update untouched defaults. */
+  static migrateData(src) {
+    const v = (k) => Number(src[k] ?? 0) || 0;
+    if (src.key === "circle" && v("vsAttack") === -3 && !v("vsMelee")) { src.vsAttack = 0; src.vsMelee = -3; }
+    if (src.key === "hollow_square" && v("vsAttack") === -2 && src.vsCharge === -2 && !v("vsMelee")) { src.vsAttack = 0; src.vsMelee = -2; src.vsCharge = -4; }
+    if (src.key === "turtle" && v("defAll") === 2 && !v("vsAttack")) { src.defAll = 0; src.vsAttack = -2; }
+    return super.migrateData(src);
   }
 }

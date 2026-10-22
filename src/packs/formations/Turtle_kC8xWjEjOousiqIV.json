@@ -8,11 +8,11 @@
     "key": "turtle",
     "moveMod": -2,
     "immobile": false,
-    "vsAttack": 0,
+    "vsAttack": -2,
     "vsMelee": 0,
     "vsRanged": 0,
     "vsCharge": null,
-    "defAll": 2,
+    "defAll": 0,
     "defFront": 0,
     "frontMelee": 0,
     "chargeBonus": 0,
@@ -20,7 +20,7 @@
     "casReduce": 2,
     "noAttackerBonus": true,
     "noRear": false,
-    "description": "<p>Commanded Unit overlaps their shields to form a defense formation. While in this stance, the <b>unit's movement decreases by 2, </b>but <b>suffers 2 less damage from attacking and defending</b>. While attacking, this unit will <b>lose the +2 attacker's bonus</b>, but <b>while defending, gain +2 to rolls.</b></p>"
+    "description": "<p>Commanded Unit overlaps their shields to form a defense formation. While in this stance, the <b>unit's movement decreases by 2, </b>but <b>suffers 2 less damage from attacking and defending</b>. While attacking, this unit will <b>lose the +2 attacker's bonus</b>, but <b>enemy melee and ranged attacks against it suffer -2 to their rolls.</b></p>"
   },
   "effects": [],
   "folder": null,
