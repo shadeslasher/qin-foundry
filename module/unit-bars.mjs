@@ -292,7 +292,9 @@ export async function drawUnitBars(token) {
   const n = figureCount(men, max);
   if (token.mesh && !token.mesh.destroyed) token.mesh.renderable = false; // the stand replaces the picture
   const st = unitStatus(token);
-  const key = JSON.stringify([men, max, morale, w, h, s.side, acted, active, holding, st, n, art, off, fac?.img ?? null]);
+  // a player's own units get bright corner brackets (only that player sees them; the GM never does)
+  const mine = !game.user?.isGM && !!actor.isOwner;
+  const key = JSON.stringify([men, max, morale, w, h, s.side, acted, active, holding, st, mine, n, art, off, fac?.img ?? null]);
   let c = token[KEY];
   if (c && !c.destroyed && c.parent === token && c.qinKey === key) return;
   const my = (gen.get(token) ?? 0) + 1;
@@ -419,6 +421,15 @@ export async function drawUnitBars(token) {
   });
 
   if (fall && !fall.destroyed) c.addChildAt(fall, c.getChildIndex(stand) + 1);
+
+  if (mine && !active) {
+    const L2 = T * 0.15, lw = Math.max(2, T * 0.04), x0 = pad, y0 = pad, x1 = w - pad, y1 = h - pad;
+    const g2 = new PIXI.Graphics().lineStyle(Math.max(2, T * 0.025), 0x78c8ff, 1).drawRoundedRect(x0, y0, x1 - x0, y1 - y0, T * 0.1);
+    g2.lineStyle(lw, 0xdcf0ff, 1);
+    for (const [px, py, sx, sy] of [[x0, y0, 1, 1], [x1, y0, -1, 1], [x0, y1, 1, -1], [x1, y1, -1, -1]])
+      g2.moveTo(px + sx * L2, py).lineTo(px, py).lineTo(px, py + sy * L2);
+    c.addChild(g2);
+  }
 
   // this unit's turn: pulsing gold glow behind, gold border, and a bobbing arrow above
   if (active) {
