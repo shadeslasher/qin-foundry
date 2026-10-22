@@ -282,6 +282,18 @@ function animateChanges(scene, before, s, entries) {
     if (gains.length) steps.push({ kind: "floats", items: gains });
   }
   for (const e of entries) if (e.detail?.type === "levelUp") steps.push({ kind: "levelUp", unit: e.detail.unit, level: e.detail.level });
+  // units that were just fully surrounded: white flash + "Surrounded!" before their -50 morale shows
+  // (an encirclement applied as an attack commits the move happens before that attack, so it plays first)
+  const firstAttack = entries.findIndex(e => e.detail?.type === "attack");
+  const preAttack = [], postAttack = [];
+  entries.forEach((e, i) => { if (e.detail?.type === "surrounded") (firstAttack >= 0 && i < firstAttack ? preAttack : postAttack).push(e.detail.unit); });
+  const surroundSteps = (ids) => {
+    ids = [...new Set(ids)];
+    for (const id of ids) add(id, "morale", -50);
+    return [{ kind: "surrounded", units: ids }, { kind: "floats", items: ids.map(id => [id, "moraleDown", "\u221250 morale"]) }];
+  };
+  if (preAttack.length) steps.unshift(...surroundSteps(preAttack));
+  if (postAttack.length) steps.push(...surroundSteps(postAttack));
   // anything else that changed (end-of-turn morale, forced march, adjacent defeats...)
   const rest = [];
   for (const u of s.units) {

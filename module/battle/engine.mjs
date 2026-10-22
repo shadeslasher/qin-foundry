@@ -421,7 +421,7 @@ function checkEncirclement(s) {
     if (surrounded && !u.surrounded) {
       u.surrounded = true;
       if (passive(s, u).ignoreEncirclement) log(s, u.name + ' is surrounded but its officer ignores the morale loss.');
-      else { u.morale = clamp(u.morale - 50, 0, 100); log(s, u.name + ' is fully surrounded: -50 morale.'); changed = true; }
+      else { u.morale = clamp(u.morale - 50, 0, 100); log(s, u.name + ' is fully surrounded: -50 morale.', { type: 'surrounded', unit: u.id }); changed = true; }
     } else if (!surrounded && u.surrounded) u.surrounded = false;
   }
   return changed;

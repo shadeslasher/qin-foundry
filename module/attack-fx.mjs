@@ -266,6 +266,7 @@ const FLOAT_STYLES = {
   moraleUp: { fill: "#8fd3ff", fontSize: 32 },
   xp: { fill: "#ffd84a", fontSize: 30 },
   levelUp: { fill: "#ffe680", fontSize: 44 },
+  surrounded: { fill: "#ffffff", fontSize: 34 },
   miss: { text: "Miss", fill: "#dddddd", fontSize: 28 },
   block: { text: "Blocked", fill: "#8ab8ff", fontSize: 30 },
   dodge: { text: "Dodged", fill: "#8fe08f", fontSize: 30 },
@@ -795,6 +796,19 @@ export function broadcastBattleAnim(sceneId, steps) {
   return playBattleAnim(data);
 }
 
+/** Fully surrounded: the unit's outline flashes white three times and "Surrounded!" rises over it. */
+function surroundedLocal(token) {
+  if (!token) return;
+  const x = token.x, y = token.y, w = token.w, h = token.h, T = Math.min(w, h), pad = T * 0.03;
+  floatLocal({ x: x + w / 2, y: y + h * 0.42 }, "surrounded", "Surrounded!");
+  return animate(1000, (g, t) => {
+    const a = Math.max(0, Math.sin(t * Math.PI * 3));
+    if (a <= 0) return;
+    g.lineStyle(T * 0.09, 0xffffff, 0.35 * a).drawRoundedRect(x + pad - T * 0.04, y + pad - T * 0.04, w - 2 * pad + T * 0.08, h - 2 * pad + T * 0.08, T * 0.13);
+    g.lineStyle(T * 0.035, 0xffffff, a).drawRoundedRect(x + pad, y + pad, w - 2 * pad, h - 2 * pad, T * 0.1);
+  });
+}
+
 /** A white flag raised and waved over a unit that surrenders. */
 function whiteFlagLocal({ at, size }) {
   return animate(2600, (g, t) => {
@@ -887,6 +901,7 @@ function levelUpLocal(token, level) {
  *        { kind: "floats", items: [[tokenId, style, text], ...] }   (shown together)
  *        { kind: "levelUp", unit, level }
  *        { kind: "fallen", units: [[tokenId, "skull" | "flag"], ...] }
+ *        { kind: "surrounded", units: [tokenId, ...] }
  */
 export async function playBattleAnim({ sceneId, steps }) {
   if (!canvas?.ready || (sceneId && canvas.scene?.id !== sceneId)) return;
@@ -922,6 +937,9 @@ export async function playBattleAnim({ sceneId, steps }) {
       } else if (st.kind === "levelUp") {
         levelUpLocal(tok(st.unit), st.level);
         await wait(700);
+      } else if (st.kind === "surrounded") {
+        for (const id of st.units) surroundedLocal(tok(id));
+        await wait(1400);
       } else if (st.kind === "fallen") {
         // every unit that fell in this action goes together: skull (destroyed) or white flag (surrendered),
         // half a second, then a slow fade
