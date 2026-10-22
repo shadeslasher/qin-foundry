@@ -18,7 +18,7 @@ let queue = Promise.resolve();
 export const defaultFormations = () => foundry.utils.deepClone(FORMATIONS);
 
 export function emptyBattle() {
-  return { active: false, sceneId: null, turn: E.newState().turn, log: [], meta: {} };
+  return { active: false, sceneId: null, turn: E.newState().turn, log: [], meta: {}, tactics: null };
 }
 
 export function getBattle() {
@@ -91,6 +91,12 @@ function terrainAt(scene, x, y) {
   return "flat";
 }
 
+/** High ground for tactics like Raise Flag: a region named hill, high ground, fort, command tent or wall. */
+function isHighGround(scene, gx, gy) {
+  const size = scene.grid.size, pt = { x: gx * size + size / 2, y: gy * size + size / 2, elevation: 0 };
+  return (scene.regions ?? []).some(r => /hill|high ground|fort|command tent|wall/i.test(r.name || "") && (() => { try { return r.testPoint(pt); } catch { return false; } })());
+}
+
 export function unitTokens(scene) {
   return scene ? scene.tokens.filter(t => t.actor?.type === "unit") : [];
 }
@@ -102,6 +108,7 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
   s.freeMovement = true;
   s.turn = battle.turn;
   s.log = battle.log ?? [];
+  s.tactics = battle.tactics ?? null;
   s.library.formations = [{ id: "none", name: "No formation", desc: "No modifiers." }];
   s.library.unitTypes = [];
   s.library.officers = [];
@@ -217,6 +224,7 @@ async function writeBack(battle, s, scene) {
     finally { writing = false; }
   }
   battle.turn = s.turn;
+  battle.tactics = s.tactics ?? null;
   battle.log = s.log.slice(-60);
   await game.settings.set(SYSTEM_ID, SETTING, battle);
 }
@@ -270,6 +278,9 @@ function animateChanges(scene, before, s, entries) {
   const covered = {}; // what the attack steps already showed, per unit
   const add = (id, k, n) => { (covered[id] ??= { men: 0, morale: 0, xp: 0 })[k] += n; };
   for (const e of entries) {
+    // a tactic plays where it fired: before the attack that set it off
+    if (e.detail?.type === "tactic") { steps.push({ kind: "tactic", tactic: e.detail.tactic }); continue; }
+    if (e.detail?.type === "setFire") { steps.push({ kind: "setFire", x: e.detail.x, y: e.detail.y }); continue; }
     const r = e.detail?.type === "attack" ? e.detail.result : null;
     if (!r) continue;
     const toD = [], toA = [];
@@ -365,6 +376,10 @@ async function runActionNow(userId, action) {
     return { ok: true };
   }
 
+  if (action.type === "placeTactic") {
+    const sc = game.scenes.get(battle.sceneId);
+    action = { ...action, highGround: !!sc && isHighGround(sc, action.x, action.y) };
+  }
   const moving = ["move", "forcedMarch"].includes(action.type) ? action.unitId : null;
   const { s, scene } = buildState(battle, { useLastPosition: moving, terrainFor: action.type === "moveTo" ? action.unitId : null });
   if (action.type === "moveTo") s.freeMovement = false;

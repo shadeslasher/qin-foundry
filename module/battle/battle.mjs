@@ -4,9 +4,10 @@ import * as E from "./engine.mjs";
 import { getBattle, buildState, runAction, unitTokens } from "./adapter.mjs";
 import { scaledPosition } from "../sheets/sheets.mjs";
 import { setBattleRequest, highlightUnit } from "./battle-ui.mjs";
+import { TacticsApp } from "./tactics-ui.mjs";
 
 const QUERY = `${SYSTEM_ID}.battle`;
-const PHASE_NAME = { setup: "Setup", formations: "Declare formations", officer: "Officer phase", officerless: "Officer-less phase", final: "Final pass" };
+const PHASE_NAME = { tactics: "Tactics", setup: "Setup", formations: "Declare formations", officer: "Officer phase", officerless: "Officer-less phase", final: "Final pass" };
 
 export function registerBattleQuery() {
   CONFIG.queries[QUERY] = async ({ userId, action }) => runAction(userId, action);
@@ -89,6 +90,14 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
         prompt.text = game.user.isGM ? "Back in setup. Reposition units, then begin again." : "The GM is setting up.";
         if (game.user.isGM) btn("Begin (declare formations)", "startBattle", { primary: true });
         break;
+      case "tactics": {
+        const T = battle.tactics;
+        const tac = T?.sides?.player;
+        prompt.text = game.user.isGM ? "Tactics phase: choose tacticians and place their tactics, then finish (or skip)."
+          : tac ? `Tactics phase. Player tactician: <b>${foundry.utils.escapeHTML(tac.name)}</b>.` : "Tactics phase: the GM is choosing tacticians.";
+        btn("Open tactics", "openTactics", { primary: true });
+        break;
+      }
       case "formations":
         prompt.text = "Choose formations for your units, then mark yourself ready.";
         if (!game.user.isGM) btn(t.ready[game.user.id] ? "Ready ✓" : "Ready", "ready");
@@ -164,7 +173,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
       round: t.round, phase: PHASE_NAME[t.phase], prompt, held, controls, order, units,
       log: (s.log || []).slice(-12).reverse().map(e => e.text),
       wrongScene: canvas.scene?.id !== battle.sceneId, battleScene: scene?.name,
-      showSkip: game.user.isGM && !["setup", "formations"].includes(p.kind),
+      showSkip: game.user.isGM && !["setup", "formations", "tactics"].includes(p.kind),
     });
     return ctx;
   }
@@ -189,6 +198,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
 
   static async #do(event, target) {
     const d = target.dataset;
+    if (d.type === "openTactics") return TacticsApp.open();
     const action = { type: d.type };
     for (const k of ["unitId", "choice", "index"]) if (d[k] !== undefined) action[k] = k === "index" ? Number(d[k]) : d[k];
     await battleRequest(action);

@@ -378,3 +378,55 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin-tt-chip b { display: block; font-size: 1.15em; }
 .qin-tt-chip small { display: block; color: #a99a7c; font-size: 0.75em; letter-spacing: .04em; text-transform: uppercase; }
 .qin-tt-weapon { margin-top: 7px; color: #e8c170; text-align: center; }
+
+/* ---------------- Battle tactics: the tactics screen */
+.qin-tactics .window-content { padding: 0; background: #1d1813; color: #f3ead8; }
+.qin-tac { font-size: 13.5px; }
+.qin-tac-sec { margin: 10px 12px; border: 1px solid #3d3122; border-radius: 6px; overflow: hidden; }
+.qin-tac-sec h4 { margin: 0; padding: 6px 10px; font-size: 13.5px; display: flex; justify-content: space-between; align-items: center; border: none; color: #f3ead8; }
+.qin-tac-sec h4 small { color: #bfae8c; font-weight: 400; }
+.qin-tac-sec.player h4 { background: rgba(58,120,200,.25); border-left: 4px solid #3a78c8; }
+.qin-tac-sec.ally h4 { background: rgba(63,166,106,.22); border-left: 4px solid #3fa66a; }
+.qin-tac-sec.enemy h4 { background: rgba(200,68,58,.25); border-left: 4px solid #c8443a; }
+.qin-tac-body { padding: 8px 10px; }
+.qin-tac-sel { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.qin-tac-sel label { color: #bfae8c; width: 64px; flex: none; }
+.qin-tac-por { width: 46px; height: 46px; border-radius: 50%; object-fit: cover; object-position: top; border: 2px solid #b8862b; background: #000; flex: none; }
+.qin-tac-sec.player .qin-tac-por { border-color: #3a78c8; } .qin-tac-sec.ally .qin-tac-por { border-color: #3fa66a; } .qin-tac-sec.enemy .qin-tac-por { border-color: #c8443a; }
+.qin-tac-none { display: flex; align-items: center; justify-content: center; color: #6b5326; font-size: 20px; }
+.qin-tac-dd { flex: 1; display: flex; justify-content: space-between; align-items: center; gap: 6px; background: #2b241c; border: 1px solid #5a4830; border-radius: 4px; padding: 5px 8px; color: #f3ead8; text-align: left; line-height: 1.3; min-height: 30px; }
+.qin-tac-dd small { color: #bfae8c; }
+.qin-tac-dd.static { opacity: .85; }
+.qin-tac-count { color: #bfae8c; }
+.qin-tac-slots { display: flex; gap: 4px; margin: 3px 0 8px; }
+.qin-tac-slots i { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #3a78c8; }
+.qin-tac-slots i.f { background: #3a78c8; }
+.qin-tac-list summary { cursor: pointer; color: #e8c170; margin: 4px 0; }
+.qin-tac-row { display: grid; grid-template-columns: 1fr 48px 46px; gap: 6px; padding: 4px 8px; border-radius: 4px; align-items: center; }
+.qin-tac-row:nth-child(odd) { background: #251f18; }
+.qin-tac-row.hd { color: #a99a7c; font-size: 12px; background: none; }
+.qin-tac-row.locked { opacity: .4; }
+.qin-tac-row a, .qin-tac-chip a { color: #f0c24a; cursor: pointer; text-align: right; }
+.qin-tac-row small { color: #a99a7c; } .qin-tac-placed { color: #7fb0ef !important; }
+.qin-tac-chip { display: flex; justify-content: space-between; align-items: center; background: #2b241c; border-radius: 4px; padding: 4px 8px; margin: 3px 0; }
+.qin-tac-chip small { color: #a99a7c; }
+.qin-tac-chip a + a { margin-left: 8px; color: #d98b7b; }
+.qin-tac-foot { display: flex; gap: 8px; margin: 10px 12px 12px; }
+.qin-tac-foot button { flex: 1; }
+.qin-tac-foot .qin-tac-skip { flex: 0 0 120px; }
+.qin-tac-wait { margin: 8px 12px 12px; }
+.qin-tac-menu { position: fixed; z-index: 1000; max-height: 340px; overflow: auto; background: #241e17; border: 1px solid #6b5326; border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.6); padding: 6px; color: #f3ead8; font-size: 13px; }
+.qin-tac-menu input { width: 100%; margin-bottom: 4px; }
+.qin-tac-opt { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 4px; cursor: pointer; }
+.qin-tac-opt:hover { background: #3a2f22; }
+.qin-tac-opt img { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; object-position: top; border: 1px solid #b8862b; }
+.qin-tac-opt small { color: #a99a7c; }
+.qin-tac-opt.off { opacity: .4; cursor: default; }
+
+/* ---------------- Battle tactics: the name over a square when it fires */
+.qin-tac-banner { position: fixed; z-index: 90; pointer-events: none; transform: translate(-50%, -50%); text-align: center; padding: 8px 28px 10px;
+  background: rgba(12,10,8,.86); border: 2px solid #fff; border-radius: 8px; color: #ffecbe; box-shadow: 0 6px 24px rgba(0,0,0,.6); opacity: 0; }
+.qin-tac-banner.player { border-color: #3a78c8; } .qin-tac-banner.ally { border-color: #3fa66a; } .qin-tac-banner.enemy { border-color: #c8443a; }
+.qin-tac-banner small { display: block; color: #e6d2a0; font-size: 14px; white-space: nowrap; }
+.qin-tac-banner { white-space: nowrap; }
+.qin-tac-banner b { display: block; font-size: 34px; line-height: 1.15; text-shadow: 2px 2px 0 #000; letter-spacing: .5px; }

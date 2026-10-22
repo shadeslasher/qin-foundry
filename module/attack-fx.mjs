@@ -1,6 +1,7 @@
 // Attack targeting (click a hex in reach) and attack animations.
 // Animations use Sequencer + JB2A when both modules are active, otherwise built-in PIXI effects
 // that are broadcast to every client over the system socket.
+import { playTacticTrigger, playSetFire } from "./battle/tactics-ui.mjs";
 import { SYSTEM_ID } from "./config.mjs";
 import { drawUnitBars } from "./unit-bars.mjs";
 
@@ -980,6 +981,10 @@ export async function playBattleAnim({ sceneId, steps }) {
       } else if (st.kind === "levelUp") {
         levelUpLocal(tok(st.unit), st.level);
         await wait(700);
+      } else if (st.kind === "tactic") {
+        await playTacticTrigger(st.tactic);
+      } else if (st.kind === "setFire") {
+        await playSetFire(st.x, st.y);
       } else if (st.kind === "surrounded") {
         for (const id of st.units) surroundedLocal(tok(id));
         await wait(1400);

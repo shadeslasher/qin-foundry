@@ -14,6 +14,7 @@ import { registerAttackFxSocket, registerDamageFloats } from "./module/attack-fx
 import { registerUnitBars, redrawAllUnitBars } from "./module/unit-bars.mjs";
 import { registerFactions, factionList } from "./module/factions.mjs";
 import { refreshBattleUI, repositionBattleUI, lockUnitTokens, onUnitSelected, registerUnitClicks } from "./module/battle/battle-ui.mjs";
+import { refreshTactics, registerTactics } from "./module/battle/tactics-ui.mjs";
 import { registerUnitInfo, openUnitInfo, openOfficerView, registerDangerZoneKey, toggleDangerZone } from "./module/unit-info.mjs";
 
 const { SYSTEM_ID } = CFG;
@@ -58,6 +59,7 @@ Hooks.once("init", () => {
       BattlePanel.refresh();
       refreshBattleUI();
       redrawAllUnitBars();
+      refreshTactics();
       if (getBattle().active && !BattlePanel.instance?.rendered && game.settings.get(SYSTEM_ID, "autoOpenBattle")) BattlePanel.open();
     },
   });
@@ -141,6 +143,7 @@ Hooks.once("init", () => {
 
 Hooks.once("ready", () => {
   registerAttackFxSocket();
+  refreshTactics();
   if (game.user.isGM && getBattle().active) BattlePanel.open();
   else if (getBattle().active && game.settings.get(SYSTEM_ID, "autoOpenBattle")) BattlePanel.open();
 });
@@ -150,6 +153,7 @@ registerTokenHover();
 registerDamageFloats();
 registerUnitBars();
 registerUnitInfo();
+registerTactics();
 registerUnitClicks();
 Hooks.on("renderCombatTracker", onRenderCombatTracker);
 Hooks.on("updateToken", (doc, change, options) => {
