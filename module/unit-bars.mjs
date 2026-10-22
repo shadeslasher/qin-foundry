@@ -311,7 +311,7 @@ export async function drawUnitBars(token) {
       icon.position.set(w / 2 - total / 2 + sw / 2, ly);
       t.position.set(w / 2 - total / 2 + sw + gapX + t.width / 2, ly);
       c.addChild(icon);
-    } else t.position.set(w / 2, top / 2);
+    } else t.position.set(w / 2, top * 0.62); // same height as "Hold"
   }
 
   // holding this round: a shield badge on the top edge showing its +2 (attackers suffer -2 against it)
