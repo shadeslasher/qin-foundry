@@ -226,7 +226,7 @@ function buildRoll(s, unit, role, ctx) {
       const m = ctx.charge && of.vsCharge !== undefined ? of.vsCharge : of.vsMelee;
       if (m) parts.push(['Target formation vs ' + (ctx.charge ? 'charge' : 'melee') + ' (' + of.name + ')', m]);
     }
-    if (other.round.holding) parts.push(['Target is holding', -2]);
+    if (!ctx.ranged && other.round.holding) parts.push(['Target is holding (melee)', -2]); // Hold doesn't affect ranged attacks
   } else {
     if (f.defFront && isFront(s, ctx.attacker, unit)) parts.push(['Formation front defense (' + f.name + ')', f.defFront]);
     if (f.defAll) parts.push(['Formation defense (' + f.name + ')', f.defAll]);
@@ -847,7 +847,7 @@ const ACTIONS = {
     const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
     if (r.u.round.attacked || r.act.forcedMarched) return err('Too late to hold this turn');
     r.u.round.holding = true;
-    log(s, r.u.name + ' holds position (enemy attacks against it -2 this round).');
+    log(s, r.u.name + ' holds position (enemy melee attacks against it -2 this round).');
     finishActivation(s, r.u);
   },
   attack(s, actor, a) {

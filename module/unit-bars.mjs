@@ -33,7 +33,7 @@ function hasActed(token) {
   return !!battle.meta?.[token.id]?.round?.activated;
 }
 
-/** Did this unit Hold this round (enemy attacks against it -2 until the round ends)? */
+/** Did this unit Hold this round (enemy melee attacks against it -2 until the round ends)? */
 function isHolding(token) {
   let battle;
   try { battle = game.settings.get("qin", "battle"); } catch { return false; }
@@ -53,8 +53,10 @@ function battleRecord(token) {
  *           losses (2 soldiers -1, 1 soldier -2), and on its own turn the cavalry charge bonus after a
  *           2+ tile move, or the ranged attacker's +2 kept by not moving. During an attack it shows that
  *           attack's whole situational total instead (token.qinAttackBonus).
- *  defense - against every attack: Hold (+2), formation defense, formation modifier to enemy attacks.
- *  rangedDefense - against ranged attacks only: formation modifier to enemy ranged attacks.
+ *  defense - against melee attacks: Hold (+2), formation defense, formation modifiers to enemy attacks and
+ *           enemy melee attacks.
+ *  rangedDefense - against ranged attacks: formation defense, formation modifiers to enemy attacks and
+ *           enemy ranged attacks. (Hold does not count against ranged attacks.)
  *  range - extra range (nothing grants this automatically yet).
  */
 export function unitStatus(token) {
@@ -79,8 +81,9 @@ export function unitStatus(token) {
     }
   }
   if (token.qinAttackBonus !== undefined && token.qinAttackBonus !== null) attack = token.qinAttackBonus;
-  const defense = (round.holding ? 2 : 0) + (Number(f.defAll) || 0) - (Number(f.vsAttack) || 0);
-  const rangedDefense = -(Number(f.vsRanged) || 0);
+  const both = (Number(f.defAll) || 0) - (Number(f.vsAttack) || 0); // formation effects on every attack
+  const defense = (round.holding ? 2 : 0) + both - (Number(f.vsMelee) || 0);
+  const rangedDefense = both - (Number(f.vsRanged) || 0);
   return { attack, defense, rangedDefense, range: 0, holding: !!round.holding };
 }
 

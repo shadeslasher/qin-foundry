@@ -44,6 +44,8 @@ test('status icons: Command roll bonus/penalty, defense, ranged defense', () => 
   // defense: Hold +2, Turtle defAll +2; ranged defense: Loose (enemy ranged -3) = 3, Spear Wall (enemy ranged +2) = -2
   battle.meta.t = { round: { holding: true } };
   assert.strictEqual(U.unitStatus(tok({}, form({ defAll: 2 }))).defense, 4);
-  assert.strictEqual(U.unitStatus(tok({}, form({ vsRanged: -3 }))).rangedDefense, 3);
+  assert.strictEqual(U.unitStatus(tok({}, form({ defAll: 2 }))).rangedDefense, 2, 'Turtle helps against arrows too; Hold does not');
+  assert.strictEqual(U.unitStatus(tok({}, form({ vsRanged: -3, vsMelee: 1 }))).rangedDefense, 3);
+  assert.strictEqual(U.unitStatus(tok({}, form({ vsRanged: -3, vsMelee: 1 }))).defense, 1, 'Loose: hold 2, enemy melee +1');
   assert.strictEqual(U.unitStatus(tok({}, form({ vsRanged: 2 }))).rangedDefense, -2);
 });

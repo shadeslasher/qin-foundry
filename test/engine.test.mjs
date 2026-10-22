@@ -205,6 +205,19 @@ test('strength penalties follow the soldier figures: 2 left -1, 1 left -2 (caval
   assert.strictEqual(pen(10, 50), -2);
 });
 
+test('Hold gives -2 to enemy melee attacks only, not ranged', () => {
+  const s = setup();
+  const h = add(s, { typeId: 'han_ji_inf', side: 'player', owner: 'p1', x: 5, y: 5 });
+  const m = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 6 });
+  const r = add(s, { typeId: 'yt_archers', side: 'enemy', x: 5, y: 8 });
+  must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'startRound' }));
+  R.unitById(s, h).round.holding = true;
+  const roll = (att) => { const A = R.unitById(s, att), D = R.unitById(s, h); const ranged = R.typeOf(s, A).weapon === 'ranged';
+    return R.buildRoll(s, A, 'attacker', { attacker: A, defender: D, ranged, charge: false, rear: false, ambush: false }).parts.filter(([l]) => /holding/.test(l)).reduce((t, [, v]) => t + v, 0); };
+  assert.strictEqual(roll(m), -2);
+  assert.strictEqual(roll(r), 0);
+});
+
 test('initiative: officers first, hold, interject chain, officer-less alternation, final pass', () => {
   const s = setup();
   const o1 = add(s, { typeId: 'han_ji_inf', officerId: 'xu_chu', side: 'player', owner: 'p1', x: 1, y: 1 });
