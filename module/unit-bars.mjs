@@ -9,12 +9,12 @@ const SIDE_COLORS = { player: 0x3a78c8, enemy: 0xc8443a, ally: 0x3fa66a, neutral
 // Layout, as fractions of the token's size
 const L = {
   pad: 0.03, fig: 0.36, ringCrop: 0.115, officer: 0.33,
-  back: [[0.29, 0.295], [0.50, 0.275], [0.71, 0.295]], front: [[0.395, 0.495], [0.605, 0.495]],
+  back: [[0.395, 0.285], [0.605, 0.285]], front: [[0.29, 0.495], [0.50, 0.505], [0.71, 0.495]],
   flagX: 0.87, flagY: 0.055, flagH: 0.26, rollW: 0.075, bar: 0.15,
 };
-// Slots in loss order: slot 1 is lost first, slot 5 (back-middle) is the last man standing
-//   back row:  4 5 3      front row:  2 1
-const SLOTS = { 1: L.front[1], 2: L.front[0], 3: L.back[2], 4: L.back[0], 5: L.back[1] };
+// Slots in loss order: slot 1 is lost first, slot 5 (front-middle) is the last man standing
+//   back row:   4 3       front row:  2 5 1
+const SLOTS = { 1: L.front[2], 2: L.front[0], 3: L.back[1], 4: L.back[0], 5: L.front[1] };
 
 /* ------------------------------------------------------------ helpers */
 
