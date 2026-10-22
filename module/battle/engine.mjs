@@ -69,11 +69,12 @@ function tileRules(s, x, y) {
   const gate = overlays.includes('city-gate') ? gateAt(s, x, y) : null;
   if (gate && gate.state === 'burned') overlays = overlays.map(o => (o === 'city-gate' ? 'ruins' : o)); // burned gates are ruins
   const parts = [data.MAP_TERRAIN[tile.terrain] || { name: tile.terrain }, ...overlays.map(o => data.MAP_OVERLAYS[o] || { name: o })];
-  const r = { move: 0, meleeDef: 0, rangedDef: 0, range: 0, atk: 0, command: 0, moraleTurn: 0, healthTurn: 0, campDef: 0,
+  const r = { move: 0, meleeDef: 0, rangedDef: 0, range: 0, atk: 0, downhillAtk: 0, high: false, command: 0, moraleTurn: 0, healthTurn: 0, campDef: 0,
     hides: false, wall: false, water: false, names: [], camp: overlays.some(o => o === 'camp' || o.startsWith('camp-')) };
   let none = false, noCav = false, bridge = false;
   for (const p of parts) {
-    for (const k of ['move', 'meleeDef', 'rangedDef', 'range', 'atk', 'command', 'moraleTurn', 'healthTurn', 'campDef']) r[k] += p[k] || 0;
+    for (const k of ['move', 'meleeDef', 'rangedDef', 'range', 'atk', 'downhillAtk', 'command', 'moraleTurn', 'healthTurn', 'campDef']) r[k] += p[k] || 0;
+    if (p.high || (p.wall && !p.gate)) r.high = true; // hills, walls and towers are high ground; gates are ground level
     if (p.pass === 'none') none = true;
     if (p.gate && (!gate || gate.state === 'locked')) none = true; // a locked gate: no one stands in it
     if (p.pass === 'noCavalry') noCav = true;
@@ -566,6 +567,10 @@ function buildRoll(s, unit, role, ctx) {
     const where = tr.names.join(', ');
     if (tr.command) parts.push(['Terrain (' + where + '): command', tr.command]);
     if (role === 'attacker' && tr.atk) parts.push(['Terrain (' + where + '): attack', tr.atk]);
+    if (role === 'attacker' && tr.downhillAtk) { // attacking downhill: not against units on a hill, wall or tower
+      const dr = tileRules(s, other.x, other.y);
+      if (!(dr && dr.high)) parts.push(['Terrain (' + where + '): attacking downhill', tr.downhillAtk]);
+    }
     if (role === 'defender') {
       const def = ctx.ranged ? tr.rangedDef : tr.meleeDef;
       if (def) parts.push(['Terrain (' + where + '): ' + (ctx.ranged ? 'ranged' : 'melee') + ' defense', def]);

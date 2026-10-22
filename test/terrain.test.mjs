@@ -103,3 +103,20 @@ test('battle map file: validated, packed onto the scene, unpacked for the engine
   assert.deepStrictEqual(tiles['1,0'], { terrain: 'plains', overlays: ['city-gate'], gateOpen: false });
   assert.deepStrictEqual(tiles['0,1'], { terrain: 'plains' }, 'squares missing from the file are plains');
 });
+
+test('hill attack bonus only counts attacking downhill; tall grass hides', async () => {
+  const D = await import('../module/battle/engine-data.mjs');
+  const hill = D.MAP_OVERLAYS.hill, was = hill.downhillAtk;
+  hill.downhillAtk = 2;
+  try {
+    const s = field({ '3,3': { terrain: 'plains', overlays: ['hill'] }, '3,4': { terrain: 'plains', overlays: ['hill'] }, '5,3': { terrain: 'plains', overlays: ['city-wall'] } });
+    s.library.unitTypes.push(unitType('inf'));
+    const a = R.unitById(s, add(s, { typeId: 'inf', side: 'player', owner: 'p1', x: 3, y: 3 }));
+    const low = R.unitById(s, add(s, { typeId: 'inf', side: 'enemy', x: 2, y: 3 }));
+    const up = R.unitById(s, add(s, { typeId: 'inf', side: 'enemy', x: 3, y: 4 }));
+    const wall = R.unitById(s, add(s, { typeId: 'inf', side: 'enemy', x: 5, y: 3 }));
+    const dh = (d) => part(R.buildRoll(s, a, 'attacker', { attacker: a, defender: d }), /downhill/);
+    assert.deepStrictEqual([dh(low), dh(up), dh(wall)], [2, 0, 0]);
+  } finally { hill.downhillAtk = was; }
+  assert.strictEqual(R.tileRules(field({ '1,1': { terrain: 'tall-grass' } }), 1, 1).hides, true);
+});
