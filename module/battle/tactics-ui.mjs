@@ -101,7 +101,8 @@ export class TacticsApp extends Base {
 
   _replaceHTML(result, content) {
     content.innerHTML = result;
-    if (!this.wired) { this.wired = true; content.addEventListener("click", (ev) => this.#onClick(ev)); }
+    // the window's contents are rebuilt each time it reopens, so hook up clicks per element, not once per app
+    if (this.wired !== content) { this.wired = content; content.addEventListener("click", (ev) => this.#onClick(ev)); }
     // keep each tactic list open or closed across refreshes
     for (const d of content.querySelectorAll("details.qin-tac-list")) d.addEventListener("toggle", () => {
       this.openLists ??= new Set();
