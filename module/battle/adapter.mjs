@@ -367,7 +367,7 @@ async function settleXpAfterBattle(battle) {
   const lines = [];
   for (const tok of unitTokens(scene)) {
     const start = battle.startMen?.[tok.id];
-    if (start === undefined || !tok.actor) continue;
+    if (start === undefined || !tok.actor || tok.actor.system.side !== "player") continue; // XP is for Player units only
     const sys = tok.actor.system;
     const lost = Math.max(0, start - sys.men.value);
     const xp = sys.xp?.value ?? 0;

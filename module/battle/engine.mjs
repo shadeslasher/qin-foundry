@@ -352,6 +352,7 @@ function resolveAttack(s, attacker, defender, opts) {
 
 const XP_PER_LEVEL = 100;
 function gainXp(s, u, amount, why) {
+  if (u.side !== 'player') return 0; // only Player units earn XP and levels
   const n = Math.floor(amount);
   if (n <= 0) return 0;
   u.xp = (u.xp || 0) + n;

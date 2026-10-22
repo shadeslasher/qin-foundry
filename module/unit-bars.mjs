@@ -18,6 +18,13 @@ const SLOTS = { 1: L.front[1], 2: L.front[0], 3: L.back[2], 4: L.back[0], 5: L.b
 
 /* ------------------------------------------------------------ helpers */
 
+/** Is it this unit's turn right now? */
+function isActive(token) {
+  let battle;
+  try { battle = game.settings.get("qin", "battle"); } catch { return false; }
+  return !!(battle?.active && battle.sceneId === token.document?.parent?.id && battle.turn?.activation?.unitId === token.id);
+}
+
 function hasActed(token) {
   let battle;
   try { battle = game.settings.get("qin", "battle"); } catch { return false; }
@@ -99,6 +106,7 @@ function officerArt(actor) {
 
 function clear(token) {
   const c = token[KEY];
+  if (c?.qinTick) canvas.app?.ticker?.remove(c.qinTick);
   if (c && !c.destroyed) c.destroy({ children: true });
   token[KEY] = null;
   if (token.mesh && !token.mesh.destroyed) token.mesh.renderable = true;
@@ -169,11 +177,11 @@ export async function drawUnitBars(token) {
   const s = actor.system;
   const men = s.men?.value ?? 0, max = s.men?.max || 100, morale = s.morale ?? 0;
   const w = token.w, h = token.h, T = Math.min(w, h);
-  const acted = hasActed(token);
+  const acted = hasActed(token), active = !acted && isActive(token);
   const art = unitArt(token), off = officerArt(actor), fac = factionOf(s.faction);
   const n = figureCount(men, max);
   if (token.mesh && !token.mesh.destroyed) token.mesh.renderable = false; // the stand replaces the picture
-  const key = JSON.stringify([men, max, morale, w, h, s.side, acted, n, art, off, fac?.img ?? null]);
+  const key = JSON.stringify([men, max, morale, w, h, s.side, acted, active, n, art, off, fac?.img ?? null]);
   let c = token[KEY];
   if (c && !c.destroyed && c.parent === token && c.qinKey === key) return;
   const my = (gen.get(token) ?? 0) + 1;
@@ -190,6 +198,7 @@ export async function drawUnitBars(token) {
     token.addChild(c);
   }
   c.qinKey = key;
+  if (c.qinTick) { canvas.app?.ticker?.remove(c.qinTick); c.qinTick = null; }
   for (const ch of c.removeChildren()) ch.destroy({ children: true });
   const stand = new PIXI.Container();
   c.addChild(stand);
@@ -246,10 +255,36 @@ export async function drawUnitBars(token) {
   if (acted) {
     const CMF = PIXI.ColorMatrixFilter ?? PIXI.filters?.ColorMatrixFilter;
     if (CMF) { const f = new CMF(); f.desaturate(); f.brightness(0.75, true); stand.filters = [f]; }
+    // the side colour stays: outline and side tab are drawn on top, un-greyed
+    c.addChild(new PIXI.Graphics().lineStyle(Math.max(2, T * 0.03), color, 1).drawRoundedRect(pad, pad, w - 2 * pad, h - 2 * pad, T * 0.1)
+      .lineStyle(1, 0x000000, 0.9).beginFill(color, 1).drawRoundedRect(pad, top, tabW, 2 * (bh + 1) - 1, 2).endFill());
     const t = new Txt("Done", new PIXI.TextStyle({ ...styleOpts, fontSize: Math.round(bh * 1.1), fill: "#dddddd" }));
     t.anchor?.set?.(0.5, 0.5);
     t.position.set(w / 2, top / 2);
     c.addChild(t);
+  }
+
+  // this unit's turn: pulsing gold glow behind, gold border, and a bobbing arrow above
+  if (active) {
+    const gold = 0xffd34d;
+    const glow = new PIXI.Graphics().lineStyle(T * 0.09, gold, 1).drawRoundedRect(pad - T * 0.05, pad - T * 0.05, w - 2 * pad + T * 0.1, h - 2 * pad + T * 0.1, T * 0.14);
+    const Blur = PIXI.BlurFilter ?? PIXI.filters?.BlurFilter;
+    if (Blur) glow.filters = [new Blur(T * 0.05)];
+    c.addChildAt(glow, 0);
+    c.addChild(new PIXI.Graphics().lineStyle(Math.max(2, T * 0.035), gold, 1).drawRoundedRect(pad, pad, w - 2 * pad, h - 2 * pad, T * 0.1));
+    const arrow = new PIXI.Graphics().lineStyle(Math.max(1, T * 0.012), 0x281a0a, 1).beginFill(gold, 1)
+      .drawPolygon([-T * 0.12, -T * 0.17, T * 0.12, -T * 0.17, 0, 0]).endFill();
+    c.addChild(arrow);
+    let time = 0;
+    c.qinTick = () => {
+      time += canvas.app.ticker.deltaMS / 1000;
+      const p = 0.5 + 0.5 * Math.sin(time * 4);
+      if (glow.destroyed || arrow.destroyed) return;
+      glow.alpha = 0.45 + 0.55 * p;
+      arrow.position.set(w / 2, -T * 0.03 - T * 0.06 * (1 - p));
+    };
+    c.qinTick();
+    canvas.app?.ticker?.add(c.qinTick);
   }
 }
 

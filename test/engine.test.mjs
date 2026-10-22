@@ -168,6 +168,20 @@ test('encirclement from a move waits until the move is committed (undo leaves mo
   assert.ok(R.unitById(s, d).surrounded);
 });
 
+test('only Player units earn XP', () => {
+  const s = setup();
+  const p = add(s, { typeId: 'han_ji_inf', side: 'player', owner: 'p1', x: 5, y: 4 });
+  const e = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 5 });
+  must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'startRound' }));
+  must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: p }));
+  dice([5, 0, 0, 0]);
+  must(R.act(s, P1, { type: 'attack', unitId: p, targetId: e }));
+  const r = s.log.filter(x => x.detail && x.detail.type === 'attack').pop().detail.result;
+  assert.ok(r.xpAttacker > 0, 'player unit earns XP');
+  assert.strictEqual(r.xpDefender, 0, 'enemy unit earns none');
+  assert.strictEqual(R.unitById(s, e).xp || 0, 0);
+});
+
 test('initiative: officers first, hold, interject chain, officer-less alternation, final pass', () => {
   const s = setup();
   const o1 = add(s, { typeId: 'han_ji_inf', officerId: 'xu_chu', side: 'player', owner: 'p1', x: 1, y: 1 });
