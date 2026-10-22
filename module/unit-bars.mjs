@@ -69,9 +69,9 @@ export function unitStatus(token) {
   if (m >= 75) attack += 2; else if (m > 0 && m <= 25) attack -= 2;
   const figs = figureCount(s.men?.value ?? 0, s.men?.max || 100);
   if (figs === 1) attack -= 2; else if (figs === 2) attack -= 1;
+  attack += Number(f.atkMod) || 0; // the formation's attack modifier always shows (it only counts when attacking)
   const ac = battle?.turn?.activation;
   if (ac?.unitId === token.id && !ac.forcedMarched && !round.attacked) {
-    attack += Number(f.atkMod) || 0; // attack modifiers only count when attacking, i.e. on its own turn
     if (s.range > 1) { if (!round.moved) attack += 2; }
     else if (s.category === "cavalry" && ac.movedThisActivation) {
       const tiles = ac.tilesMoved || 0;

@@ -39,6 +39,7 @@ test('status icons: Command roll bonus/penalty, defense, ranged defense', () => 
   // undone / not its turn: no charge
   battle.turn.activation = null;
   assert.strictEqual(U.unitStatus(tok({ category: 'cavalry' })).attack, 0);
+  assert.strictEqual(U.unitStatus(tok({}, form({ atkMod: -1 }))).attack, -1, 'formation attack modifier always shows');
   // during an attack the sword shows that attack's total
   const t = tok({}); t.qinAttackBonus = -1; assert.strictEqual(U.unitStatus(t).attack, -1);
   // defense: Hold +2, Turtle defAll +2; ranged defense: Loose (enemy ranged -3) = 3, Spear Wall (enemy ranged +2) = -2
