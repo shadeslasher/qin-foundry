@@ -55,6 +55,30 @@ export function decodeTiles(flag) {
   return out;
 }
 
+/**
+ * The map's city gates as battle gates: one per "city-gate" structure (a 1x2 double gate shares one), or, for
+ * files without gate structures, gate squares paired with a neighbour along the wall. All start friendly-owned
+ * and locked (unless the file says open); the GM changes owners in the Battle panel.
+ */
+export function gatesFromMap(flag) {
+  if (!flag?.terrain) return [];
+  const { cols } = flag;
+  const isGate = (i) => (flag.overlays?.[i] ?? []).includes("city-gate");
+  const openAt = (x, y) => !!flag.extras?.[y * cols + x]?.gateOpen;
+  let groups = (flag.structures ?? []).filter(s => s.type === "city-gate" && s.squares?.length).map(s => s.squares.map(([x, y]) => [x, y]));
+  if (!groups.length) {
+    const used = new Set();
+    flag.terrain.forEach((_, i) => {
+      if (!isGate(i) || used.has(i)) return;
+      const x = i % cols, y = Math.floor(i / cols), sq = [[x, y]];
+      used.add(i);
+      for (const j of [i + 1, i + cols]) if (isGate(j) && !used.has(j) && (j !== i + 1 || (j % cols) !== 0)) { used.add(j); sq.push([j % cols, Math.floor(j / cols)]); break; }
+      groups.push(sq);
+    });
+  }
+  return groups.map((squares, n) => ({ id: `g${n + 1}`, squares, owner: "friendly", state: squares.some(([x, y]) => openAt(x, y)) ? "open" : "locked" }));
+}
+
 /* ------------------------------------------------------------ Foundry: import a file as a new scene */
 
 function pickFile() {

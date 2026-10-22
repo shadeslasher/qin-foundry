@@ -176,6 +176,9 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
       log: (s.log || []).slice(-12).reverse().map(e => e.text),
       wrongScene: canvas.scene?.id !== battle.sceneId, battleScene: scene?.name,
       showSkip: game.user.isGM && !["setup", "formations", "tactics"].includes(p.kind),
+      gates: game.user.isGM ? (s.siege?.gates ?? []).map(g => ({ id: g.id, where: g.squares.map(([x, y]) => `${x},${y}`).join(" + "),
+        owners: [["friendly", "Friendly (player & ally)"], ["enemy", "Enemy"]].map(([v, l]) => ({ v, l, sel: v === g.owner })),
+        states: [["locked", "Locked"], ["open", "Open"], ["broken", "Broken open"], ["burned", "Burned (ruins)"]].map(([v, l]) => ({ v, l, sel: v === g.state })) })) : [],
     });
     return ctx;
   }
@@ -192,6 +195,9 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
       const tok = canvas.scene?.tokens.get(sel.dataset.sideUnit);
       if (tok?.actor) await tok.actor.update({ "system.side": sel.value });
       BattlePanel.refresh();
+    }));
+    this.element.querySelectorAll("select[data-gate]").forEach(sel => sel.addEventListener("change", () => {
+      battleRequest({ type: "setGate", gateId: sel.dataset.gate, [sel.dataset.field]: sel.value });
     }));
     this.element.querySelectorAll("select[data-formation-unit]").forEach(sel => sel.addEventListener("change", () => {
       battleRequest({ type: "setFormation", unitId: sel.dataset.formationUnit, formation: sel.value });

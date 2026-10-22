@@ -7,7 +7,7 @@ import { traitTiersOf, shieldArmorOf } from "./traits.mjs";
 export { traitTiersOf, shieldArmorOf };
 import { FORMATIONS, HEROIC_ACTIONS } from "./engine-data.mjs";
 import { SYSTEM_ID } from "../config.mjs";
-import { decodeTiles, FLAG as MAP_FLAG } from "./battlemap.mjs";
+import { decodeTiles, gatesFromMap, FLAG as MAP_FLAG } from "./battlemap.mjs";
 
 const SETTING = "battle";
 let writing = false;
@@ -131,6 +131,11 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
   const bm = scene.getFlag?.(SYSTEM_ID, MAP_FLAG) ?? scene.flags?.[SYSTEM_ID]?.[MAP_FLAG];
   const tiles = bm ? (tileCache.get(scene.id)?.flag === bm ? tileCache.get(scene.id).tiles : decodeTiles(bm)) : null;
   if (tiles) { tileCache.set(scene.id, { flag: bm, tiles }); s.map.tiles = tiles; s.map.cols = bm.cols; s.map.rows = bm.rows; }
+  // city gates live with the battle (owners, locked/open/broken/burned); a new battle starts from the map
+  if (tiles && !(s.siege?.gates?.length)) {
+    const gates = gatesFromMap(bm);
+    if (gates.length) s.siege = { ladders: [], dropped: [], ...(s.siege ?? {}), gates };
+  }
   const officers = new Map();
   for (const tok of unitTokens(scene)) {
     const a = tok.actor, sys = a.system;

@@ -65,7 +65,9 @@ const inBounds = (s, x, y) => x >= 0 && y >= 0 && x < s.map.cols && y < s.map.ro
 function tileRules(s, x, y) {
   const tile = s.map.tiles && s.map.tiles[x + ',' + y];
   if (!tile) return null;
-  const overlays = tile.overlays || [];
+  let overlays = tile.overlays || [];
+  const gate = overlays.includes('city-gate') ? gateAt(s, x, y) : null;
+  if (gate && gate.state === 'burned') overlays = overlays.map(o => (o === 'city-gate' ? 'ruins' : o)); // burned gates are ruins
   const parts = [data.MAP_TERRAIN[tile.terrain] || { name: tile.terrain }, ...overlays.map(o => data.MAP_OVERLAYS[o] || { name: o })];
   const r = { move: 0, meleeDef: 0, rangedDef: 0, range: 0, atk: 0, command: 0, moraleTurn: 0, healthTurn: 0, campDef: 0,
     hides: false, wall: false, water: false, names: [], camp: overlays.some(o => o === 'camp' || o.startsWith('camp-')) };
@@ -73,6 +75,7 @@ function tileRules(s, x, y) {
   for (const p of parts) {
     for (const k of ['move', 'meleeDef', 'rangedDef', 'range', 'atk', 'command', 'moraleTurn', 'healthTurn', 'campDef']) r[k] += p[k] || 0;
     if (p.pass === 'none') none = true;
+    if (p.gate && (!gate || gate.state === 'locked')) none = true; // a locked gate: no one stands in it
     if (p.pass === 'noCavalry') noCav = true;
     if (p.bridge) bridge = true;
     if (p.hides) r.hides = true;
@@ -109,7 +112,18 @@ const overlaysAt = (s, x, y) => { const t = s.map.tiles && s.map.tiles[x + ',' +
 const isWallTop = (s, x, y) => overlaysAt(s, x, y).some(o => o === 'city-wall' || o === 'fortress-tower');
 const isWallish = (s, x, y) => overlaysAt(s, x, y).some(o => o === 'city-wall' || o === 'fortress-tower' || o === 'city-gate');
 const onWall = (s, u) => isWallTop(s, u.x, u.y);
-function siegeState(s) { if (!s.siege) s.siege = { ladders: [], dropped: [] }; return s.siege; }
+function siegeState(s) { if (!s.siege) s.siege = { ladders: [], dropped: [], gates: [] }; if (!s.siege.gates) s.siege.gates = []; return s.siege; }
+/** City gates: { id, squares: [[x, y]...], owner: 'friendly' | 'enemy', state: 'locked' | 'open' | 'broken' | 'burned' }. */
+const gateAt = (s, x, y) => (s.siege && s.siege.gates ? s.siege.gates.find(g => g.squares.some(([gx, gy]) => gx === x && gy === y)) : null) || null;
+const gateBlocks = (g) => !g || g.state === 'locked';
+/** Gates next to the unit. */
+const gatesNear = (s, u) => (s.siege && s.siege.gates ? s.siege.gates.filter(g => g.squares.some(([x, y]) => Math.abs(x - u.x) + Math.abs(y - u.y) === 1)) : []);
+/** May this unit open or close that gate? Its owners from either side; anyone from inside the city. */
+function gateKeyHolder(s, u, g) {
+  if (insideCity(s, u.x, u.y)) return true;
+  const side = alliance(u.side);
+  return g.owner === 'enemy' ? side === 'enemy' : side === 'player' || side === 'ally';
+}
 const hasLadder = (s, x, y) => !!(s.siege && s.siege.ladders.includes(x + ',' + y));
 /** Squares inside the city walls: everything the map edge can't reach without crossing a wall, gate or tower. */
 function insideSet(s) {
@@ -146,7 +160,7 @@ function wallBlocksShot(s, a, d) {
   for (let i = 1; i < n; i++) {
     const x = Math.round(a.x + (d.x - a.x) * i / n), y = Math.round(a.y + (d.y - a.y) * i / n);
     if ((x === a.x && y === a.y) || (x === d.x && y === d.y)) continue;
-    if (isWallish(s, x, y)) return true;
+    if (isWallTop(s, x, y) || (overlaysAt(s, x, y).includes('city-gate') && gateBlocks(gateAt(s, x, y)))) return true;
   }
   return false;
 }
@@ -288,7 +302,11 @@ function reachable(s, u, budget) {
     for (const [dx, dy] of ORTHO) {
       const nx = x + dx, ny = y + dy, k = key(nx, ny);
       // along the wall top: wall to wall is open ground for units already up there
-      if (isWallTop(s, x, y) ? !isWallTop(s, nx, ny) : !passable(s, nx, ny, u)) continue; // wall tops: only along the wall
+      // wall tops: along the wall, and to and from the city inside (not down to the outside)
+      const fromWall = isWallTop(s, x, y), toWall = isWallTop(s, nx, ny);
+      const stepOk = fromWall && toWall ? true : fromWall ? insideCity(s, nx, ny) && passable(s, nx, ny, u)
+        : toWall ? insideCity(s, x, y) : passable(s, nx, ny, u);
+      if (!stepOk) continue;
       const nd = d + enterCost(s, nx, ny);
       if (nd > budget || (best.has(k) && best.get(k) <= nd)) continue;
       const o = unitAt(s, nx, ny);
@@ -379,6 +397,9 @@ function actionMenu(s, u) {
     raiseFlag: canStillAct && pendingTactic(s, u, 'raiseFlag'),
     placeLadder: canStillAct && ladderTiles(s, u).length > 0,
     drop: !!carrying(u),
+    pickUp: canStillAct && !carrying(u) && !!(s.siege && s.siege.dropped.some(d => d.x === u.x && d.y === u.y)),
+    openGate: canStillAct && gatesNear(s, u).some(g => g.state === 'locked' && gateKeyHolder(s, u, g)),
+    closeGate: canStillAct && gatesNear(s, u).some(g => g.state === 'open' && gateKeyHolder(s, u, g) && !g.squares.some(([x, y]) => unitAt(s, x, y))),
     setFire: canStillAct && pendingTactic(s, u, 'setFire'),
     hold: canStillAct,
     ability: skillOk || artOk, skill: skillOk, art: artOk,
@@ -1040,7 +1061,7 @@ function act(s, actor, a) {
   }
 }
 
-const HOST_ONLY = new Set(['setHidden', 'setMap', 'paintTerrain', 'setLibrary', 'addUnit', 'editUnit', 'removeUnit',
+const HOST_ONLY = new Set(['setGate', 'setHidden', 'setMap', 'paintTerrain', 'setLibrary', 'addUnit', 'editUnit', 'removeUnit',
   'startBattle', 'resetBattle', 'startRound', 'skipPrompt', 'addMod', 'removeMod', 'adjust', 'setFacing',
   'setTactician', 'finishTactics', 'skipTactics']);
 
@@ -1325,7 +1346,6 @@ const ACTIONS = {
       ac.forcedMarched = true;
       u.morale = clamp(u.morale - cost, 0, 100);
       log(s, u.name + ' force-marches ' + dist + ' tiles (-' + cost + ' morale).');
-      pickUpEquipment(s, u);
       settle(s);
       if (alive(u)) finishActivation(s, u);
       return;
@@ -1339,8 +1359,7 @@ const ACTIONS = {
     }
     if (!struck) ac.undo = { from, facing: prevFacing, hidden: prevHidden, started: prevStarted };
     log(s, u.name + ' moves ' + blue.get(k) + ' tile' + (blue.get(k) === 1 ? '' : 's') + '.');
-    pickUpEquipment(s, u);
-    if (carrying(u) && !prevCarry) delete ac.undo;
+
     settle(s, { deferEncirclement: true });
   },
   undoMove(s, actor, a) { // only a normal (blue) move, and only if nothing else happened since
@@ -1470,6 +1489,25 @@ const ACTIONS = {
     log(s, u.name + ' sets ladders against the wall.', { type: 'ladder', x: a.x, y: a.y });
     finishActivation(s, u);
   },
+  pickUpEquipment(s, actor, a) { // the unit's action: take up equipment lying on its square (empty-handed); ends the turn
+    const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
+    const { u, act: ac } = r;
+    if (u.round.attacked || ac.forcedMarched) return err('Picking up equipment is the unit\'s action for the turn');
+    if (carrying(u)) return err('This unit already carries siege equipment');
+    if (!(s.siege && s.siege.dropped.some(d => d.x === u.x && d.y === u.y))) return err('Nothing to pick up here');
+    pickUpEquipment(s, u);
+    u.round.attacked = true;
+    finishActivation(s, u);
+  },
+  openGate(s, actor, a) { return gateAction(s, actor, a, 'open'); },
+  closeGate(s, actor, a) { return gateAction(s, actor, a, 'locked'); },
+  setGate(s, actor, a) { // GM: who owns a gate, and its state (locked, open, broken, burned)
+    const g = s.siege && s.siege.gates.find(x => x.id === a.gateId); if (!g) return err('No such gate');
+    if (a.owner) { if (!['friendly', 'enemy'].includes(a.owner)) return err('Bad owner'); g.owner = a.owner; }
+    if (a.state) { if (!['locked', 'open', 'broken', 'burned'].includes(a.state)) return err('Bad state'); g.state = a.state; }
+    log(s, 'GM: gate ' + g.id + ' is ' + g.state + ' (' + g.owner + ').', { type: 'gate', gate: g.id });
+    settle(s);
+  },
   dropEquipment(s, actor, a) { // free: put down siege ladders or a siege engine on the unit's square
     const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
     if (!carrying(r.u)) return err('Nothing to drop');
@@ -1571,6 +1609,25 @@ function offerSecond(s, u, ac, first, won, melee) {
   return false;
 }
 
+/** Open or close (lock) a gate next to the unit: its action for the turn. */
+function gateAction(s, actor, a, to) {
+  const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
+  const { u, act: ac } = r;
+  if (u.round.attacked || ac.forcedMarched) return err('Working a gate is the unit\'s action for the turn');
+  const g = gatesNear(s, u).find(x => !a.gateId || x.id === a.gateId);
+  if (!g) return err('No gate next to this unit');
+  if (!gateKeyHolder(s, u, g)) return err("This side can't work that gate from outside the city");
+  if (to === 'open' && g.state !== 'locked') return err('The gate is already open');
+  if (to === 'locked') {
+    if (g.state !== 'open') return err(g.state === 'locked' ? 'The gate is already shut' : 'The gate is ' + g.state + ' and can no longer be shut');
+    if (g.squares.some(([x, y]) => unitAt(s, x, y))) return err('Units are in the gateway');
+  }
+  g.state = to;
+  log(s, u.name + (to === 'open' ? ' opens the gate.' : ' shuts the gate.'), { type: 'gate', gate: g.id });
+  u.round.attacked = true;
+  finishActivation(s, u);
+}
+
 function activeUnit(s, actor, unitId) {
   const ac = s.turn.activation;
   if (!ac || ac.unitId !== unitId) return err("It isn't that unit's turn");
@@ -1615,7 +1672,6 @@ function doMove(s, actor, a, forced) {
     log(s, u.name + ' force-marches (-' + fc + ' morale).');
   } else ac.step = 'act';
   if (warning) log(s, 'Warning: ' + warning, { type: 'warning' });
-  pickUpEquipment(s, u);
   settle(s);
   if (forced && alive(u)) finishActivation(s, u);
   return ok(warning ? { warning } : {});
@@ -1638,7 +1694,7 @@ function viewFor(s, viewer) {
 }
 
 export {
-  moveOptions, attackTargets, actionMenu, threatArea, TACTIC_SIDES, tileRules, ladderTiles, climbTiles, insideCity, isWallTop,
+  moveOptions, attackTargets, actionMenu, threatArea, TACTIC_SIDES, tileRules, ladderTiles, climbTiles, insideCity, isWallTop, gateAt,
   newState, act, viewFor, prompt, reachable, movementOf, moraleState, visibleTo, rangeOk,
   resolveAttack, buildRoll, setRng, yinYang, typeOf, officerOf, unitById, SIDES, settle, advance,
 };

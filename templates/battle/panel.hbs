@@ -96,6 +96,16 @@
     </div>
 
     {{#if isGM}}
+    {{#if gates.length}}
+    <div class="qin-card"><h4>City gates</h4>
+      {{#each gates}}
+      <div class="qin-gate-row"><span>Gate {{where}}</span>
+        <select data-gate="{{id}}" data-field="owner">{{#each owners}}<option value="{{v}}" {{#if sel}}selected{{/if}}>{{l}}</option>{{/each}}</select>
+        <select data-gate="{{id}}" data-field="state">{{#each states}}<option value="{{v}}" {{#if sel}}selected{{/if}}>{{l}}</option>{{/each}}</select>
+      </div>
+      {{/each}}
+    </div>
+    {{/if}}
     <div class="qin-card"><h4>GM controls</h4>
       <div class="qin-btns">
         <button type="button" data-action="setHidden" data-hidden="1" title="Hide the unit tokens you have selected"><i class="fa-solid fa-eye-slash"></i> Hide selected</button>

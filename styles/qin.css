@@ -430,3 +430,5 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin-tac-banner small { display: block; color: #e6d2a0; font-size: 14px; white-space: nowrap; }
 .qin-tac-banner { white-space: nowrap; }
 .qin-tac-banner b { display: block; font-size: 34px; line-height: 1.15; text-shadow: 2px 2px 0 #000; letter-spacing: .5px; }
+.qin-gate-row { display: grid; grid-template-columns: 1fr auto auto; gap: 4px; align-items: center; margin: 3px 0; font-size: 12px; }
+.qin-gate-row select { font-size: 12px; height: 24px; }

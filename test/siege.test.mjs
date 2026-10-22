@@ -22,6 +22,7 @@ function city() {
   }
   s.map.tiles['3,3'].overlays = ['fortress-tower'];
   s.map.tiles['6,9'].overlays = ['city-gate'];
+  s.siege = { ladders: [], dropped: [], gates: [{ id: 'g1', squares: [[6, 9]], owner: 'friendly', state: 'locked' }] };
   s.library.unitTypes.push(unitType('inf'), unitType('arch', { weapon: 'ranged', rangeMax: 3 }), unitType('cav', { category: 'cavalry', move: 5 }));
   return s;
 }
@@ -44,7 +45,7 @@ test('melee and walls: same level, the city inside, or a ladder from outside', (
   assert.ok(!R.rangeOk(s, top, out), 'the wall cannot attack the plains');
   assert.ok(R.rangeOk(s, inn, top) && R.rangeOk(s, top, inn), 'city <-> wall');
   assert.ok(R.rangeOk(s, wallMate, top), 'wall <-> wall');
-  s.siege = { ladders: ['6,3'], dropped: [] };
+  s.siege.ladders = ['6,3'];
   assert.ok(R.rangeOk(s, out, top) && R.rangeOk(s, top, out), 'a ladder on that square opens it up');
 });
 
@@ -79,7 +80,7 @@ test('Place Ladder: needs ladders, a wall square next to it, ends the turn; the 
 
 test('climbing: all its movement, onto an empty laddered wall square; then it can still act', () => {
   const s = city();
-  s.siege = { ladders: ['6,3'], dropped: [] };
+  s.siege.ladders = ['6,3'];
   const u = add(s, { typeId: 'inf', side: 'player', owner: 'p1', x: 6, y: 2 });
   const foe = add(s, { typeId: 'inf', side: 'enemy', x: 7, y: 3 });
   must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'skipTactics' }));
@@ -92,7 +93,7 @@ test('climbing: all its movement, onto an empty laddered wall square; then it ca
   assert.strictEqual(s.turn.activation.step, 'act', 'movement over, actions remain');
   assert.ok(R.actionMenu(s, u).attack, 'can attack the defender beside it on the wall');
   // cavalry and units carrying equipment can't climb
-  const s2 = city(); s2.siege = { ladders: ['6,3'], dropped: [] };
+  const s2 = city(); s2.siege.ladders = ['6,3'];
   const c = add(s2, { typeId: 'cav', side: 'player', owner: 'p1', x: 6, y: 2 });
   assert.strictEqual(R.climbTiles(s2, c).length, 0);
   const l = add(s2, { typeId: 'inf', side: 'player', owner: 'p1', x: 5, y: 2 }); l.x = 6; l.y = 2; c.x = 1; c.y = 1;
@@ -100,7 +101,7 @@ test('climbing: all its movement, onto an empty laddered wall square; then it ca
   assert.strictEqual(R.climbTiles(s2, l).length, 0);
 });
 
-test('equipment: dropped by choice or when the unit falls, picked up by an empty-handed unit moving there', () => {
+test('equipment: dropped by choice or when the unit falls; an empty-handed unit on it takes the Pick Up action', () => {
   const s = city();
   const a = add(s, { typeId: 'inf', side: 'player', owner: 'p1', x: 1, y: 12 });
   const b = add(s, { typeId: 'inf', side: 'player', owner: 'p1', x: 1, y: 10 });
@@ -118,7 +119,11 @@ test('equipment: dropped by choice or when the unit falls, picked up by an empty
   must(R.act(s, HOST, { type: 'skipPrompt' })); // the enemy's turn
   must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: b.id }));
   must(R.act(s, P1, { type: 'moveTo', unitId: b.id, x: 1, y: 12 }));
+  assert.ok(!b.carry, 'moving onto it is not enough');
+  assert.ok(R.actionMenu(s, b).pickUp);
+  must(R.act(s, P1, { type: 'pickUpEquipment', unitId: b.id }));
   assert.strictEqual(b.carry, 'engine');
+  assert.ok(!s.turn.activation || s.turn.activation.unitId !== b.id, 'ends the turn');
   assert.strictEqual(s.siege.dropped.length, 0);
   // falling drops it
   b.men = 0; R.settle(s);
@@ -130,7 +135,59 @@ test('units on the wall walk along it; gates cannot be entered', () => {
   const u = add(s, { typeId: 'inf', side: 'player', owner: 'p1', x: 5, y: 3 });
   const reach = R.reachable(s, u, 4);
   assert.ok(reach.has('8,3') && reach.has('3,5'), 'along the wall and round the tower');
-  assert.ok(!reach.has('5,4') && !reach.has('5,2'), 'not down off it');
+  assert.ok(reach.has('5,4'), 'down into the city');
+  assert.ok(!reach.has('5,2'), 'not down to the outside');
+  const c = add(s, { typeId: 'inf', side: 'player', owner: 'p1', x: 6, y: 5 });
+  assert.ok(R.reachable(s, c, 2).has('6,3'), 'up onto the wall from inside');
   const g = add(s, { typeId: 'inf', side: 'player', owner: 'p1', x: 6, y: 10 });
   assert.ok(!R.reachable(s, g, 3).has('6,9'), 'the closed gate');
+});
+
+test('gates: locked gates hold no one; owners open them from either side, anyone from inside', () => {
+  const s = city();
+  const g = s.siege.gates[0];
+  const friend = add(s, { typeId: 'inf', side: 'player', owner: 'p1', x: 6, y: 10 });
+  const foeOut = add(s, { typeId: 'inf', side: 'enemy', x: 7, y: 10 });
+  const foeIn = add(s, { typeId: 'inf', side: 'enemy', x: 6, y: 8 });
+  add(s, { typeId: 'arch', side: 'enemy', x: 12, y: 12 });
+  assert.ok(!R.reachable(s, friend, 3).has('6,9'));
+  must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'skipTactics' }));
+  dice([0, 0]); must(R.act(s, HOST, { type: 'startRound' }));
+  // an enemy outside can't open a friendly gate
+  foeOut.x = 5; foeOut.y = 10;
+  s.turn.activation = { unitId: foeOut.id, step: 'move', started: true };
+  assert.ok(!R.actionMenu(s, foeOut).openGate);
+  assert.ok(!R.act(s, HOST, { type: 'openGate', unitId: foeOut.id }).ok);
+  // ...but one inside the city can
+  s.turn.activation = { unitId: foeIn.id, step: 'move', started: true };
+  assert.ok(R.actionMenu(s, foeIn).openGate);
+  must(R.act(s, HOST, { type: 'openGate', unitId: foeIn.id }));
+  assert.strictEqual(g.state, 'open');
+  foeIn.x = 7; foeIn.y = 7;
+  assert.ok(R.reachable(s, friend, 3).has('6,9'), 'open: walk through');
+  assert.ok(R.reachable(s, friend, 3).has('6,8'), 'and on into the city');
+  // the gate takes no one onto it from above; it's ground level
+  assert.ok(!R.isWallTop(s, 6, 9));
+  // GM: burned gates are ruins
+  must(R.act(s, HOST, { type: 'setGate', gateId: 'g1', state: 'burned' }));
+  assert.deepStrictEqual(R.tileRules(s, 6, 9).names, ['Plains', 'Ruins']);
+});
+
+test('gates and shots: a shut gate stops arrows, an open one lets them through', () => {
+  const s = city();
+  const archer = add(s, { typeId: 'arch', side: 'player', owner: 'p1', x: 6, y: 11 });
+  const inside = add(s, { typeId: 'inf', side: 'enemy', x: 6, y: 8 });
+  assert.ok(!R.rangeOk(s, archer, inside));
+  s.siege.gates[0].state = 'open';
+  assert.ok(R.rangeOk(s, archer, inside));
+});
+
+test('gates from the map file: double gates share one entry; older files pair gate squares', async () => {
+  const B = await import('../module/battle/battlemap.mjs');
+  const flag = { cols: 4, terrain: new Array(8).fill('plains'), overlays: { 1: ['city-gate'], 2: ['city-gate'], 6: ['city-gate'] }, extras: {}, structures: [] };
+  const old = B.gatesFromMap(flag);
+  assert.deepStrictEqual(old.map(g => g.squares), [[[1, 0], [2, 0]], [[2, 1]]]);
+  assert.ok(old.every(g => g.owner === 'friendly' && g.state === 'locked'));
+  flag.structures = [{ type: 'city-gate', size: 2, squares: [[1, 0], [2, 0]] }];
+  assert.strictEqual(B.gatesFromMap(flag).length, 1);
 });

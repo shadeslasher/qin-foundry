@@ -306,6 +306,9 @@ function renderMenu(sub = null) {
     const abilityTip = !officer ? "No officer" : officer.skill ? `${officer.skill.name}: ${officer.skill.text || ""}` : "This officer has no battle ability";
     if (flags.undo) html += b("undo", "↶ Undo move", true, "Go back to where the unit started (only for a normal move, before doing anything else)");
     html += b("move", "Move", flags.move, flags.move ? "" : "Already moved or can't move");
+    if (flags.openGate) html += b("openGate", "Open gate", true, "Unbar the gate next to this unit (owners from either side, anyone from inside the city). Ends the turn.");
+    if (flags.closeGate) html += b("closeGate", "Shut gate", true, "Shut and bar the gate next to this unit (the gateway must be empty). Ends the turn.");
+    if (flags.pickUp) html += b("pickUp", "Pick up", true, "Take up the siege equipment lying here. Ends the turn.");
     if (flags.placeLadder) html += b("placeLadder", "Place Ladder", true, "Set siege ladders against a city wall square next to this unit. Ends the turn.");
     if (flags.drop) html += b("drop", "Drop equipment", true, "Put down the siege equipment this unit carries (free). Another unit can pick it up.");
     if (flags.raiseFlag) html += b("raiseFlag", "Raise Flag", true, "Raise Flag tactic: instead of attacking, units in the area below 50 morale rally to 50. Ends the turn.");
@@ -333,6 +336,9 @@ function onMenuClick(ev) {
     case "reload": return send({ type: "reload", unitId: id });
     case "raiseFlag": return send({ type: "raiseFlag", unitId: id });
     case "placeLadder": return enterLadder();
+    case "openGate": return send({ type: "openGate", unitId: id });
+    case "closeGate": return send({ type: "closeGate", unitId: id });
+    case "pickUp": return send({ type: "pickUpEquipment", unitId: id });
     case "drop": return send({ type: "dropEquipment", unitId: id });
     case "setFire": return enterSetFire();
     case "skipSecond": return send({ type: "secondAttack", unitId: id });

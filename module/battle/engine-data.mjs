@@ -201,8 +201,9 @@ const MAP_OVERLAYS = {
   camp: { name: 'Camp', move: 1, flammable: true, fireRes: 0, burnTime: 2, burnsInto: 'scorched' },
   'command-tent': { name: 'Command tent', moraleTurn: 3, high: true, hp: 25, flammable: true, fireRes: 0, burnTime: 2, burnsInto: 'scorched' },
   'city-wall': { name: 'City wall', meleeDef: 2, rangedDef: 2, range: 1, wall: true, high: true, hp: 100 },
-  'city-gate': { name: 'City gate', meleeDef: 2, rangedDef: 2, range: 1, wall: true, gate: true, hp: 80, flammable: true, fireRes: 4, burnTime: 2, burnsInto: 'scorched' },
-  'fortress-tower': { name: 'Fortress tower', meleeDef: 3, rangedDef: 3, range: -1, wall: true, high: true, hp: 120 },
+  // units in a gateway are under the gate (ground level): its defense, no range; locked gates can't be entered
+  'city-gate': { name: 'City gate', meleeDef: 2, rangedDef: 2, gate: true, hp: 80, flammable: true, fireRes: 4, burnTime: 2, burnsInto: 'ruins' },
+  'fortress-tower': { name: 'Fortress tower', meleeDef: 3, rangedDef: 3, range: 1, wall: true, high: true, hp: 120 },
   'small-fort': { name: 'Small fort', meleeDef: 1, rangedDef: 1, command: 1, high: true, hp: 60, flammable: true, fireRes: 2, burnTime: 3, burnsInto: 'ruins' },
   fort: { name: 'Fort', meleeDef: 1, rangedDef: 1, command: 1, high: true },
   'town-hall': { name: 'Town hall', meleeDef: 1, rangedDef: 1, command: 1 },
