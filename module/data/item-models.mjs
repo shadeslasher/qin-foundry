@@ -150,13 +150,13 @@ const FORMATION_ZERO = { moveMod: 0, immobile: false, noRear: false, defAll: 0, 
 const P = (t) => `<p>${t}</p>`;
 const FORMATION_REV2 = {
   loose: { fx: { defRanged: 3, defMelee: -2, atkMod: -1 }, desc: P("Commanded Unit spreads out: <b>ranged defense +3</b>, <b>melee defense -2</b>, <b>attack -1</b>. <i>Most infantry units.</i>") },
-  diamond: { fx: { moveMod: -3, atkMod: -1, defAll: 2 }, desc: P("Commanded Unit forms a diamond: <b>movement -3</b>, <b>attack -1</b>, <b>melee and ranged defense +2</b>. <i>Cavalry only.</i>") },
+  diamond: { fx: { moveMod: -3, atkMod: -2, defAll: 2 }, desc: P("Commanded Unit forms a diamond: <b>movement -3</b>, <b>attack -2</b>, <b>melee and ranged defense +2</b>. <i>Cavalry only.</i>") },
   wedge: { fx: { defAll: -2, winReposition: true }, desc: P("Commanded Unit forms a wedge: <b>melee and ranged defense -2</b>. If it <b>wins the Command roll when attacking</b>, it may <b>move to any empty tile next to the enemy unit</b>. <i>Cavalry.</i>") },
-  circle: { fx: { immobile: true, defMelee: 2, defRanged: -1, noAttackerBonus: true, noRear: true }, desc: P("Commanded Unit forms a circle and <b>cannot move</b>: <b>melee defense +2</b>, <b>ranged defense -1</b>, <b>no attacker bonus</b>. It <b>cannot be attacked in the rear</b>. <i>Melee infantry.</i>") },
-  hollow_square: { fx: { immobile: true, defMelee: 2, noChargeBonus: true, defRanged: -2, noAttackerBonus: true, noRear: true }, desc: P("Commanded Unit forms a hollow square and <b>cannot move</b>: <b>melee defense +2</b>, <b>enemies charging it get no charge bonus</b>, <b>ranged defense -2</b>, <b>no attacker bonus</b>. It <b>cannot be attacked in the rear</b>. <i>Melee infantry.</i>") },
+  circle: { fx: { immobile: true, defMelee: 2, defRanged: -1, atkMod: -1, noRear: true }, desc: P("Commanded Unit forms a circle and <b>cannot move</b>: <b>melee defense +2</b>, <b>ranged defense -1</b>, <b>attack -1</b>. It <b>cannot be attacked in the rear</b>. <i>Melee infantry.</i>") },
+  hollow_square: { fx: { immobile: true, defMelee: 2, noChargeBonus: true, defRanged: -2, atkMod: -2, noRear: true }, desc: P("Commanded Unit forms a hollow square and <b>cannot move</b>: <b>melee defense +2</b>, <b>enemies charging it get no charge bonus</b>, <b>ranged defense -2</b>, <b>attack -2</b>. It <b>cannot be attacked in the rear</b>. <i>Melee infantry.</i>") },
   shield_wall: { fx: { moveMod: -1, defAll: 2, rearAtk: 2 }, desc: P("Commanded Unit raises its shields: <b>movement -1</b>, <b>melee and ranged defense +2</b>. <b>Rear attacks against it get attack +2</b> more. <i>Infantry with shields.</i>") },
-  spear_wall: { fx: { moveMod: -1, defMelee: 3, noChargeBonus: true, defRanged: -2, rearAtk: 2 }, desc: P("Commanded Unit points its spears forward: <b>movement -1</b>, <b>melee defense +3</b>, <b>enemies charging it get no charge bonus</b>, <b>ranged defense -2</b>. <b>Rear attacks against it get attack +2</b> more. <i>Infantry with spears.</i>") },
-  turtle: { fx: { moveMod: -2, defAll: 3, noAttackerBonus: true, noRear: true }, desc: P("Commanded Unit overlaps its shields: <b>movement -2</b>, <b>melee and ranged defense +3</b>, <b>no attacker bonus</b>. It <b>cannot be attacked in the rear</b>. <i>Infantry with shields.</i>") },
+  spear_wall: { fx: { moveMod: -1, defMelee: 4, atkMod: 1, noChargeBonus: true, defRanged: -2, rearAtk: 2 }, desc: P("Commanded Unit points its spears forward: <b>movement -1</b>, <b>melee defense +4</b>, <b>attack +1</b>, <b>enemies charging it get no charge bonus</b>, <b>ranged defense -2</b>. <b>Rear attacks against it get attack +2</b> more. <i>Infantry with spears.</i>") },
+  turtle: { fx: { moveMod: -2, defAll: 3, atkMod: -2, noRear: true }, desc: P("Commanded Unit overlaps its shields: <b>movement -2</b>, <b>melee and ranged defense +3</b>, <b>attack -2</b>. It <b>cannot be attacked in the rear</b>. <i>Infantry with shields.</i>") },
 };
 export { FORMATION_REV2 };
 
@@ -193,8 +193,8 @@ export class FormationData extends foundry.abstract.TypeDataModel {
       for (const k of ["vsAttack", "vsMelee", "vsRanged", "vsCharge"]) delete src[k];
     }
     // October 2026 formation revision: the standard formations take their new rules (by key)
-    if ((Number(src.rulesVersion) || 0) < 2 && FORMATION_REV2[src.key]) {
-      Object.assign(src, FORMATION_ZERO, FORMATION_REV2[src.key].fx, { rulesVersion: 2 });
+    if ((Number(src.rulesVersion) || 0) < 3 && FORMATION_REV2[src.key]) {
+      Object.assign(src, FORMATION_ZERO, FORMATION_REV2[src.key].fx, { rulesVersion: 3 });
       if (FORMATION_REV2[src.key].desc) src.description = FORMATION_REV2[src.key].desc;
     }
     delete src.defCharge;

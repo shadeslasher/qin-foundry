@@ -50,4 +50,17 @@ test('status icons: Command roll bonus/penalty, defense, ranged defense', () => 
   assert.strictEqual(U.unitStatus(tok({}, form({ defRanged: 3, defMelee: -1 }))).rangedDefense, 3);
   assert.strictEqual(U.unitStatus(tok({}, form({ defRanged: 3, defMelee: -1 }))).defense, 1, 'Loose: hold 2, melee defense -1');
   assert.strictEqual(U.unitStatus(tok({}, form({ defRanged: -2 }))).rangedDefense, -2);
+  // traits: Brace while holding, Shielded+, Poison on both shields
+  battle.meta.t = { round: { holding: true }, fx: { poison: 1 } };
+  const st = U.unitStatus(tok({ traits: '<p>Brace - x</p><p>Shielded+ - y</p>' }, form({})));
+  assert.strictEqual(st.defense, 3, 'hold 2 + brace 2 - poison 1');
+  assert.strictEqual(st.rangedDefense, 3, 'shielded+ 4 - poison 1');
+  // stood still last turn: Precision+, Range Up+, Shield Battery
+  battle.meta.t = { round: {}, fx: { stillLast: true } };
+  const p = U.unitStatus(tok({ range: 3, traits: '<p>Precision+ - a</p><p>Range Up+ - b</p><p>Shield Battery - c</p>' }, form({})));
+  assert.deepStrictEqual([p.attack, p.range, p.rangedDefense], [4, 2, 2]);
+  // Hefty Weapon after moving; Unwavering ignores low morale
+  battle.meta.t = { round: { moved: true } };
+  assert.strictEqual(U.unitStatus(tok({ traits: 'Hefty Weapon - z' }, form({}))).attack, -2);
+  assert.strictEqual(U.unitStatus(tok({ morale: 20, traits: 'Unwavering - z' }, form({}))).rolls, 0);
 });

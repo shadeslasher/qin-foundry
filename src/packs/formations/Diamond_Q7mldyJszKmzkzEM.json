@@ -10,11 +10,11 @@
     "immobile": false,
     "defMelee": 0,
     "defRanged": 0,
-    "atkMod": -1,
+    "atkMod": -2,
     "rearAtk": 0,
     "noChargeBonus": false,
     "winReposition": false,
-    "rulesVersion": 2,
+    "rulesVersion": 3,
     "defAll": 2,
     "defFront": 0,
     "frontMelee": 0,
@@ -23,7 +23,7 @@
     "casReduce": 0,
     "noAttackerBonus": false,
     "noRear": false,
-    "description": "<p>Commanded Unit forms a diamond: <b>movement -3</b>, <b>attack -1</b>, <b>melee and ranged defense +2</b>. <i>Cavalry only.</i></p>"
+    "description": "<p>Commanded Unit forms a diamond: <b>movement -3</b>, <b>attack -2</b>, <b>melee and ranged defense +2</b>. <i>Cavalry only.</i></p>"
   },
   "effects": [],
   "folder": null,

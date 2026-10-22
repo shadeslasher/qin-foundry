@@ -111,6 +111,7 @@ function startPicking(onTile) {
 
 function cancelMode() {
   if (mode === "reposition" && current) return send({ type: "reposition", unitId: current.u.id });
+  if (mode === "second" && current) return send({ type: "secondAttack", unitId: current.u.id });
   mode = null;
   clearSquares();
   renderMenu();
@@ -183,6 +184,25 @@ function enterReposition() {
   });
 }
 
+/** Dual Weapons follow-up: red enemies next to the unit; click one for the second attack (Attack -2), or skip. */
+function enterSecond() {
+  const { s } = current;
+  const ids = s.turn?.activation?.second?.targets ?? [];
+  const targets = ids.map(id => E.unitById(s, id)).filter(Boolean);
+  mode = "second";
+  clearSquares();
+  overlay = new PIXI.Graphics();
+  overlay.eventMode = "none";
+  layer().addChild(overlay);
+  for (const d of targets) drawSquare(overlay, d.x, d.y, 0xd63c3c, 0.35, 1);
+  renderMenu();
+  startPicking((x, y) => {
+    const d = targets.find(o => o.x === x && o.y === y);
+    if (!d) return ui.notifications.warn("Click an enemy marked in red, or press Skip.");
+    send({ type: "secondAttack", unitId: current.u.id, targetId: d.id });
+  });
+}
+
 async function send(action) {
   if (!requestFn || busy) return;
   busy = true;
@@ -234,6 +254,7 @@ function renderMenu(sub = null) {
   let html = `<div class="qin-fe-title">${esc(u.name)}</div>`;
   if (mode === "move") html += `<div class="qin-fe-hint">Blue: move · Red: forced march (ends turn) · Green: swap<br>Right-click or Esc to go back</div>` + b("cancel", "Back", true);
   else if (mode === "attack") html += `<div class="qin-fe-hint">Click an enemy marked in red.<br>Right-click or Esc to go back</div>` + b("cancel", "Back", true);
+  else if (mode === "second") html += `<div class="qin-fe-hint">Dual Weapons: strike another enemy marked in red (Attack −2), or skip.</div>` + b("skipSecond", "Skip", true);
   else if (mode === "reposition") html += `<div class="qin-fe-hint">Won the attack: move to a green tile beside the enemy, or stay.</div>` + b("stay", "Stay here", true);
   else if (sub === "heroic") {
     html += `<div class="qin-fe-hint">Heroic action (free, doesn't end the turn) · ${officer.fire - (u.heroicUsed || 0)}/${officer.fire} left</div>`;
@@ -249,7 +270,7 @@ function renderMenu(sub = null) {
     const abilityTip = !officer ? "No officer" : officer.skill ? `${officer.skill.name}: ${officer.skill.text || ""}` : "This officer has no battle ability";
     if (flags.undo) html += b("undo", "↶ Undo move", true, "Go back to where the unit started (only for a normal move, before doing anything else)");
     html += b("move", "Move", flags.move, flags.move ? "" : "Already moved or can't move");
-    html += b("attack", "Attack", flags.attack, flags.attack ? "" : "No enemy in range");
+    html += b("attack", flags.reloading ? "Reloading" : "Attack", flags.attack, flags.reloading ? "Reload: this turn is spent reloading" : flags.attack ? "" : "No enemy in range");
     html += b("hold", "Hold", flags.hold, "No more action this turn; +2 melee defense this round");
     html += b("ability", "Ability", flags.ability, abilityTip);
     html += b("heroic", "Heroic action", flags.heroic, officer ? "Free action from the heroic action list" : "Needs an officer");
@@ -268,6 +289,7 @@ function onMenuClick(ev) {
     case "attack": return enterAttack();
     case "cancel": return cancelMode();
     case "stay": return send({ type: "reposition", unitId: id });
+    case "skipSecond": return send({ type: "secondAttack", unitId: id });
     case "back": return renderMenu();
     case "hold": return send({ type: "holdPosition", unitId: id });
     case "end": return send({ type: "endTurn", unitId: id });
@@ -307,6 +329,7 @@ export function refreshBattleUI() {
   current = { s, u, token, flags: E.actionMenu(s, u), officer: E.officerOf(s, u), key: JSON.stringify([u.x, u.y, ac.step, u.round, u.morale]) };
   if (changed) { mode = null; clearSquares(); }
   if (ac.step === "reposition") { if (mode !== "reposition") enterReposition(); return; }
+  if (ac.step === "second") { if (mode !== "second") enterSecond(); return; }
   if (!mode) renderMenu();
 }
 

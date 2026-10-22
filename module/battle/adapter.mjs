@@ -3,6 +3,8 @@ import { broadcastBattleAnim } from "../attack-fx.mjs";
 // Bridges Foundry (scene tokens, unit actors, officer characters) and the pure battle
 // engine. Runs only on the active GM's client; players reach it through queries.
 import * as E from "./engine.mjs";
+import { traitTiersOf, shieldArmorOf } from "./traits.mjs";
+export { traitTiersOf, shieldArmorOf };
 import { FORMATIONS, HEROIC_ACTIONS } from "./engine-data.mjs";
 import { SYSTEM_ID } from "../config.mjs";
 
@@ -64,6 +66,10 @@ function officerLibraryEntry(officer) {
   };
 }
 
+/**
+ * Traits from a unit's Traits tab, as { "base name": tier } (1 = base, 2 = "+", 3 = "++").
+ * Each line reads "Name - effect"; only the name matters here.
+ */
 /** Engine formation entry from a unit's formation item. */
 function formationEntry(tokenId, item) {
   const f = item.system;
@@ -115,6 +121,7 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
     s.library.unitTypes.push({
       id: tok.id, name: a.name, faction: sys.faction, tier: sys.tier, category: sys.category, weapon: ranged ? "ranged" : "melee",
       skill: sys.weaponSkill, unitValue: sys.unitValue, damage: sys.damage, armor: sys.armor, armorPen: sys.armorPen, move: sys.move,
+      shieldArmor: shieldArmorOf(sys.armorNote), // the part of its armor that comes from shields (Shield Breaker ignores it)
       rangeMin: ranged ? Math.min(sys.rangeMin || 1, sys.range) : 1, rangeMax: ranged ? sys.range : 1, formations: ["none", ...forms.map(f => f.id)],
     });
     let officerId = null;
@@ -134,6 +141,7 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
       formation: a.items.get(sys.formation)?.type === "formation" ? `${tok.id}.${sys.formation}` : "none",
       facing: meta.facing ?? { dx: 0, dy: sys.side === "enemy" ? 1 : -1 }, hidden: sys.hidden, status: sys.status,
       fierceCharge: fierce ? 1 + fierce[1].length : 0,
+      traitTiers: traitTiersOf(sys.traits), fx: meta.fx ?? {},
       mods: meta.mods ?? [], heroicUsed: meta.heroicUsed ?? 0, lastHeroic: meta.lastHeroic ?? null,
       surrounded: meta.surrounded ?? false, round: meta.round ?? { activated: false, moved: false, cannotMove: false, holding: false, attacked: false, skillUsed: false, heroicUsed: false, meleeTarget: null, meleeAttacker: null },
     });
@@ -172,7 +180,7 @@ async function writeBack(battle, s, scene) {
   for (const u of s.units) {
     const tok = scene?.tokens.get(u.id);
     if (!tok) continue;
-    battle.meta[u.id] = { pos: { x: u.x, y: u.y }, facing: u.facing, mods: u.mods, heroicUsed: u.heroicUsed, lastHeroic: u.lastHeroic, surrounded: u.surrounded, round: u.round };
+    battle.meta[u.id] = { pos: { x: u.x, y: u.y }, facing: u.facing, mods: u.mods, heroicUsed: u.heroicUsed, lastHeroic: u.lastHeroic, surrounded: u.surrounded, round: u.round, fx: u.fx ?? {} };
     const sys = tok.actor.system;
     const upd = {};
     if (sys.men.value !== u.men) upd["system.men.value"] = u.men;

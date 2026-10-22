@@ -1,0 +1,206 @@
+// Battle unit traits (David's trait sheet, October 2026).
+import test from 'node:test';
+import assert from 'node:assert';
+import * as R from '../module/battle/engine.mjs';
+
+const HOST = { id: 'host', host: true };
+const P1 = { id: 'p1', host: false };
+function dice(values) { const q = values.slice(); R.setRng(() => (q.length ? q.shift() : 0) / 10 + 0.001); }
+function must(res) { assert.ok(res.ok, res.error); return res; }
+function setup() { const s = R.newState(); s.players.p1 = { name: 'Alice' }; return s; }
+function add(s, o) { return must(R.act(s, HOST, Object.assign({ type: 'addUnit' }, o))).unitId; }
+function unitType(id, o) {
+  return Object.assign({ id, name: id, faction: 'X', tier: 1, category: 'infantry', weapon: 'melee', skill: 'Qiangshu',
+    damage: 6, armor: 3, armorPen: 0, unitValue: 0, move: 3, rangeMin: 1, rangeMax: 1, formations: null }, o);
+}
+/** Player unit at (5,5) attacks an enemy at (5,4). setupFn(a, d, s) runs before the battle starts. */
+function duel(aType, dType, rolls, setupFn, extra = []) {
+  const s = setup();
+  s.library.unitTypes.push(aType, dType, ...extra.map(e => e.type));
+  const a = add(s, { typeId: aType.id, side: 'player', owner: 'p1', x: 5, y: 5 });
+  const d = add(s, { typeId: dType.id, side: 'enemy', x: 5, y: 4 });
+  for (const e of extra) e.id = add(s, { typeId: e.type.id, side: e.side, x: e.x, y: e.y, owner: e.side === 'player' ? 'p1' : undefined });
+  if (setupFn) setupFn(R.unitById(s, a), R.unitById(s, d), s);
+  must(R.act(s, HOST, { type: 'startBattle' }));
+  dice([0, 0]); must(R.act(s, HOST, { type: 'startRound' }));
+  must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: a }));
+  dice(rolls);
+  must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
+  const r = s.log.filter(e => e.detail && e.detail.type === 'attack').pop().detail.result;
+  return { s, A: R.unitById(s, a), D: R.unitById(s, d), r };
+}
+const part = (roll, re) => roll.parts.filter(([l]) => re.test(l)).reduce((t, [, v]) => t + v, 0);
+const traits = (o) => (u) => { u.traitTiers = o; };
+
+test('Anti-Cavalry / Anti-Infantry: Command rolls against that category, both attacking and defending', () => {
+  const { r } = duel(unitType('a'), unitType('c', { category: 'cavalry' }), [3, 0, 0, 0], (a, d) => { a.traitTiers = { 'anti-cavalry': 3 }; d.traitTiers = { 'anti-infantry': 2 }; });
+  assert.strictEqual(part(r.attackRoll, /^Anti-Cavalry/), 4);
+  assert.strictEqual(part(r.defendRoll, /^Anti-Infantry/), 2);
+});
+
+test('Precision needs the unit to have ended its last turn without moving; Hefty Weapon -2 after moving', () => {
+  let { r } = duel(unitType('a'), unitType('d'), [3, 0, 0, 0], (a) => { a.traitTiers = { precision: 2 }; a.fx = { stillLast: true }; });
+  assert.strictEqual(part(r.attackRoll, /^Precision/), 4);
+  ({ r } = duel(unitType('a'), unitType('d'), [3, 0, 0, 0], (a) => { a.traitTiers = { precision: 1 }; }));
+  assert.strictEqual(part(r.attackRoll, /^Precision/), 0);
+  const h = duel(unitType('a'), unitType('d'), [3, 0, 0, 0], traits({ 'hefty weapon': 1 }));
+  assert.strictEqual(part(h.r.attackRoll, /^Hefty/), 0, 'did not move');
+  h.A.round.moved = true;
+  assert.strictEqual(part(R.buildRoll(h.s, h.A, 'attacker', { attacker: h.A, defender: h.D, ranged: false }), /^Hefty/), -2);
+});
+
+test('Brace adds melee defense while holding; Shielded and Shield Battery add ranged defense; Poison lowers defense', () => {
+  const s = setup();
+  s.library.unitTypes.push(unitType('h'), unitType('m'), unitType('r', { weapon: 'ranged', rangeMax: 3 }));
+  const h = add(s, { typeId: 'h', side: 'enemy', x: 5, y: 4 });
+  const m = add(s, { typeId: 'm', side: 'player', owner: 'p1', x: 5, y: 5 });
+  const rr = add(s, { typeId: 'r', side: 'player', owner: 'p1', x: 5, y: 7 });
+  const H = R.unitById(s, h);
+  H.traitTiers = { brace: 1, shielded: 3, 'shield battery': 1 }; H.round.holding = true; H.fx = { stillLast: true, poison: 1 };
+  const roll = (att) => { const A = R.unitById(s, att); return R.buildRoll(s, H, 'defender', { attacker: A, defender: H, ranged: R.typeOf(s, A).weapon === 'ranged' }); };
+  const melee = roll(m), ranged = roll(rr);
+  assert.strictEqual(part(melee, /^Brace/), 2);
+  assert.strictEqual(part(melee, /^Shield/), 0);
+  assert.strictEqual(part(ranged, /^Shielded/), 6);
+  assert.strictEqual(part(ranged, /^Shield Battery/), 2);
+  assert.strictEqual(part(ranged, /^Brace/), 0);
+  assert.strictEqual(part(melee, /^Poisoned/), -1);
+  assert.strictEqual(part(ranged, /^Poisoned/), -1);
+});
+
+test('Swarm: Attack +2 with an ally next to the target; Volley Fire after a ranged hit this round', () => {
+  const ally = { type: unitType('al'), side: 'player', x: 6, y: 4 };
+  const { s, A, D, r } = duel(unitType('a'), unitType('d'), [3, 0, 0, 0], (a) => { a.traitTiers = { swarm: 2, 'volley fire': 1 }; }, [ally]);
+  assert.strictEqual(part(r.attackRoll, /^Swarm/), 2);
+  assert.strictEqual(part(r.attackRoll, /^Volley Fire/), 0, 'no ranged hit yet this round');
+  D.round.hitByRanged = true;
+  assert.strictEqual(part(R.buildRoll(s, A, 'attacker', { attacker: A, defender: D, ranged: false }), /^Volley Fire/), 1);
+});
+
+test('Unwavering ignores the Demoralized penalty', () => {
+  const { r } = duel(unitType('a'), unitType('d'), [3, 0, 0, 0], (a) => { a.traitTiers = { unwavering: 1 }; a.morale = 10; });
+  assert.ok(r.attackRoll.parts.some(([l, v]) => /Demoralized \(ignored: Unwavering\)/.test(l) && v === 0));
+});
+
+test('Counter-Attack: a winning defender strikes back harder; Duelist ignores strike-back damage', () => {
+  // defender wins: A 0+2 = 2, D 9 -> diff 7. Return damage 6 + 7 + 4 (Counter-Attack+) = 17 - armor 3 = 14.
+  let { A } = duel(unitType('a'), unitType('d'), [0, 0, 9, 0], (a, d) => { d.traitTiers = { 'counter-attack': 2 }; });
+  assert.strictEqual(A.men, 100 - 14);
+  ({ A } = duel(unitType('a'), unitType('d'), [0, 0, 9, 0], (a) => { a.traitTiers = { duelist: 1 }; }));
+  assert.strictEqual(A.men, 100);
+});
+
+test('Sunder and Poison stick to a beaten defender and do not stack; Shield Breaker ignores shield armor', () => {
+  let { D } = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], (a, d) => { a.traitTiers = { sunder: 2, poison: 1 }; d.fx = { sunder: 2, poison: 1 }; });
+  assert.strictEqual(D.fx.sunder, 4, 'Sunder+ replaces Sunder');
+  assert.strictEqual(D.fx.poison, 1, "Poison doesn't stack");
+  // attacker 9+2 = 11 vs 0 -> diff 11; damage 6 + 11 = 17. Defender armor 3 of which 2 shield -> 1 counts: 16 casualties.
+  ({ D } = duel(unitType('a'), unitType('d', { shieldArmor: 2 }), [9, 0, 0, 0], (a) => { a.traitTiers = { 'shield breaker': 1 }; }));
+  assert.strictEqual(D.men, 100 - 16);
+});
+
+test('Terror: +2 morale loss; Terror+: double; Fragile loser loses 5 more', () => {
+  // diff 11 (9+2 vs 0)
+  let { D } = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], traits({ terror: 1 }));
+  assert.strictEqual(D.morale, 50 - 13);
+  ({ D } = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], traits({ terror: 2 })));
+  assert.strictEqual(D.morale, 50 - 22);
+  ({ D } = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], (a, d) => { d.traitTiers = { fragile: 1 }; }));
+  assert.strictEqual(D.morale, 50 - 16);
+});
+
+test('Reload: after attacking, the next turn is spent reloading', () => {
+  const { s, A } = duel(unitType('a', { weapon: 'ranged', rangeMax: 3 }), unitType('d'), [3, 0, 0, 0], traits({ reload: 1 }));
+  assert.strictEqual(A.fx.reload, 'reloading');
+  const D = s.units.find(u => u.side === 'enemy');
+  assert.ok(R.actionMenu(s, A).attack === false || !s.turn.activation || s.turn.activation.unitId !== A.id);
+  // on its next activation it can't attack
+  s.turn.activation = { unitId: A.id, step: 'act', started: true }; A.round.attacked = false;
+  assert.ok(!R.act(s, P1, { type: 'attack', unitId: A.id, targetId: D.id }).ok);
+});
+
+test('Barbed Arrows: a hit target moves 1 less on its next turn; Expendable gives no kill morale; Mercenary earns no XP', () => {
+  let { D } = duel(unitType('a', { weapon: 'ranged', rangeMax: 3 }), unitType('d'), [9, 0, 0, 0], traits({ 'barbed arrows': 1 }));
+  assert.ok(D.fx.slow);
+  const { r } = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], (a, d) => { d.traitTiers = { expendable: 1 }; d.men = 1; a.traitTiers = { mercenary: 1 }; });
+  assert.ok(!r.killMorale);
+  assert.strictEqual(r.xpAttacker, 0);
+});
+
+test('Range Up: +2 range after standing still; Moving Shot keeps the attacker bonus after moving', () => {
+  const s = setup();
+  s.library.unitTypes.push(unitType('r', { weapon: 'ranged', rangeMax: 3 }), unitType('t'));
+  const r = add(s, { typeId: 'r', side: 'player', owner: 'p1', x: 5, y: 10 });
+  const t = add(s, { typeId: 't', side: 'enemy', x: 5, y: 5 });
+  const U = R.unitById(s, r), T = R.unitById(s, t);
+  assert.ok(!R.rangeOk(s, U, T));
+  U.traitTiers = { 'range up': 2 }; U.fx = { stillLast: true };
+  assert.ok(R.rangeOk(s, U, T), '5 tiles with range 3+2');
+  U.traitTiers['moving shot'] = 1; U.round.moved = true;
+  const roll = R.buildRoll(s, U, 'attacker', { attacker: U, defender: T, ranged: true });
+  assert.ok(roll.parts.some(([l, v]) => l === 'Attacker bonus' && v === 2));
+});
+
+test('Hybrid: a ranged unit fights an adjacent enemy in melee at Attack -2', () => {
+  const { r } = duel(unitType('a', { weapon: 'ranged', rangeMax: 3 }), unitType('d'), [3, 0, 0, 0], traits({ hybrid: 1 }));
+  assert.ok(!r.ranged);
+  assert.strictEqual(part(r.attackRoll, /^Hybrid/), -2);
+});
+
+test('Dual Weapons: a second attack at -2 on another adjacent enemy, or skip', () => {
+  const other = { type: unitType('o'), side: 'enemy', x: 4, y: 5 };
+  const { s, A } = duel(unitType('a'), unitType('d'), [3, 0, 0, 0], traits({ 'dual weapons': 1 }), [other]);
+  assert.strictEqual(s.turn.activation.step, 'second');
+  dice([3, 0, 0, 0]);
+  must(R.act(s, P1, { type: 'secondAttack', unitId: A.id, targetId: other.id }));
+  const r2 = s.log.filter(e => e.detail && e.detail.type === 'attack').pop().detail.result;
+  assert.strictEqual(r2.defender, other.id);
+  assert.strictEqual(part(r2.attackRoll, /^Second attack/), -2);
+  assert.ok(!s.turn.activation || s.turn.activation.unitId !== A.id, 'turn over');
+});
+
+test('Charge Reflection: a defender that beats a charge adds the charge bonus to its strike back', () => {
+  const s = setup();
+  s.library.unitTypes.push(unitType('cav', { category: 'cavalry' }), unitType('d'));
+  const a = add(s, { typeId: 'cav', side: 'player', owner: 'p1', x: 5, y: 1 });
+  const d = add(s, { typeId: 'd', side: 'enemy', x: 5, y: 5 });
+  R.unitById(s, d).traitTiers = { 'charge reflection': 1 };
+  must(R.act(s, HOST, { type: 'startBattle' })); dice([0, 0]); must(R.act(s, HOST, { type: 'startRound' }));
+  must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: a }));
+  s.freeMovement = false;
+  must(R.act(s, P1, { type: 'moveTo', unitId: a, x: 5, y: 4 })); // 3 tiles: charge +1
+  dice([0, 0, 9, 0]);
+  must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
+  const r = s.log.filter(e => e.detail && e.detail.type === 'attack').pop().detail.result;
+  // A: 0+2+1 = 3, D: 9 -> diff 6. Return: 6 + 6 + 1 (reflected charge) = 13 - 3 = 10.
+  assert.strictEqual(R.unitById(s, a).men, 100 - 10);
+  assert.ok(r.charge);
+});
+
+test('Inspiration: allies next to it gain 4 morale when its turn ends', () => {
+  const ally = { type: unitType('al'), side: 'player', x: 6, y: 5 };
+  const { s } = duel(unitType('a'), unitType('d'), [3, 0, 0, 0], traits({ inspiration: 1 }), [ally]);
+  assert.strictEqual(R.unitById(s, ally.id).morale, 54);
+});
+
+test('Allies can be moved through but Heavy units and enemies block', () => {
+  const s = setup();
+  s.library.unitTypes.push(unitType('m', { move: 3 }), unitType('w'));
+  const m = add(s, { typeId: 'm', side: 'player', owner: 'p1', x: 5, y: 5 });
+  const w = add(s, { typeId: 'w', side: 'player', owner: 'p1', x: 5, y: 4 });
+  const M = R.unitById(s, m);
+  // straight up through the ally at (5,4) to (5,3)
+  assert.ok(R.reachable(s, M, 2).has('5,3'));
+  assert.ok(!R.reachable(s, M, 2).has('5,4'), "can't stop on the ally");
+  R.unitById(s, w).traitTiers = { heavy: 1 };
+  assert.ok(!R.reachable(s, M, 2).has('5,3'), 'Heavy ally blocks the straight path');
+});
+
+test('Trait text parses to tiers; shield armor is read from the armor note', async () => {
+  const T = await import('../module/battle/traits.mjs');
+  assert.deepStrictEqual(T.traitTiersOf('<p>Anti-Cavalry+ - Command rolls +2</p><p>Precision++ &ndash; x</p><p>Hefty Weapon</p><p>Range Up+: y</p><p>Counter-Attack - z</p>'),
+    { 'anti-cavalry': 2, precision: 3, 'hefty weapon': 1, 'range up': 2, 'counter-attack': 1 });
+  assert.strictEqual(T.shieldArmorOf('2 (Leather) + 2 (Lg Shield)'), 2);
+  assert.strictEqual(T.shieldArmorOf('1 (Shield) + 1 (Helmet)'), 1);
+  assert.strictEqual(T.shieldArmorOf('3'), 0);
+});

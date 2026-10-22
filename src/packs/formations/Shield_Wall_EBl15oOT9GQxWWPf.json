@@ -14,7 +14,7 @@
     "rearAtk": 2,
     "noChargeBonus": false,
     "winReposition": false,
-    "rulesVersion": 2,
+    "rulesVersion": 3,
     "defAll": 2,
     "defFront": 0,
     "frontMelee": 0,

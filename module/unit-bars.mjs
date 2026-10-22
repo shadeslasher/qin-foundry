@@ -2,6 +2,7 @@
 // side colour with up to five soldier figures (one per 20% of its strength), its officer's medallion,
 // its faction banner rolled up in the corner (it unrolls while hovered), and health/morale bars.
 import { factionOf } from "./factions.mjs";
+import { traitTiersOf } from "./battle/traits.mjs";
 
 const KEY = "qinUnitBars";
 const SIDE_COLORS = { player: 0x3a78c8, enemy: 0xc8443a, ally: 0x3fa66a, neutral: 0xd4a017 };
@@ -59,35 +60,49 @@ function battleRecord(token) {
  *           enemy ranged attacks. (Hold does not count against ranged attacks.)
  *  range - extra range (nothing grants this automatically yet).
  */
+const tierCache = new Map();
+function tiersFor(text) {
+  const key = String(text ?? "");
+  if (!tierCache.has(key)) { if (tierCache.size > 500) tierCache.clear(); tierCache.set(key, traitTiersOf(key)); }
+  return tierCache.get(key);
+}
+const tierVal = (tier, vals) => (tier ? vals[Math.min(tier, vals.length) - 1] : 0);
+
 export function unitStatus(token) {
   const actor = token.actor, s = actor.system, battle = battleRecord(token);
-  const round = battle?.meta?.[token.id]?.round ?? {};
+  const meta = battle?.meta?.[token.id] ?? {};
+  const round = meta.round ?? {}, fx = meta.fx ?? {};
+  const tr = tiersFor(s.traits);
   const form = actor.items?.get?.(s.formation);
   const f = form?.type === "formation" ? form.system : {};
   // rolls: changes to ALL Command rolls (attacking and defending): morale and losses
   let rolls = 0, attack = 0;
   const m = s.morale ?? 0;
-  if (m >= 75) rolls += 2; else if (m > 0 && m <= 25) rolls -= 2;
+  if (m >= 75) rolls += 2; else if (m > 0 && m <= 25 && !tr.unwavering) rolls -= 2;
   const figs = figureCount(s.men?.value ?? 0, s.men?.max || 100);
   if (figs === 1) rolls -= 2; else if (figs === 2) rolls -= 1;
   // attack: changes that only count when attacking
   attack += Number(f.atkMod) || 0; // the formation's attack modifier always shows (it only counts when attacking)
+  if (fx.stillLast) attack += tierVal(tr.precision, [2, 4]);
+  if (round.moved && tr["hefty weapon"]) attack -= 2;
   const ac = battle?.turn?.activation;
   if (ac?.unitId === token.id && !ac.forcedMarched && !round.attacked) {
-    if (s.range > 1) { if (!round.moved) attack += 2; }
+    if (s.range > 1) { if (!round.moved || tr["moving shot"]) attack += 2; }
     else if (s.category === "cavalry" && ac.movedThisActivation) {
       const tiles = ac.tilesMoved || 0;
-      const fm = String(s.traits ?? "").match(/^\s*Fierce Charge(\+{0,2})\s*(?:-|–|:|$)/mi);
-      const fierce = fm ? 1 + fm[1].length : 0;
+      const fierce = tr["fierce charge"] || 0;
       const charge = Math.floor(fierce >= 2 ? tiles : tiles / 2);
       if (charge > 0) attack += charge + (fierce === 1 ? 1 : 0) + (Number(f.chargeBonus) || 0);
     }
   }
   if (token.qinAttackBonus !== undefined && token.qinAttackBonus !== null) attack = token.qinAttackBonus;
-  const both = Number(f.defAll) || 0; // melee & ranged defense
-  const defense = (round.holding ? 2 : 0) + both + (Number(f.defMelee) || 0);
-  const rangedDefense = both + (Number(f.defRanged) || 0);
-  return { rolls, attack, defense, rangedDefense, range: 0, holding: !!round.holding, hidden: !!s.hidden };
+  const both = (Number(f.defAll) || 0) - (Number(fx.poison) || 0); // melee & ranged defense (Poison lowers both)
+  const defense = (round.holding ? 2 + (tr.brace ? 2 : 0) : 0) + both + (Number(f.defMelee) || 0);
+  const rangedDefense = both + (Number(f.defRanged) || 0) + tierVal(tr.shielded, [2, 4, 6])
+    + (fx.stillLast && tr["shield battery"] ? 2 : 0);
+  const range = s.range > 1 && fx.stillLast ? tierVal(tr["range up"], [1, 2]) : 0;
+  return { rolls, attack, defense, rangedDefense, range, holding: !!round.holding, hidden: !!s.hidden,
+    reloading: fx.reload === "reloading" };
 }
 
 /** A heater shield centred on (0,0), w wide and h tall. */
