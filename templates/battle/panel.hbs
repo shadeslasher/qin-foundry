@@ -120,4 +120,14 @@
     {{/if}}
   </div>
 {{/unless}}
+{{#if mapCard}}
+  <div class="qin-card qin-map-card"><h4>Battle map</h4>
+    {{#if mapCard.ready}}
+      <div class="qin-btns">
+        <button type="button" data-action="redrawMap" title="Draw this scene's map again with the map generator"><i class="fa-solid fa-rotate"></i> Redraw map</button>
+        <button type="button" data-action="paintMap" title="Paint terrain and overlays on this scene's map"><i class="fa-solid fa-paintbrush"></i> Paint map…</button>
+      </div>
+    {{else}}<p class="qin-muted">{{mapCard.why}}</p>{{/if}}
+  </div>
+{{/if}}
 </div>

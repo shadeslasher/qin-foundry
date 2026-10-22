@@ -3,6 +3,7 @@
 import { TACTICS } from "./engine-data.mjs";
 import { getBattle } from "./adapter.mjs";
 import { drawLadder, drawSiegeEngine } from "../unit-bars.mjs";
+import { canRedraw } from "./maprender.mjs";
 // battle requests go through game.qin (set up at init) so this file stays free of the panel and sheet modules
 const battleRequest = (action) => game.qin.battleRequest(action);
 
@@ -295,6 +296,7 @@ function drawGate(g, size, wallAt = () => false) {
   const box = new PIXI.Container();
   if (g.state === "locked") return box;
   if (g.state === "burned") {
+    if (canRedraw(canvas.scene)) return box; // the map itself is redrawn with ruins there
     const len = T * n, w = ew ? len : depth, h = ew ? depth : len;
     box.addChild(new PIXI.Graphics().beginFill(0x120b06, 0.55).drawRect(cx - w / 2, cy - h / 2, w, h).endFill());
     return box;

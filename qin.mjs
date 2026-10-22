@@ -15,6 +15,7 @@ import { registerUnitBars, redrawAllUnitBars } from "./module/unit-bars.mjs";
 import { registerFactions, factionList } from "./module/factions.mjs";
 import { refreshBattleUI, repositionBattleUI, lockUnitTokens, onUnitSelected, registerUnitClicks } from "./module/battle/battle-ui.mjs";
 import { refreshTactics, registerTactics } from "./module/battle/tactics-ui.mjs";
+import { registerMapRenderer, syncBattleMap, initBattleMapSync, redrawScene, MapEditorApp } from "./module/battle/maprender.mjs";
 import { importBattleMap } from "./module/battle/battlemap.mjs";
 import { registerUnitInfo, openUnitInfo, openOfficerView, registerDangerZoneKey, toggleDangerZone } from "./module/unit-info.mjs";
 
@@ -31,7 +32,8 @@ Hooks.once("init", () => {
   console.log("Qin | Initializing Qin: The Warring States");
   CONFIG.QIN = CFG;
   CONFIG.qinFactions ??= {};
-  globalThis.qin = game.qin = { config: CFG, rules: QinRules, openBattle: () => BattlePanel.open(), battleRequest, registerFactions, factionList, openUnitInfo, openOfficerView, importBattleMap: () => importBattleMap(SYSTEM_ID) };
+  globalThis.qin = game.qin = { config: CFG, rules: QinRules, openBattle: () => BattlePanel.open(), battleRequest, registerFactions, factionList, openUnitInfo, openOfficerView, importBattleMap: () => importBattleMap(SYSTEM_ID),
+    registerMapRenderer, redrawMap: (scene = canvas.scene) => redrawScene(scene), paintMap: (scene = canvas.scene) => MapEditorApp.open(scene), refreshBattlePanel: () => BattlePanel.refresh() };
 
   CONFIG.Actor.documentClass = QinActor;
   CONFIG.Item.documentClass = QinItem;
@@ -61,6 +63,7 @@ Hooks.once("init", () => {
       refreshBattleUI();
       redrawAllUnitBars();
       refreshTactics();
+      syncBattleMap();
       if (getBattle().active && !BattlePanel.instance?.rendered && game.settings.get(SYSTEM_ID, "autoOpenBattle")) BattlePanel.open();
     },
   });
@@ -144,6 +147,7 @@ Hooks.once("init", () => {
 
 Hooks.once("ready", () => {
   registerAttackFxSocket();
+  initBattleMapSync();
   refreshTactics();
   if (game.user.isGM && getBattle().active) BattlePanel.open();
   else if (getBattle().active && game.settings.get(SYSTEM_ID, "autoOpenBattle")) BattlePanel.open();

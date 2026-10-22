@@ -2,6 +2,7 @@
 import { SYSTEM_ID, systemPath, SIDES } from "../config.mjs";
 import * as E from "./engine.mjs";
 import { getBattle, buildState, runAction, unitTokens } from "./adapter.mjs";
+import { mapFlag, hasMapRenderer, redrawScene, MapEditorApp } from "./maprender.mjs";
 import { scaledPosition } from "../sheets/sheets.mjs";
 import { setBattleRequest, highlightUnit } from "./battle-ui.mjs";
 import { TacticsApp } from "./tactics-ui.mjs";
@@ -49,6 +50,8 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
       selectUnit: BattlePanel.#selectUnit,
       setHidden: BattlePanel.#setHidden,
       importMap: () => importBattleMap(SYSTEM_ID),
+      redrawMap: () => redrawScene(canvas.scene),
+      paintMap: () => MapEditorApp.open(canvas.scene),
     },
   };
   static PARTS = { body: { template: systemPath("templates/battle/panel.hbs"), scrollable: [".qin-battle-scroll"] } };
@@ -70,6 +73,11 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
   async _prepareContext() {
     const battle = getBattle();
     const ctx = { isGM: game.user.isGM, active: battle.active, sceneName: canvas.scene?.name ?? "—", sideChoices: SIDES };
+    // the map generator card: GM only, on scenes imported from the map generator
+    const mf = game.user.isGM ? mapFlag(canvas.scene) : null;
+    if (mf) ctx.mapCard = !mf.layoutCode ? { why: "This map has no layout code, so it can't be redrawn. Re-import it from a new export." }
+      : !hasMapRenderer() ? { why: "Redrawing and painting this map need the map generator, which comes with the Three Kingdoms module." }
+      : { ready: true };
     if (!battle.active) {
       // players only see the units they control; the GM sees every unit
       ctx.sceneUnits = unitTokens(canvas.scene).filter(t => game.user.isGM || t.actor?.isOwner).map(t => ({ id: t.id, name: t.name, img: t.texture?.src, side: t.actor.system.side }));

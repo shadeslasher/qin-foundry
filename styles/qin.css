@@ -432,3 +432,17 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin-tac-banner b { display: block; font-size: 34px; line-height: 1.15; text-shadow: 2px 2px 0 #000; letter-spacing: .5px; }
 .qin-gate-row { display: grid; grid-template-columns: 1fr auto auto; gap: 4px; align-items: center; margin: 3px 0; font-size: 12px; }
 .qin-gate-row select { font-size: 12px; height: 24px; }
+
+/* ---------- battle map painter ---------- */
+.qin-map-editor .window-content { padding: 8px 10px; }
+.qin-mp h4 { margin: 8px 0 4px; display: flex; align-items: center; justify-content: space-between; font-size: 0.95em; }
+.qin-mp .qin-mp-mode { font-weight: normal; font-size: 0.9em; }
+.qin-mp .qin-mp-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 3px; }
+.qin-mp .qin-mp-sw { display: flex; align-items: center; gap: 6px; justify-content: flex-start; padding: 2px 6px; font-size: 0.85em; line-height: 1.6; text-align: left; }
+.qin-mp .qin-mp-sw i { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(0, 0, 0, 0.5); flex: none; }
+.qin-mp .qin-mp-sw.on { outline: 2px solid #d9a441; background: rgba(217, 164, 65, 0.18); }
+.qin-mp .qin-mp-look { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.qin-mp .qin-mp-look input[type=range] { width: 120px; vertical-align: middle; }
+.qin-mp .qin-mp-foot { display: flex; gap: 6px; align-items: center; margin-top: 10px; }
+.qin-mp .qin-mp-foot > span { flex: 1; }
+.qin-mp .qin-mp-foot button { flex: none; width: auto; padding: 0 10px; }
