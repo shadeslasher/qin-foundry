@@ -307,18 +307,19 @@ export async function drawUnitBars(token) {
     if (holding) { // small shield beside "Hold"
       const sw = T * 0.15, sh = T * 0.18, gapX = T * 0.025, total = sw + gapX + t.width;
       const icon = drawShield(sw, sh);
-      icon.position.set(w / 2 - total / 2 + sw / 2, top / 2);
-      t.position.set(w / 2 - total / 2 + sw + gapX + t.width / 2, top / 2);
+      const ly = top * 0.62; // a little lower than "Done", clear of the badge
+      icon.position.set(w / 2 - total / 2 + sw / 2, ly);
+      t.position.set(w / 2 - total / 2 + sw + gapX + t.width / 2, ly);
       c.addChild(icon);
     } else t.position.set(w / 2, top / 2);
   }
 
-  // holding this round: a shield badge on the top edge showing the -2 attackers suffer
+  // holding this round: a shield badge on the top edge showing its +2 (attackers suffer -2 against it)
   if (holding) {
     const bw = T * 0.22, bhh = T * 0.25;
     const badge = drawShield(bw, bhh);
     badge.position.set(w / 2, T * 0.135);
-    const lbl = new Txt("-2", new PIXI.TextStyle({ ...styleOpts, fontSize: Math.round(bhh * 0.42), strokeThickness: Math.max(2, Math.round(bhh * 0.08)) }));
+    const lbl = new Txt("2", new PIXI.TextStyle({ ...styleOpts, fontSize: Math.round(bhh * 0.42), strokeThickness: Math.max(2, Math.round(bhh * 0.08)) }));
     lbl.anchor?.set?.(0.5, 0.5);
     lbl.position.set(w / 2, T * 0.135 + bhh * 0.02);
     c.addChild(badge, lbl);
