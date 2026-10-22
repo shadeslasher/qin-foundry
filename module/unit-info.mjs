@@ -35,7 +35,9 @@ function officerOf(sys) {
 /* ------------------------------------------------------------ hover tooltip */
 
 /** Icons for the tooltip's stat tiles. */
-const TT_ICONS = { dmg: "⚔", armor: "🛡", pen: "➶", move: "👣" };
+// There's no chestplate emoji, so armor is a small drawn cuirass in the same spirit as the others
+const CHESTPLATE = `<svg class="qin-tt-svg" viewBox="0 0 24 24"><path d="M7 3.5c1.6 1.3 3.2 1.9 5 1.9s3.4-.6 5-1.9l3.6 2.2-1.4 4.3-1.6-.6v8.1c0 1.6-2.4 3-5.6 3s-5.6-1.4-5.6-3v-8.1l-1.6.6-1.4-4.3z" fill="#b9c3cc" stroke="#3a4048" stroke-width="1.1" stroke-linejoin="round"/><path d="M12 5.4v15.1M8.2 11.5c2.4 1 5.2 1 7.6 0M8.2 15c2.4 1 5.2 1 7.6 0" fill="none" stroke="#6d7782" stroke-width="1"/><path d="M7.3 4.1c-.6 1.6-.3 3.4.9 5.5M16.7 4.1c.6 1.6.3 3.4-.9 5.5" fill="none" stroke="#c9a24a" stroke-width="1.1"/></svg>`;
+const TT_ICONS = { dmg: "⚔", armor: CHESTPLATE, pen: "➶", move: "👣" };
 
 const hex = (n) => "#" + Number(n).toString(16).padStart(6, "0");
 
