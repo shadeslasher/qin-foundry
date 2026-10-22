@@ -127,6 +127,26 @@ function drawSword(size) {
   return g;
 }
 
+/** A wooden siege ladder, centred on (0,0), about size tall. */
+function drawLadder(size) {
+  const g = new PIXI.Graphics(), h = size * 0.68, wd = size * 0.3, lw = Math.max(1.5, size * 0.07);
+  const y0 = -h / 2, x0 = -wd / 2, x1 = wd / 2;
+  for (const [col, wid] of [[0x37200e, lw * 1.9], [0xb0763a, lw]]) {
+    g.lineStyle(wid, col, 1).moveTo(x0, y0).lineTo(x0, -y0).moveTo(x1, y0).lineTo(x1, -y0);
+    for (let i = 0; i < 4; i++) { const y = y0 + h * (i + 0.5) / 4; g.moveTo(x0, y).lineTo(x1, y); }
+  }
+  return g;
+}
+/** A covered battering ram on wheels. */
+function drawSiegeEngine(size) {
+  const g = new PIXI.Graphics(), s = size * 0.72, lw = Math.max(1, size * 0.03);
+  g.lineStyle(lw, 0x2d1c0c, 1).beginFill(0x78502a).drawPolygon([-s * 0.55, 0, 0, -s * 0.45, s * 0.55, 0]).endFill();
+  g.lineStyle(Math.max(2, size * 0.08), 0x96969f, 1).moveTo(-s * 0.75, s * 0.05).lineTo(s * 0.6, s * 0.05);
+  g.lineStyle(lw, 0x2d1c0c, 1).beginFill(0x6e4824).drawRect(-s * 0.5, s * 0.08, s, s * 0.12).endFill();
+  for (const wx of [-s * 0.3, s * 0.3]) g.lineStyle(lw, 0x190f06, 1).beginFill(0x462d16).drawCircle(wx, s * 0.3, s * 0.14).endFill();
+  return g;
+}
+
 /** A recurve bow with its string and a nocked arrow. */
 function drawBow(size) {
   const g = new PIXI.Graphics(), u = size / 20;
@@ -459,6 +479,19 @@ export async function drawUnitBars(token) {
     const num = new Txt(label, new PIXI.TextStyle({ ...styleOpts, fill: bad ? "#ff6b5a" : "#ffffff", fontSize: Math.round(isz * 0.46), strokeThickness: Math.max(2, Math.round(isz * 0.12)) }));
     num.anchor?.set?.(0.5, 0.5); num.position.set(cx + isz * 0.3, cy + isz * 0.28);
     c.addChild(chip, ic, num);
+  });
+
+  // siege equipment badges down the right side, under the banner: ladder, then siege engine
+  const siege = [];
+  const tiers = tiersFor(s.traits);
+  if (tiers["siege ladders"] || tiers["siege ladder"]) siege.push([drawLadder, 0xd9a441]);
+  if (tiers["siege engine"]) siege.push([drawSiegeEngine, 0xa0a0aa]);
+  siege.forEach(([fn, ring], i) => {
+    const r = T * 0.083, cx = w - pad - r - T * 0.005, cy = T * (0.43 + i * 0.2);
+    const b = new PIXI.Graphics().lineStyle(Math.max(1, T * 0.01), ring, 1).beginFill(0x18120c, 0.92).drawCircle(0, 0, r).endFill();
+    b.position.set(cx, cy);
+    const ic = fn(r * 2); ic.position.set(cx, cy);
+    stand.addChild(b, ic);
   });
 
   if (fall && !fall.destroyed) c.addChildAt(fall, c.getChildIndex(stand) + 1);
