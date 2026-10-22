@@ -373,7 +373,8 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin-tt-bar i { display: block; height: 100%; border-radius: 3px; }
 .qin-tt-chips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-top: 4px; }
 .qin-tt-chip { background: rgba(255,255,255,.06); border-radius: 6px; padding: 4px 0 3px; text-align: center; }
-.qin-tt-chip i { display: block; font-size: 0.95em; color: #d8cbb0; line-height: 1.1; }
+.qin-tt-chip i { display: block; color: #d8cbb0; line-height: 0; }
+.qin-tt-chip svg { width: 1.4em; height: 1.4em; }
 .qin-tt-chip b { display: block; font-size: 1.15em; }
 .qin-tt-chip small { display: block; color: #a99a7c; font-size: 0.75em; letter-spacing: .04em; text-transform: uppercase; }
 .qin-tt-weapon { margin-top: 7px; color: #e8c170; text-align: center; }

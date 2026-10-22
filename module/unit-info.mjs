@@ -34,6 +34,14 @@ function officerOf(sys) {
 
 /* ------------------------------------------------------------ hover tooltip */
 
+/** Small inline icons for the tooltip's stat tiles (no icon font needed). */
+const TT_ICONS = {
+  dmg: `<svg viewBox="0 0 20 20"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 4l9 9M16 4l-9 9"/><path d="M11.5 14.5l3-3M5.5 11.5l3 3"/><path d="M14 14l2.5 2.5M6 14l-2.5 2.5"/></g></svg>`,
+  armor: `<svg viewBox="0 0 20 20"><path d="M10 2.5l6 2.2v4.6c0 4-2.6 6.9-6 8.2-3.4-1.3-6-4.2-6-8.2V4.7z" fill="currentColor" opacity=".9"/><path d="M10 2.5v14.9" stroke="#18130e" stroke-width="1.2"/></svg>`,
+  pen: `<svg viewBox="0 0 20 20"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 17L14.5 5.5"/><path d="M9.5 4.5h6v6"/><path d="M3 13.5l3.5 3.5"/></g></svg>`,
+  move: `<svg viewBox="0 0 20 20"><g fill="currentColor"><ellipse cx="6.5" cy="7" rx="2.4" ry="3.6"/><ellipse cx="6.5" cy="12.6" rx="1.7" ry="1.5"/><ellipse cx="13.5" cy="9.5" rx="2.4" ry="3.6"/><ellipse cx="13.5" cy="15.1" rx="1.7" ry="1.5"/></g></svg>`,
+};
+
 const hex = (n) => "#" + Number(n).toString(16).padStart(6, "0");
 
 export function unitTooltipHTML(token) {
@@ -57,8 +65,8 @@ export function unitTooltipHTML(token) {
     <div class="qin-tt-bar"><i style="width:${pct((100 * men) / max)}%;background:${hex(healthColor(men / max))}"></i></div>
     <div class="qin-tt-bl"><span>Morale</span><span>${morale}${sys.moraleState ? ` · ${esc(sys.moraleState)}` : ""}</span></div>
     <div class="qin-tt-bar"><i style="width:${pct(morale)}%;background:${hex(moraleColor(morale))}"></i></div>`;
-  const chip = (icon, v, label) => `<div class="qin-tt-chip"><i class="fa-solid ${icon}"></i><b>${v}</b><small>${label}</small></div>`;
-  html += `<div class="qin-tt-chips">${chip("fa-khanda", sys.damage ?? 0, "Dmg")}${chip("fa-shield-halved", sys.armor ?? 0, "Armor")}${chip("fa-crosshairs", sys.armorPen ?? 0, "Pen")}${chip("fa-shoe-prints", sys.move ?? 0, "Move")}</div>`;
+  const chip = (icon, v, label) => `<div class="qin-tt-chip"><i>${TT_ICONS[icon]}</i><b>${v}</b><small>${label}</small></div>`;
+  html += `<div class="qin-tt-chips">${chip("dmg", sys.damage ?? 0, "Dmg")}${chip("armor", sys.armor ?? 0, "Armor")}${chip("pen", sys.armorPen ?? 0, "Pen")}${chip("move", sys.move ?? 0, "Move")}</div>`;
   const w = weaponLine(sys);
   if (w) html += `<div class="qin-tt-weapon">${w}</div>`;
   return html + `</div>`;
