@@ -141,11 +141,12 @@ const HEROIC_ACTIONS = [
 //   trigger: attack | attacked | rangedAttack | meleeAttack | rearAttack | ambush | charge | flankedAttack |
 //            raiseFlag | setFire | surrender | forcedMarch | backsTurned | hold | heroic | officerKill |
 //            surrounded | destroy | heroAttack | heroMove
+// reach: a tactic placed on one tile whose effect covers a wider square (Raise Flag: 1×1, rallies a 9×9 square)
 // when / lasts: the Trigger and Duration columns of the Battle Tactics sheet (shown on the tactics screen)
 const TACTICS = [
   { key: 'attack', name: 'Attack', aow: 1, size: 2, trigger: 'attack', turns: 1, when: 'An allied unit attacks.', lasts: '1 turn', text: 'Units in the area gain Attack +2.' },
   { key: 'defend', name: 'Defend', aow: 1, size: 2, trigger: 'attacked', turns: 1, when: 'An allied unit is attacked.', lasts: '1 turn', text: 'Units in the area gain Melee and ranged defense +2.' },
-  { key: 'raiseFlag', name: 'Raise Flag', aow: 1, size: 4, trigger: 'raiseFlag', turns: 0, highGround: true, when: 'An allied unit in the center of the area takes the Raise Flag action instead of attacking.', lasts: '1 action', text: 'A unit on the centre tile takes the Raise Flag action instead of attacking: units in the area below 50 morale rise to 50.' },
+  { key: 'raiseFlag', name: 'Raise Flag', aow: 1, size: 0, reach: 4, trigger: 'raiseFlag', turns: 0, highGround: true, when: 'An allied unit on the flag tile takes the Raise Flag action instead of attacking.', lasts: '1 action', text: 'A unit on the flag tile takes the Raise Flag action instead of attacking: allied units within the 9×9 square around it below 50 morale rise to 50.' },
   { key: 'flanking', name: 'Flanking Maneuver', aow: 2, size: 2, trigger: 'rearAttack', turns: 1, when: 'An allied unit makes a rear attack.', lasts: '1 turn', text: 'Units in the area gain Attack +2.' },
   { key: 'ambush', name: 'Ambush', aow: 2, size: 2, trigger: 'ambush', turns: 1, when: 'An allied unit attacks from hiding.', lasts: '1 turn', text: 'Units in the area gain Attack +2.' },
   { key: 'cavalryCharge', name: 'Cavalry Charge', aow: 2, size: 2, trigger: 'charge', turns: 1, when: 'An allied unit makes a cavalry charge.', lasts: '1 turn', text: 'Cavalry charges by units in the area gain Attack +4.' },

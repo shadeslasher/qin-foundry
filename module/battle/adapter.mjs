@@ -93,7 +93,15 @@ function terrainAt(scene, x, y) {
 }
 
 /** High ground for tactics like Raise Flag: a region named hill, high ground, fort, command tent or wall. */
+const HIGH_GROUND = ["hill", "city-wall", "fortress-tower", "fort", "small-fort", "command-tent"];
 function isHighGround(scene, gx, gy) {
+  // scenes from the map generator: the square's own overlays (hill, city wall or tower, fort, command tent)
+  const bm = scene.getFlag?.(SYSTEM_ID, MAP_FLAG);
+  if (bm?.terrain) {
+    if (gx < 0 || gy < 0 || gx >= bm.cols || gy >= bm.rows) return false;
+    if ((bm.overlays?.[gy * bm.cols + gx] ?? []).some(o => HIGH_GROUND.includes(o))) return true;
+  }
+  // other scenes: Regions named for it
   const size = scene.grid.size, pt = { x: gx * size + size / 2, y: gy * size + size / 2, elevation: 0 };
   return (scene.regions ?? []).some(r => /hill|high ground|fort|command tent|wall/i.test(r.name || "") && (() => { try { return r.testPoint(pt); } catch { return false; } })());
 }

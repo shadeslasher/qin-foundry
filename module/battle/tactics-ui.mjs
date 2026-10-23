@@ -12,6 +12,8 @@ export const TACTIC_COLORS = { player: 0x3a78c8, ally: 0x3fa66a, enemy: 0xc8443a
 const SIDE_NAME = { player: "Player", ally: "Ally", enemy: "Enemy" };
 const tacticDef = (key) => TACTICS.find(t => t.key === key);
 const area = (size) => `${2 * size + 1}×${2 * size + 1}`;
+/** Size shown for a tactic: its square, or for one placed on a single tile (Raise Flag) the tile and its reach. */
+const sizeLabel = (d, size = d?.size ?? 0) => d?.reach ? `1×1 (rallies ${area(d.reach)})` : area(size);
 /** "1 turn" means the rest of the round the tactic fires in; each further turn is one more round. */
 const lastsLabel = (d) => {
   const m = /^(\d+) turns?$/.exec(d.lasts ?? ""); if (!m) return d.lasts ?? "";
@@ -98,12 +100,12 @@ export class TacticsApp extends Base {
         const full = side === "player" && tac && !done && placed.length >= tac.aow + 1;
         const btn = locked ? "" : done && side === "player" ? `<a data-act="place" data-side="${side}" data-key="${d.key}" data-id="${done.id}">Move</a>`
           : full ? "" : `<a data-act="place" data-side="${side}" data-key="${d.key}">Place</a>`;
-        return `<div class="qin-tac-row ${locked ? "locked" : ""}" ${tipAttrs(d)}><span>${esc(d.name)}${locked ? ` <small>· Art of War ${d.aow}</small>` : ""}${done && side === "player" ? ` <small class="qin-tac-placed">(placed)</small>` : ""}</span><span>${area(d.size)}</span><span>${btn}</span></div>`;
+        return `<div class="qin-tac-row ${locked ? "locked" : ""}" ${tipAttrs(d)}><span>${esc(d.name)}${locked ? ` <small>· Art of War ${d.aow}</small>` : ""}${done && side === "player" ? ` <small class="qin-tac-placed">(placed)</small>` : ""}</span><span>${sizeLabel(d)}</span><span>${btn}</span></div>`;
       }).join("");
       if (side !== "player" || tac) body += `<details class="qin-tac-list" data-side="${side}" ${(this.openLists ??= new Set(gm ? [] : ["player"])).has(side) ? "open" : ""}><summary>${side === "player" ? "Tactics" : "Place a tactic"}</summary><div class="qin-tac-row hd"><span>Tactic</span><span>Size</span><span></span></div>${rows}</details>`;
     }
     if (placed.length && (gm || side === "player")) {
-      body += placed.map(p => `<div class="qin-tac-chip" ${tipAttrs(tacticDef(p.key))}><span><b>${esc(tacticDef(p.key)?.name ?? p.key)}</b> <small>${area(p.size)} · at ${p.x}, ${p.y}</small></span>${canPlace ? `<span><a data-act="place" data-side="${side}" data-key="${p.key}" data-id="${p.id}" data-tooltip="Move"><i class="fa-solid fa-up-down-left-right"></i></a> <a data-act="remove" data-id="${p.id}" data-tooltip="Remove"><i class="fa-solid fa-xmark"></i></a></span>` : ""}</div>`).join("");
+      body += placed.map(p => `<div class="qin-tac-chip" ${tipAttrs(tacticDef(p.key))}><span><b>${esc(tacticDef(p.key)?.name ?? p.key)}</b> <small>${sizeLabel(tacticDef(p.key), p.size)} · at ${p.x}, ${p.y}</small></span>${canPlace ? `<span><a data-act="place" data-side="${side}" data-key="${p.key}" data-id="${p.id}" data-tooltip="Move"><i class="fa-solid fa-up-down-left-right"></i></a> <a data-act="remove" data-id="${p.id}" data-tooltip="Remove"><i class="fa-solid fa-xmark"></i></a></span>` : ""}</div>`).join("");
     }
     return `<section class="qin-tac-sec ${side}">
       <h4>${SIDE_NAME[side]} tactician <small>${side === "player" ? (gm ? "players see this section" : "") : "GM only"}</small></h4>
@@ -210,6 +212,7 @@ export function startPlacement(side, key, id = null) {
   const draw = (x, y) => {
     g.clear();
     const s = def.size, X = (x - s) * size, Y = (y - s) * size, W = (2 * s + 1) * size;
+    if (def.reach) { const R = def.reach; g.lineStyle(2, color, 0.6); dashedRect(g, (x - R) * size, (y - R) * size, (2 * R + 1) * size, (2 * R + 1) * size); }
     g.lineStyle(4, color, 1).beginFill(color, 0.22).drawRect(X, Y, W, W).endFill();
     g.lineStyle(2, 0xffffff, 0.9).beginFill(color, 0.45).drawRect(x * size + 4, y * size + 4, size - 8, size - 8).endFill();
     label.position.set(X + 8, Y + 6);
@@ -300,9 +303,12 @@ export function drawTacticOverlays() {
         c.addChild(pill, bt);
       }
     } else {
-      g.lineStyle(3, col, 0.9); g.beginFill(col, 0.05).drawRect(X, Y, W, W).endFill(); g.lineStyle(3, col, 0.95); dashedRect(g, X, Y, W, W);
+      // waiting to fire: a faint filled box, so it reads on the map without hiding it
+      g.lineStyle(2, col, 0.4).beginFill(col, 0.16).drawRect(X, Y, W, W).endFill(); g.lineStyle(2, col, 0.6); dashedRect(g, X, Y, W, W);
+      const reach = tacticDef(p.key)?.reach;
+      if (reach) { g.lineStyle(2, col, 0.6); dashedRect(g, (p.x - reach) * size, (p.y - reach) * size, (2 * reach + 1) * size, (2 * reach + 1) * size); }
       const t = new Txt(name, new PIXI.TextStyle({ fontFamily: "Signika, sans-serif", fontSize: Math.round(size * 0.2), fontWeight: "bold", fill: hex, stroke: "#000000", strokeThickness: 4, lineJoin: "round" }));
-      t.position.set(X + 6, Y + 4); c.addChild(t);
+      t.alpha = 0.75; t.position.set(X + 6, Y + 4); c.addChild(t);
     }
   }
   const layer = canvas.interface ?? canvas.stage;

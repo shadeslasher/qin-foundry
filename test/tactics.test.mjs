@@ -106,16 +106,18 @@ test('Defend fires when a unit in its square is attacked: melee and ranged defen
   assert.strictEqual(part(lastAttack(s).defendRoll, /^Tactic: Defend/), 2);
 });
 
-test('Raise Flag: from the centre tile instead of attacking, rallies the side to 50 morale', () => {
-  const buddy = { type: unitType('b'), side: 'player', x: 7, y: 7 };
+test('Raise Flag: a 1x1 tile; from it, instead of attacking, rallies the side within a 9x9 square to 50 morale', () => {
+  const buddy = { type: unitType('b'), side: 'player', x: 9, y: 9 }, far = { type: unitType('f'), side: 'player', x: 10, y: 5 };
   const { s, A } = battle((s) => {
     must(R.act(s, HOST, { type: 'setTactician', side: 'player', tactician: { ...LIU_BEI, aow: 1 } }));
     must(R.act(s, HOST, { type: 'placeTactic', side: 'player', key: 'raiseFlag', x: 5, y: 5, highGround: true }));
-  }, [buddy]);
-  const B = R.unitById(s, buddy.id); B.morale = 20;
+  }, [buddy, far]);
+  assert.strictEqual(s.tactics.placed[0].size, 0, 'the flag covers one tile');
+  const B = R.unitById(s, buddy.id), Fr = R.unitById(s, far.id); B.morale = 20; Fr.morale = 20;
   assert.ok(R.actionMenu(s, A).raiseFlag);
   must(R.act(s, P1, { type: 'raiseFlag', unitId: A.id }));
-  assert.strictEqual(B.morale, 50);
+  assert.strictEqual(B.morale, 50, '4 tiles away: inside the 9x9 square');
+  assert.strictEqual(Fr.morale, 20, '5 tiles away: outside it');
   assert.ok(!s.turn.activation || s.turn.activation.unitId !== A.id, 'ends the turn');
 });
 

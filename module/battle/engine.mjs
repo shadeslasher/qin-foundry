@@ -1554,8 +1554,11 @@ const ACTIONS = {
     if (u.round.attacked || ac.forcedMarched) return err('Raising the flag replaces the attack');
     const fired = fireTactics(s, 'raiseFlag', u);
     if (!fired.length) return err('No Raise Flag tactic on this tile');
-    for (const tc of fired) for (const o of liveUnits(s)) if (o.side === tc.side && inTacticArea(tc, o) && o.morale < 50) o.morale = 50;
-    log(s, u.name + ' raises the flag: units in the area below 50 morale rally to 50.');
+    for (const tc of fired) {
+      const reach = tacticDef(tc.key).reach ?? tc.size; // the flag stands on one tile; its rally covers a wider square
+      for (const o of liveUnits(s)) if (o.side === tc.side && Math.abs(o.x - tc.x) <= reach && Math.abs(o.y - tc.y) <= reach && o.morale < 50) o.morale = 50;
+    }
+    log(s, u.name + ' raises the flag: allied units around it below 50 morale rally to 50.');
     u.round.attacked = true;
     finishActivation(s, u);
   },
