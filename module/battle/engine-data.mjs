@@ -194,7 +194,7 @@ const MAP_TERRAIN = {
 const MAP_OVERLAYS = {
   road: { name: 'Road', move: -1 },
   bridge: { name: 'Bridge', bridge: true, hp: 50, flammable: true, fireRes: 1, burnTime: 2, burnsInto: null },
-  hill: { name: 'Hill', range: 1, command: 1, high: true, downhillAtk: 0 }, // downhillAtk: only against units not on a hill, wall or tower (value to be set)
+  hill: { name: 'Hill', range: 1, high: true, downhill: 1 }, // downhill: Command +1 against a lower unit, attacking or attacked (not vs units on a hill, wall or tower)
   trench: { name: 'Trench', move: 2 },
   abatis: { name: 'Abatis', move: 1, pass: 'noCavalry', hp: 20, flammable: true, fireRes: 0, burnTime: 2, burnsInto: null },
   'camp-stakes': { name: 'Camp stakes', move: 1, campDef: 1, hp: 15, flammable: true, fireRes: 0, burnTime: 1, burnsInto: null },

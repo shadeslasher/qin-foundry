@@ -69,11 +69,11 @@ function tileRules(s, x, y) {
   const gate = overlays.includes('city-gate') ? gateAt(s, x, y) : null;
   if (gate && gate.state === 'burned') overlays = overlays.map(o => (o === 'city-gate' ? 'ruins' : o)); // burned gates are ruins
   const parts = [data.MAP_TERRAIN[tile.terrain] || { name: tile.terrain }, ...overlays.map(o => data.MAP_OVERLAYS[o] || { name: o })];
-  const r = { move: 0, meleeDef: 0, rangedDef: 0, range: 0, atk: 0, downhillAtk: 0, high: false, command: 0, moraleTurn: 0, healthTurn: 0, campDef: 0,
+  const r = { move: 0, meleeDef: 0, rangedDef: 0, range: 0, atk: 0, downhill: 0, high: false, command: 0, moraleTurn: 0, healthTurn: 0, campDef: 0,
     hides: false, wall: false, water: false, names: [], camp: overlays.some(o => o === 'camp' || o.startsWith('camp-')) };
   let none = false, noCav = false, bridge = false;
   for (const p of parts) {
-    for (const k of ['move', 'meleeDef', 'rangedDef', 'range', 'atk', 'downhillAtk', 'command', 'moraleTurn', 'healthTurn', 'campDef']) r[k] += p[k] || 0;
+    for (const k of ['move', 'meleeDef', 'rangedDef', 'range', 'atk', 'downhill', 'command', 'moraleTurn', 'healthTurn', 'campDef']) r[k] += p[k] || 0;
     if (p.high || (p.wall && !p.gate)) r.high = true; // hills, walls and towers are high ground; gates are ground level
     if (p.pass === 'none') none = true;
     if (p.gate && (!gate || gate.state === 'locked')) none = true; // a locked gate: no one stands in it
@@ -578,9 +578,9 @@ function buildRoll(s, unit, role, ctx) {
     const where = tr.names.join(', ');
     if (tr.command) parts.push(['Terrain (' + where + '): command', tr.command]);
     if (role === 'attacker' && tr.atk) parts.push(['Terrain (' + where + '): attack', tr.atk]);
-    if (role === 'attacker' && tr.downhillAtk) { // attacking downhill: not against units on a hill, wall or tower
+    if (tr.downhill) { // on a hill against a lower unit, attacking or attacked (not against units on a hill, wall or tower)
       const dr = tileRules(s, other.x, other.y);
-      if (!(dr && dr.high)) parts.push(['Terrain (' + where + '): attacking downhill', tr.downhillAtk]);
+      if (!(dr && dr.high)) parts.push(['Terrain (' + where + '): ' + (role === 'attacker' ? 'attacking downhill' : 'attacked from below'), tr.downhill]);
     }
     if (role === 'defender') {
       const def = ctx.ranged ? tr.rangedDef : tr.meleeDef;
@@ -997,7 +997,13 @@ function endRound(s) {
 
 function startActivation(s, u, extra) {
   s.turn.activation = Object.assign({ unitId: u.id, step: 'move', started: false, startedHidden: !!u.hidden,
-    movedThisActivation: false, tilesMoved: 0, forcedMarched: false, interject: false }, extra || {});
+    movedThisActivation: false, tilesMoved: 0, forcedMarched: false, interject: false, from: { x: u.x, y: u.y } }, extra || {});
+}
+
+/** Tiles that count for a charge against `target`: none if the unit started its turn next to it (no stepping out and back in). */
+function chargeTiles(ac, target) {
+  if (ac.from && Math.abs(ac.from.x - target.x) + Math.abs(ac.from.y - target.y) <= 1) return 0;
+  return ac.tilesMoved || 0;
 }
 
 function finishActivation(s, u) {
@@ -1449,7 +1455,7 @@ const ACTIONS = {
     // attacking commits the move: apply any encirclement it caused first
     settle(s);
     if (!alive(d)) { log(s, d.name + ' gave up before the attack landed.'); if (alive(u)) finishActivation(s, u); return; }
-    const res = resolveAttack(s, u, d, { movedThisActivation: ac.movedThisActivation, tilesMoved: ac.tilesMoved || 0, ambush: !!u.hidden });
+    const res = resolveAttack(s, u, d, { movedThisActivation: ac.movedThisActivation, tilesMoved: chargeTiles(ac, d), ambush: !!u.hidden });
     if (!alive(u)) return;
     // Wedge: after winning, the attacker may move to any empty tile next to the enemy unit
     if (formationOf(s, u).winReposition && res && res.winner === 'attacker') {
@@ -1459,7 +1465,7 @@ const ACTIONS = {
     // Clear a Path: destroying an enemy after moving lets the unit move and attack again
     if (res && res.killedBy === u.id && ac.movedThisActivation && hasTactic(s, u, 'clearPath')) {
       u.round.attacked = false; u.round.moved = false;
-      Object.assign(ac, { step: 'move', movedThisActivation: false, tilesMoved: 0, forcedMarched: false });
+      Object.assign(ac, { step: 'move', movedThisActivation: false, tilesMoved: 0, forcedMarched: false, from: { x: u.x, y: u.y } }); // a fresh move: it may charge again
       log(s, u.name + ' clears a path: it may move and attack again.');
       return;
     }
@@ -1477,8 +1483,8 @@ const ACTIONS = {
       target = unitById(s, a.targetId);
       if (target && alive(target)) {
         const res = resolveAttack(s, u, target, kind === 'phoenix'
-          ? { phoenixWon: !!ac.second.won, movedThisActivation: ac.movedThisActivation, tilesMoved: ac.tilesMoved || 0 }
-          : { second: true, movedThisActivation: ac.movedThisActivation, tilesMoved: ac.tilesMoved || 0 });
+          ? { phoenixWon: !!ac.second.won, movedThisActivation: ac.movedThisActivation, tilesMoved: chargeTiles(ac, target) }
+          : { second: true, movedThisActivation: ac.movedThisActivation, tilesMoved: chargeTiles(ac, target) });
         won = res.winner === 'attacker'; melee = !res.ranged;
       }
     }

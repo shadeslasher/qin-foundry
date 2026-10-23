@@ -56,8 +56,24 @@ export function traitAtLevel(entry, level = 1) {
   return cur;
 }
 
+const traitBase = (name) => String(name ?? "").trim().replace(/\+*$/, "").toLowerCase();
+const traitPlus = (name) => (String(name ?? "").trim().match(/\++$/) || [""])[0].length;
+
+/** Cards whose trait is replaced by a higher version of the same trait on another card (e.g. Anti-Cavalry by Anti-Cavalry+).
+ *  Returns Map(index -> name of the trait replacing it). */
+export function replacedTraits(list, level = 1) {
+  const cur = (list ?? []).map(e => traitAtLevel(e, level));
+  const best = new Map();
+  cur.forEach((t, i) => { if (!t?.name) return; const b = traitBase(t.name), p = traitPlus(t.name), o = best.get(b);
+    if (!o || p > o.p) best.set(b, { p, i, name: t.name }); });
+  const out = new Map();
+  cur.forEach((t, i) => { if (!t?.name) return; const o = best.get(traitBase(t.name)); if (o && o.i !== i) out.set(i, o.name); });
+  return out;
+}
+
 /** The unit's working trait text at a level (what the engine, bars and hover card read). */
 export function traitTextOf(list, level = 1) {
-  return (list ?? []).map(e => traitAtLevel(e, level)).filter(t => t?.name)
+  const gone = replacedTraits(list, level);
+  return (list ?? []).map((e, i) => gone.has(i) ? null : traitAtLevel(e, level)).filter(t => t?.name)
     .map(t => t.desc ? `${t.name} - ${t.desc}` : t.name).join("\n");
 }

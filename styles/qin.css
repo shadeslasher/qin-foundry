@@ -537,3 +537,6 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin .qin-ue-main b { font-family: "Signika", serif; }
 .qin .qin-ue-btns { display: flex; gap: 4px; flex: none; }
 .qin .qin-ue-btns button { width: auto; padding: 1px 7px; font-size: calc(11.5px * var(--qin-scale, 1.15)); line-height: 1.8; }
+.qin .qin-trait.replaced { border-left-color: var(--qin-muted); background: rgba(255,255,255,0.22); }
+.qin .qin-trait.replaced .qin-trait-name { text-decoration: line-through; opacity: 0.6; }
+.qin .qin-trait.replaced .qin-trait-desc, .qin .qin-trait.replaced .qin-trait-chain { opacity: 0.55; }

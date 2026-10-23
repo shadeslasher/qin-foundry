@@ -267,3 +267,19 @@ test('threatArea: move tiles plus attack reach beyond them (archer move 3, range
   const mt = R.threatArea(s, m);
   assert.ok(mt.attack.has('3,4') && !mt.attack.has('3,3'), 'melee reaches one tile past its move');
 });
+
+test('trait cards: level locks, upgrades, choices, and a higher version replacing the lower one', async () => {
+  const T = await import('../module/battle/traits.mjs');
+  const list = [
+    { name: 'Anti-Infantry', desc: 'a', level: 1, upgrades: [{ level: 5, name: 'Anti-Infantry+', desc: 'b' }] },
+    { name: 'Unwavering', desc: 'u', level: 8, upgrades: [] },
+    { name: 'Anti-Cavalry', desc: 'c', level: 1, upgrades: [] },
+    { name: '', level: 3, upgrades: [], options: [{ name: 'Anti-Cavalry+', desc: 'c+' }, { name: 'Duelist', desc: 'd' }], chosen: -1 },
+  ];
+  assert.deepStrictEqual(T.traitTiersOf(T.traitTextOf(list, 1)), { 'anti-infantry': 1, 'anti-cavalry': 1 });
+  assert.strictEqual(T.pendingTraitChoices(list, 3), 1);
+  list[3].chosen = 0;
+  assert.deepStrictEqual(T.traitTiersOf(T.traitTextOf(list, 9)), { 'anti-infantry': 2, unwavering: 1, 'anti-cavalry': 2 });
+  assert.ok(!/Anti-Cavalry -/.test(T.traitTextOf(list, 9)), 'Anti-Cavalry is replaced by Anti-Cavalry+');
+  assert.deepStrictEqual([...T.replacedTraits(list, 9)], [[2, 'Anti-Cavalry+']]);
+});

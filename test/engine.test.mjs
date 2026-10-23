@@ -98,6 +98,21 @@ test('cavalry charge: +1 per 2 tiles moved, no morale multiplier (rear neither)'
   assert.strictEqual(R.unitById(s, d).morale, Math.max(0, 50 - 8), 'neither the rear attack nor the charge multiplies morale loss');
 });
 
+test('no charge against a unit the cavalry started its turn next to (no stepping out and back in)', () => {
+  const s = setup();
+  const a = add(s, { typeId: 'han_lancer_cav', side: 'player', owner: 'p1', x: 4, y: 5 });   // already next to the enemy
+  const d = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 5 });
+  must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'startRound' }));
+  must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: a }));
+  s.freeMovement = false;
+  must(R.act(s, P1, { type: 'moveTo', unitId: a, x: 5, y: 4 })); // around the corner: 2 tiles, but it started adjacent
+  dice([3, 0, 0, 0]);
+  must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
+  const r = s.log.filter(e => e.detail && e.detail.type === 'attack').pop().detail.result;
+  assert.strictEqual(r.charge, false);
+  assert.ok(!r.attackRoll.parts.some(([l]) => /Cavalry charge/.test(l)));
+});
+
 test('cavalry charge scales with distance; one tile is no charge', () => {
   for (const [startY, bonus] of [[0, 2], [3, 0]]) {
     const s = setup();

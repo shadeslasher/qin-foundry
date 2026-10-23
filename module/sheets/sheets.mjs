@@ -1,7 +1,7 @@
 import { ASPECTS, SKILLS, DOMAINS, SKILL_LEVELS, BOL_LEVELS, MAGIC_WAYS, OFFICER_ABILITY_KINDS, OFFICER_EFFECTS, UNIT_CATEGORIES, SIDES, SIGNATURE_SLOTS, systemPath } from "../config.mjs";
 import { factionOf, openFactionPicker } from "../factions.mjs";
 import { actionsPerRound } from "../rules/qin-rules.mjs";
-import { traitAtLevel, parseTraitText, pendingTraitChoices } from "../battle/traits.mjs";
+import { traitAtLevel, parseTraitText, pendingTraitChoices, replacedTraits } from "../battle/traits.mjs";
 
 const { api, sheets } = foundry.applications;
 // v14 renamed ActorSheetV2/ItemSheetV2 to ActorSheet/ItemSheet; fall back to the v13 names.
@@ -449,7 +449,8 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
         .sort((a, b) => a.name.localeCompare(b.name)).map(a => ({ uuid: a.uuid, name: a.name, selected: a.uuid === system.officer })) : [],
       menPct: Math.min(100, Math.round(100 * system.men.value / (system.men.max || 100))),
       xpPct: Math.min(100, Math.round(100 * (system.xp?.value ?? 0) / (system.xp?.max || 100))),
-      traitCards: (system.traitList ?? []).map((e, i) => traitCard(e, i, system.level ?? 1, this.#traitEditing.has(i))),
+      traitCards: (() => { const lv = system.level ?? 1, gone = replacedTraits(system.traitList, lv);
+        return (system.traitList ?? []).map((e, i) => ({ ...traitCard(e, i, lv, this.#traitEditing.has(i)), replacedBy: gone.get(i) ?? null })); })(),
       traitCatalog: game.user.isGM ? await traitCatalog() : [],
       traitChoices: pendingTraitChoices(system.traitList, system.level ?? 1),
     });

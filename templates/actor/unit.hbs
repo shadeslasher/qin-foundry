@@ -98,11 +98,12 @@
       <div class="qin-traits" data-traits>
         {{#each traitCards}}
         {{#if isChoice}}
-        <article class="qin-trait choice{{#if locked}} locked{{/if}}{{#if pending}} pending{{/if}}{{#if editing}} editing{{/if}}" data-trait="{{index}}">
+        <article class="qin-trait choice{{#if replacedBy}} replaced{{/if}}{{#if locked}} locked{{/if}}{{#if pending}} pending{{/if}}{{#if editing}} editing{{/if}}" data-trait="{{index}}">
           <header class="qin-trait-head">
             <span class="qin-trait-name">{{#if chosen}}{{chosen.name}}{{else}}{{title}}{{/if}}</span>
             {{#if locked}}<span class="qin-trait-lock"><i class="fa-solid fa-lock"></i> Choose at level {{level}}</span>{{/if}}
             {{#if pending}}<span class="qin-trait-badge">Choose one</span>{{/if}}
+            {{#if replacedBy}}<span class="qin-trait-lock"><i class="fa-solid fa-arrow-up"></i> Replaced by {{replacedBy}}</span>{{/if}}
             {{#if @root.isGM}}<span class="qin-controls">
               {{#if chosen}}<a data-trait-act="unchoose" title="Undo the choice"><i class="fa-solid fa-rotate-left"></i></a>{{/if}}
               <a data-trait-act="edit" title="{{#if editing}}Done{{else}}Edit{{/if}}"><i class="fa-solid {{#if editing}}fa-check{{else}}fa-pen{{/if}}"></i></a>
@@ -141,10 +142,11 @@
           {{/if}}
         </article>
         {{else}}
-        <article class="qin-trait{{#if locked}} locked{{/if}}{{#if editing}} editing{{/if}}" data-trait="{{index}}">
+        <article class="qin-trait{{#if replacedBy}} replaced{{/if}}{{#if locked}} locked{{/if}}{{#if editing}} editing{{/if}}" data-trait="{{index}}">
           <header class="qin-trait-head">
             <span class="qin-trait-name">{{current.name}}</span>
             {{#if locked}}<span class="qin-trait-lock"><i class="fa-solid fa-lock"></i> Unlocks at level {{level}}</span>{{/if}}
+            {{#if replacedBy}}<span class="qin-trait-lock"><i class="fa-solid fa-arrow-up"></i> Replaced by {{replacedBy}}</span>{{/if}}
             {{#if @root.isGM}}<span class="qin-controls">
               <a data-trait-act="edit" title="{{#if editing}}Done{{else}}Edit{{/if}}"><i class="fa-solid {{#if editing}}fa-check{{else}}fa-pen{{/if}}"></i></a>
               <a data-trait-act="remove" title="Remove"><i class="fa-solid fa-trash"></i></a></span>{{/if}}
