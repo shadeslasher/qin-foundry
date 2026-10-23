@@ -1,5 +1,6 @@
 <div class="qin-battle-wrap">
 {{#unless active}}
+  <div class="qin-battle-scroll">
   <div class="qin-card">
     <h3>No battle running</h3>
     {{#if isGM}}
@@ -28,6 +29,7 @@
     {{else}}
       <p>The GM hasn't started a battle.</p>
     {{/if}}
+  </div>
   </div>
 {{else}}
   {{#if wrongScene}}<p class="qin-warn">The battle is on scene <b>{{battleScene}}</b>.</p>{{/if}}

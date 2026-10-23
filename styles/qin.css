@@ -119,7 +119,8 @@ nav.qin-tabs a.active { background: var(--qin-red); color: #fff; }
 /* Battle panel */
 .qin-battle .window-content { padding: 6px; }
 .qin-battle-wrap { display: flex; flex-direction: column; gap: 6px; height: 100%; }
-.qin-battle-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+.qin-battle-scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+.qin-battle-scroll > * { flex: none; }
 .qin-card { border: 1px solid var(--color-border, #7a6a52); border-radius: 6px; padding: 6px 8px; }
 .qin-card h3, .qin-card h4 { margin: 0 0 4px; border: none; }
 .qin-prompt { border-color: var(--qin-gold, #b8862b); }
