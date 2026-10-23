@@ -44,6 +44,30 @@ function isHolding(token) {
   return !!battle.meta?.[token.id]?.round?.holding;
 }
 
+/** Which way the unit faces in the battle (up, down, left or right), or null; none while tokens rotate instead. */
+function facingOf(token) {
+  const f = battleRecord(token)?.meta?.[token.id]?.facing;
+  if (!f || (!f.dx && !f.dy)) return null;
+  try { if (game.settings.get("qin", "rotateFacing")) return null; } catch { /* not registered */ }
+  return f.dx ? (f.dx > 0 ? "right" : "left") : (f.dy > 0 ? "down" : "up");
+}
+
+/** A thin white chevron just inside the unit's border, pointing the way it faces. */
+function drawFacingChevron(dir, w, h, T, pad, barsTop, sideBadges) {
+  const g = new PIXI.Graphics(), half = T * 0.085, depth = T * 0.05, inset = pad + T * 0.045;
+  let x, y, rot;
+  if (dir === "up") { x = w / 2; y = inset; rot = -Math.PI / 2; }
+  else if (dir === "down") { x = w / 2; y = barsTop - T * 0.035; rot = Math.PI / 2; }
+  else if (dir === "left") { x = inset; y = h * 0.45; rot = Math.PI; }
+  else { x = w - inset - (sideBadges ? T * 0.19 : 0); y = h * 0.45; rot = 0; }
+  // drawn pointing right with its tip at (0, 0), then turned
+  const path = (gr) => gr.moveTo(-depth, -half).lineTo(0, 0).lineTo(-depth, half);
+  path(g.lineStyle({ width: Math.max(2, T * 0.045), color: 0x000000, alpha: 0.8, cap: "round", join: "round" }));
+  path(g.lineStyle({ width: Math.max(1, T * 0.02), color: 0xffffff, alpha: 1, cap: "round", join: "round" }));
+  g.position.set(x, y); g.rotation = rot;
+  return g;
+}
+
 function battleRecord(token) {
   let battle;
   try { battle = game.settings.get("qin", "battle"); } catch { return null; }
@@ -382,7 +406,8 @@ export async function drawUnitBars(token) {
   const st = unitStatus(token);
   // a player's own units get bright corner brackets (only that player sees them; the GM never does)
   const mine = !game.user?.isGM && !!actor.isOwner;
-  const key = JSON.stringify([men, max, morale, w, h, s.side, acted, active, holding, st, mine, n, art, off, fac?.img ?? null]);
+  const facing = facingOf(token);
+  const key = JSON.stringify([men, max, morale, w, h, s.side, acted, active, holding, st, mine, n, art, off, fac?.img ?? null, facing]);
   let c = token[KEY];
   if (c && !c.destroyed && c.parent === token && c.qinKey === key) return;
   const my = (gen.get(token) ?? 0) + 1;
@@ -463,6 +488,11 @@ export async function drawUnitBars(token) {
     if (pct > 0) g.lineStyle(0).beginFill(col, 0.95).drawRoundedRect(barX + 1, y + 1, Math.max(2, (barW - 2) * pct), bh - 2, 2).endFill();
   });
   c.addChild(bars);
+  if (facing) {
+    const t0 = battleRecord(token)?.meta?.[token.id]?.carry, tr = tiersFor(s.traits);
+    const badges = t0 !== undefined ? !!t0 : !!(tr["siege ladders"] || tr["siege ladder"] || tr["siege engine"]);
+    c.addChild(drawFacingChevron(facing, w, h, T, pad, top, badges));
+  }
 
   // already acted this round: grey it out and say so
   if (acted) {

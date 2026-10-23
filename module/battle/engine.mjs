@@ -413,9 +413,12 @@ function actionMenu(s, u) {
 
 // ---------------------------------------------------------------- facing
 
+/** Turn to face a target: only up, down, left or right. Off the straight lines the longer way wins
+ * (2 right, 1 down = right; 2 down, 1 left = down); on a perfect diagonal, left or right. */
 function faceToward(u, target) {
-  const dx = sign(target.x - u.x), dy = sign(target.y - u.y);
-  if (dx || dy) u.facing = { dx, dy };
+  const ddx = target.x - u.x, ddy = target.y - u.y;
+  if (!ddx && !ddy) return;
+  u.facing = Math.abs(ddx) >= Math.abs(ddy) ? { dx: sign(ddx), dy: 0 } : { dx: 0, dy: sign(ddy) };
 }
 
 // Facing: a unit has no facing until it attacks (it turns to its target) or is attacked while it has none (it

@@ -681,3 +681,13 @@ test('facing: none until attacking or attacked; the first attacker turns it; cle
   must(R.act(s, P1, { type: 'endTurn', unitId: a }));
   assert.strictEqual(A.facing, null);
 });
+
+test('facing is only up, down, left or right: the longer way wins, left/right on a perfect diagonal', () => {
+  const s = setup();
+  const a = add(s, { typeId: 'yt_warriors', side: 'player', owner: 'p1', x: 5, y: 5 });
+  const targets = [[7, 6, { dx: 1, dy: 0 }], [4, 7, { dx: 0, dy: 1 }], [6, 6, { dx: 1, dy: 0 }], [4, 4, { dx: -1, dy: 0 }], [5, 2, { dx: 0, dy: -1 }]];
+  const ids = targets.map(([x, y]) => add(s, { typeId: 'yt_warriors', side: 'enemy', x, y }));
+  must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'startRound' }));
+  const A = R.unitById(s, a);
+  targets.forEach(([, , want], i) => { dice([5, 5]); R.resolveAttack(s, A, R.unitById(s, ids[i]), { free: true }); assert.deepStrictEqual(A.facing, want); });
+});
