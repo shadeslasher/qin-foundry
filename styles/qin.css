@@ -360,13 +360,21 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 /* Unit hover tooltip (stat chips: officer, health/morale bars, four stat tiles) */
 .qin-token-hover.qin-tt-box { padding: 0; border: none; background: none; box-shadow: none; min-width: 0; }
 .qin-tt {
-  width: calc(224px * var(--qin-scale, 1.15)); padding: 9px 12px 10px; border-radius: 10px; box-sizing: border-box;
-  background: rgba(18, 15, 12, 0.93); border: 1px solid rgba(232, 193, 112, 0.45); box-shadow: 0 8px 20px rgba(0,0,0,.5);
+  width: calc(224px * var(--qin-scale, 1.15)); padding: 0; border-radius: 10px; box-sizing: border-box; overflow: hidden;
+  background: linear-gradient(rgba(33, 26, 19, 0.96), rgba(23, 18, 13, 0.96)); border: 1px solid #8a6a2c; box-shadow: 0 8px 20px rgba(0,0,0,.5);
   font-size: calc(12px * var(--qin-scale, 1.15)); line-height: 1.3; color: #f3ead8; text-align: left;
 }
+/* header: dark red band with the faction flag, gold line, name, unit type and tier badge */
+.qin-tt-hd { display: flex; gap: 10px; align-items: center; padding: 9px 11px 8px; border-bottom: 1px solid rgba(184,134,43,.35); background: linear-gradient(90deg, rgba(176,40,30,.28), transparent 70%); }
+.qin-tt-hd img { width: 2.9em; height: 2.9em; object-fit: contain; border: none; filter: drop-shadow(0 1px 2px #000); flex: none; }
+.qin-tt-ti { color: #f0c24a; font-size: 0.8em; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; }
+.qin-tt-of { font-weight: 700; font-size: 1.12em; line-height: 1.1; }
+.qin-tt-un { color: #d9c9a6; font-size: 0.92em; margin-top: 1px; }
+.qin-tt-tier { display: inline-block; padding: 0 5px; margin-left: 5px; border-radius: 3px; background: #6b4f1c; color: #ffe2a0; font-size: 0.72em; font-weight: 700; vertical-align: 2px; line-height: 1.5; }
+.qin-tt-body { padding: 8px 12px 10px; }
 .qin-tt-title { color: #f0c24a; font-size: 0.95em; font-style: italic; }
 .qin-tt-name { font-weight: 700; font-size: 1.25em; line-height: 1.15; }
-.qin-tt-sub { display: flex; align-items: center; gap: 6px; color: #d9c9a6; margin: 3px 0 7px; }
+.qin-tt-sub { display: flex; align-items: center; gap: 6px; color: #d9c9a6; margin: 0 0 5px; }
 .qin-tt-sub img { width: 1.5em; height: 1.5em; object-fit: contain; border: none; flex: none; }
 .qin-tt-sub + .qin-tt-sub { margin-top: -4px; }
 .qin-tt-bl { display: flex; justify-content: space-between; font-size: 0.92em; color: #bfae8c; }
