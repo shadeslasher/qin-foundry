@@ -51,7 +51,8 @@ export function unitTooltipHTML(token) {
   const pct = (v) => Math.max(0, Math.min(100, v));
   // header (dark red band): flag, gold line (officer's title, else the faction), name, then unit type and tier badge.
   // Without an officer the unit's own name is the big line and the tier badge sits beside it.
-  const badge = `<span class="qin-tt-tier">T${esc(sys.tier)}</span>`;
+  const tierN = Math.max(1, Math.min(4, Number(sys.tier) || 1)); // badge colour: bronze, silver, gold, purple (4+)
+  const badge = `<span class="qin-tt-tier t${tierN}">T${esc(sys.tier)}</span>`;
   const gold = officer ? (officer.system?.details?.title || facName) : facName;
   let html = `<div class="qin-tt"><div class="qin-tt-hd">${fac?.img ? `<img src="${esc(fac.img)}" alt="">` : ""}<div>`;
   if (gold) html += `<div class="qin-tt-ti">${esc(gold)}</div>`;
