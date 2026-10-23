@@ -414,10 +414,17 @@ async function runActionNow(userId, action) {
   await postLog(s.log.slice(logLen), s);
   if (res.ok) {
     const shown = animateChanges(scene, before, s, s.log.slice(logLen));
-    // Units destroyed or surrendered this action: hide their tokens once the skull/flag and fade have played
-    const fallen = s.units.filter(u => before[u.id]?.status === "active" && u.status !== "active" && scene?.tokens.get(u.id) && !scene.tokens.get(u.id).hidden);
-    if (fallen.length) Promise.resolve(shown).catch(() => {}).then(() =>
-      scene.updateEmbeddedDocuments("Token", fallen.map(u => ({ _id: u.id, hidden: true })), { qinBattle: true }).catch(e => console.warn("Qin | hiding fallen units", e)));
+    // Units destroyed or surrendered this action: remove their tokens once the skull/flag and fade have played.
+    // The unit itself stays in the Actors directory; linked units are remembered for the XP count at the end.
+    const fallen = s.units.filter(u => before[u.id]?.status === "active" && u.status !== "active" && scene?.tokens.get(u.id));
+    if (fallen.length) {
+      const b2 = getBattle();
+      b2.fallen ??= {};
+      for (const u of fallen) { const tok = scene.tokens.get(u.id); b2.fallen[u.id] = { actorId: tok.actorLink ? tok.actorId : null, name: tok.name }; }
+      await game.settings.set(SYSTEM_ID, SETTING, b2);
+      Promise.resolve(shown).catch(() => {}).then(() =>
+        scene.deleteEmbeddedDocuments("Token", fallen.map(u => u.id).filter(id => scene.tokens.get(id)), { qinBattle: true }).catch(e => console.warn("Qin | removing fallen units", e)));
+    }
   }
   return res;
 }
@@ -427,7 +434,10 @@ async function settleXpAfterBattle(battle) {
   const scene = game.scenes.get(battle.sceneId);
   if (!scene) return;
   const lines = [];
-  for (const tok of unitTokens(scene)) {
+  // units still on the scene, and fallen units whose tokens were removed (linked ones: their actor remains)
+  const entries = unitTokens(scene).map(tok => ({ id: tok.id, name: tok.name, actor: tok.actor }));
+  for (const [id, f] of Object.entries(battle.fallen ?? {})) if (!entries.some(e => e.id === id) && f.actorId) entries.push({ id, name: f.name, actor: game.actors.get(f.actorId) });
+  for (const tok of entries) {
     const start = battle.startMen?.[tok.id];
     if (start === undefined || !tok.actor || tok.actor.system.side !== "player") continue; // XP is for Player units only
     const sys = tok.actor.system;
