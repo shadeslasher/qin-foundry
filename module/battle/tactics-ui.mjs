@@ -286,8 +286,7 @@ export function drawTacticOverlays() {
       const glow = new PIXI.Graphics(); c.addChildAt(glow, 0);
       const motes = new PIXI.Graphics(); c.addChild(motes);
       const n = Math.min(14, 4 + p.size * 2), rnd = (i, k) => { const v = Math.sin((p.x * 73 + p.y * 37 + i * 11 + k) * 12.9898) * 43758.5453; return v - Math.floor(v); };
-      const light = (((((col >> 16) & 255) + 255) >> 1) << 16) | (((((col >> 8) & 255) + 255) >> 1) << 8) | (((col & 255) + 255) >> 1);
-      live.push({ glow, motes, col, light, X, Y, W, seeds: Array.from({ length: n }, (_, i) => ({ x: rnd(i, 1), s: 0.35 + rnd(i, 2) * 0.5, o: rnd(i, 3), r: 1.5 + rnd(i, 4) * 2.5 })) });
+      live.push({ glow, motes, col, X, Y, W, seeds: Array.from({ length: n }, (_, i) => ({ x: rnd(i, 1), s: 0.35 + rnd(i, 2) * 0.5, o: rnd(i, 3), r: 1.5 + rnd(i, 4) * 2.5 })) });
       // name, then the countdown badge beside it
       const t = new Txt(name, new PIXI.TextStyle({ fontFamily: "Signika, sans-serif", fontSize: Math.round(size * 0.2), fontWeight: "bold", fill: hex, stroke: "#000000", strokeThickness: 4, lineJoin: "round" }));
       t.position.set(X + 6, Y + 4); c.addChild(t);
@@ -321,7 +320,7 @@ export function drawTacticOverlays() {
         for (const m of a.seeds) {
           const k = (m.o + t * m.s * 0.12) % 1;                       // 0 at the bottom of the area, 1 at the top
           const fade = Math.sin(Math.PI * k);
-          a.motes.beginFill(a.light, 0.55 * fade).drawCircle(a.X + a.W * (0.06 + 0.88 * m.x) + Math.sin(t * 0.8 + m.o * 6) * size * 0.06, a.Y + a.W * (1 - k), m.r).endFill();
+          a.motes.beginFill(0xffffff, 0.6 * fade).drawCircle(a.X + a.W * (0.06 + 0.88 * m.x) + Math.sin(t * 0.8 + m.o * 6) * size * 0.06, a.Y + a.W * (1 - k), m.r).endFill();
         }
       }
     };
