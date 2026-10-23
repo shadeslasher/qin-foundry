@@ -54,10 +54,11 @@ function facingOf(token) {
 
 /** A thin white chevron just inside the unit's border, pointing the way it faces. */
 function drawFacingChevron(dir, w, h, T, pad, barsTop) {
-  const g = new PIXI.Graphics(), half = T * 0.11, depth = T * 0.07, inset = pad + T * 0.045;
+  // the tip sits the same distance in from the border on every side (facing down, that puts it over the bars)
+  const g = new PIXI.Graphics(), half = T * 0.085, depth = T * 0.095, inset = pad + T * 0.045;
   let x, y, rot;
   if (dir === "up") { x = w / 2; y = inset; rot = -Math.PI / 2; }
-  else if (dir === "down") { x = w / 2; y = barsTop - T * 0.035; rot = Math.PI / 2; }
+  else if (dir === "down") { x = w / 2; y = h - inset; rot = Math.PI / 2; }
   else if (dir === "left") { x = inset; y = h * 0.45; rot = Math.PI; }
   else { x = w - inset; y = h * 0.45; rot = 0; }
   // drawn pointing right with its tip at (0, 0), then turned
