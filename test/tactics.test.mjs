@@ -233,3 +233,22 @@ test('Cavalry Charge: only cavalry charges in the area gain Attack +4', () => {
   assert.strictEqual(roll(0), 0, 'an ordinary attack gains nothing');
   assert.strictEqual(roll(2), 4, 'a charge gains +4');
 });
+
+test('GM: trigger all tactics sets off every waiting tactic (Raise Flag and Set Aflame wait for their action)', () => {
+  const { s, A } = battle((s) => {
+    must(R.act(s, HOST, { type: 'setTactician', side: 'player', tactician: { ...LIU_BEI, aow: 5 } }));
+    must(R.act(s, P1, { type: 'placeTactic', side: 'player', key: 'attack', x: 5, y: 5 }));
+    must(R.act(s, P1, { type: 'placeTactic', side: 'player', key: 'setAflame', x: 5, y: 5 }));
+    must(R.act(s, P1, { type: 'placeTactic', side: 'player', key: 'heroNeeded', x: 5, y: 5 }));
+    must(R.act(s, HOST, { type: 'setTactician', side: 'enemy', tactician: { id: 'z', name: 'Zhang Bao', aow: 0 } }));
+    must(R.act(s, HOST, { type: 'placeTactic', side: 'enemy', key: 'brutalize', x: 5, y: 4 }));
+  });
+  assert.ok(!R.act(s, P1, { type: 'triggerAllTactics' }).ok, 'GM only');
+  const before = A.morale;
+  must(R.act(s, HOST, { type: 'triggerAllTactics' }));
+  const st = Object.fromEntries(s.tactics.placed.map(t => [t.key, t.state]));
+  assert.deepStrictEqual(st, { attack: 'active', setAflame: 'hidden', heroNeeded: 'active', brutalize: 'spent' });
+  assert.strictEqual(s.tactics.placed.find(t => t.key === 'heroNeeded').unitId, A.id, 'tied to the unit in its area');
+  assert.strictEqual(A.morale, Math.max(0, before - 25), 'Brutalize hits the player unit in its area');
+  assert.ok(!R.act(s, HOST, { type: 'triggerAllTactics' }).ok, 'nothing left waiting');
+});

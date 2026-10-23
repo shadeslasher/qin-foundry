@@ -1082,7 +1082,7 @@ function act(s, actor, a) {
   }
 }
 
-const HOST_ONLY = new Set(['setGate', 'setHidden', 'setMap', 'paintTerrain', 'setLibrary', 'addUnit', 'editUnit', 'removeUnit',
+const HOST_ONLY = new Set(['triggerAllTactics', 'setGate', 'setHidden', 'setMap', 'paintTerrain', 'setLibrary', 'addUnit', 'editUnit', 'removeUnit',
   'startBattle', 'resetBattle', 'startRound', 'skipPrompt', 'addMod', 'removeMod', 'adjust', 'setFacing',
   'setTactician', 'finishTactics', 'skipTactics']);
 
@@ -1256,6 +1256,32 @@ const ACTIONS = {
     T.placed = []; T.phase = 'battle';
     s.turn.phase = 'formations';
     log(s, 'Tactics skipped. Round 1: declare formations.');
+  },
+
+  // ---------- GM: set off every tactic still waiting, now
+  // Area tactics take effect for their duration; tactics tied to one unit go to the side's unit nearest the
+  // centre of the area; Brutalize and Inspiring the Army take effect at once. Raise Flag and Set Aflame stay
+  // waiting: they are used by taking their action.
+  triggerAllTactics(s) {
+    const T = s.tactics;
+    if (!T || T.phase !== 'battle') return err('Tactics can be set off once the battle has started');
+    const waiting = T.placed.filter(t => t.state === 'hidden' && !['raiseFlag', 'setAflame'].includes(t.key));
+    if (!waiting.length) return err('No tactics are waiting to be set off');
+    for (const t of waiting) {
+      const def = tacticDef(t.key);
+      const holder = def.bound ? liveUnits(s).filter(u => u.side === t.side && inTacticArea(t, u))
+        .sort((a, b) => manhattan(a, t) - manhattan(b, t))[0] || null : null;
+      triggerTactic(s, t, holder);
+      if (t.key === 'brutalize') {
+        for (const o of liveUnits(s)) if (o.men > 0 && alliance(o.side) !== alliance(t.side) && inTacticArea(t, o)) o.morale = clamp(o.morale - 25, 0, 100);
+        log(s, 'Brutalize: enemy units in the area lose 25 morale.');
+      } else if (t.key === 'inspiring') {
+        for (const o of liveUnits(s)) if (o.men > 0 && o.side === t.side) o.morale = clamp(o.morale + 25, 0, 100);
+        log(s, 'Inspiring the Army: every ' + SIDE_LABEL[t.side].toLowerCase() + ' unit gains 25 morale.');
+      } else if (def.bound && !holder) log(s, def.name + ': no ' + SIDE_LABEL[t.side].toLowerCase() + ' unit in its area to take it.');
+    }
+    log(s, 'The GM sets off every waiting tactic.');
+    settle(s);
   },
 
   // ---------- GM: hide or reveal a unit (abilities, landmarks, rulings)

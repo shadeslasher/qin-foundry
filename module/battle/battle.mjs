@@ -186,6 +186,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
       log: (s.log || []).slice(-12).reverse().map(e => e.text),
       wrongScene: canvas.scene?.id !== battle.sceneId, battleScene: scene?.name,
       showSkip: game.user.isGM && !["setup", "formations", "tactics"].includes(p.kind),
+      tacticsWaiting: game.user.isGM && s.tactics?.phase === "battle" ? s.tactics.placed.filter(t => t.state === "hidden" && !["raiseFlag", "setAflame"].includes(t.key)).length : 0,
       gates: game.user.isGM ? (s.siege?.gates ?? []).map(g => ({ id: g.id, where: g.squares.map(([x, y]) => `${x},${y}`).join(" + "),
         owners: [["friendly", "Friendly (player & ally)"], ["enemy", "Enemy"]].map(([v, l]) => ({ v, l, sel: v === g.owner })),
         states: [["locked", "Locked"], ["open", "Open"], ["broken", "Broken open"], ["burned", "Burned (ruins)"]].map(([v, l]) => ({ v, l, sel: v === g.state })) })) : [],

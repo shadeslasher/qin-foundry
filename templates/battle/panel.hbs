@@ -117,6 +117,7 @@
         <button type="button" data-action="setHidden" data-hidden="0" title="Reveal the unit tokens you have selected"><i class="fa-solid fa-eye"></i> Reveal selected</button>
       </div>
       <div class="qin-btns">
+        {{#if tacticsWaiting}}<button type="button" data-action="do" data-type="triggerAllTactics" title="Set off every placed tactic that hasn't fired yet ({{tacticsWaiting}}). Raise Flag and Set Aflame stay until a unit takes their action."><i class="fa-solid fa-chess-knight"></i> Trigger all tactics ({{tacticsWaiting}})</button>{{/if}}
         {{#if showSkip}}<button type="button" data-action="do" data-type="skipPrompt">Skip current turn</button>{{/if}}
         <button type="button" data-action="do" data-type="resetBattle">Back to setup</button>
         <button type="button" data-action="endBattle">End battle</button>
