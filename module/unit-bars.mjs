@@ -489,7 +489,9 @@ export async function drawUnitBars(token) {
     if (pct > 0) g.lineStyle(0).beginFill(col, 0.95).drawRoundedRect(barX + 1, y + 1, Math.max(2, (barW - 2) * pct), bh - 2, 2).endFill();
   });
   c.addChild(bars);
-  if (facing) c.addChild(drawFacingChevron(facing, w, h, T, pad, top));
+  // which way it faces: shown only while the unit is hovered
+  if (facing) { const ch = c.qinChevron = drawFacingChevron(facing, w, h, T, pad, top); ch.visible = !!token.hover; c.addChild(ch); }
+  else c.qinChevron = null;
 
   // already acted this round: grey it out and say so
   if (acted) {
@@ -626,7 +628,12 @@ export function registerUnitBars() {
   Hooks.on("drawToken", drawUnitBars);
   Hooks.on("refreshToken", drawUnitBars);
   Hooks.on("destroyToken", clear);
-  Hooks.on("hoverToken", (token, hovered) => { if (token.actor?.type === "unit") animateFlag(token, hovered ? 1 : 0); });
+  Hooks.on("hoverToken", (token, hovered) => {
+    if (token.actor?.type !== "unit") return;
+    animateFlag(token, hovered ? 1 : 0);
+    const ch = token[KEY]?.qinChevron;
+    if (ch && !ch.destroyed) ch.visible = !!hovered;
+  });
   // health, morale, officer or faction changes on the actor redraw its tokens
   Hooks.on("updateActor", (actor) => {
     if (actor.type === "unit") for (const t of actor.getActiveTokens?.(true) ?? []) drawUnitBars(t);
