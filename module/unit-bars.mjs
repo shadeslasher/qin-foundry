@@ -55,7 +55,7 @@ function facingOf(token) {
 /** A thin white chevron just inside the unit's border, pointing the way it faces. */
 function drawFacingChevron(dir, w, h, T, pad, barsTop) {
   // the tip sits the same distance in from the border on every side (facing down, that puts it over the bars)
-  const g = new PIXI.Graphics(), half = T * 0.085, depth = T * 0.095, inset = pad + T * 0.045;
+  const g = new PIXI.Graphics(), half = T * 0.15, depth = T * 0.055, inset = pad + T * 0.045; // long and flat
   let x, y, rot;
   if (dir === "up") { x = w / 2; y = inset; rot = -Math.PI / 2; }
   else if (dir === "down") { x = w / 2; y = h - inset; rot = Math.PI / 2; }
@@ -63,8 +63,8 @@ function drawFacingChevron(dir, w, h, T, pad, barsTop) {
   else { x = w - inset; y = h * 0.45; rot = 0; }
   // drawn pointing right with its tip at (0, 0), then turned
   const path = (gr) => gr.moveTo(-depth, -half).lineTo(0, 0).lineTo(-depth, half);
-  path(g.lineStyle({ width: Math.max(2, T * 0.045), color: 0x000000, alpha: 0.8, cap: "round", join: "round" }));
-  path(g.lineStyle({ width: Math.max(1, T * 0.02), color: 0xffffff, alpha: 1, cap: "round", join: "round" }));
+  path(g.lineStyle({ width: Math.max(2, T * 0.036), color: 0x000000, alpha: 0.8, cap: "round", join: "round" }));
+  path(g.lineStyle({ width: Math.max(1, T * 0.018), color: 0xffffff, alpha: 1, cap: "round", join: "round" }));
   g.position.set(x, y); g.rotation = rot;
   return g;
 }
