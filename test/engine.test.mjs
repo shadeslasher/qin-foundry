@@ -78,7 +78,7 @@ test('ranged attacker loses +2 after moving; ranged defender returns fire', () =
   assert.strictEqual(R.unitById(s, a).men, 100 - (3 - 2)); // ranged defender returns base damage
 });
 
-test('cavalry charge: +1 per 2 tiles moved, no morale multiplier (rear still x1.5)', () => {
+test('cavalry charge: +1 per 2 tiles moved, no morale multiplier (rear neither)', () => {
   const s = setup();
   const a = add(s, { typeId: 'han_lancer_cav', side: 'player', owner: 'p1', x: 5, y: 2 });
   const d = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 5 });
@@ -95,7 +95,7 @@ test('cavalry charge: +1 per 2 tiles moved, no morale multiplier (rear still x1.
   assert.ok(r.attackRoll.parts.some(([l, v]) => /Cavalry charge \(2 tiles/.test(l) && v === 1));
   assert.ok(!r.defendRoll.parts.some(([l]) => /charg/i.test(l)), 'no defender penalty');
   assert.strictEqual(r.diff, 8);
-  assert.strictEqual(R.unitById(s, d).morale, Math.max(0, 50 - 12), 'rear x1.5; the charge does not multiply');
+  assert.strictEqual(R.unitById(s, d).morale, Math.max(0, 50 - 8), 'neither the rear attack nor the charge multiplies morale loss');
 });
 
 test('cavalry charge scales with distance; one tile is no charge', () => {
@@ -144,8 +144,8 @@ test('Fierce Charge tiers', () => {
   const plain = run(2, 1), dbl = run(3, 1); // same roll; ++ doubles the morale loss
   assert.strictEqual(dbl.charge, 3);
   assert.strictEqual(50 - dbl.morale, Math.min(50, 2 * (50 - plain.morale)));
-  const rear = run(3, 1, true); // rear + Fierce Charge++ = x2.5
-  assert.strictEqual(50 - rear.morale, Math.min(50, Math.floor(2.5 * rear.r.diff)));
+  const rear = run(3, 1, true); // rear adds nothing: Fierce Charge++ alone, x2
+  assert.strictEqual(50 - rear.morale, Math.min(50, 2 * rear.r.diff));
 });
 
 test('encirclement from a move waits until the move is committed (undo leaves morale alone)', () => {

@@ -673,11 +673,10 @@ function resolveAttack(s, attacker, defender, opts) {
     loser = winner === 'attacker' ? defender : attacker;
     moraleLoss = diff;
     if (winner === 'attacker') {
-      // a charge alone doesn't multiply morale loss; a rear attack adds x0.5 and Fierce Charge++ adds x1
-      // (rear x1.5, Fierce Charge++ x2, both x2.5), rounded down
+      // only Fierce Charge++ multiplies morale loss (x2); charges and rear attacks don't
       const fierceDouble = charge && fierce >= 3;
-      mult = 1 + (rear ? 0.5 : 0) + (fierceDouble ? 1 : 0);
-      moraleLoss = Math.floor(diff * mult) + (passive(s, attacker).extraMoraleLossOnWin || 0);
+      mult = fierceDouble ? 2 : 1;
+      moraleLoss = diff * mult + (passive(s, attacker).extraMoraleLossOnWin || 0);
       const terror = trait(attacker, 'terror'); // Terror: +2 morale loss; Terror+: double it
       if (terror === 1) moraleLoss += 2; else if (terror >= 2) moraleLoss *= 2;
     } else {
