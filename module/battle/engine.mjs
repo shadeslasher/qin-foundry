@@ -417,14 +417,18 @@ function faceToward(u, target) {
   if (dx || dy) u.facing = { dx, dy };
 }
 
-// Rear: the attacker is behind the defender relative to its facing.
+// Facing: a unit has no facing until it attacks (it turns to its target) or is attacked while it has none (it
+// turns to that first attacker). Moving doesn't turn it, and its facing clears when its own turn ends.
+// Rear: the attacker is behind the defender relative to its facing (never when it has no facing).
 function isRear(s, attacker, defender) {
-  const f = defender.facing || { dx: 0, dy: 1 };
+  const f = defender.facing;
+  if (!f) return false;
   const dot = (attacker.x - defender.x) * f.dx + (attacker.y - defender.y) * f.dy;
   return dot < 0;
 }
 function isFront(s, attacker, defender) {
-  const f = defender.facing || { dx: 0, dy: 1 };
+  const f = defender.facing;
+  if (!f) return true; // no facing yet: whoever comes at it is in front of it
   return (attacker.x - defender.x) * f.dx + (attacker.y - defender.y) * f.dy > 0;
 }
 
@@ -706,9 +710,9 @@ function resolveAttack(s, attacker, defender, opts) {
   if (!ranged) {
     attacker.round.meleeTarget = defender.id;
     defender.round.meleeAttacker = attacker.id;
-    faceToward(attacker, defender);
-    if (!defender.round.meleeTarget) faceToward(defender, attacker);
   }
+  faceToward(attacker, defender);                 // attacking turns a unit to its target
+  if (!defender.facing) faceToward(defender, attacker); // the first unit to attack it, while it has no facing
   if (attacker.hidden) attacker.hidden = false;
 
   const result = {
@@ -986,6 +990,7 @@ function startActivation(s, u, extra) {
 
 function finishActivation(s, u) {
   const t = s.turn;
+  u.facing = null; // facing clears when the unit's own turn ends
   // End-of-turn morale regen for units with an officer (up to 75)
   const o = officerOf(s, u);
   if (o && alive(u) && u.morale < 75) {
@@ -1102,7 +1107,7 @@ const ACTIONS = {
       name: a.name || (o ? o.name + "'s " : '') + t.name,
       side: a.side, owner: a.owner || null, x: a.x, y: a.y, men: 100,
       morale: a.morale !== undefined ? clamp(a.morale, 0, 100) : 50,
-      formation: 'none', facing: { dx: 0, dy: a.side === 'enemy' ? 1 : -1 }, hidden: false,
+      formation: 'none', facing: null, hidden: false,
       status: 'active', mods: [], heroicUsed: 0, lastHeroic: null, surrounded: false, round: newRoundFlags(),
     };
     s.units.push(u);
@@ -1160,14 +1165,7 @@ const ACTIONS = {
     s.turn = freshTurn('tactics', 1);
     s.tactics = { phase: 'setup', sides: { player: null, ally: null, enemy: null }, placed: [], nextId: 1 };
     for (const u of s.units) u.round = newRoundFlags();
-    // Every unit starts facing the nearest enemy
-    for (const u of liveUnits(s)) {
-      const foes = liveUnits(s).filter(o => hostile(o, u)).sort((a, b) => manhattan(a, u) - manhattan(b, u));
-      if (foes.length) {
-        const f = foes[0], dx = f.x - u.x, dy = f.y - u.y;
-        u.facing = Math.abs(dx) > Math.abs(dy) ? { dx: sign(dx), dy: 0 } : { dx: 0, dy: sign(dy) };
-      }
-    }
+    for (const u of s.units) u.facing = null; // no facing until a unit attacks or is attacked
     log(s, 'Battle begins. Tacticians, choose your tactics.');
   },
   resetBattle(s) {
@@ -1341,8 +1339,6 @@ const ACTIONS = {
     if (!alive(u)) return;
     if (forced) fireTactics(s, 'forcedMarch', u);
     u.x = a.x; u.y = a.y; u.round.moved = true;
-    u.facing = { dx: sign(u.x - from.x), dy: sign(u.y - from.y) };
-    if (Math.abs(u.x - from.x) > Math.abs(u.y - from.y)) u.facing.dy = 0; else if (u.y !== from.y) u.facing.dx = 0;
     ac.started = true; ac.movedThisActivation = true; ac.step = 'act';
     revealAround(s, u);
     if (heroOfficer(s, u)) fireTactics(s, 'heroMove', u);
@@ -1460,10 +1456,7 @@ const ACTIONS = {
     if (ac.step !== 'reposition' || !ac.reposition) return err('Nothing to reposition');
     if (a.x !== undefined && a.y !== undefined) {
       if (!ac.reposition.tiles.some(([x, y]) => x === a.x && y === a.y)) return err('Pick one of the marked tiles');
-      const from = { x: u.x, y: u.y };
       u.x = a.x; u.y = a.y;
-      u.facing = { dx: sign(u.x - from.x), dy: sign(u.y - from.y) };
-      if (u.facing.dx && u.facing.dy) u.facing.dy = 0;
       log(s, u.name + ' moves up beside the enemy.');
       revealAround(s, u);
     }
@@ -1666,7 +1659,6 @@ function doMove(s, actor, a, forced) {
   const from = { x: u.x, y: u.y };
   const tiles = s.freeMovement ? Math.abs(a.x - u.x) + Math.abs(a.y - u.y) : (reachable(s, u, budget).steps.get(a.x + ',' + a.y) ?? 0);
   u.x = a.x; u.y = a.y; u.round.moved = true;
-  u.facing = { dx: sign(u.x - from.x), dy: sign(u.y - from.y) };
   ac.started = true; ac.movedThisActivation = true;
   revealAround(s, u);
   if (!forced) ac.tilesMoved = tiles;

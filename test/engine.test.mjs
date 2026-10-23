@@ -83,7 +83,7 @@ test('cavalry charge: +1 per 2 tiles moved, no morale multiplier (rear neither)'
   const a = add(s, { typeId: 'han_lancer_cav', side: 'player', owner: 'p1', x: 5, y: 2 });
   const d = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 5 });
   must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'startRound' }));
-  assert.deepStrictEqual(R.unitById(s, d).facing, { dx: 0, dy: -1 }, 'starts facing the nearest enemy');
+  assert.strictEqual(R.unitById(s, d).facing, null, 'no facing at the start');
   R.unitById(s, d).facing = { dx: 0, dy: 1 }; // turned away from the cavalry
   must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: a }));
   s.freeMovement = false;
@@ -634,4 +634,32 @@ test('levels: every 100 XP is a level', () => {
   // 10 casualties x 4/1 = 40 XP -> 130 -> level 2 with 30 XP
   assert.strictEqual(A.level, 2);
   assert.strictEqual(A.xp, 30);
+});
+
+test('facing: none until attacking or attacked; the first attacker turns it; clears at the end of its turn', () => {
+  const s = setup();
+  const a = add(s, { typeId: 'yt_warriors', side: 'player', owner: 'p1', x: 5, y: 4 });
+  const b = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 5 });
+  const c = add(s, { typeId: 'yt_warriors', side: 'player', owner: 'p1', x: 5, y: 6 });
+  must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'startRound' }));
+  const A = R.unitById(s, a), B = R.unitById(s, b), C = R.unitById(s, c);
+  assert.deepStrictEqual([A.facing, B.facing, C.facing], [null, null, null]);
+  // with no facing there is no rear
+  dice([5, 5]); let r = R.resolveAttack(s, A, B, { free: true });
+  assert.strictEqual(r.rear, false);
+  assert.deepStrictEqual(A.facing, { dx: 0, dy: 1 }, 'attacking turns it to its target');
+  assert.deepStrictEqual(B.facing, { dx: 0, dy: -1 }, 'the first attacker turns it');
+  // a second attacker from behind: B doesn't turn, so it's a rear attack
+  dice([5, 5]); r = R.resolveAttack(s, C, B, { free: true });
+  assert.strictEqual(r.rear, true);
+  assert.deepStrictEqual(B.facing, { dx: 0, dy: -1 });
+  // moving doesn't turn a unit; ending its turn clears its facing
+  s.freeMovement = false;
+  const p = R.prompt(s);
+  if (p.kind === 'claim') must(R.act(s, P1, { type: 'claim' }));
+  must(R.act(s, P1, { type: 'begin', unitId: a }));
+  must(R.act(s, P1, { type: 'moveTo', unitId: a, x: 4, y: 4 }));
+  assert.deepStrictEqual(A.facing, { dx: 0, dy: 1 }, 'moving keeps its facing');
+  must(R.act(s, P1, { type: 'endTurn', unitId: a }));
+  assert.strictEqual(A.facing, null);
 });

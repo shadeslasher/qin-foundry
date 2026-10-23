@@ -165,7 +165,7 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
       id: tok.id, typeId: tok.id, officerId, name: tok.name, side: sys.side, owner: ownerUserId(a),
       x: fromPos ? fromPos.x : gx, y: fromPos ? fromPos.y : gy, men: sys.men.value, maxMen: sys.men.max, morale: sys.morale, xp: sys.xp?.value ?? 0, level: sys.level ?? 1,
       formation: a.items.get(sys.formation)?.type === "formation" ? `${tok.id}.${sys.formation}` : "none",
-      facing: meta.facing ?? { dx: 0, dy: sys.side === "enemy" ? 1 : -1 }, hidden: sys.hidden, status: sys.status,
+      facing: meta.facing ?? null, hidden: sys.hidden, status: sys.status,
       fierceCharge: fierce ? 1 + fierce[1].length : 0,
       traitTiers: traitTiersOf(sys.traits), fx: meta.fx ?? {},
       carry: meta.carry !== undefined ? meta.carry : startingCarry(sys.traits),
@@ -225,8 +225,9 @@ async function writeBack(battle, s, scene) {
     const t = { _id: u.id };
     // Only the engine moving a unit (a swap) needs the token moved; dragged tokens are already there.
     if (Math.round(tok.x / size) !== u.x || Math.round(tok.y / size) !== u.y) { t.x = u.x * size; t.y = u.y * size; }
-    if (rotate && !tok.lockRotation && u.facing) {
-      const rot = ((Math.atan2(u.facing.dy, u.facing.dx) * 180 / Math.PI) - 90 + 360) % 360;
+    if (rotate && !tok.lockRotation) {
+      // no facing: the token goes back to how it was drawn
+      const rot = u.facing ? ((Math.atan2(u.facing.dy, u.facing.dx) * 180 / Math.PI) - 90 + 360) % 360 : 0;
       if (Math.round(tok.rotation) !== Math.round(rot)) t.rotation = rot;
     }
     if (manage && u.side !== "player") {
