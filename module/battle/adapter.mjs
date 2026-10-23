@@ -177,7 +177,7 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
       fierceCharge: fierce ? 1 + fierce[1].length : 0,
       traitTiers: traitTiersOf(sys.traits), fx: meta.fx ?? {},
       carry: meta.carry !== undefined ? meta.carry : startingCarry(sys.traits),
-      mods: meta.mods ?? [], heroicUsed: meta.heroicUsed ?? 0, lastHeroic: meta.lastHeroic ?? null,
+      mods: meta.mods ?? [], overwatch: !!meta.overwatch, heroicUsed: meta.heroicUsed ?? 0, lastHeroic: meta.lastHeroic ?? null,
       surrounded: meta.surrounded ?? false, round: meta.round ?? { activated: false, moved: false, cannotMove: false, holding: false, attacked: false, skillUsed: false, heroicUsed: false, meleeTarget: null, meleeAttacker: null },
     });
     // Terrain for this tile and its neighbours (stealth cover, encirclement)
@@ -215,7 +215,7 @@ async function writeBack(battle, s, scene) {
   for (const u of s.units) {
     const tok = scene?.tokens.get(u.id);
     if (!tok) continue;
-    battle.meta[u.id] = { pos: { x: u.x, y: u.y }, facing: u.facing, mods: u.mods, heroicUsed: u.heroicUsed, lastHeroic: u.lastHeroic, surrounded: u.surrounded, round: u.round, fx: u.fx ?? {}, carry: u.carry ?? null };
+    battle.meta[u.id] = { pos: { x: u.x, y: u.y }, facing: u.facing, mods: u.mods, overwatch: !!u.overwatch, heroicUsed: u.heroicUsed, lastHeroic: u.lastHeroic, surrounded: u.surrounded, round: u.round, fx: u.fx ?? {}, carry: u.carry ?? null };
     const sys = tok.actor.system;
     const upd = {};
     if (sys.men.value !== u.men) upd["system.men.value"] = u.men;

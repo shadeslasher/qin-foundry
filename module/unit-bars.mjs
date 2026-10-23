@@ -44,6 +44,23 @@ function isHolding(token) {
   return !!battle.meta?.[token.id]?.round?.holding;
 }
 
+/** Is this ranged unit on overwatch (it shoots the first enemy that moves into range before its next turn)? */
+function isOverwatch(token) {
+  let battle;
+  try { battle = game.settings.get("qin", "battle"); } catch { return false; }
+  if (!battle?.active || battle.sceneId !== token.document?.parent?.id) return false;
+  return !!battle.meta?.[token.id]?.overwatch;
+}
+
+/** Overwatch: an amber targeting reticle. */
+function drawOverwatch(size) {
+  const g = new PIXI.Graphics(), u = size / 20, col = 0xffb347;
+  g.lineStyle(Math.max(1.5, u * 1.4), col, 1).drawCircle(0, 0, 6 * u);
+  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) g.moveTo(dx * 3.2 * u, dy * 3.2 * u).lineTo(dx * 9 * u, dy * 9 * u);
+  g.lineStyle(0).beginFill(0xff5a3c, 1).drawCircle(0, 0, 1.6 * u).endFill();
+  return g;
+}
+
 /** Which way the unit faces in the battle (up, down, left or right), or null; none while tokens rotate instead. */
 function facingOf(token) {
   const f = battleRecord(token)?.meta?.[token.id]?.facing;
@@ -422,7 +439,7 @@ export async function drawUnitBars(token) {
   const s = actor.system;
   const men = s.men?.value ?? 0, max = s.men?.max || 100, morale = s.morale ?? 0;
   const w = token.w, h = token.h, T = Math.min(w, h);
-  const acted = hasActed(token), active = !acted && isActive(token), holding = isHolding(token);
+  const acted = hasActed(token), active = !acted && isActive(token), holding = isHolding(token), watching = isOverwatch(token);
   const art = unitArt(token), off = officerArt(actor), fac = factionOf(s.faction);
   const n = figureCount(men, max);
   if (token.mesh && !token.mesh.destroyed) token.mesh.renderable = false; // the stand replaces the picture
@@ -430,7 +447,7 @@ export async function drawUnitBars(token) {
   // a player's own units get bright corner brackets (only that player sees them; the GM never does)
   const mine = !game.user?.isGM && !!actor.isOwner;
   const facing = facingOf(token);
-  const key = JSON.stringify([men, max, morale, w, h, s.side, acted, active, holding, st, mine, n, art, off, fac?.img ?? null, facing, battleRecord(token)?.meta?.[token.id]?.carry ?? null]);
+  const key = JSON.stringify([men, max, morale, w, h, s.side, acted, active, holding, watching, st, mine, n, art, off, fac?.img ?? null, facing, battleRecord(token)?.meta?.[token.id]?.carry ?? null]);
   let c = token[KEY];
   if (c && !c.destroyed && c.parent === token && c.qinKey === key) return;
   const my = (gen.get(token) ?? 0) + 1;
@@ -521,12 +538,12 @@ export async function drawUnitBars(token) {
     if (CMF) { const f = new CMF(); f.desaturate(); f.brightness(0.75, true); stand.filters = [f]; }
     // the side colour stays: the outline is drawn on top, un-greyed (bars are never greyed)
     c.addChild(new PIXI.Graphics().lineStyle(Math.max(2, T * 0.03), color, 1).drawRoundedRect(pad, pad, w - 2 * pad, h - 2 * pad, T * 0.1));
-    const t = new Txt(holding ? "Hold" : "Done", new PIXI.TextStyle({ ...styleOpts, fontSize: Math.round(T * 0.165), fill: "#dddddd" }));
+    const t = new Txt(watching ? "Watch" : holding ? "Hold" : "Done", new PIXI.TextStyle({ ...styleOpts, fontSize: Math.round(T * 0.165), fill: "#dddddd" }));
     t.anchor?.set?.(0.5, 0.5);
     c.addChild(t);
-    if (holding) { // small shield beside "Hold"
+    if (holding || watching) { // small shield beside "Hold", reticle beside "Watch"
       const sw = T * 0.15, sh = T * 0.18, gapX = T * 0.025, total = sw + gapX + t.width;
-      const icon = drawShield(sw, sh);
+      const icon = watching ? drawOverwatch(T * 0.19) : drawShield(sw, sh);
       const ly = top / 2;
       icon.position.set(w / 2 - total / 2 + sw / 2, ly);
       t.position.set(w / 2 - total / 2 + sw + gapX + t.width / 2, ly);
@@ -545,6 +562,7 @@ export async function drawUnitBars(token) {
   if (st.rangedDefense) icons.push([drawArrowShield, plain(st.rangedDefense), st.rangedDefense < 0]);
   if (st.range) icons.push([drawBow, signed(st.range), st.range < 0]);
   if (st.hidden) icons.push([drawHiddenEye, "", false]);
+  if (watching) icons.push([drawOverwatch, "", false]);
   // siege equipment it carries: the battle's record once a battle runs (it can drop or pick it up), else its traits
   const tiers = tiersFor(s.traits);
   const carried = battleRecord(token)?.meta?.[token.id]?.carry;

@@ -405,6 +405,7 @@ function actionMenu(s, u) {
     closeGate: canStillAct && gatesNear(s, u).some(g => g.state === 'open' && gateKeyHolder(s, u, g) && !g.squares.some(([x, y]) => unitAt(s, x, y))),
     setFire: canStillAct && pendingTactic(s, u, 'setFire'),
     hold: canStillAct,
+    overwatch: canStillAct && !reloading && typeOf(s, u).weapon === 'ranged',
     ability: skillOk || artOk, skill: skillOk, art: artOk,
     heroic: !!(o && (o.heroicActions || []).length && !u.round.heroicUsed && (u.heroicUsed || 0) < (o.fire || 0)),
     undo: !!ac.undo,
@@ -657,7 +658,7 @@ function resolveAttack(s, attacker, defender, opts) {
     if (!dNeg && (dt.weapon !== 'ranged' || trait(defender, 'hybrid')) && meleeLevelOk(s, defender, attacker)) dmgToAtt = base(defender) + winBonus('defender');
     if (ambush) dmgToAtt = 0; // attacked from hiding: the defender rolls but can't strike back
   } else {
-    if (!aNeg && winner === 'attacker') dmgToDef = base(attacker) + diff;
+    if (!aNeg) dmgToDef = base(attacker) + winBonus('attacker'); // like melee: base damage, + the difference on a win
     const canReturn = dt.weapon === 'ranged' ? rangeOk(s, defender, attacker)
       : manhattan(attacker, defender) === 1 && meleeLevelOk(s, defender, attacker);
     if (!dNeg && canReturn) dmgToAtt = base(defender) + winBonus('defender');
@@ -996,6 +997,7 @@ function endRound(s) {
 }
 
 function startActivation(s, u, extra) {
+  if (u.overwatch) { delete u.overwatch; log(s, u.name + ' stands down from overwatch.', { type: 'overwatch', unit: u.id, on: false }); }
   s.turn.activation = Object.assign({ unitId: u.id, step: 'move', started: false, startedHidden: !!u.hidden,
     movedThisActivation: false, tilesMoved: 0, forcedMarched: false, interject: false, from: { x: u.x, y: u.y } }, extra || {});
 }
@@ -1384,6 +1386,8 @@ const ACTIONS = {
     u.x = a.x; u.y = a.y; u.round.moved = true;
     ac.started = true; ac.movedThisActivation = true; ac.step = 'act';
     revealAround(s, u);
+    const watched = overwatchFire(s, u, from);
+    if (!alive(u)) { settle(s); return; }
     if (heroOfficer(s, u)) fireTactics(s, 'heroMove', u);
     if (forced) {
       const { cost, dist } = red.get(k);
@@ -1401,7 +1405,7 @@ const ACTIONS = {
       settle(s);
       return;
     }
-    if (!struck) ac.undo = { from, facing: prevFacing, hidden: prevHidden, started: prevStarted };
+    if (!struck && !watched) ac.undo = { from, facing: prevFacing, hidden: prevHidden, started: prevStarted };
     log(s, u.name + ' moves ' + blue.get(k) + ' tile' + (blue.get(k) === 1 ? '' : 's') + '.');
 
     settle(s, { deferEncirclement: true });
@@ -1434,6 +1438,16 @@ const ACTIONS = {
     log(s, u.name + ' swaps places with ' + o.name + '.');
     revealAround(s, u); revealAround(s, o);
     settle(s);
+  },
+  overwatch(s, actor, a) { // ranged: end the turn, and shoot the first enemy that moves into range before its next turn
+    const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
+    const { u, act: ac } = r;
+    if (typeOf(s, u).weapon !== 'ranged') return err('Only ranged units can overwatch');
+    if (u.round.attacked || ac.forcedMarched) return err('Too late to overwatch this turn');
+    if (fx(u).reload) return err('Reload first');
+    u.overwatch = true;
+    log(s, u.name + ' takes up overwatch.', { type: 'overwatch', unit: u.id, on: true });
+    finishActivation(s, u);
   },
   holdPosition(s, actor, a) {
     const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
@@ -1620,6 +1634,22 @@ function tacticPlacer(s, actor, side) {
   return side === 'player' && !!tac && tac.kind === 'player' && tac.userId === actor.id;
 }
 
+/** Overwatch: enemy ranged units on overwatch shoot `u` when its move brings it into their range (one shot each,
+ *  then the overwatch ends). Returns true if any fired. */
+function overwatchFire(s, u, from) {
+  let fired = false;
+  for (const h of liveUnits(s)) {
+    if (!alive(u) || u.hidden) break;
+    if (!h.overwatch || !hostile(h, u)) continue;
+    if (!rangeOk(s, h, u) || rangeOk(s, h, { ...u, x: from.x, y: from.y })) continue; // must move INTO range
+    delete h.overwatch;
+    log(s, h.name + ' fires on overwatch as ' + u.name + ' comes into range!', { type: 'overwatch', unit: h.id, on: false, fired: true });
+    resolveAttack(s, h, u, { free: true, overwatch: true, ambush: !!h.hidden, noTactics: true });
+    fired = true;
+  }
+  return fired;
+}
+
 /** Backs Turned: hostile units next to `u` that it moves away from strike it for free. Returns true if any did. */
 function backsTurned(s, u, to) {
   let struck = false;
@@ -1708,6 +1738,8 @@ function doMove(s, actor, a, forced) {
   u.x = a.x; u.y = a.y; u.round.moved = true;
   ac.started = true; ac.movedThisActivation = true;
   revealAround(s, u);
+  overwatchFire(s, u, from);
+  if (!alive(u)) { settle(s); return ok(); }
   if (!forced) ac.tilesMoved = tiles;
   if (forced) {
     ac.forcedMarched = true;
@@ -1737,7 +1769,7 @@ function viewFor(s, viewer) {
   return v;
 }
 
-export {
+export { overwatchFire as _overwatchFire,
   moveOptions, attackTargets, actionMenu, threatArea, TACTIC_SIDES, tileRules, ladderTiles, climbTiles, insideCity, isWallTop, gateAt,
   newState, act, viewFor, prompt, reachable, movementOf, moraleState, visibleTo, rangeOk,
   resolveAttack, buildRoll, setRng, yinYang, typeOf, officerOf, unitById, SIDES, settle, advance,

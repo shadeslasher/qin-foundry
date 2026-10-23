@@ -49,7 +49,7 @@ test('officer-less units count Command, Fire and Skill as 0; officer adds them',
   assert.strictEqual(rD.total, 2);                      // UV only
 });
 
-test('ranged: attacker deals damage only on a win; melee defender out of reach returns nothing', () => {
+test('ranged: a losing shot still deals base damage; melee defender out of reach returns nothing', () => {
   const s = setup();
   const a = add(s, { typeId: 'han_archers', side: 'player', owner: 'p1', x: 5, y: 8 }); // dmg 3 def 2
   const d = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 6 });              // 2 tiles away
@@ -58,9 +58,31 @@ test('ranged: attacker deals damage only on a win; melee defender out of reach r
   must(R.act(s, P1, { type: 'skipMove', unitId: a }));
   dice([0, 0, 9, 0]); // attacker 0+2+2=4, defender 9+2=11 -> defender wins
   must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
-  assert.strictEqual(R.unitById(s, d).men, 100);
+  const r = s.log.filter(e => e.detail && e.detail.type === 'attack').pop().detail.result;
+  assert.strictEqual(r.winner, 'defender');
+  assert.strictEqual(r.damageToDefender, 3, 'base damage even when losing (armor 3 soaks it here)');
   assert.strictEqual(R.unitById(s, a).men, 100);
   assert.strictEqual(R.unitById(s, a).morale, 50 - 7);
+});
+
+test('overwatch: a ranged unit ends its turn and shoots the first enemy that moves into range', () => {
+  const s = setup();
+  const a = add(s, { typeId: 'han_archers', side: 'player', owner: 'p1', x: 5, y: 9 });
+  const e1 = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 2 });
+  const e2 = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 9, y: 2 });
+  must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'startRound' }));
+  must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: a }));
+  assert.ok(R.actionMenu(s, R.unitById(s, a)).overwatch);
+  must(R.act(s, P1, { type: 'overwatch', unitId: a }));
+  assert.strictEqual(R.unitById(s, a).overwatch, true);
+  // move the enemies directly (as the engine does on their turns) through the trigger
+  const E1 = R.unitById(s, e1), E2 = R.unitById(s, e2);
+  dice([5, 0, 0, 0]);
+  const from = { x: E1.x, y: E1.y }; E1.x = 5; E1.y = 6; // 3 tiles away: in range
+  assert.ok(R._overwatchFire(s, E1, from), 'fires at the first enemy to come into range');
+  assert.ok(!R.unitById(s, a).overwatch, 'one shot, then overwatch ends');
+  const from2 = { x: E2.x, y: E2.y }; E2.x = 6; E2.y = 7;
+  assert.ok(!R._overwatchFire(s, E2, from2), 'no second shot');
 });
 
 test('ranged attacker loses +2 after moving; ranged defender returns fire', () => {

@@ -316,6 +316,7 @@ function renderMenu(sub = null) {
     if (flags.reloading) html += b("reload", "Reload", flags.reload, "Reload the weapon (needed before it can attack again). Can follow a move; ends the turn.");
     else html += b("attack", "Attack", flags.attack, flags.attack ? "" : "No enemy in range");
     html += b("hold", "Hold", flags.hold, "No more action this turn; +2 melee defense this round");
+    if (flags.overwatch) html += b("overwatch", "Overwatch", true, "End the turn and watch: shoot the first enemy that moves into range before this unit's next turn (one shot)");
     html += b("ability", "Ability", flags.ability, abilityTip);
     html += b("heroic", "Heroic action", flags.heroic, officer ? "Free action from the heroic action list" : "Needs an officer");
     html += b("end", "End turn", flags.endTurn);
@@ -357,6 +358,7 @@ function onMenuClick(ev) {
     case "skipSecond": return send({ type: "secondAttack", unitId: id });
     case "back": return renderMenu();
     case "hold": return send({ type: "holdPosition", unitId: id });
+    case "overwatch": return send({ type: "overwatch", unitId: id });
     case "end": return send({ type: "endTurn", unitId: id });
     case "undo": return send({ type: "undoMove", unitId: id });
     case "heroic": return renderMenu("heroic");
