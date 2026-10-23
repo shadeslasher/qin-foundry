@@ -32,11 +32,11 @@ test('status icons: Command roll bonus/penalty, defense, ranged defense', () => 
   assert.strictEqual(U.unitStatus(tok({ range: 3 })).attack, 2);
   battle.meta.t = { round: { moved: true } };
   assert.strictEqual(U.unitStatus(tok({ range: 3 })).attack, 0, 'moved: keeps nothing');
-  // cavalry after a 4-tile move: +2, Fierce Charge+ makes it +4, Wedge adds +4
+  // cavalry after a 4-tile move: +3, Fierce Charge+ adds +4, Wedge adds +4
   battle.meta = {}; battle.turn.activation = { unitId: 't', movedThisActivation: true, tilesMoved: 4 };
-  assert.strictEqual(U.unitStatus(tok({ category: 'cavalry' })).attack, 2);
-  assert.strictEqual(U.unitStatus(tok({ category: 'cavalry', traits: 'Fierce Charge+ - x' })).attack, 4);
-  assert.strictEqual(U.unitStatus(tok({ category: 'cavalry' }, form({ chargeBonus: 4 }))).attack, 6);
+  assert.strictEqual(U.unitStatus(tok({ category: 'cavalry' })).attack, 3);
+  assert.strictEqual(U.unitStatus(tok({ category: 'cavalry', traits: 'Fierce Charge+ - x' })).attack, 7);
+  assert.strictEqual(U.unitStatus(tok({ category: 'cavalry' }, form({ chargeBonus: 4 }))).attack, 7);
   // undone / not its turn: no charge
   battle.turn.activation = null;
   assert.strictEqual(U.unitStatus(tok({ category: 'cavalry' })).attack, 0);
@@ -53,7 +53,7 @@ test('status icons: Command roll bonus/penalty, defense, ranged defense', () => 
   // traits: Brace while holding, Shielded+, Poison on both shields
   battle.meta.t = { round: { holding: true }, fx: { poison: 1 } };
   const st = U.unitStatus(tok({ traits: '<p>Brace - x</p><p>Shielded+ - y</p>' }, form({})));
-  assert.strictEqual(st.defense, 3, 'hold 2 + brace 2 - poison 1');
+  assert.strictEqual(st.defense, 5, 'hold 2 + brace 2 + shielded+ 2 - poison 1');
   assert.strictEqual(st.rangedDefense, 3, 'shielded+ 4 - poison 1');
   // not moved this round: Precision+; stood still last turn: Range Up+, Shield Battery
   battle.meta.t = { round: {}, fx: { stillLast: true } };

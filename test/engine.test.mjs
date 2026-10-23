@@ -136,7 +136,7 @@ test('no charge against a unit the cavalry started its turn next to (no stepping
 });
 
 test('cavalry charge scales with distance; one tile is no charge', () => {
-  for (const [startY, bonus] of [[0, 2], [3, 0]]) {
+  for (const [startY, bonus] of [[0, 3], [3, 0]]) {
     const s = setup();
     const a = add(s, { typeId: 'han_lancer_cav', side: 'player', owner: 'p1', x: 5, y: startY });
     const d = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 5 });
@@ -153,14 +153,14 @@ test('cavalry charge scales with distance; one tile is no charge', () => {
   }
 });
 
-test('Fierce Charge tiers', () => {
-  const run = (fierce, startY, rearFacing = false) => {
+test('Fierce Charge tiers: +2 / +4 / +4 on a charge attack; ++ also hits the enemy behind for half', () => {
+  const run = (fierce, startY, behind = false) => {
     const s = setup();
     const a = add(s, { typeId: 'han_lancer_cav', side: 'player', owner: 'p1', x: 5, y: startY });
     const d = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 5 });
+    const b = behind ? add(s, { typeId: 'yt_spearmen', side: 'enemy', x: 5, y: 6 }) : null;
     R.unitById(s, a).fierceCharge = fierce;
     must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'startRound' }));
-    if (rearFacing) R.unitById(s, d).facing = { dx: 0, dy: 1 };
     must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: a }));
     s.freeMovement = false;
     must(R.act(s, P1, { type: 'moveTo', unitId: a, x: 5, y: 4 }));
@@ -168,21 +168,14 @@ test('Fierce Charge tiers', () => {
     must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
     const r = s.log.filter(e => e.detail && e.detail.type === 'attack').pop().detail.result;
     const sum = (re) => r.attackRoll.parts.filter(([l]) => re.test(l)).reduce((t, [, v]) => t + v, 0);
-    return { r, charge: sum(/Cavalry charge/), fierceFlat: sum(/^Fierce Charge$/), morale: R.unitById(s, d).morale };
+    return { r, s, b, charge: sum(/Cavalry charge/), fierce: sum(/^Fierce Charge/) };
   };
-  let x = run(1, 2); // 2 tiles: +1 distance, +1 Fierce Charge
-  assert.strictEqual(x.charge, 1); assert.strictEqual(x.fierceFlat, 1);
-  x = run(1, 3); // 1 tile: no charge, so no Fierce Charge either
-  assert.strictEqual(x.charge, 0); assert.strictEqual(x.fierceFlat, 0);
-  x = run(2, 1); // 3 tiles at +1 per tile
-  assert.strictEqual(x.charge, 3); assert.strictEqual(x.fierceFlat, 0);
-  x = run(2, 3); // 1 tile is a charge for Fierce Charge+
-  assert.strictEqual(x.charge, 1); assert.ok(x.r.charge);
-  const plain = run(2, 1), dbl = run(3, 1); // same roll; ++ doubles the morale loss
-  assert.strictEqual(dbl.charge, 3);
-  assert.strictEqual(50 - dbl.morale, Math.min(50, 2 * (50 - plain.morale)));
-  const rear = run(3, 1, true); // rear adds nothing: Fierce Charge++ alone, x2
-  assert.strictEqual(50 - rear.morale, Math.min(50, 2 * rear.r.diff));
+  let x = run(1, 2); assert.deepStrictEqual([x.charge, x.fierce], [1, 2]);   // 2 tiles: +1, Fierce +2
+  x = run(1, 3); assert.deepStrictEqual([x.charge, x.fierce], [0, 0]);       // 1 tile: no charge, no Fierce
+  x = run(2, 1); assert.deepStrictEqual([x.charge, x.fierce], [2, 4]);       // 3 tiles: +2, Fierce+ +4
+  x = run(3, 0, true);                                                       // 4 tiles: +3, Fierce++ +4, and the unit behind
+  assert.deepStrictEqual([x.charge, x.fierce], [3, 4]);
+  assert.ok(x.s.log.some(e => e.detail && e.detail.type === 'trample'), 'the enemy behind takes half damage');
 });
 
 test('encirclement from a move waits until the move is committed (undo leaves morale alone)', () => {

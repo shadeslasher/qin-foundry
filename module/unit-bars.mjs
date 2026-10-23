@@ -169,14 +169,14 @@ export function unitStatus(token) {
     if (s.range > 1) { if (!round.moved || tr["moving shot"]) attack += 2; }
     else if (s.category === "cavalry" && ac.movedThisActivation) {
       const tiles = ac.tilesMoved || 0;
-      const fierce = tr["fierce charge"] || 0;
-      const charge = Math.floor(fierce >= 2 ? tiles : tiles / 2);
-      if (charge > 0) attack += charge + (fierce === 1 ? 1 : 0) + (Number(f.chargeBonus) || 0);
+      const fierce = Math.min(3, tr["fierce charge"] || 0);
+      const charge = Math.max(0, tiles - 1); // +1 per tile past the first; Fierce Charge +2 / +4 / +4 on a charge
+      if (charge > 0) attack += charge + [0, 2, 4, 4][fierce] + (Number(f.chargeBonus) || 0);
     }
   }
   if (token.qinAttackBonus !== undefined && token.qinAttackBonus !== null) attack = token.qinAttackBonus;
   const both = (Number(f.defAll) || 0) - (Number(fx.poison) || 0); // melee & ranged defense (Poison lowers both)
-  const defense = (round.holding ? 2 + (tr.brace ? 2 : 0) : 0) + both + (Number(f.defMelee) || 0);
+  const defense = (round.holding ? 2 + (tr.brace ? 2 : 0) : 0) + both + (Number(f.defMelee) || 0) + tierVal(tr.shielded, [1, 2, 3]);
   const rangedDefense = both + (Number(f.defRanged) || 0) + tierVal(tr.shielded, [2, 4, 6])
     + (fx.stillLast && tr["shield battery"] ? 2 : 0);
   let range = s.range > 1 && fx.stillLast ? tierVal(tr["range up"], [1, 2]) : 0;

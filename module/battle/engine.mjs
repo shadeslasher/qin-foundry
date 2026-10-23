@@ -515,8 +515,8 @@ function buildRoll(s, unit, role, ctx) {
     else if (ctx.ranged && unit.round.moved && !trait(unit, 'moving shot')) parts.push(['Attacker bonus (lost: moved before shooting)', 0]);
     else parts.push(['Attacker bonus', 2]);
     if (!ctx.ranged && f.frontMelee && isFront(s, other, unit)) parts.push(['Formation front (' + f.name + ')', f.frontMelee]);
-    if (ctx.charge) parts.push(['Cavalry charge (' + ctx.tilesMoved + ' tile' + (ctx.tilesMoved === 1 ? '' : 's') + ' moved' + (ctx.fierce >= 2 ? ', ' + FIERCE_NAMES[ctx.fierce] : '') + ')', ctx.chargeBonus]);
-    if (ctx.charge && ctx.fierce === 1) parts.push(['Fierce Charge', 1]);
+    if (ctx.charge) parts.push(['Cavalry charge (' + ctx.tilesMoved + ' tiles moved)', ctx.chargeBase]);
+    if (ctx.charge && ctx.fierceBonus) parts.push([FIERCE_NAMES[Math.min(3, ctx.fierce)], ctx.fierceBonus]);
     if (ctx.charge && f.chargeBonus) parts.push(['Formation charge bonus (' + f.name + ')', f.chargeBonus]);
     if (ctx.charge && p.chargeAttackBonus) parts.push(['Officer passive: charge', p.chargeAttackBonus]);
     if (f.atkMod) parts.push(['Attack (' + f.name + ')', f.atkMod]); // attack modifiers only count when attacking
@@ -541,7 +541,7 @@ function buildRoll(s, unit, role, ctx) {
     // Defense bonuses: everything that makes a unit harder to hit is added to the defender's roll
     if (!ctx.ranged && unit.round.holding) parts.push(['Holding: melee defense', 2]); // Hold doesn't help against ranged attacks
     if (!ctx.ranged && unit.round.holding && trait(unit, 'brace')) parts.push(['Brace: melee defense', 2]);
-    if (ctx.ranged && trait(unit, 'shielded')) parts.push(['Shielded: ranged defense', tierVal(trait(unit, 'shielded'), [2, 4, 6])]);
+    if (trait(unit, 'shielded')) parts.push(ctx.ranged ? ['Shielded: ranged defense', tierVal(trait(unit, 'shielded'), [2, 4, 6])] : ['Shielded: melee defense', tierVal(trait(unit, 'shielded'), [1, 2, 3])]);
     if (ctx.ranged && trait(unit, 'shield battery') && fx(unit).stillLast) parts.push(['Shield Battery: ranged defense', 2]);
     if (fx(unit).poison) parts.push(['Poisoned: melee & ranged defense', -fx(unit).poison]);
     if (f.defAll) parts.push(['Melee & ranged defense (' + f.name + ')', f.defAll]);
@@ -615,12 +615,14 @@ function resolveAttack(s, attacker, defender, opts) {
   // Hybrid: a ranged unit may fight an adjacent enemy in melee (Attack -2)
   const hybridMelee = at.weapon === 'ranged' && !!trait(attacker, 'hybrid') && manhattan(attacker, defender) === 1;
   const ranged = at.weapon === 'ranged' && !hybridMelee;
-  // Charge: a cavalry unit's melee attack gains +1 for every 2 tiles it moved this turn (rounded down)
+  // Charge: a cavalry unit's melee attack gains +1 for every tile it moved this turn past the first (2 tiles = +1)
   const tilesMoved = opts.movedThisActivation ? (opts.tilesMoved || 0) : 0;
-  // Fierce Charge trait: 1 = +1 on a charge; 2 (+) and 3 (++) = +1 per tile instead of per 2; 3 also doubles morale loss on a win
+  // Fierce Charge trait on a charge attack: Fierce Charge +2, Fierce Charge+ +4, Fierce Charge++ +4 and the enemy behind takes half damage
   const fierce = attacker.fierceCharge || 0;
   const dfF = formationOf(s, defender);
-  const rawCharge = !ranged && at.category === 'cavalry' ? Math.floor(fierce >= 2 ? tilesMoved : tilesMoved / 2) : 0;
+  const chargeBase = !ranged && at.category === 'cavalry' ? Math.max(0, tilesMoved - 1) : 0;
+  const fierceBonus = chargeBase > 0 ? [0, 2, 4, 4][Math.min(3, fierce)] : 0;
+  const rawCharge = chargeBase + fierceBonus;
   const chargeCancelled = rawCharge > 0 && !!dfF.noChargeBonus; // e.g. Spear Wall, Hollowed Square
   const chargeBonus = chargeCancelled ? 0 : rawCharge;
   const charge = chargeBonus > 0;
@@ -628,7 +630,7 @@ function resolveAttack(s, attacker, defender, opts) {
   let rear = isRear(s, attacker, defender) && !df.noRear && !passive(s, defender).noRearAgainst;
   const ambush = !!opts.ambush;
   const free = !!opts.free; // a tactic's free attack: no strike back, doesn't use the unit's action
-  const ctx = { attacker, defender, ranged, charge, chargeBonus, chargeCancelled, tilesMoved, fierce, rear, ambush, hybridMelee, second: !!opts.second, phoenixWon: !!opts.phoenixWon };
+  const ctx = { attacker, defender, ranged, charge, chargeBonus, chargeBase, fierceBonus, chargeCancelled, tilesMoved, fierce, rear, ambush, hybridMelee, second: !!opts.second, phoenixWon: !!opts.phoenixWon };
   // Tactics this attack sets off (they count for this attack already)
   let allOut = [];
   if (!opts.noTactics) {
@@ -685,9 +687,7 @@ function resolveAttack(s, attacker, defender, opts) {
     loser = winner === 'attacker' ? defender : attacker;
     moraleLoss = diff;
     if (winner === 'attacker') {
-      // only Fierce Charge++ multiplies morale loss (x2); charges and rear attacks don't
-      const fierceDouble = charge && fierce >= 3;
-      mult = fierceDouble ? 2 : 1;
+      mult = 1; // charges and rear attacks don't multiply morale loss
       moraleLoss = diff * mult + (passive(s, attacker).extraMoraleLossOnWin || 0);
       const terror = trait(attacker, 'terror'); // Terror: +2 morale loss; Terror+: double it
       if (terror === 1) moraleLoss += 2; else if (terror >= 2) moraleLoss *= 2;
@@ -701,6 +701,20 @@ function resolveAttack(s, attacker, defender, opts) {
   const menBefore = { d: defender.men, a: attacker.men };
   defender.men = Math.max(0, defender.men - casDef);
   attacker.men = Math.max(0, attacker.men - casAtt);
+  // Fierce Charge++: the enemy unit right behind the defender (in the charge's direction) takes half the damage
+  let trample = null;
+  if (charge && fierce >= 3 && dmgToDef > 0) {
+    const ddx = defender.x - attacker.x, ddy = defender.y - attacker.y;
+    const dir = Math.abs(ddx) >= Math.abs(ddy) ? { x: sign(ddx), y: 0 } : { x: 0, y: sign(ddy) };
+    const b = unitAt(s, defender.x + dir.x, defender.y + dir.y);
+    if (b && b !== attacker && alive(b) && hostile(attacker, b)) {
+      const bt = typeOf(s, b);
+      const cas = Math.max(0, Math.floor(dmgToDef / 2) - Math.max(0, armorOf(bt, b, false) - (at.armorPen || 0)) - (formationOf(s, b).casReduce || 0));
+      b.men = Math.max(0, b.men - cas);
+      trample = { unit: b.id, casualties: cas };
+      log(s, 'Fierce Charge++: ' + b.name + ', behind ' + defender.name + ', takes half the damage (-' + cas + ').', { type: 'trample', unit: b.id, casualties: cas });
+    }
+  }
   if (loser) loser.morale = clamp(loser.morale - moraleLoss, 0, 100);
 
   // Lasting effects of a successful attack (the attacker won the roll)
