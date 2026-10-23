@@ -115,7 +115,10 @@ export async function importBattleMap(systemId) {
     const FP = foundry.applications?.apps?.FilePicker?.implementation ?? globalThis.FilePicker;
     const dir = `worlds/${game.world.id}/battlemaps`;
     try { await FP.createDirectory("data", dir); } catch { /* already there */ }
-    const name = (json.image.filename || `${(json.name || "battle-map").replace(/[^\w-]+/g, "-")}.png`).replace(/[^\w.-]+/g, "-");
+    // every import gets its own file: reusing a name would overwrite an older map's image, and Foundry would keep
+    // showing the copy it already loaded under that name
+    const given = (json.image.filename || `${(json.name || "battle-map").replace(/[^\w-]+/g, "-")}.png`).replace(/[^\w.-]+/g, "-");
+    const dot = given.lastIndexOf("."), name = dot > 0 ? `${given.slice(0, dot)}-${Date.now()}${given.slice(dot)}` : `${given}-${Date.now()}.png`;
     try {
       const res = await FP.upload("data", dir, dataUrlToFile(json.image.dataUrl, name), {}, { notify: false });
       src = res?.path ?? `${dir}/${name}`;
