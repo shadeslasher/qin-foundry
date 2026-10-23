@@ -65,7 +65,7 @@ test('ranged: a losing shot still deals base damage; melee defender out of reach
   assert.strictEqual(R.unitById(s, a).morale, 50 - 7);
 });
 
-test('overwatch: a ranged unit ends its turn and shoots the first enemy that moves into range', () => {
+test('overwatch: a ranged unit ends its turn and shoots the first enemy that ends its turn in range', () => {
   const s = setup();
   const a = add(s, { typeId: 'han_archers', side: 'player', owner: 'p1', x: 5, y: 9 });
   const e1 = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 2 });
@@ -78,11 +78,11 @@ test('overwatch: a ranged unit ends its turn and shoots the first enemy that mov
   // move the enemies directly (as the engine does on their turns) through the trigger
   const E1 = R.unitById(s, e1), E2 = R.unitById(s, e2);
   dice([5, 0, 0, 0]);
-  const from = { x: E1.x, y: E1.y }; E1.x = 5; E1.y = 6; // 3 tiles away: in range
-  assert.ok(R._overwatchFire(s, E1, from), 'fires at the first enemy to come into range');
+  E1.x = 5; E1.y = 6; // 3 tiles away: in range
+  assert.ok(R._overwatchFire(s, E1), 'fires at the first enemy to end its turn in range');
   assert.ok(!R.unitById(s, a).overwatch, 'one shot, then overwatch ends');
-  const from2 = { x: E2.x, y: E2.y }; E2.x = 6; E2.y = 7;
-  assert.ok(!R._overwatchFire(s, E2, from2), 'no second shot');
+  E2.x = 6; E2.y = 7;
+  assert.ok(!R._overwatchFire(s, E2), 'no second shot');
 });
 
 test('ranged attacker loses +2 after moving; ranged defender returns fire', () => {

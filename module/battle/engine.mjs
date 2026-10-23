@@ -1037,6 +1037,8 @@ function finishActivation(s, u) {
       log(s, u.name + ' is spotted (ended its turn next to an enemy).', { type: 'revealed', unit: u.id });
     }
   } else u.hidden = false;
+  // Overwatch: enemy ranged units watching shoot a unit that ends its turn in their range
+  if (alive(u)) overwatchFire(s, u);
   if (t.pendingFinish === u.id) t.pendingFinish = null;
   bookkeep(s, u);
   t.activation = null;
@@ -1386,8 +1388,6 @@ const ACTIONS = {
     u.x = a.x; u.y = a.y; u.round.moved = true;
     ac.started = true; ac.movedThisActivation = true; ac.step = 'act';
     revealAround(s, u);
-    const watched = overwatchFire(s, u, from);
-    if (!alive(u)) { settle(s); return; }
     if (heroOfficer(s, u)) fireTactics(s, 'heroMove', u);
     if (forced) {
       const { cost, dist } = red.get(k);
@@ -1405,7 +1405,7 @@ const ACTIONS = {
       settle(s);
       return;
     }
-    if (!struck && !watched) ac.undo = { from, facing: prevFacing, hidden: prevHidden, started: prevStarted };
+    if (!struck) ac.undo = { from, facing: prevFacing, hidden: prevHidden, started: prevStarted };
     log(s, u.name + ' moves ' + blue.get(k) + ' tile' + (blue.get(k) === 1 ? '' : 's') + '.');
 
     settle(s, { deferEncirclement: true });
@@ -1439,7 +1439,7 @@ const ACTIONS = {
     revealAround(s, u); revealAround(s, o);
     settle(s);
   },
-  overwatch(s, actor, a) { // ranged: end the turn, and shoot the first enemy that moves into range before its next turn
+  overwatch(s, actor, a) { // ranged: end the turn, and shoot the first enemy that ends its turn in range before its next turn
     const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
     const { u, act: ac } = r;
     if (typeOf(s, u).weapon !== 'ranged') return err('Only ranged units can overwatch');
@@ -1634,16 +1634,16 @@ function tacticPlacer(s, actor, side) {
   return side === 'player' && !!tac && tac.kind === 'player' && tac.userId === actor.id;
 }
 
-/** Overwatch: enemy ranged units on overwatch shoot `u` when its move brings it into their range (one shot each,
+/** Overwatch: enemy ranged units on overwatch shoot `u` when it ends its turn in their range (one shot each,
  *  then the overwatch ends). Returns true if any fired. */
-function overwatchFire(s, u, from) {
+function overwatchFire(s, u) {
   let fired = false;
   for (const h of liveUnits(s)) {
     if (!alive(u) || u.hidden) break;
     if (!h.overwatch || !hostile(h, u)) continue;
-    if (!rangeOk(s, h, u) || rangeOk(s, h, { ...u, x: from.x, y: from.y })) continue; // must move INTO range
+    if (!rangeOk(s, h, u)) continue;
     delete h.overwatch;
-    log(s, h.name + ' fires on overwatch as ' + u.name + ' comes into range!', { type: 'overwatch', unit: h.id, on: false, fired: true });
+    log(s, h.name + ' fires on overwatch: ' + u.name + ' ended its turn in range!', { type: 'overwatch', unit: h.id, on: false, fired: true });
     resolveAttack(s, h, u, { free: true, overwatch: true, ambush: !!h.hidden, noTactics: true });
     fired = true;
   }
@@ -1738,8 +1738,6 @@ function doMove(s, actor, a, forced) {
   u.x = a.x; u.y = a.y; u.round.moved = true;
   ac.started = true; ac.movedThisActivation = true;
   revealAround(s, u);
-  overwatchFire(s, u, from);
-  if (!alive(u)) { settle(s); return ok(); }
   if (!forced) ac.tilesMoved = tiles;
   if (forced) {
     ac.forcedMarched = true;
