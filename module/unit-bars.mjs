@@ -53,13 +53,13 @@ function facingOf(token) {
 }
 
 /** A thin white chevron just inside the unit's border, pointing the way it faces. */
-function drawFacingChevron(dir, w, h, T, pad, barsTop, sideBadges) {
-  const g = new PIXI.Graphics(), half = T * 0.085, depth = T * 0.05, inset = pad + T * 0.045;
+function drawFacingChevron(dir, w, h, T, pad, barsTop) {
+  const g = new PIXI.Graphics(), half = T * 0.11, depth = T * 0.07, inset = pad + T * 0.045;
   let x, y, rot;
   if (dir === "up") { x = w / 2; y = inset; rot = -Math.PI / 2; }
   else if (dir === "down") { x = w / 2; y = barsTop - T * 0.035; rot = Math.PI / 2; }
   else if (dir === "left") { x = inset; y = h * 0.45; rot = Math.PI; }
-  else { x = w - inset - (sideBadges ? T * 0.19 : 0); y = h * 0.45; rot = 0; }
+  else { x = w - inset; y = h * 0.45; rot = 0; }
   // drawn pointing right with its tip at (0, 0), then turned
   const path = (gr) => gr.moveTo(-depth, -half).lineTo(0, 0).lineTo(-depth, half);
   path(g.lineStyle({ width: Math.max(2, T * 0.045), color: 0x000000, alpha: 0.8, cap: "round", join: "round" }));
@@ -407,7 +407,7 @@ export async function drawUnitBars(token) {
   // a player's own units get bright corner brackets (only that player sees them; the GM never does)
   const mine = !game.user?.isGM && !!actor.isOwner;
   const facing = facingOf(token);
-  const key = JSON.stringify([men, max, morale, w, h, s.side, acted, active, holding, st, mine, n, art, off, fac?.img ?? null, facing]);
+  const key = JSON.stringify([men, max, morale, w, h, s.side, acted, active, holding, st, mine, n, art, off, fac?.img ?? null, facing, battleRecord(token)?.meta?.[token.id]?.carry ?? null]);
   let c = token[KEY];
   if (c && !c.destroyed && c.parent === token && c.qinKey === key) return;
   const my = (gen.get(token) ?? 0) + 1;
@@ -488,11 +488,7 @@ export async function drawUnitBars(token) {
     if (pct > 0) g.lineStyle(0).beginFill(col, 0.95).drawRoundedRect(barX + 1, y + 1, Math.max(2, (barW - 2) * pct), bh - 2, 2).endFill();
   });
   c.addChild(bars);
-  if (facing) {
-    const t0 = battleRecord(token)?.meta?.[token.id]?.carry, tr = tiersFor(s.traits);
-    const badges = t0 !== undefined ? !!t0 : !!(tr["siege ladders"] || tr["siege ladder"] || tr["siege engine"]);
-    c.addChild(drawFacingChevron(facing, w, h, T, pad, top, badges));
-  }
+  if (facing) c.addChild(drawFacingChevron(facing, w, h, T, pad, top));
 
   // already acted this round: grey it out and say so
   if (acted) {
@@ -524,6 +520,12 @@ export async function drawUnitBars(token) {
   if (st.rangedDefense) icons.push([drawArrowShield, plain(st.rangedDefense), st.rangedDefense < 0]);
   if (st.range) icons.push([drawBow, signed(st.range), st.range < 0]);
   if (st.hidden) icons.push([drawHiddenEye, "", false]);
+  // siege equipment it carries: the battle's record once a battle runs (it can drop or pick it up), else its traits
+  const tiers = tiersFor(s.traits);
+  const carried = battleRecord(token)?.meta?.[token.id]?.carry;
+  const carry = carried !== undefined ? carried : (tiers["siege ladders"] || tiers["siege ladder"]) ? "ladders" : tiers["siege engine"] ? "engine" : null;
+  if (carry === "ladders") icons.push([(sz) => drawLadder(sz * 0.95), "", false]);
+  if (carry === "engine") icons.push([(sz) => drawSiegeEngine(sz * 0.95), "", false]);
   const isz = T * 0.17;
   icons.forEach(([fn, label, bad], i) => {
     const cx = pad + T * 0.02 + isz / 2 + i * (isz + T * 0.015), cy = top - isz / 2 - T * 0.012;
@@ -535,21 +537,6 @@ export async function drawUnitBars(token) {
     c.addChild(chip, ic, num);
   });
 
-  // siege equipment badges down the right side, under the banner: ladder, then siege engine
-  // what it carries: the battle's record once a battle runs (it can drop or pick up equipment), else its traits
-  const siege = [];
-  const tiers = tiersFor(s.traits);
-  const carried = battleRecord(token)?.meta?.[token.id]?.carry;
-  const carry = carried !== undefined ? carried : (tiers["siege ladders"] || tiers["siege ladder"]) ? "ladders" : tiers["siege engine"] ? "engine" : null;
-  if (carry === "ladders") siege.push([drawLadder, 0xd9a441]);
-  if (carry === "engine") siege.push([drawSiegeEngine, 0xa0a0aa]);
-  siege.forEach(([fn, ring], i) => {
-    const r = T * 0.083, cx = w - pad - r - T * 0.005, cy = T * (0.43 + i * 0.2);
-    const b = new PIXI.Graphics().lineStyle(Math.max(1, T * 0.01), ring, 1).beginFill(0x18120c, 0.92).drawCircle(0, 0, r).endFill();
-    b.position.set(cx, cy);
-    const ic = fn(r * 2); ic.position.set(cx, cy);
-    stand.addChild(b, ic);
-  });
 
   if (fall && !fall.destroyed) c.addChildAt(fall, c.getChildIndex(stand) + 1);
 
