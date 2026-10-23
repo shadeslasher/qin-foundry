@@ -51,6 +51,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
       setHidden: BattlePanel.#setHidden,
       importMap: () => importBattleMap(SYSTEM_ID),
       redrawMap: () => redrawScene(canvas.scene),
+      toggleCompact: async () => { await game.settings.set(SYSTEM_ID, "compactUnits", !game.settings.get(SYSTEM_ID, "compactUnits")); BattlePanel.refresh(); },
       paintMap: () => MapEditorApp.open(canvas.scene),
     },
   };
@@ -72,7 +73,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
 
   async _prepareContext() {
     const battle = getBattle();
-    const ctx = { isGM: game.user.isGM, active: battle.active, sceneName: canvas.scene?.name ?? "—", sideChoices: SIDES };
+    const ctx = { isGM: game.user.isGM, active: battle.active, sceneName: canvas.scene?.name ?? "—", sideChoices: SIDES, compactUnits: !!game.settings.get(SYSTEM_ID, "compactUnits") };
     // the map generator card: GM only, on scenes imported from the map generator
     const mf = game.user.isGM ? mapFlag(canvas.scene) : null;
     if (mf) ctx.mapCard = !mf.layoutCode ? { why: "This map has no layout code, so it can't be redrawn. Re-import it from a new export." }

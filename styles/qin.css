@@ -458,3 +458,10 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin-officer-pick { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
 .qin-officer-pick label { font-weight: bold; flex: none; }
 .qin-officer-pick select { flex: 1; }
+
+/* ---------- battle panel: compact unit list ---------- */
+.qin-battle .qin-units-head { display: flex; align-items: center; justify-content: space-between; }
+.qin-battle .qin-mini { flex: none; width: auto; line-height: 1.4; padding: 0 8px; font-size: 0.8em; font-family: inherit; text-transform: none; }
+.qin-battle .qin-units.compact .qin-udetail { display: none; }
+.qin-battle .qin-units.compact li { padding-top: 2px; padding-bottom: 2px; }
+.qin-battle .qin-units.compact li img { width: calc(24px * var(--qin-scale, 1.15)); height: calc(24px * var(--qin-scale, 1.15)); }
