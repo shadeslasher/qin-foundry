@@ -12,6 +12,17 @@ export const TACTIC_COLORS = { player: 0x3a78c8, ally: 0x3fa66a, enemy: 0xc8443a
 const SIDE_NAME = { player: "Player", ally: "Ally", enemy: "Enemy" };
 const tacticDef = (key) => TACTICS.find(t => t.key === key);
 const area = (size) => `${2 * size + 1}×${2 * size + 1}`;
+/** "1 turn" means the rest of the round the tactic fires in; each further turn is one more round. */
+const lastsLabel = (d) => {
+  const m = /^(\d+) turns?$/.exec(d.lasts ?? ""); if (!m) return d.lasts ?? "";
+  const n = Number(m[1]);
+  return `${d.lasts} (rest of the round${n === 2 ? " and the next" : n > 2 ? ` and the next ${n - 1}` : ""})`;
+};
+/** Hover text for a tactic: trigger, duration, effect. */
+const tacticTip = (d) => `<b>Trigger:</b> ${esc(d.when ?? "")}<br><b>Duration:</b> ${esc(lastsLabel(d))}<br><b>Effect:</b> ${esc(d.text)}`;
+const tacticTipText = (d) => `Trigger: ${d.when ?? ""} · Duration: ${lastsLabel(d)} · Effect: ${d.text}`;
+/** Tooltip attributes: HTML where Foundry supports it (data-tooltip-html), plain text otherwise. */
+const tipAttrs = (d) => d ? `data-tooltip="${esc(tacticTipText(d))}" data-tooltip-html="${esc(tacticTip(d))}" data-tooltip-class="qin-tac-tip"` : "";
 const gridSize = () => canvas.scene?.grid?.size ?? 100;
 
 /** Characters that can be picked as a tactician. Players' characters first, then officers, A–Z. */
@@ -87,12 +98,12 @@ export class TacticsApp extends Base {
         const full = side === "player" && tac && !done && placed.length >= tac.aow + 1;
         const btn = locked ? "" : done && side === "player" ? `<a data-act="place" data-side="${side}" data-key="${d.key}" data-id="${done.id}">Move</a>`
           : full ? "" : `<a data-act="place" data-side="${side}" data-key="${d.key}">Place</a>`;
-        return `<div class="qin-tac-row ${locked ? "locked" : ""}" data-tooltip="${esc(d.text)}"><span>${esc(d.name)}${locked ? ` <small>· Art of War ${d.aow}</small>` : ""}${done && side === "player" ? ` <small class="qin-tac-placed">(placed)</small>` : ""}</span><span>${area(d.size)}</span><span>${btn}</span></div>`;
+        return `<div class="qin-tac-row ${locked ? "locked" : ""}" ${tipAttrs(d)}><span>${esc(d.name)}${locked ? ` <small>· Art of War ${d.aow}</small>` : ""}${done && side === "player" ? ` <small class="qin-tac-placed">(placed)</small>` : ""}</span><span>${area(d.size)}</span><span>${btn}</span></div>`;
       }).join("");
       if (side !== "player" || tac) body += `<details class="qin-tac-list" data-side="${side}" ${(this.openLists ??= new Set(gm ? [] : ["player"])).has(side) ? "open" : ""}><summary>${side === "player" ? "Tactics" : "Place a tactic"}</summary><div class="qin-tac-row hd"><span>Tactic</span><span>Size</span><span></span></div>${rows}</details>`;
     }
     if (placed.length && (gm || side === "player")) {
-      body += placed.map(p => `<div class="qin-tac-chip"><span><b>${esc(tacticDef(p.key)?.name ?? p.key)}</b> <small>${area(p.size)} · at ${p.x}, ${p.y}</small></span>${canPlace ? `<span><a data-act="place" data-side="${side}" data-key="${p.key}" data-id="${p.id}" data-tooltip="Move"><i class="fa-solid fa-up-down-left-right"></i></a> <a data-act="remove" data-id="${p.id}" data-tooltip="Remove"><i class="fa-solid fa-xmark"></i></a></span>` : ""}</div>`).join("");
+      body += placed.map(p => `<div class="qin-tac-chip" ${tipAttrs(tacticDef(p.key))}><span><b>${esc(tacticDef(p.key)?.name ?? p.key)}</b> <small>${area(p.size)} · at ${p.x}, ${p.y}</small></span>${canPlace ? `<span><a data-act="place" data-side="${side}" data-key="${p.key}" data-id="${p.id}" data-tooltip="Move"><i class="fa-solid fa-up-down-left-right"></i></a> <a data-act="remove" data-id="${p.id}" data-tooltip="Remove"><i class="fa-solid fa-xmark"></i></a></span>` : ""}</div>`).join("");
     }
     return `<section class="qin-tac-sec ${side}">
       <h4>${SIDE_NAME[side]} tactician <small>${side === "player" ? (gm ? "players see this section" : "") : "GM only"}</small></h4>

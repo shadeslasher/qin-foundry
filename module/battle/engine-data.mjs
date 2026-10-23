@@ -141,27 +141,28 @@ const HEROIC_ACTIONS = [
 //   trigger: attack | attacked | rangedAttack | meleeAttack | rearAttack | ambush | charge | flankedAttack |
 //            raiseFlag | setFire | surrender | forcedMarch | backsTurned | hold | heroic | officerKill |
 //            surrounded | destroy | heroAttack | heroMove
+// when / lasts: the Trigger and Duration columns of the Battle Tactics sheet (shown on the tactics screen)
 const TACTICS = [
-  { key: 'attack', name: 'Attack', aow: 1, size: 2, trigger: 'attack', turns: 1, text: 'Units in the area gain Attack +2.' },
-  { key: 'defend', name: 'Defend', aow: 1, size: 2, trigger: 'attacked', turns: 1, text: 'Units in the area gain Melee and ranged defense +2.' },
-  { key: 'raiseFlag', name: 'Raise Flag', aow: 1, size: 4, trigger: 'raiseFlag', turns: 0, highGround: true, text: 'A unit on the centre tile takes the Raise Flag action instead of attacking: units in the area below 50 morale rise to 50.' },
-  { key: 'flanking', name: 'Flanking Maneuver', aow: 2, size: 2, trigger: 'rearAttack', turns: 1, text: 'Units in the area gain Attack +2.' },
-  { key: 'ambush', name: 'Ambush', aow: 2, size: 2, trigger: 'ambush', turns: 1, text: 'Units in the area gain Attack +2.' },
-  { key: 'cavalryCharge', name: 'Cavalry Charge', aow: 2, size: 2, trigger: 'charge', turns: 1, text: 'Units in the area gain Attack +2.' },
-  { key: 'setAflame', name: 'Set Aflame', aow: 2, size: 1, trigger: 'setFire', turns: 0, text: 'A unit in the area takes the Set Fire action instead of attacking and sets an adjacent flammable tile on fire.' },
-  { key: 'surround', name: 'Surround the Enemy', aow: 3, size: 2, trigger: 'surrender', turns: 1, text: 'Each time an enemy unit surrenders in the area, all enemy units lose 5 morale (10 if it had an officer).' },
-  { key: 'rapidAdvance', name: 'Rapid Advance, Swift Retreat', aow: 3, size: 2, trigger: 'forcedMarch', turns: 2, text: 'Forced march costs 2 morale per tile instead of 5 for units in the area.' },
-  { key: 'backsTurned', name: 'Backs Turned', aow: 3, size: 2, trigger: 'backsTurned', turns: 1, text: 'When an enemy moves away from a unit in the area, that unit makes a free attack on it that cannot be struck back.' },
-  { key: 'holdTheLine', name: 'Hold the Line', aow: 3, size: 3, trigger: 'hold', turns: 2, text: 'The holding unit gains Melee defense +3 and Ranged defense +2; adjacent units that hold gain the same.' },
-  { key: 'heroNeeded', name: 'A Hero is Needed', aow: 4, size: 2, trigger: 'heroic', turns: 1, bound: true, text: "The officer's unit gains Command rolls +4." },
-  { key: 'divineWinds', name: 'Divine Winds', aow: 4, size: 3, trigger: 'rangedAttack', turns: 2, text: 'Ranged units in the area gain Attack +2 and Ranged defense +2.' },
-  { key: 'allOutAttack', name: 'All Out Attack', aow: 4, size: 3, trigger: 'flankedAttack', turns: 0, text: 'Every unit in the area that can attack the enemy makes a free attack on it that cannot be struck back.' },
-  { key: 'inspiring', name: 'Inspiring the Army', aow: 4, size: 2, trigger: 'officerKill', turns: 0, text: 'All units on the side gain 25 morale.' },
-  { key: 'phoenix', name: 'Fury of a Phoenix', aow: 5, size: 3, trigger: 'meleeAttack', turns: 1, text: 'Units in the area may make a second melee attack after their first, with Attack +1 if they won the first.' },
-  { key: 'fear', name: 'Surrounded by Fear', aow: 5, size: 2, trigger: 'surrounded', turns: 99, bound: true, text: 'The surrounded unit does not surrender, gains Command rolls +4 and makes free attacks until one of its attackers is destroyed.' },
-  { key: 'brutalize', name: 'Brutalize', aow: 5, size: 3, trigger: 'destroy', turns: 0, text: 'All enemy units in the area lose 25 morale.' },
-  { key: 'warrior1000', name: 'A Warrior Worth 1000', aow: 6, size: 5, trigger: 'heroAttack', turns: 3, bound: true, text: 'The unit gains Command rolls +5.' },
-  { key: 'clearPath', name: 'Clear a Path', aow: 6, size: 5, trigger: 'heroMove', turns: 3, bound: true, text: 'When the unit attacks after moving it gains Attack +8; if it destroys an enemy unit it may move and attack again.' },
+  { key: 'attack', name: 'Attack', aow: 1, size: 2, trigger: 'attack', turns: 1, when: 'An allied unit attacks.', lasts: '1 turn', text: 'Units in the area gain Attack +2.' },
+  { key: 'defend', name: 'Defend', aow: 1, size: 2, trigger: 'attacked', turns: 1, when: 'An allied unit is attacked.', lasts: '1 turn', text: 'Units in the area gain Melee and ranged defense +2.' },
+  { key: 'raiseFlag', name: 'Raise Flag', aow: 1, size: 4, trigger: 'raiseFlag', turns: 0, highGround: true, when: 'An allied unit in the center of the area takes the Raise Flag action instead of attacking.', lasts: '1 action', text: 'A unit on the centre tile takes the Raise Flag action instead of attacking: units in the area below 50 morale rise to 50.' },
+  { key: 'flanking', name: 'Flanking Maneuver', aow: 2, size: 2, trigger: 'rearAttack', turns: 1, when: 'An allied unit makes a rear attack.', lasts: '1 turn', text: 'Units in the area gain Attack +2.' },
+  { key: 'ambush', name: 'Ambush', aow: 2, size: 2, trigger: 'ambush', turns: 1, when: 'An allied unit attacks from hiding.', lasts: '1 turn', text: 'Units in the area gain Attack +2.' },
+  { key: 'cavalryCharge', name: 'Cavalry Charge', aow: 2, size: 2, trigger: 'charge', turns: 1, when: 'An allied unit makes a cavalry charge.', lasts: '1 turn', text: 'Units in the area gain Attack +2.' },
+  { key: 'setAflame', name: 'Set Aflame', aow: 2, size: 1, trigger: 'setFire', turns: 0, when: 'An allied unit in the area takes the Set Fire action instead of attacking.', lasts: '1 action', text: 'A unit in the area takes the Set Fire action instead of attacking and sets an adjacent flammable tile on fire.' },
+  { key: 'surround', name: 'Surround the Enemy', aow: 3, size: 2, trigger: 'surrender', turns: 1, when: 'An allied unit forces an enemy unit to surrender.', lasts: '1 turn', text: 'Each time an enemy unit surrenders in the area, all enemy units lose 5 morale (10 if it had an officer).' },
+  { key: 'rapidAdvance', name: 'Rapid Advance, Swift Retreat', aow: 3, size: 2, trigger: 'forcedMarch', turns: 2, when: 'An allied unit in the area forced marches.', lasts: '2 turns', text: 'Forced march costs 2 morale per tile instead of 5 for units in the area.' },
+  { key: 'backsTurned', name: 'Backs Turned', aow: 3, size: 2, trigger: 'backsTurned', turns: 1, when: 'An enemy unit tries to move away from an allied unit.', lasts: '1 turn', text: 'When an enemy moves away from a unit in the area, that unit makes a free attack on it that cannot be struck back.' },
+  { key: 'holdTheLine', name: 'Hold the Line', aow: 3, size: 3, trigger: 'hold', turns: 2, when: 'An allied unit takes the hold action.', lasts: '2 turns', text: 'The holding unit gains Melee defense +3 and Ranged defense +2; adjacent units that hold gain the same.' },
+  { key: 'heroNeeded', name: 'A Hero is Needed', aow: 4, size: 2, trigger: 'heroic', turns: 1, bound: true, when: 'An allied officer uses a Heroic Action.', lasts: '1 turn', text: "The officer's unit gains Command rolls +4." },
+  { key: 'divineWinds', name: 'Divine Winds', aow: 4, size: 3, trigger: 'rangedAttack', turns: 2, when: 'An allied unit makes a ranged attack.', lasts: '2 turns', text: 'Ranged units in the area gain Attack +2 and Ranged defense +2.' },
+  { key: 'allOutAttack', name: 'All Out Attack', aow: 4, size: 3, trigger: 'flankedAttack', turns: 0, when: 'An allied unit attacks an enemy unit who\'s adjacent to another allied unit.', lasts: '1 action', text: 'Every unit in the area that can attack the enemy makes a free attack on it that cannot be struck back.' },
+  { key: 'inspiring', name: 'Inspiring the Army', aow: 4, size: 2, trigger: 'officerKill', turns: 0, when: 'An allied unit with an officer defeats an enemy unit with an officer.', lasts: 'Instant', text: 'All units on the side gain 25 morale.' },
+  { key: 'phoenix', name: 'Fury of a Phoenix', aow: 5, size: 3, trigger: 'meleeAttack', turns: 1, when: 'An allied unit makes a melee attack.', lasts: '1 turn', text: 'Units in the area may make a second melee attack after their first, with Attack +1 if they won the first.' },
+  { key: 'fear', name: 'Surrounded by Fear', aow: 5, size: 2, trigger: 'surrounded', turns: 99, bound: true, when: 'An allied unit is fully surrounded by 4 enemy units.', lasts: 'Until the allied unit or one of the enemies is destroyed', text: 'The surrounded unit does not surrender, gains Command rolls +4 and makes free attacks until one of its attackers is destroyed.' },
+  { key: 'brutalize', name: 'Brutalize', aow: 5, size: 3, trigger: 'destroy', turns: 0, when: 'An allied unit destroys an enemy unit.', lasts: 'Instant', text: 'All enemy units in the area lose 25 morale.' },
+  { key: 'warrior1000', name: 'A Warrior Worth 1000', aow: 6, size: 5, trigger: 'heroAttack', turns: 3, bound: true, when: 'An allied unit whose officer has weapon skill 5+ attacks.', lasts: '3 turns', text: 'The unit gains Command rolls +5.' },
+  { key: 'clearPath', name: 'Clear a Path', aow: 6, size: 5, trigger: 'heroMove', turns: 3, bound: true, when: 'An allied unit whose officer has weapon skill 5+ moves.', lasts: '3 turns', text: 'When the unit attacks after moving it gains Attack +8; if it destroys an enemy unit it may move and attack again.' },
 ];
 
 // Battlefield terrain from the battle map file (map generator export, Battlefield Terrain Rules sheet, 2026-10-22).

@@ -465,3 +465,6 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin-battle .qin-units.compact .qin-udetail { display: none; }
 .qin-battle .qin-units.compact li { padding-top: 2px; padding-bottom: 2px; }
 .qin-battle .qin-units.compact li img { width: calc(24px * var(--qin-scale, 1.15)); height: calc(24px * var(--qin-scale, 1.15)); }
+
+/* tactic hover text: trigger, duration, effect */
+#tooltip.qin-tac-tip, .qin-tac-tip { max-width: 340px; text-align: left; line-height: 1.4; }
