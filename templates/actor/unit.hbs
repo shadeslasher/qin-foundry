@@ -84,9 +84,14 @@
             {{#if editable}}<a data-action="clearOfficer"><i class="fa-solid fa-xmark"></i> Remove officer</a>{{/if}}
           </div>
         {{else}}
-          <p>Drag a Qin character here to make them this unit's officer. Without one, the unit counts Command, Fire and Skill as 0 and has no initiative.</p>
+          <p>Choose an officer below, or drag a Qin character here from the Actors list. Without one, the unit counts Command, Fire and Skill as 0 and has no initiative.</p>
         {{/if}}
       </div>
+      {{#if editable}}
+      <div class="qin-officer-pick"><label>Officer</label>
+        <select data-officer-pick><option value="">No officer</option>{{#each officerChoices}}<option value="{{uuid}}" {{#if selected}}selected{{/if}}>{{name}}</option>{{/each}}</select>
+      </div>
+      {{else}}<p class="qin-muted">Only this unit's owner or the GM can change its officer.</p>{{/if}}
     </section>
 
     <section class="qin-tab" data-tab="notes"><textarea name="system.traits" rows="14">{{system.traits}}</textarea></section>

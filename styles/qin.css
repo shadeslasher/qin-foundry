@@ -455,3 +455,6 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin-newunit .form-group > label:first-child { flex: 0 0 70px; font-weight: bold; }
 .qin-newunit .form-group select, .qin-newunit .form-group input[type=text] { flex: 1; }
 .qin-newunit .qin-check { display: flex; align-items: center; gap: 6px; font-weight: normal; flex: 1; }
+.qin-officer-pick { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.qin-officer-pick label { font-weight: bold; flex: none; }
+.qin-officer-pick select { flex: 1; }

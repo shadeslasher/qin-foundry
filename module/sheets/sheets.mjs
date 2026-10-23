@@ -405,6 +405,9 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
         fire: officer.system.aspects.fire, command: officer.system.skills.command.value,
         skill: officer.getSkill(system.weaponSkill).value, skillLabel: SKILLS[system.weaponSkill]?.label,
       } : null,
+      // characters that can be picked as officer: any for the GM, a player's own characters for them
+      officerChoices: this.isEditable ? (game.actors?.contents ?? []).filter(a => a.type === "character" && (game.user.isGM || a.isOwner))
+        .sort((a, b) => a.name.localeCompare(b.name)).map(a => ({ uuid: a.uuid, name: a.name, selected: a.uuid === system.officer })) : [],
       menPct: Math.min(100, Math.round(100 * system.men.value / (system.men.max || 100))),
       xpPct: Math.min(100, Math.round(100 * (system.xp?.value ?? 0) / (system.xp?.max || 100))),
     });
@@ -419,13 +422,16 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
     zone?.addEventListener("dragover", ev => ev.preventDefault());
     zone?.addEventListener("drop", async ev => {
       ev.preventDefault();
+      if (!this.isEditable) return ui.notifications.warn(`Only ${this.document.name}'s owner or the GM can change its officer.`);
       let data;
       try { data = JSON.parse(ev.dataTransfer.getData("text/plain")); } catch { return; }
-      if (data.type !== "Actor") return;
-      const actor = await fromUuid(data.uuid);
+      const uuid = data.type === "Actor" ? data.uuid : data.type === "Token" ? (await fromUuid(data.uuid))?.actor?.uuid : null;
+      if (!uuid) return ui.notifications.warn("Drag a character from the Actors list (tokens can't be dragged off the scene).");
+      const actor = await fromUuid(uuid);
       if (actor?.type !== "character") return ui.notifications.warn("Officers must be Qin characters.");
       await this.document.update({ "system.officer": actor.uuid });
     });
+    this.element.querySelector("select[data-officer-pick]")?.addEventListener("change", (ev) => this.document.update({ "system.officer": ev.target.value }));
   }
 
   static #item(target) { return this.document.items.get(target.closest("[data-item-id]")?.dataset.itemId); }
