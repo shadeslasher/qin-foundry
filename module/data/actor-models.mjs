@@ -1,5 +1,6 @@
 import { SKILLS, ASPECTS } from "../config.mjs";
 import * as Q from "../rules/qin-rules.mjs";
+import { parseTraitText, traitTextOf } from "../battle/traits.mjs";
 
 const fields = foundry.data.fields;
 const int = (initial = 0, opts = {}) => new fields.NumberField({ required: true, nullable: false, integer: true, initial, ...opts });
@@ -142,7 +143,15 @@ export class UnitData extends foundry.abstract.TypeDataModel {
       hidden: new fields.BooleanField({ initial: false }),
       status: new fields.StringField({ initial: "active", choices: ["active", "defeated", "surrendered"] }),
       officer: new fields.StringField({ initial: "" }),            // UUID of a character actor
-      traits: new fields.HTMLField({ initial: "" }),
+      traits: new fields.HTMLField({ initial: "" }),                // older free-text traits; the list below replaces it
+      traitList: new fields.ArrayField(new fields.SchemaField({
+        name: new fields.StringField({ initial: "" }),
+        desc: new fields.StringField({ initial: "" }),
+        level: int(1, { min: 1 }),                                   // the trait is locked until this level
+        upgrades: new fields.ArrayField(new fields.SchemaField({     // e.g. at level 5 it becomes "Anti-Infantry+"
+          level: int(5, { min: 1 }), name: new fields.StringField({ initial: "" }), desc: new fields.StringField({ initial: "" }),
+        })),
+      })),
     };
   }
 
@@ -150,6 +159,8 @@ export class UnitData extends foundry.abstract.TypeDataModel {
   static migrateData(source) {
     if (source.defense !== undefined && source.armor === undefined) source.armor = source.defense;
     if (source.rangeMax !== undefined && source.range === undefined) source.range = source.weapon === "ranged" ? Math.max(2, source.rangeMax) : 1;
+    // free-text traits become trait cards (the text is kept until the list is first edited)
+    if (typeof source.traits === "string" && source.traits.trim() && !source.traitList?.length) source.traitList = parseTraitText(source.traits);
     return super.migrateData(source);
   }
 
@@ -164,5 +175,7 @@ export class UnitData extends foundry.abstract.TypeDataModel {
     const m = this.morale;
     this.moraleState = m <= 0 ? "Surrendered" : m <= 25 ? "Demoralized" : m >= 75 ? "Encouraged" : "Neutral";
     this.weapon = this.range > 1 ? "ranged" : "melee";
+    // everything reads `traits`: make it the traits unlocked at the unit's current level
+    if (this.traitList?.length) this.traits = traitTextOf(this.traitList, this.level);
   }
 }

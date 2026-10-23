@@ -94,6 +94,52 @@
       {{else}}<p class="qin-muted">Only this unit's owner or the GM can change its officer.</p>{{/if}}
     </section>
 
-    <section class="qin-tab" data-tab="notes"><textarea name="system.traits" rows="14">{{system.traits}}</textarea></section>
+    <section class="qin-tab" data-tab="notes">
+      <div class="qin-traits" data-traits>
+        {{#each traitCards}}
+        <article class="qin-trait{{#if locked}} locked{{/if}}{{#if editing}} editing{{/if}}" data-trait="{{index}}">
+          <header class="qin-trait-head">
+            <span class="qin-trait-name">{{current.name}}</span>
+            {{#if locked}}<span class="qin-trait-lock"><i class="fa-solid fa-lock"></i> Unlocks at level {{level}}</span>{{/if}}
+            {{#if @root.isGM}}<span class="qin-controls">
+              <a data-trait-act="edit" title="{{#if editing}}Done{{else}}Edit{{/if}}"><i class="fa-solid {{#if editing}}fa-check{{else}}fa-pen{{/if}}"></i></a>
+              <a data-trait-act="remove" title="Remove"><i class="fa-solid fa-trash"></i></a></span>{{/if}}
+          </header>
+          {{#if current.desc}}<p class="qin-trait-desc">{{current.desc}}</p>{{/if}}
+          {{#if chain}}<ol class="qin-trait-chain">
+            {{#each steps}}<li class="{{state}}" title="{{desc}}">{{#if (eq state "locked")}}<i class="fa-solid fa-lock"></i> {{/if}}<span>Lv {{level}}</span> {{name}}</li>{{/each}}
+          </ol>{{/if}}
+          {{#if editing}}
+          <div class="qin-trait-edit">
+            <div class="qin-trait-row">
+              <label>Name <input type="text" data-field="name" value="{{name}}" list="qin-trait-catalog-{{@root.actor.id}}"></label>
+              <label class="qin-trait-lv">Unlocks at level <input type="number" min="1" data-field="level" value="{{level}}"></label>
+            </div>
+            <label>Description <textarea rows="2" data-field="desc">{{desc}}</textarea></label>
+            <div class="qin-trait-ups">
+              {{#each upgrades}}
+              <div class="qin-trait-up" data-up="{{@index}}">
+                <label class="qin-trait-lv">At level <input type="number" min="1" data-field="level" value="{{level}}"></label>
+                <label>Becomes <input type="text" data-field="name" value="{{name}}" list="qin-trait-catalog-{{@root.actor.id}}"></label>
+                <a data-trait-act="removeUpgrade" title="Remove this upgrade"><i class="fa-solid fa-xmark"></i></a>
+                <label class="qin-trait-updesc">Description <textarea rows="2" data-field="desc">{{desc}}</textarea></label>
+              </div>
+              {{/each}}
+              <button type="button" data-trait-act="addUpgrade"><i class="fa-solid fa-angles-up"></i> Add a level upgrade</button>
+            </div>
+          </div>
+          {{/if}}
+        </article>
+        {{else}}<p class="qin-muted">No traits.</p>
+        {{/each}}
+      </div>
+      {{#if isGM}}
+      <div class="qin-trait-add">
+        <input type="text" data-trait-new list="qin-trait-catalog-{{actor.id}}" placeholder="Trait name (pick one or type a new one)">
+        <button type="button" data-trait-act="add"><i class="fa-solid fa-plus"></i> Add trait</button>
+        <datalist id="qin-trait-catalog-{{actor.id}}">{{#each traitCatalog}}<option value="{{name}}">{{desc}}</option>{{/each}}</datalist>
+      </div>
+      {{/if}}
+    </section>
   </div>
 </div>

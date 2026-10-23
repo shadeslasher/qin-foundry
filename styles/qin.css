@@ -482,3 +482,35 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 
 /* tactic hover text: trigger, duration, effect */
 #tooltip.qin-tac-tip, .qin-tac-tip { max-width: 340px; text-align: left; line-height: 1.4; }
+
+/* Unit trait cards */
+.qin .qin-traits { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(230px * var(--qin-scale, 1.15)), 1fr)); gap: 8px; padding: 8px 0; align-items: start; }
+.qin .qin-traits > .qin-muted { grid-column: 1 / -1; }
+.qin .qin-trait { position: relative; border: 1px solid var(--qin-line); border-left: 4px solid var(--qin-red); border-radius: 6px; padding: 7px 9px 8px; background: linear-gradient(rgba(255,255,255,0.65), rgba(255,255,255,0.35)); box-shadow: 0 1px 2px rgba(60,40,10,0.12); }
+.qin .qin-trait.editing { grid-column: 1 / -1; border-left-color: var(--qin-gold); }
+.qin .qin-trait.locked { border-left-color: var(--qin-muted); border-style: dashed; background: rgba(255,255,255,0.22); }
+.qin .qin-trait.locked .qin-trait-name, .qin .qin-trait.locked .qin-trait-desc { opacity: 0.6; }
+.qin .qin-trait-head { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.qin .qin-trait-name { font-family: "Signika", serif; font-weight: bold; color: var(--qin-red); font-size: calc(14px * var(--qin-scale, 1.15)); }
+.qin .qin-trait-lock { font-size: calc(11px * var(--qin-scale, 1.15)); color: var(--qin-muted); }
+.qin .qin-trait-head .qin-controls { margin-left: auto; display: flex; gap: 8px; opacity: 0.55; }
+.qin .qin-trait:hover .qin-trait-head .qin-controls { opacity: 1; }
+.qin .qin-trait-desc { margin: 3px 0 0; font-size: calc(12px * var(--qin-scale, 1.15)); line-height: 1.35; }
+.qin .qin-trait-chain { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+.qin .qin-trait-chain li { font-size: calc(10.5px * var(--qin-scale, 1.15)); padding: 1px 6px; border-radius: 10px; border: 1px solid var(--qin-line); color: var(--qin-muted); background: rgba(255,255,255,0.5); }
+.qin .qin-trait-chain li span { font-weight: bold; }
+.qin .qin-trait-chain li.current { border-color: var(--qin-red); color: #fff; background: var(--qin-red); }
+.qin .qin-trait-chain li.done { text-decoration: line-through; opacity: 0.7; }
+.qin .qin-trait-chain li.locked { border-style: dashed; }
+.qin .qin-trait-edit { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--qin-line); display: flex; flex-direction: column; gap: 6px; }
+.qin .qin-trait-edit label { display: flex; flex-direction: column; gap: 2px; font-size: calc(11px * var(--qin-scale, 1.15)); color: var(--qin-muted); flex: 1; }
+.qin .qin-trait-row { display: flex; gap: 8px; }
+.qin .qin-trait-edit .qin-trait-lv { flex: 0 0 calc(110px * var(--qin-scale, 1.15)); }
+.qin .qin-trait-ups { display: flex; flex-direction: column; gap: 6px; }
+.qin .qin-trait-up { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: flex-end; padding: 6px 8px; border-radius: 5px; background: rgba(184,134,43,0.1); border: 1px solid rgba(184,134,43,0.35); }
+.qin .qin-trait-up > a { padding-bottom: 6px; }
+.qin .qin-trait-up .qin-trait-updesc { flex-basis: 100%; }
+.qin .qin-trait-ups > button { align-self: flex-start; width: auto; }
+.qin .qin-trait-add { display: flex; gap: 6px; padding: 4px 0 8px; }
+.qin .qin-trait-add input { flex: 1; }
+.qin .qin-trait-add button { flex: none; width: auto; }

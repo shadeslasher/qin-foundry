@@ -27,3 +27,30 @@ export function shieldArmorOf(note) {
   for (const m of String(note ?? "").matchAll(/(\d+)\s*\((?:lg\.?\s*|large\s*)?shields?\)/gi)) n += Number(m[1]);
   return n;
 }
+
+// ---- Trait list (one card per trait, optional level locks and upgrades) ----
+// entry: { name, desc, level (unlock level, 1 = from the start), upgrades: [{ level, name, desc }] }
+
+/** Old one-trait-per-line text ("Name - description") into trait list entries. */
+export function parseTraitText(text) {
+  return traitLines(text).map(line => {
+    const m = line.match(/^(.+?)\s*(?:\s-\s|\s–\s|\s—\s|:\s)\s*(.*)$/);
+    return { name: (m ? m[1] : line).trim(), desc: (m ? m[2] : "").trim(), level: 1, upgrades: [] };
+  });
+}
+
+/** What a trait entry is at a unit level: null if still locked, else the highest unlocked step. */
+export function traitAtLevel(entry, level = 1) {
+  if ((entry.level || 1) > level) return null;
+  let cur = { name: entry.name, desc: entry.desc, step: 0 };
+  [...(entry.upgrades ?? [])].sort((a, b) => (a.level || 1) - (b.level || 1)).forEach((u, i) => {
+    if ((u.level || 1) <= level && u.name) cur = { name: u.name, desc: u.desc || cur.desc, step: i + 1 };
+  });
+  return cur;
+}
+
+/** The unit's working trait text at a level (what the engine, bars and hover card read). */
+export function traitTextOf(list, level = 1) {
+  return (list ?? []).map(e => traitAtLevel(e, level)).filter(t => t?.name)
+    .map(t => t.desc ? `${t.name} - ${t.desc}` : t.name).join("\n");
+}

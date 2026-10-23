@@ -1,6 +1,7 @@
 import { ASPECTS, SKILLS, DOMAINS, SKILL_LEVELS, BOL_LEVELS, MAGIC_WAYS, OFFICER_ABILITY_KINDS, OFFICER_EFFECTS, UNIT_CATEGORIES, SIDES, SIGNATURE_SLOTS, systemPath } from "../config.mjs";
 import { factionOf, openFactionPicker } from "../factions.mjs";
 import { actionsPerRound } from "../rules/qin-rules.mjs";
+import { traitAtLevel, parseTraitText } from "../battle/traits.mjs";
 
 const { api, sheets } = foundry.applications;
 // v14 renamed ActorSheetV2/ItemSheetV2 to ActorSheet/ItemSheet; fall back to the v13 names.
@@ -362,6 +363,38 @@ export function formationSummary(f) {
   return out.join(" · ");
 }
 
+/** Every trait name used by units in the world or in unit compendiums, with a description, for the "Add trait" list. */
+let traitCatalogCache = null;
+export function resetTraitCatalog() { traitCatalogCache = null; }
+async function traitCatalog() {
+  if (traitCatalogCache) return traitCatalogCache;
+  const out = new Map();
+  const take = (sys) => {
+    const list = sys?.traitList?.length ? sys.traitList.flatMap(e => [e, ...(e.upgrades ?? [])]) : parseTraitText(sys?.traits);
+    for (const t of list) if (t?.name && (!out.has(t.name) || (!out.get(t.name) && t.desc))) out.set(t.name, t.desc || "");
+  };
+  for (const a of game.actors ?? []) if (a.type === "unit") take(a._source.system);
+  for (const pack of game.packs ?? []) {
+    if (pack.documentName !== "Actor") continue;
+    try { for (const e of await pack.getIndex({ fields: ["type", "system.traits", "system.traitList"] })) if (e.type === "unit") take(e.system); } catch { /* skip */ }
+  }
+  traitCatalogCache = [...out].map(([name, desc]) => ({ name, desc })).sort((a, b) => a.name.localeCompare(b.name));
+  return traitCatalogCache;
+}
+
+/** A trait entry as a card: what it is now, and its steps (base, then level upgrades). */
+function traitCard(e, i, level, editing) {
+  const ups = [...(e.upgrades ?? [])].map((u, k) => ({ ...u, k })).sort((a, b) => (a.level || 1) - (b.level || 1));
+  const cur = traitAtLevel(e, level);
+  const steps = [{ level: e.level || 1, name: e.name, desc: e.desc }, ...ups.map(u => ({ level: u.level, name: u.name, desc: u.desc || e.desc }))];
+  const curStep = cur ? cur.step : -1;
+  return {
+    index: i, name: e.name, desc: e.desc, level: e.level || 1, upgrades: e.upgrades ?? [], editing,
+    locked: !cur, current: cur ?? { name: e.name || "Unnamed trait", desc: e.desc },
+    chain: steps.length > 1, steps: steps.map((st, k) => ({ ...st, state: k === curStep ? "current" : k < curStep ? "done" : "locked" })),
+  };
+}
+
 export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorSheetBase)) {
   static DEFAULT_OPTIONS = {
     classes: ["qin", "qin-sheet", "actor", "unit"],
@@ -410,6 +443,8 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
         .sort((a, b) => a.name.localeCompare(b.name)).map(a => ({ uuid: a.uuid, name: a.name, selected: a.uuid === system.officer })) : [],
       menPct: Math.min(100, Math.round(100 * system.men.value / (system.men.max || 100))),
       xpPct: Math.min(100, Math.round(100 * (system.xp?.value ?? 0) / (system.xp?.max || 100))),
+      traitCards: (system.traitList ?? []).map((e, i) => traitCard(e, i, system.level ?? 1, this.#traitEditing.has(i))),
+      traitCatalog: game.user.isGM ? await traitCatalog() : [],
     });
     return context;
   }
@@ -432,6 +467,66 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
       await this.document.update({ "system.officer": actor.uuid });
     });
     this.element.querySelector("select[data-officer-pick]")?.addEventListener("change", (ev) => this.document.update({ "system.officer": ev.target.value }));
+    this.#wireTraits(context);
+  }
+
+  // ---- Trait cards (GM edits; changes save as they're made) ----
+  #traitEditing = new Set();
+  #traitList() { return foundry.utils.deepClone(this.document.system._source?.traitList ?? this.document._source.system.traitList ?? []); }
+  async #saveTraits(list) {
+    resetTraitCatalog();
+    // the old free text is cleared so it can't turn back into cards
+    await this.document.update({ "system.traitList": list, "system.traits": "" });
+  }
+  #wireTraits(context) {
+    const root = this.element.querySelector(".qin-tab[data-tab=notes]");
+    if (!root || !game.user.isGM) return;
+    const catalog = new Map((context.traitCatalog ?? []).map(t => [t.name, t.desc]));
+    const nextName = (n) => /\+\+$/.test(n) ? n : `${n}+`;
+    root.addEventListener("change", (ev) => {
+      const card = ev.target.closest("[data-trait]"), field = ev.target.dataset.field;
+      if (!card || !field) return;
+      ev.stopPropagation();
+      const list = this.#traitList(), e = list[Number(card.dataset.trait)]; if (!e) return;
+      const up = ev.target.closest("[data-up]"), obj = up ? e.upgrades[Number(up.dataset.up)] : e; if (!obj) return;
+      const v = field === "level" ? Math.max(1, Number(ev.target.value) || 1) : ev.target.value.trim();
+      obj[field] = v;
+      // a known trait name brings its description along when there isn't one yet
+      if (field === "name" && !obj.desc && catalog.get(v)) obj.desc = catalog.get(v);
+      this.#saveTraits(list);
+    });
+    root.addEventListener("click", async (ev) => {
+      const btn = ev.target.closest("[data-trait-act]"); if (!btn) return;
+      ev.preventDefault();
+      const act = btn.dataset.traitAct, card = btn.closest("[data-trait]"), i = card ? Number(card.dataset.trait) : -1;
+      const list = this.#traitList(), e = list[i];
+      if (act === "add") {
+        const input = root.querySelector("[data-trait-new]"), name = input?.value.trim() || "New trait";
+        list.push({ name, desc: catalog.get(name) ?? "", level: 1, upgrades: [] });
+        this.#traitEditing.add(list.length - 1);
+        return this.#saveTraits(list);
+      }
+      if (!e) return;
+      if (act === "edit") { this.#traitEditing.has(i) ? this.#traitEditing.delete(i) : this.#traitEditing.add(i); return this.render(); }
+      if (act === "remove") {
+        const ok = await (api.DialogV2 ?? api.Dialog).confirm({ window: { title: `Remove ${e.name || "trait"}?` }, content: `<p>Remove <b>${esc(e.name || "this trait")}</b> from ${esc(this.document.name)}?</p>` });
+        if (!ok) return;
+        list.splice(i, 1);
+        this.#traitEditing = new Set([...this.#traitEditing].filter(k => k !== i).map(k => k > i ? k - 1 : k));
+        return this.#saveTraits(list);
+      }
+      if (act === "addUpgrade") {
+        const last = [...e.upgrades].sort((a, b) => b.level - a.level)[0];
+        const from = last?.name || e.name, name = nextName(from), lv = last ? last.level + 5 : Math.max(5, (e.level || 1) + 4);
+        e.upgrades.push({ level: lv, name, desc: catalog.get(name) ?? "" });
+        return this.#saveTraits(list);
+      }
+      if (act === "removeUpgrade") {
+        const k = Number(btn.closest("[data-up]")?.dataset.up);
+        e.upgrades.splice(k, 1);
+        return this.#saveTraits(list);
+      }
+    });
   }
 
   static #item(target) { return this.document.items.get(target.closest("[data-item-id]")?.dataset.itemId); }
