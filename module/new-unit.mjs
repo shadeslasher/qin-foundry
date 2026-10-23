@@ -1,5 +1,5 @@
 // "New unit" (GM): make a battlefield unit owned by one of the players, from an existing unit or a blank one,
-// and optionally place its token on the scene with a click.
+// kept in the Actors directory (a folder per player) so their army is tracked between battles.
 
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
 const SIDES = { player: "Player", ally: "Ally", enemy: "Enemy", neutral: "Neutral" };
@@ -34,8 +34,7 @@ export async function newUnitDialog() {
     <div class="form-group"><label>Owner</label><select name="owner">${ownerOpts}</select></div>
     <div class="form-group"><label>Side</label><select name="side">${sideOpts}</select></div>
     <div class="form-group"><label>Officer</label><select name="officer">${officerOpts}</select></div>
-    <div class="form-group"><label>Place it</label><label class="qin-check"><input type="checkbox" name="place" ${canvas?.ready ? "checked" : "disabled"}> Click a square on this scene to put its token there</label></div>
-    <p class="qin-muted">The owner can control the unit and its token. Picking an owner also picks their character as officer, if they have one.</p>
+    <p class="qin-muted">The unit goes in the Actors directory, in a folder for its owner under "Player Units". Drag it onto a scene when it's needed. Picking an owner also picks their character as officer, if they have one.</p>
   </div>`;
   const DialogV2 = foundry.applications.api.DialogV2;
   const res = await DialogV2.wait({
@@ -62,7 +61,16 @@ export async function newUnitDialog() {
   return createUnit(res);
 }
 
-async function createUnit({ template, name, owner, side, officer, place }) {
+/** The owner's folder: "Player Units" / "<player>'s units" (made when first needed). */
+async function ownerFolder(userId) {
+  const user = game.users.get(userId); if (!user) return null;
+  const find = (name, parent) => game.folders.find(f => f.type === "Actor" && f.name === name && (f.folder?.id ?? null) === (parent?.id ?? null));
+  const top = find("Player Units", null) ?? await Folder.create({ name: "Player Units", type: "Actor", sorting: "a" });
+  const name = `${user.name}'s units`;
+  return find(name, top) ?? await Folder.create({ name, type: "Actor", folder: top.id, sorting: "a", color: user.color?.css ?? user.color ?? null });
+}
+
+async function createUnit({ template, name, owner, side, officer }) {
   let data;
   if (template) {
     const src = await fromUuid(template);
@@ -76,42 +84,11 @@ async function createUnit({ template, name, owner, side, officer, place }) {
   // a player's unit keeps its health, morale and XP on the actor between battles
   data.prototypeToken = { ...(data.prototypeToken ?? {}), name: data.name, actorLink: !!owner || !!data.prototypeToken?.actorLink,
     disposition: side === "enemy" ? CONST.TOKEN_DISPOSITIONS.HOSTILE : side === "neutral" ? CONST.TOKEN_DISPOSITIONS.NEUTRAL : CONST.TOKEN_DISPOSITIONS.FRIENDLY };
+  data.folder = owner ? (await ownerFolder(owner))?.id ?? null : null;
   const actor = await Actor.create(data);
   if (!actor) return;
-  ui.notifications.info(`Created ${actor.name}${owner ? ` for ${game.users.get(owner)?.name}` : ""}.`);
-  if (place && canvas?.ready) placeToken(actor);
-  else actor.sheet?.render(true);
+  ui.notifications.info(`Created ${actor.name}${owner ? ` in ${game.users.get(owner)?.name}'s units` : ""}.`);
   return actor;
-}
-
-/** Click a square to put the unit's token there; right-click or Esc to skip. */
-function placeToken(actor) {
-  const view = canvas.app.view, size = canvas.scene.grid.size;
-  const g = new PIXI.Graphics(); g.eventMode = "none";
-  (canvas.interface ?? canvas.stage).addChild(g);
-  const toWorld = (ev) => canvas.canvasCoordinatesFromClient?.({ x: ev.clientX, y: ev.clientY }) ?? canvas.stage.worldTransform.applyInverse({ x: ev.clientX - view.getBoundingClientRect().left, y: ev.clientY - view.getBoundingClientRect().top });
-  const sq = (ev) => { const p = toWorld(ev); return [Math.floor(p.x / size), Math.floor(p.y / size)]; };
-  const w = actor.prototypeToken?.width ?? 1, h = actor.prototypeToken?.height ?? 1;
-  const move = (ev) => { const [x, y] = sq(ev); g.clear().lineStyle(3, 0x3a78c8, 1).beginFill(0x3a78c8, 0.25).drawRect(x * size, y * size, w * size, h * size).endFill(); };
-  const stop = () => {
-    document.removeEventListener("pointerdown", down, true); view.removeEventListener("pointermove", move);
-    document.removeEventListener("keydown", key, true); view.removeEventListener("contextmenu", block, true);
-    if (!g.destroyed) g.destroy();
-  };
-  const down = async (ev) => {
-    if (ev.target !== view) return;
-    ev.stopPropagation(); ev.stopImmediatePropagation(); ev.preventDefault();
-    if (ev.button === 2) { stop(); return actor.sheet?.render(true); }
-    if (ev.button !== 0) return;
-    const [x, y] = sq(ev); stop();
-    const td = await actor.getTokenDocument({ x: x * size, y: y * size });
-    await canvas.scene.createEmbeddedDocuments("Token", [td.toObject()]);
-  };
-  const key = (ev) => { if (ev.key === "Escape") { ev.stopPropagation(); stop(); } };
-  const block = (ev) => { ev.preventDefault(); ev.stopPropagation(); };
-  document.addEventListener("pointerdown", down, true); view.addEventListener("pointermove", move);
-  document.addEventListener("keydown", key, true); view.addEventListener("contextmenu", block, true);
-  ui.notifications.info(`Click a square to place ${actor.name}. Right-click or Esc to skip.`);
 }
 
 export const NEW_UNIT_TOOL = {
