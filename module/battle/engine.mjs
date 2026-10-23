@@ -526,7 +526,9 @@ function buildRoll(s, unit, role, ctx) {
     if (ctx.rear) parts.push(['Rear attack', 2]);
     if (ctx.rear && of.rearAtk) parts.push(['Rear attack vs ' + of.name, of.rearAtk]);
     if (ctx.ambush) parts.push(['Attacking from hiding', 2]);
-    for (const tc of tacticsOn(s, unit, ['attack', 'flanking', 'ambush', 'cavalryCharge'])) parts.push(['Tactic: ' + tacticDef(tc.key).name, 2]);
+    for (const tc of tacticsOn(s, unit, ['attack', 'flanking', 'ambush'])) parts.push(['Tactic: ' + tacticDef(tc.key).name, 2]);
+    // Cavalry Charge: only an attack that is a cavalry charge gains it
+    if (ctx.charge) for (const tc of tacticsOn(s, unit, ['cavalryCharge'])) parts.push(['Tactic: ' + tacticDef(tc.key).name + ' (charging)', 4]);
     if (ctx.ranged && hasTactic(s, unit, 'divineWinds')) parts.push(['Tactic: Divine Winds', 2]);
     if (unit.round.moved && hasTactic(s, unit, 'clearPath')) parts.push(['Tactic: Clear a Path (attacking after moving)', 8]);
     if (ctx.phoenixWon) parts.push(['Tactic: Fury of a Phoenix (won the first attack)', 1]);

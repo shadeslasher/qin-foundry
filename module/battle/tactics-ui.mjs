@@ -253,8 +253,20 @@ function dashedRect(g, x, y, w, h, dash = 14) {
  * Squares on the map: the GM sees every unfired tactic (dashed); players see their own side's; every
  * fired tactic still in effect shows to everyone (faint fill).
  */
+let overlayTick = null;
+
+/** How long a fired tactic still lasts, for its badge: "Ends this round", "2 rounds left", "Until destroyed". */
+function remainingLabel(p, round) {
+  const def = tacticDef(p.key);
+  if (def?.turns >= 99) return "Until destroyed";
+  if (p.untilRound === undefined) return "";
+  const left = p.untilRound - round + 1;
+  return left <= 1 ? "Ends this round" : `${left} rounds left`;
+}
+
 export function drawTacticOverlays() {
-  if (overlay && !overlay.destroyed) overlay.destroy();
+  if (overlayTick) { canvas?.app?.ticker?.remove(overlayTick); overlayTick = null; }
+  if (overlay && !overlay.destroyed) overlay.destroy({ children: true });
   overlay = null;
   if (!canvas?.ready) return;
   const b = getBattle();
@@ -266,18 +278,57 @@ export function drawTacticOverlays() {
   const c = new PIXI.Container(); c.eventMode = "none";
   const g = new PIXI.Graphics(); c.addChild(g);
   const Txt = foundry.canvas?.containers?.PreciseText ?? PIXI.Text;
+  const live = []; // active areas: a slowly breathing glow and a few motes drifting up
   for (const p of shown) {
     const col = TACTIC_COLORS[p.side] ?? 0xffffff, X = (p.x - p.size) * size, Y = (p.y - p.size) * size, W = (2 * p.size + 1) * size;
-    if (p.state === "active") g.lineStyle(3, col, 0.85).beginFill(col, 0.12).drawRect(X, Y, W, W).endFill();
-    else { g.lineStyle(3, col, 0.9); g.beginFill(col, 0.05).drawRect(X, Y, W, W).endFill(); g.lineStyle(3, col, 0.95); dashedRect(g, X, Y, W, W); }
-    const name = tacticDef(p.key)?.name ?? p.key;
-    const t = new Txt(p.state === "active" ? `${name} (active)` : name, new PIXI.TextStyle({ fontFamily: "Signika, sans-serif", fontSize: Math.round(size * 0.2), fontWeight: "bold", fill: "#" + col.toString(16).padStart(6, "0"), stroke: "#000000", strokeThickness: 4 }));
-    t.position.set(X + 6, Y + 4);
-    c.addChild(t);
+    const hex = "#" + col.toString(16).padStart(6, "0"), name = tacticDef(p.key)?.name ?? p.key;
+    if (p.state === "active") {
+      const glow = new PIXI.Graphics(); c.addChildAt(glow, 0);
+      const motes = new PIXI.Graphics(); c.addChild(motes);
+      const n = Math.min(14, 4 + p.size * 2), rnd = (i, k) => { const v = Math.sin((p.x * 73 + p.y * 37 + i * 11 + k) * 12.9898) * 43758.5453; return v - Math.floor(v); };
+      const light = (((((col >> 16) & 255) + 255) >> 1) << 16) | (((((col >> 8) & 255) + 255) >> 1) << 8) | (((col & 255) + 255) >> 1);
+      live.push({ glow, motes, col, light, X, Y, W, seeds: Array.from({ length: n }, (_, i) => ({ x: rnd(i, 1), s: 0.35 + rnd(i, 2) * 0.5, o: rnd(i, 3), r: 1.5 + rnd(i, 4) * 2.5 })) });
+      // name, then the countdown badge beside it
+      const t = new Txt(name, new PIXI.TextStyle({ fontFamily: "Signika, sans-serif", fontSize: Math.round(size * 0.2), fontWeight: "bold", fill: hex, stroke: "#000000", strokeThickness: 4, lineJoin: "round" }));
+      t.position.set(X + 6, Y + 4); c.addChild(t);
+      const label = remainingLabel(p, round);
+      if (label) {
+        const bt = new Txt(`⌛ ${label}`, new PIXI.TextStyle({ fontFamily: "Signika, sans-serif", fontSize: Math.round(size * 0.16), fontWeight: "bold", fill: "#ffffff" }));
+        const padX = size * 0.07, padY = size * 0.03, bx = X + 6, by = Y + 6 + t.height;
+        const pill = new PIXI.Graphics().lineStyle(Math.max(1, size * 0.015), col, 1).beginFill(0x111111, 0.78)
+          .drawRoundedRect(bx, by, bt.width + 2 * padX, bt.height + 2 * padY, (bt.height + 2 * padY) / 2).endFill();
+        bt.position.set(bx + padX, by + padY);
+        c.addChild(pill, bt);
+      }
+    } else {
+      g.lineStyle(3, col, 0.9); g.beginFill(col, 0.05).drawRect(X, Y, W, W).endFill(); g.lineStyle(3, col, 0.95); dashedRect(g, X, Y, W, W);
+      const t = new Txt(name, new PIXI.TextStyle({ fontFamily: "Signika, sans-serif", fontSize: Math.round(size * 0.2), fontWeight: "bold", fill: hex, stroke: "#000000", strokeThickness: 4, lineJoin: "round" }));
+      t.position.set(X + 6, Y + 4); c.addChild(t);
+    }
   }
   const layer = canvas.interface ?? canvas.stage;
   layer.addChildAt?.(c, 0) ?? layer.addChild(c);
   overlay = c;
+  if (live.length && canvas.app?.ticker) {
+    const t0 = performance.now();
+    const draw = () => {
+      const t = (performance.now() - t0) / 1000, breathe = 0.5 + 0.5 * Math.sin(t * 1.6);
+      for (const a of live) {
+        a.glow.clear()
+          .lineStyle(3, a.col, 0.55 + 0.3 * breathe).beginFill(a.col, 0.07 + 0.06 * breathe).drawRect(a.X, a.Y, a.W, a.W).endFill()
+          .lineStyle(0).beginFill(a.col, 0.05 * breathe).drawRect(a.X + a.W * 0.04, a.Y + a.W * 0.04, a.W * 0.92, a.W * 0.92).endFill();
+        a.motes.clear();
+        for (const m of a.seeds) {
+          const k = (m.o + t * m.s * 0.12) % 1;                       // 0 at the bottom of the area, 1 at the top
+          const fade = Math.sin(Math.PI * k);
+          a.motes.beginFill(a.light, 0.55 * fade).drawCircle(a.X + a.W * (0.06 + 0.88 * m.x) + Math.sin(t * 0.8 + m.o * 6) * size * 0.06, a.Y + a.W * (1 - k), m.r).endFill();
+        }
+      }
+    };
+    draw();
+    overlayTick = draw;
+    canvas.app.ticker.add(overlayTick);
+  }
 }
 
 /* ------------------------------------------------------------ ladders on the walls, dropped siege equipment */

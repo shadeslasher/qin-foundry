@@ -222,3 +222,14 @@ test('surrounded: impassable tiles count toward the ring, but at least one enemy
   assert.ok(R.unitById(s, p).surrounded, '3 impassable + 1 enemy');
   assert.strictEqual(R.unitById(s, p).morale, 0);
 });
+
+test('Cavalry Charge: only cavalry charges in the area gain Attack +4', () => {
+  const { s, A, D } = battle((s) => {
+    must(R.act(s, HOST, { type: 'setTactician', side: 'player', tactician: LIU_BEI }));
+    must(R.act(s, P1, { type: 'placeTactic', side: 'player', key: 'cavalryCharge', x: 5, y: 5 }));
+  });
+  const tc = s.tactics.placed[0]; tc.state = 'active'; tc.untilRound = s.turn.round;
+  const roll = (charge) => part(R.buildRoll(s, A, 'attacker', { attacker: A, defender: D, charge }), /Cavalry Charge/);
+  assert.strictEqual(roll(0), 0, 'an ordinary attack gains nothing');
+  assert.strictEqual(roll(2), 4, 'a charge gains +4');
+});

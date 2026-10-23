@@ -322,6 +322,19 @@ function renderMenu(sub = null) {
   }
   menuEl.innerHTML = html;
   placeMenu();
+  // the cursor may already be over the menu (it stays put after clicking Move, Attack…): no mouseenter will
+  // come, so dodge now
+  requestAnimationFrame(dodgeIfHovered);
+}
+
+let lastPointer = null;
+document.addEventListener("pointermove", (ev) => { lastPointer = { x: ev.clientX, y: ev.clientY }; }, { passive: true, capture: true });
+function dodgeIfHovered() {
+  if (!menuEl || !mode || !lastPointer || menuEl.style.display === "none") return;
+  const r = menuEl.getBoundingClientRect();
+  if (lastPointer.x < r.left || lastPointer.x > r.right || lastPointer.y < r.top || lastPointer.y > r.bottom) return;
+  menuSide = menuSide === "right" ? "left" : "right";
+  placeMenu();
 }
 
 function onMenuClick(ev) {
