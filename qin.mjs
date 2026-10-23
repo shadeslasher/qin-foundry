@@ -79,7 +79,7 @@ Hooks.once("init", () => {
     scope: "client", config: false, type: Boolean, default: false,
   });
   game.settings.register(SYSTEM_ID, "rotateFacing", {
-    name: "Rotate unit tokens to show facing", hint: "Battle units turn toward the unit they attacked, or the first unit that attacked them, and turn back when their turn ends. Leave off if your token art isn't top-down.",
+    name: "Rotate unit tokens to show facing", hint: "Battle units turn toward the unit they attacked, or the first unit that attacked them that round (unless they had already attacked), and turn back when the round ends. Leave off if your token art isn't top-down.",
     scope: "world", config: true, type: Boolean, default: false,
   });
   game.settings.register(SYSTEM_ID, "manageStealth", {

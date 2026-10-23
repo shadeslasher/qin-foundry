@@ -274,7 +274,8 @@ function movementOf(s, u) {
 
 function newRoundFlags() {
   return { activated: false, moved: false, cannotMove: false, holding: false, attacked: false,
-    skillUsed: false, heroicUsed: false, meleeTarget: null, meleeAttacker: null };
+    skillUsed: false, heroicUsed: false, meleeTarget: null, meleeAttacker: null,
+    madeAttack: false, wasAttacked: false }; // for facing: has it attacked / been attacked this round
 }
 
 // ---------------------------------------------------------------- dice
@@ -421,8 +422,8 @@ function faceToward(u, target) {
   u.facing = Math.abs(ddx) >= Math.abs(ddy) ? { dx: sign(ddx), dy: 0 } : { dx: 0, dy: sign(ddy) };
 }
 
-// Facing: a unit has no facing until it attacks (it turns to its target) or is attacked while it has none (it
-// turns to that first attacker). Moving doesn't turn it, and its facing clears when its own turn ends.
+// Facing: a unit has no facing until it attacks (it turns to its target) or is first attacked in a round before
+// it has attacked (it turns to that attacker). Moving doesn't turn it; every facing clears when the round ends.
 // Rear: the attacker is behind the defender relative to its facing (never when it has no facing).
 function isRear(s, attacker, defender) {
   const f = defender.facing;
@@ -717,8 +718,12 @@ function resolveAttack(s, attacker, defender, opts) {
     attacker.round.meleeTarget = defender.id;
     defender.round.meleeAttacker = attacker.id;
   }
-  faceToward(attacker, defender);                 // attacking turns a unit to its target
-  if (!defender.facing) faceToward(defender, attacker); // the first unit to attack it, while it has no facing
+  // attacking turns a unit to its target; being attacked turns it to the attacker only the first time this round,
+  // and only if it hasn't attacked this round itself (then it keeps looking where it attacked)
+  faceToward(attacker, defender);
+  if (!defender.round.wasAttacked && !defender.round.madeAttack) faceToward(defender, attacker);
+  attacker.round.madeAttack = true;
+  defender.round.wasAttacked = true;
   if (attacker.hidden) attacker.hidden = false;
 
   const result = {
@@ -970,6 +975,7 @@ function advance(s) {
 
 function endRound(s) {
   const next = s.turn.round + 1;
+  for (const u of s.units) u.facing = null; // every unit's facing clears when the round ends
   // Inspiration: at the end of the round, allied units next to it gain 4 morale
   for (const u of liveUnits(s)) if (trait(u, 'inspiration')) {
     for (const o of liveUnits(s)) if (o !== u && friendly(o, u) && manhattan(o, u) === 1 && o.morale < 100) {
@@ -996,7 +1002,6 @@ function startActivation(s, u, extra) {
 
 function finishActivation(s, u) {
   const t = s.turn;
-  u.facing = null; // facing clears when the unit's own turn ends
   // End-of-turn morale regen for units with an officer (up to 75)
   const o = officerOf(s, u);
   if (o && alive(u) && u.morale < 75) {

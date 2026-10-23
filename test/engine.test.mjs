@@ -654,32 +654,40 @@ test('levels: every 100 XP is a level', () => {
   assert.strictEqual(A.xp, 30);
 });
 
-test('facing: none until attacking or attacked; the first attacker turns it; clears at the end of its turn', () => {
+test('facing: attacking turns a unit; the first attacker this round turns it unless it already attacked; clears when the round ends', () => {
   const s = setup();
   const a = add(s, { typeId: 'yt_warriors', side: 'player', owner: 'p1', x: 5, y: 4 });
   const b = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 5 });
   const c = add(s, { typeId: 'yt_warriors', side: 'player', owner: 'p1', x: 5, y: 6 });
+  const e = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 6, y: 4 });
   must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'startRound' }));
-  const A = R.unitById(s, a), B = R.unitById(s, b), C = R.unitById(s, c);
+  const A = R.unitById(s, a), B = R.unitById(s, b), C = R.unitById(s, c), E = R.unitById(s, e);
   assert.deepStrictEqual([A.facing, B.facing, C.facing], [null, null, null]);
-  // with no facing there is no rear
   dice([5, 5]); let r = R.resolveAttack(s, A, B, { free: true });
-  assert.strictEqual(r.rear, false);
+  assert.strictEqual(r.rear, false, 'no facing, no rear');
   assert.deepStrictEqual(A.facing, { dx: 0, dy: 1 }, 'attacking turns it to its target');
   assert.deepStrictEqual(B.facing, { dx: 0, dy: -1 }, 'the first attacker turns it');
-  // a second attacker from behind: B doesn't turn, so it's a rear attack
   dice([5, 5]); r = R.resolveAttack(s, C, B, { free: true });
-  assert.strictEqual(r.rear, true);
+  assert.strictEqual(r.rear, true, 'a second attacker does not turn it');
   assert.deepStrictEqual(B.facing, { dx: 0, dy: -1 });
-  // moving doesn't turn a unit; ending its turn clears its facing
+  // A attacked first; when E then attacks it from the side, A keeps looking where it attacked
+  dice([5, 5]); R.resolveAttack(s, E, A, { free: true });
+  assert.deepStrictEqual(A.facing, { dx: 0, dy: 1 });
+  // a unit's own turn ending keeps its facing; the round ending clears every facing
   s.freeMovement = false;
-  const p = R.prompt(s);
-  if (p.kind === 'claim') must(R.act(s, P1, { type: 'claim' }));
+  if (R.prompt(s).kind === 'claim') must(R.act(s, P1, { type: 'claim' }));
   must(R.act(s, P1, { type: 'begin', unitId: a }));
   must(R.act(s, P1, { type: 'moveTo', unitId: a, x: 4, y: 4 }));
   assert.deepStrictEqual(A.facing, { dx: 0, dy: 1 }, 'moving keeps its facing');
   must(R.act(s, P1, { type: 'endTurn', unitId: a }));
-  assert.strictEqual(A.facing, null);
+  assert.deepStrictEqual(A.facing, { dx: 0, dy: 1 }, 'still facing after its own turn');
+  for (let i = 0; i < 30 && s.turn.round === 1; i++) {
+    const p = R.prompt(s);
+    if (p.kind === 'claim') { R.act(s, P1, { type: 'claim' }); continue; }
+    if (!R.act(s, HOST, { type: 'skipPrompt' }).ok) break;
+  }
+  assert.ok(s.turn.round > 1 || s.turn.phase === 'formations', 'the round ended');
+  assert.deepStrictEqual([A.facing, B.facing, C.facing, E.facing], [null, null, null, null]);
 });
 
 test('facing is only up, down, left or right: the longer way wins, left/right on a perfect diagonal', () => {
