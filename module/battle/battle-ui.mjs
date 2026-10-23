@@ -286,7 +286,7 @@ function renderMenu(sub = null) {
   const b = (act, label, enabled, tip = "", extra = "") =>
     `<button type="button" data-fe="${act}" ${enabled && !busy ? "" : "disabled"} ${tip ? `data-tooltip="${esc(tip)}"` : ""} ${extra}>${label}</button>`;
   let html = `<div class="qin-fe-title">${esc(u.name)}</div>`;
-  if (mode === "move") html += `<div class="qin-fe-hint">Blue: move · Purple: climb the ladder (all movement) · Red: forced march (ends turn) · Green: swap<br>Right-click or Esc to go back</div>` + b("cancel", "Back", true);
+  if (mode === "move") html += `<div class="qin-fe-hint">Blue: move · Purple: climb the ladder (all movement) · Red: forced march (officer units, ends turn) · Green: swap<br>Right-click or Esc to go back</div>` + b("cancel", "Back", true);
   else if (mode === "attack") html += `<div class="qin-fe-hint">Click an enemy marked in red.<br>Right-click or Esc to go back</div>` + b("cancel", "Back", true);
   else if (mode === "ladder") html += `<div class="qin-fe-hint">Click a gold wall square next to the unit to set the ladders there.<br>Right-click or Esc to go back</div>` + b("cancel", "Back", true);
   else if (mode === "fire") html += `<div class="qin-fe-hint">Click an orange tile next to the unit to set it on fire (forest or tall grass).<br>Right-click or Esc to go back</div>` + b("cancel", "Back", true);

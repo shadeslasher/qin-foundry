@@ -360,11 +360,12 @@ function moveOptions(s, u) {
   if (!move) return { blue, red, climb };
   // up a ladder onto an empty wall square: takes all its movement
   for (const [x, y] of climbTiles(s, u)) { blue.set(x + ',' + y, 1); climb.add(x + ',' + y); }
-  const reach = reachable(s, u, move * 2);
+  const canForce = !!officerOf(s, u); // only units led by an officer can force-march
+  const reach = reachable(s, u, canForce ? move * 2 : move);
   for (const [k, d] of reach) {
     const n = reach.steps.get(k);
     if (d <= move) blue.set(k, n);
-    else {
+    else if (canForce) {
       const cost = forcedMarchCost(s, u) * Math.ceil(d - move);
       if (u.morale - cost > 0) red.set(k, { dist: n, cost });
     }
@@ -1638,6 +1639,7 @@ function doMove(s, actor, a, forced) {
   const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
   const { u, act: ac } = r;
   if (forced) {
+    if (!officerOf(s, u)) return err('Only units led by an officer can force-march');
     if (ac.step !== 'act' || u.round.attacked || ac.forcedMarched) return err('Forced march comes after moving, instead of attacking');
   } else if (ac.step !== 'move') return err('Already moved');
   if (u.round.cannotMove) return err('This unit cannot move this round');

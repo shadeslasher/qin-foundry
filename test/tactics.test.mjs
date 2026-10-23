@@ -180,6 +180,8 @@ test('Rapid Advance, Swift Retreat: forced march costs 2 morale a tile', () => {
     must(R.act(s, HOST, { type: 'setTactician', side: 'player', tactician: { ...LIU_BEI, aow: 3 } }));
     must(R.act(s, HOST, { type: 'placeTactic', side: 'player', key: 'rapidAdvance', x: 5, y: 5 }));
   });
+  // only officer units can force-march: give it an officer with no stats
+  s.library.officers.push({ id: 'plain', name: 'Plain Officer', fire: 0, command: 0, skills: {}, heroicActions: [] }); A.officerId = 'plain';
   const red = R.moveOptions(s, A).red;
   assert.strictEqual(red.get('5,10').cost, 4, '2 tiles past a move of 3 = 4 morale');
   must(R.act(s, P1, { type: 'moveTo', unitId: A.id, x: 5, y: 10 }));

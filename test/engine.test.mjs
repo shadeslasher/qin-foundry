@@ -554,10 +554,27 @@ function turnFor(s, aType, extra = []) {
   return [a, ...others];
 }
 
+/** Give a unit an officer with no stats or abilities (for rules that need one, like forced march). */
+function plainOfficer(s, u) {
+  if (!s.library.officers.some(o => o.id === 'plain')) s.library.officers.push({ id: 'plain', name: 'Plain Officer', fire: 0, command: 0, skills: {}, heroicActions: [] });
+  u.officerId = 'plain';
+}
+
+test('only officer units can force-march', () => {
+  const s = setup();
+  const [a] = turnFor(s, unitType('walker2', { move: 3 }), [{ type: unitType('far3'), x: 20, y: 12 }]);
+  const u = R.unitById(s, a);
+  assert.strictEqual(R.moveOptions(s, u).red.size, 0, 'no red squares without an officer');
+  assert.ok(!R.act(s, P1, { type: 'moveTo', unitId: a, x: 9, y: 5 }).ok);
+  plainOfficer(s, u);
+  assert.ok(R.moveOptions(s, u).red.has('9,5'));
+});
+
 test('click-to-move: blue tiles keep the action, red tiles force march and end the turn', () => {
   const s = setup();
   const [a] = turnFor(s, unitType('walker', { move: 3 }), [{ type: unitType('far'), x: 20, y: 12 }]);
   const u = R.unitById(s, a);
+  plainOfficer(s, u); // only officer units can force-march
   const { blue, red } = R.moveOptions(s, u);
   assert.ok(blue.has('8,5') && !blue.has('9,5') && red.has('9,5') && red.has('11,5') && !red.has('12,5'));
   assert.strictEqual(red.get('11,5').cost, 15);
@@ -574,6 +591,7 @@ test('forced march costs 5 morale per extra tile, ends the turn, and cannot drop
   const s = setup();
   const [a] = turnFor(s, unitType('marcher', { move: 3 }), [{ type: unitType('far2'), x: 20, y: 12 }]);
   const u = R.unitById(s, a);
+  plainOfficer(s, u);
   u.morale = 11; // 2 extra tiles = 10 (ok), 3 = 15 (would surrender)
   const { red } = R.moveOptions(s, u);
   assert.ok(red.has('10,5') && !red.has('11,5'));
