@@ -142,7 +142,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
     const blocked = a && a.started;
     const shown = (u) => game.user.isGM || (u && u.owner === game.user.id); // players see only their own units
     const held = t.held.map(id => unit(id)).filter(u => u && u.status === "active" && shown(u)).map(u => ({
-      id: u.id, name: u.name, img: tokenImg(u.id), init: t.init[u.id]?.total,
+      id: u.id, name: E.officerOf(s, u)?.name || u.name, img: tokenImg(u.id), init: t.init[u.id]?.total,
       mine: mine(u), can: mine(u) && !blocked && t.order.indexOf(u.id) < (p.rank ?? Infinity) && !(a && a.unitId === u.id),
     }));
 
@@ -166,7 +166,8 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
       const u = unit(id);
       if (!u || !shown(u)) return null;
       const st = u.status !== "active" ? u.status : u.round.activated ? "done" : t.held.includes(id) ? "holding" : (a?.unitId === id ? "acting" : "waiting");
-      return { name: u.name, init: t.init[id]?.total, state: st, now: p.unitId === id };
+      const off = E.officerOf(s, u)?.name; // officer units go by their officer, with the unit alongside
+      return { name: off || u.name, unit: off ? u.name : null, init: t.init[id]?.total, state: st, now: p.unitId === id };
     }).filter(Boolean);
 
     const units = s.units.filter(shown).map(u => ({

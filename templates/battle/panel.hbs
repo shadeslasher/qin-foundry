@@ -67,7 +67,7 @@
   <div class="qin-battle-scroll">
     {{#if order.length}}
     <div class="qin-card"><h4>Initiative</h4>
-      <ul class="qin-order">{{#each order}}<li class="{{#if now}}now{{/if}}"><span>{{init}} · {{name}}</span><span class="qin-muted">{{state}}</span></li>{{/each}}</ul>
+      <ul class="qin-order">{{#each order}}<li class="{{#if now}}now{{/if}}"><span>{{init}} · {{name}}{{#if unit}} <span class="qin-muted">({{unit}})</span>{{/if}}</span><span class="qin-muted">{{state}}</span></li>{{/each}}</ul>
     </div>
     {{/if}}
 
