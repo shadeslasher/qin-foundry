@@ -85,6 +85,8 @@ async function createUnit({ template, name, owner, side, officer }) {
   data.prototypeToken = { ...(data.prototypeToken ?? {}), name: data.name, actorLink: !!owner || !!data.prototypeToken?.actorLink,
     disposition: side === "enemy" ? CONST.TOKEN_DISPOSITIONS.HOSTILE : side === "neutral" ? CONST.TOKEN_DISPOSITIONS.NEUTRAL : CONST.TOKEN_DISPOSITIONS.FRIENDLY };
   data.folder = owner ? (await ownerFolder(owner))?.id ?? null : null;
+  // remember the template, so the Unit Editor can update this copy later
+  if (template) data.flags = foundry.utils.mergeObject(data.flags ?? {}, { [game.system.id]: { template } });
   const actor = await Actor.create(data);
   if (!actor) return;
   ui.notifications.info(`Created ${actor.name}${owner ? ` in ${game.users.get(owner)?.name}'s units` : ""}.`);

@@ -523,3 +523,17 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin .qin-trait-option span { grid-column: 1; font-size: calc(11.5px * var(--qin-scale, 1.15)); line-height: 1.3; }
 .qin .qin-trait-option button { grid-column: 2; grid-row: 1 / span 2; width: auto; padding: 2px 10px; }
 .qin .qin-trait.locked .qin-trait-option { opacity: 0.6; }
+
+/* Unit Editor */
+.qin-unit-editor .window-content { background: var(--qin-paper); color: var(--qin-ink); padding: 8px 10px; overflow-y: auto; }
+.qin .qin-ue-top { display: flex; gap: 6px; }
+.qin .qin-ue-top input { flex: 1; }
+.qin .qin-ue-top button { flex: none; width: auto; }
+.qin .qin-ue-group h3 { cursor: pointer; user-select: none; }
+.qin .qin-ue-list { list-style: none; margin: 0 0 6px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.qin .qin-ue-list > li { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border: 1px solid var(--qin-line); border-radius: 5px; background: rgba(255,255,255,0.45); }
+.qin .qin-ue-list > li img { width: 36px; height: 36px; object-fit: cover; border-radius: 4px; border: 1px solid var(--qin-gold); flex: none; }
+.qin .qin-ue-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.qin .qin-ue-main b { font-family: "Signika", serif; }
+.qin .qin-ue-btns { display: flex; gap: 4px; flex: none; }
+.qin .qin-ue-btns button { width: auto; padding: 1px 7px; font-size: calc(11.5px * var(--qin-scale, 1.15)); line-height: 1.8; }

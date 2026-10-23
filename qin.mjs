@@ -16,6 +16,7 @@ import { registerFactions, factionList } from "./module/factions.mjs";
 import { refreshBattleUI, repositionBattleUI, lockUnitTokens, onUnitSelected, registerUnitClicks } from "./module/battle/battle-ui.mjs";
 import { refreshTactics, registerTactics } from "./module/battle/tactics-ui.mjs";
 import { NEW_UNIT_TOOL, newUnitDialog } from "./module/new-unit.mjs";
+import { UNIT_EDITOR_TOOL, UnitEditorApp, registerUnitEditor, reapplyUnitEdits } from "./module/unit-editor.mjs";
 import { registerMapRenderer, syncBattleMap, initBattleMapSync, redrawScene, MapEditorApp } from "./module/battle/maprender.mjs";
 import { importBattleMap } from "./module/battle/battlemap.mjs";
 import { registerUnitInfo, openUnitInfo, openOfficerView, registerDangerZoneKey, toggleDangerZone } from "./module/unit-info.mjs";
@@ -34,7 +35,7 @@ Hooks.once("init", () => {
   CONFIG.QIN = CFG;
   CONFIG.qinFactions ??= {};
   globalThis.qin = game.qin = { config: CFG, rules: QinRules, openBattle: () => BattlePanel.open(), battleRequest, registerFactions, factionList, openUnitInfo, openOfficerView, importBattleMap: () => importBattleMap(SYSTEM_ID),
-    registerMapRenderer, redrawMap: (scene = canvas.scene) => redrawScene(scene), paintMap: (scene = canvas.scene) => MapEditorApp.open(scene), refreshBattlePanel: () => BattlePanel.refresh(), newUnit: () => newUnitDialog() };
+    registerMapRenderer, redrawMap: (scene = canvas.scene) => redrawScene(scene), paintMap: (scene = canvas.scene) => MapEditorApp.open(scene), refreshBattlePanel: () => BattlePanel.refresh(), newUnit: () => newUnitDialog(), unitEditor: () => UnitEditorApp.open() };
 
   CONFIG.Actor.documentClass = QinActor;
   CONFIG.Item.documentClass = QinItem;
@@ -75,6 +76,7 @@ Hooks.once("init", () => {
     name: "Reroll initiative every round (personal combat)", hint: "Qin rerolls Water + Yin/Yang each round.",
     scope: "world", config: true, type: Boolean, default: true,
   });
+  registerUnitEditor();
   game.settings.register(SYSTEM_ID, "compactUnits", { // the Battle panel's "Less info" button, per player
     scope: "client", config: false, type: Boolean, default: false,
   });
@@ -151,6 +153,7 @@ Hooks.once("init", () => {
 });
 
 Hooks.once("ready", () => {
+  reapplyUnitEdits();
   registerAttackFxSocket();
   initBattleMapSync();
   refreshTactics();
@@ -184,9 +187,9 @@ Hooks.on("getSceneControlButtons", (controls) => {
     name: "qinBattle", title: "Battle panel", icon: "fa-solid fa-chess-rook", order: 99,
     button: true, visible: true, onChange: () => BattlePanel.open(),
   };
-  const unitTool = { ...NEW_UNIT_TOOL, visible: !!game.user?.isGM };
-  if (Array.isArray(controls)) controls.find(c => c.name === "token")?.tools.push({ ...tool, onClick: tool.onChange }, { ...unitTool, onClick: unitTool.onChange });
-  else if (controls.tokens?.tools) { controls.tokens.tools.qinBattle = tool; controls.tokens.tools.qinNewUnit = unitTool; }
+  const unitTool = { ...NEW_UNIT_TOOL, visible: !!game.user?.isGM }, editTool = { ...UNIT_EDITOR_TOOL, visible: !!game.user?.isGM };
+  if (Array.isArray(controls)) controls.find(c => c.name === "token")?.tools.push({ ...tool, onClick: tool.onChange }, { ...unitTool, onClick: unitTool.onChange }, { ...editTool, onClick: editTool.onChange });
+  else if (controls.tokens?.tools) { controls.tokens.tools.qinBattle = tool; controls.tokens.tools.qinNewUnit = unitTool; controls.tokens.tools.qinUnitEditor = editTool; }
 });
 
 /* ---------- Macro bar: drag a weapon (or Tao, technique...) onto the hotbar to get a click-to-use button */
