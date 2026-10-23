@@ -126,6 +126,7 @@ Hooks.once("init", () => {
   }
   Handlebars.registerHelper("qinObj", (options) => options.hash);
   if (!Handlebars.helpers.eq) Handlebars.registerHelper("eq", (a, b) => a === b);
+  if (!Handlebars.helpers.inc) Handlebars.registerHelper("inc", (n) => Number(n) + 1);
 
   // Combat turn hotkeys (change them in Configure Controls)
   const turnKey = (dir) => () => {

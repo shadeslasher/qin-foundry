@@ -1,7 +1,7 @@
 import { ASPECTS, SKILLS, DOMAINS, SKILL_LEVELS, BOL_LEVELS, MAGIC_WAYS, OFFICER_ABILITY_KINDS, OFFICER_EFFECTS, UNIT_CATEGORIES, SIDES, SIGNATURE_SLOTS, systemPath } from "../config.mjs";
 import { factionOf, openFactionPicker } from "../factions.mjs";
 import { actionsPerRound } from "../rules/qin-rules.mjs";
-import { traitAtLevel, parseTraitText } from "../battle/traits.mjs";
+import { traitAtLevel, parseTraitText, pendingTraitChoices } from "../battle/traits.mjs";
 
 const { api, sheets } = foundry.applications;
 // v14 renamed ActorSheetV2/ItemSheetV2 to ActorSheet/ItemSheet; fall back to the v13 names.
@@ -370,7 +370,7 @@ async function traitCatalog() {
   if (traitCatalogCache) return traitCatalogCache;
   const out = new Map();
   const take = (sys) => {
-    const list = sys?.traitList?.length ? sys.traitList.flatMap(e => [e, ...(e.upgrades ?? [])]) : parseTraitText(sys?.traits);
+    const list = sys?.traitList?.length ? sys.traitList.flatMap(e => [e, ...(e.upgrades ?? []), ...(e.options ?? [])]) : parseTraitText(sys?.traits);
     for (const t of list) if (t?.name && (!out.has(t.name) || (!out.get(t.name) && t.desc))) out.set(t.name, t.desc || "");
   };
   for (const a of game.actors ?? []) if (a.type === "unit") take(a._source.system);
@@ -384,6 +384,12 @@ async function traitCatalog() {
 
 /** A trait entry as a card: what it is now, and its steps (base, then level upgrades). */
 function traitCard(e, i, level, editing) {
+  if (e.options?.length) {
+    const locked = (e.level || 1) > level, chosen = e.options[e.chosen ?? -1] ?? null;
+    return { index: i, isChoice: true, name: e.name, level: e.level || 1, options: e.options, editing, locked,
+      pending: !locked && !chosen, chosen, title: e.name || `Choose a trait at level ${e.level || 1}`,
+      choices: e.options.map((o, k) => ({ ...o, picked: k === e.chosen })) };
+  }
   const ups = [...(e.upgrades ?? [])].map((u, k) => ({ ...u, k })).sort((a, b) => (a.level || 1) - (b.level || 1));
   const cur = traitAtLevel(e, level);
   const steps = [{ level: e.level || 1, name: e.name, desc: e.desc }, ...ups.map(u => ({ level: u.level, name: u.name, desc: u.desc || e.desc }))];
@@ -445,6 +451,7 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
       xpPct: Math.min(100, Math.round(100 * (system.xp?.value ?? 0) / (system.xp?.max || 100))),
       traitCards: (system.traitList ?? []).map((e, i) => traitCard(e, i, system.level ?? 1, this.#traitEditing.has(i))),
       traitCatalog: game.user.isGM ? await traitCatalog() : [],
+      traitChoices: pendingTraitChoices(system.traitList, system.level ?? 1),
     });
     return context;
   }
@@ -480,7 +487,17 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
   }
   #wireTraits(context) {
     const root = this.element.querySelector(".qin-tab[data-tab=notes]");
-    if (!root || !game.user.isGM) return;
+    if (!root) return;
+    if (!game.user.isGM) {
+      // the unit's owner makes its trait choices
+      if (this.isEditable) root.addEventListener("click", (ev) => {
+        const btn = ev.target.closest('[data-trait-act="choose"]'); if (!btn) return;
+        const list = this.#traitList(), e = list[Number(btn.closest("[data-trait]")?.dataset.trait)];
+        if (!e?.options?.length || (e.level || 1) > (this.document.system.level ?? 1)) return;
+        e.chosen = Number(btn.dataset.opt); this.#saveTraits(list);
+      });
+      return;
+    }
     const catalog = new Map((context.traitCatalog ?? []).map(t => [t.name, t.desc]));
     const nextName = (n) => /\+\+$/.test(n) ? n : `${n}+`;
     root.addEventListener("change", (ev) => {
@@ -488,7 +505,8 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
       if (!card || !field) return;
       ev.stopPropagation();
       const list = this.#traitList(), e = list[Number(card.dataset.trait)]; if (!e) return;
-      const up = ev.target.closest("[data-up]"), obj = up ? e.upgrades[Number(up.dataset.up)] : e; if (!obj) return;
+      const up = ev.target.closest("[data-up]"), op = ev.target.closest("[data-opt]");
+      const obj = up ? e.upgrades[Number(up.dataset.up)] : op ? e.options[Number(op.dataset.opt)] : e; if (!obj) return;
       const v = field === "level" ? Math.max(1, Number(ev.target.value) || 1) : ev.target.value.trim();
       obj[field] = v;
       // a known trait name brings its description along when there isn't one yet
@@ -506,7 +524,22 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
         this.#traitEditing.add(list.length - 1);
         return this.#saveTraits(list);
       }
+      if (act === "addChoice") {
+        list.push({ name: "", desc: "", level: 5, upgrades: [], options: [{ name: "", desc: "" }, { name: "", desc: "" }], chosen: -1 });
+        this.#traitEditing.add(list.length - 1);
+        return this.#saveTraits(list);
+      }
       if (!e) return;
+      if (act === "choose") { e.chosen = Number(btn.dataset.opt); return this.#saveTraits(list); }
+      if (act === "unchoose") { e.chosen = -1; return this.#saveTraits(list); }
+      if (act === "addOption") { e.options.push({ name: "", desc: "" }); return this.#saveTraits(list); }
+      if (act === "removeOption") {
+        const k = Number(btn.closest("[data-opt]")?.dataset.opt);
+        e.options.splice(k, 1);
+        if (e.chosen === k) e.chosen = -1; else if (e.chosen > k) e.chosen--;
+        if (!e.options.length) e.options.push({ name: "", desc: "" });
+        return this.#saveTraits(list);
+      }
       if (act === "edit") { this.#traitEditing.has(i) ? this.#traitEditing.delete(i) : this.#traitEditing.add(i); return this.render(); }
       if (act === "remove") {
         const ok = await (api.DialogV2 ?? api.Dialog).confirm({ window: { title: `Remove ${e.name || "trait"}?` }, content: `<p>Remove <b>${esc(e.name || "this trait")}</b> from ${esc(this.document.name)}?</p>` });

@@ -29,7 +29,13 @@ export function shieldArmorOf(note) {
 }
 
 // ---- Trait list (one card per trait, optional level locks and upgrades) ----
-// entry: { name, desc, level (unlock level, 1 = from the start), upgrades: [{ level, name, desc }] }
+// entry: { name, desc, level (unlock level, 1 = from the start), upgrades: [{ level, name, desc }],
+//         options: [{ name, desc }] + chosen (index, -1 = not yet) for a choice between traits }
+
+/** Choices the unit has reached but not made yet. */
+export function pendingTraitChoices(list, level = 1) {
+  return (list ?? []).filter(e => e.options?.length && (e.level || 1) <= level && !e.options[e.chosen ?? -1]).length;
+}
 
 /** Old one-trait-per-line text ("Name - description") into trait list entries. */
 export function parseTraitText(text) {
@@ -42,6 +48,7 @@ export function parseTraitText(text) {
 /** What a trait entry is at a unit level: null if still locked, else the highest unlocked step. */
 export function traitAtLevel(entry, level = 1) {
   if ((entry.level || 1) > level) return null;
+  if (entry.options?.length) { const o = entry.options[entry.chosen ?? -1]; return o?.name ? { name: o.name, desc: o.desc, step: 0 } : null; }
   let cur = { name: entry.name, desc: entry.desc, step: 0 };
   [...(entry.upgrades ?? [])].sort((a, b) => (a.level || 1) - (b.level || 1)).forEach((u, i) => {
     if ((u.level || 1) <= level && u.name) cur = { name: u.name, desc: u.desc || cur.desc, step: i + 1 };

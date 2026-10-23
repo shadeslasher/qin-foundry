@@ -151,6 +151,9 @@ export class UnitData extends foundry.abstract.TypeDataModel {
         upgrades: new fields.ArrayField(new fields.SchemaField({     // e.g. at level 5 it becomes "Anti-Infantry+"
           level: int(5, { min: 1 }), name: new fields.StringField({ initial: "" }), desc: new fields.StringField({ initial: "" }),
         })),
+        // a choice: at `level` the unit picks one of these (then it works like a normal trait)
+        options: new fields.ArrayField(new fields.SchemaField({ name: new fields.StringField({ initial: "" }), desc: new fields.StringField({ initial: "" }) })),
+        chosen: int(-1, { min: -1 }),
       })),
     };
   }
