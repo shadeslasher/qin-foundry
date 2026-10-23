@@ -449,3 +449,9 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin-mp .qin-mp-erase { grid-column: 1 / -1; }
 .qin-mp .qin-mp-erase i { border: none; width: auto; height: auto; }
 .qin-mp .qin-mp-erase small { opacity: 0.7; }
+
+/* ---------- new unit dialog ---------- */
+.qin-newunit .form-group { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+.qin-newunit .form-group > label:first-child { flex: 0 0 70px; font-weight: bold; }
+.qin-newunit .form-group select, .qin-newunit .form-group input[type=text] { flex: 1; }
+.qin-newunit .qin-check { display: flex; align-items: center; gap: 6px; font-weight: normal; flex: 1; }

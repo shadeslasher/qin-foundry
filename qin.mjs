@@ -15,6 +15,7 @@ import { registerUnitBars, redrawAllUnitBars } from "./module/unit-bars.mjs";
 import { registerFactions, factionList } from "./module/factions.mjs";
 import { refreshBattleUI, repositionBattleUI, lockUnitTokens, onUnitSelected, registerUnitClicks } from "./module/battle/battle-ui.mjs";
 import { refreshTactics, registerTactics } from "./module/battle/tactics-ui.mjs";
+import { NEW_UNIT_TOOL, newUnitDialog } from "./module/new-unit.mjs";
 import { registerMapRenderer, syncBattleMap, initBattleMapSync, redrawScene, MapEditorApp } from "./module/battle/maprender.mjs";
 import { importBattleMap } from "./module/battle/battlemap.mjs";
 import { registerUnitInfo, openUnitInfo, openOfficerView, registerDangerZoneKey, toggleDangerZone } from "./module/unit-info.mjs";
@@ -33,7 +34,7 @@ Hooks.once("init", () => {
   CONFIG.QIN = CFG;
   CONFIG.qinFactions ??= {};
   globalThis.qin = game.qin = { config: CFG, rules: QinRules, openBattle: () => BattlePanel.open(), battleRequest, registerFactions, factionList, openUnitInfo, openOfficerView, importBattleMap: () => importBattleMap(SYSTEM_ID),
-    registerMapRenderer, redrawMap: (scene = canvas.scene) => redrawScene(scene), paintMap: (scene = canvas.scene) => MapEditorApp.open(scene), refreshBattlePanel: () => BattlePanel.refresh() };
+    registerMapRenderer, redrawMap: (scene = canvas.scene) => redrawScene(scene), paintMap: (scene = canvas.scene) => MapEditorApp.open(scene), refreshBattlePanel: () => BattlePanel.refresh(), newUnit: () => newUnitDialog() };
 
   CONFIG.Actor.documentClass = QinActor;
   CONFIG.Item.documentClass = QinItem;
@@ -179,8 +180,9 @@ Hooks.on("getSceneControlButtons", (controls) => {
     name: "qinBattle", title: "Battle panel", icon: "fa-solid fa-chess-rook", order: 99,
     button: true, visible: true, onChange: () => BattlePanel.open(),
   };
-  if (Array.isArray(controls)) controls.find(c => c.name === "token")?.tools.push({ ...tool, onClick: tool.onChange });
-  else if (controls.tokens?.tools) controls.tokens.tools.qinBattle = tool;
+  const unitTool = { ...NEW_UNIT_TOOL, visible: !!game.user?.isGM };
+  if (Array.isArray(controls)) controls.find(c => c.name === "token")?.tools.push({ ...tool, onClick: tool.onChange }, { ...unitTool, onClick: unitTool.onChange });
+  else if (controls.tokens?.tools) { controls.tokens.tools.qinBattle = tool; controls.tokens.tools.qinNewUnit = unitTool; }
 });
 
 /* ---------- Macro bar: drag a weapon (or Tao, technique...) onto the hotbar to get a click-to-use button */
