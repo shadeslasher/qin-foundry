@@ -52,6 +52,28 @@ function facingOf(token) {
   return f.dx ? (f.dx > 0 ? "right" : "left") : (f.dy > 0 ? "down" : "up");
 }
 
+/* Facing chevrons show while a unit is hovered, or on every unit while the "show facing" key (X) is held. */
+let showAllFacing = false;
+function setShowAllFacing(on) {
+  showAllFacing = on;
+  for (const t of canvas?.tokens?.placeables ?? []) {
+    const ch = t[KEY]?.qinChevron;
+    if (ch && !ch.destroyed) ch.visible = on || !!t.hover;
+  }
+}
+export function registerFacingKey(systemId) {
+  game.keybindings.register(systemId, "showFacing", {
+    name: "Show unit facing (hold)",
+    hint: "While held, every unit that faces a direction shows its chevron, not just the one you hover over.",
+    editable: [{ key: "KeyX" }],
+    onDown: () => { if (!canvas?.ready) return false; setShowAllFacing(true); return true; },
+    onUp: () => { setShowAllFacing(false); return true; },
+    precedence: CONST.KEYBINDING_PRECEDENCE.NORMAL,
+  });
+  // switching windows while holding the key never sends the key-up: let go then
+  window.addEventListener("blur", () => { if (showAllFacing) setShowAllFacing(false); });
+}
+
 /** A thin white chevron just inside the unit's border, pointing the way it faces. */
 function drawFacingChevron(dir, w, h, T, pad, barsTop) {
   // the tip sits the same distance in from the border on every side (facing down, that puts it over the bars)
@@ -490,7 +512,7 @@ export async function drawUnitBars(token) {
   });
   c.addChild(bars);
   // which way it faces: shown only while the unit is hovered
-  if (facing) { const ch = c.qinChevron = drawFacingChevron(facing, w, h, T, pad, top); ch.visible = !!token.hover; c.addChild(ch); }
+  if (facing) { const ch = c.qinChevron = drawFacingChevron(facing, w, h, T, pad, top); ch.visible = !!token.hover || showAllFacing; c.addChild(ch); }
   else c.qinChevron = null;
 
   // already acted this round: grey it out and say so
@@ -632,7 +654,7 @@ export function registerUnitBars() {
     if (token.actor?.type !== "unit") return;
     animateFlag(token, hovered ? 1 : 0);
     const ch = token[KEY]?.qinChevron;
-    if (ch && !ch.destroyed) ch.visible = !!hovered;
+    if (ch && !ch.destroyed) ch.visible = !!hovered || showAllFacing;
   });
   // health, morale, officer or faction changes on the actor redraw its tokens
   Hooks.on("updateActor", (actor) => {

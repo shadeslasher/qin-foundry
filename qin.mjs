@@ -11,7 +11,7 @@ import * as QinRules from "./module/rules/qin-rules.mjs";
 import { registerTokenHover } from "./module/token-hover.mjs";
 import { registerCombatQuery, onRenderCombatTracker } from "./module/combat-actions.mjs";
 import { registerAttackFxSocket, registerDamageFloats } from "./module/attack-fx.mjs";
-import { registerUnitBars, redrawAllUnitBars } from "./module/unit-bars.mjs";
+import { registerUnitBars, redrawAllUnitBars, registerFacingKey } from "./module/unit-bars.mjs";
 import { registerFactions, factionList } from "./module/factions.mjs";
 import { refreshBattleUI, repositionBattleUI, lockUnitTokens, onUnitSelected, registerUnitClicks } from "./module/battle/battle-ui.mjs";
 import { refreshTactics, registerTactics } from "./module/battle/tactics-ui.mjs";
@@ -214,7 +214,7 @@ async function rollTestMacro({ actorUuid, aspect, skill, skillItem }) {
   domain ??= "metal";
   return actor.rollTest({ aspect: domain, skill: key, physical: domain === "water" });
 }
-Hooks.once("init", () => { registerDangerZoneKey(SYSTEM_ID); game.qin.toggleDangerZone = toggleDangerZone; game.qin.rollItemMacro = rollItemMacro; game.qin.rollTestMacro = rollTestMacro; });
+Hooks.once("init", () => { registerDangerZoneKey(SYSTEM_ID); registerFacingKey(SYSTEM_ID); game.qin.toggleDangerZone = toggleDangerZone; game.qin.rollItemMacro = rollItemMacro; game.qin.rollTestMacro = rollTestMacro; });
 Hooks.on("hotbarDrop", (bar, data, slot) => {
   if (data?.type !== "QinRoll") return;
   (async () => {
