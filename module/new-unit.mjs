@@ -34,7 +34,7 @@ export async function newUnitDialog() {
     <div class="form-group"><label>Owner</label><select name="owner">${ownerOpts}</select></div>
     <div class="form-group"><label>Side</label><select name="side">${sideOpts}</select></div>
     <div class="form-group"><label>Officer</label><select name="officer">${officerOpts}</select></div>
-    <p class="qin-muted">The unit goes in the Actors directory: player units in a folder for their owner under "Player Units"; enemy, ally and neutral units in "Enemy Units", "Ally Units" or "Neutral Units". Drag it onto a scene when it's needed. Picking an owner also picks their character as officer, if they have one.</p>
+    <p class="qin-muted">The unit goes in the Actors directory: player units in a folder for their owner under "Player Units"; enemy, ally and neutral units in "Enemy Units", "Ally Units" or "Neutral Units". Drag it onto a scene when it's needed.</p>
   </div>`;
   const DialogV2 = foundry.applications.api.DialogV2;
   const res = await DialogV2.wait({
@@ -51,7 +51,7 @@ export async function newUnitDialog() {
       const owner = root?.querySelector("[name=owner]"), off = root?.querySelector("[name=officer]"), side = root?.querySelector("[name=side]");
       owner?.addEventListener("change", () => {
         const u = game.users.get(owner.value);
-        if (u?.character?.type === "character" && off) off.value = u.character.uuid;
+        if (off) off.value = ""; // picking an owner starts with no officer; choose one if the unit has one
         if (side) side.value = u ? "player" : side.value;
       });
     },
