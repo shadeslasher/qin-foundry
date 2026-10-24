@@ -252,6 +252,7 @@ async function send(action) {
 function hideMenu() {
   menuEl?.remove();
   menuEl = null;
+  hidePickHint();
 }
 
 let menuSide = "right";
@@ -269,6 +270,13 @@ function placeMenu() {
   menuEl.style.top = `${Math.round(right.y)}px`;
 }
 
+let pickHintEl = null;
+function showPickHint(html) {
+  if (!pickHintEl) { pickHintEl = document.createElement("div"); pickHintEl.className = "qin qin-pick-hint"; document.body.append(pickHintEl); }
+  pickHintEl.innerHTML = html;
+}
+function hidePickHint() { pickHintEl?.remove(); pickHintEl = null; }
+
 function renderMenu(sub = null) {
   if (!current) return hideMenu();
   const { u, flags, officer } = current;
@@ -277,21 +285,25 @@ function renderMenu(sub = null) {
     menuEl.className = "qin qin-fe-menu";
     document.body.append(menuEl);
     menuEl.addEventListener("click", onMenuClick);
-    // While picking a square, the menu jumps to the other side of the unit if the cursor goes over it
-    menuEl.addEventListener("mouseenter", () => {
-      if (!mode) return;
-      menuSide = menuSide === "right" ? "left" : "right";
-      placeMenu();
-    });
   }
+  // Picking a square (move, attack, ladders, fire): no box beside the unit, just a hint along the bottom of the screen
+  const PICK_HINT = {
+    move: "Blue: move · Purple: climb the ladder (all movement) · Red: forced march (officer units, ends turn) · Green: swap",
+    attack: "Click an enemy marked in red.",
+    ladder: "Click a gold wall square next to the unit to set the ladders there.",
+    fire: "Click an orange tile next to the unit to set it on fire (forest or tall grass).",
+  };
+  if (PICK_HINT[mode]) {
+    menuEl.style.display = "none";
+    showPickHint(`<b>${esc(u.name)}</b> · ${PICK_HINT[mode]}<br><span class="qin-fe-back"><i class="fa-solid fa-computer-mouse"></i> Right-click or Esc to go back</span>`);
+    return;
+  }
+  menuEl.style.display = "";
+  hidePickHint();
   const b = (act, label, enabled, tip = "", extra = "") =>
     `<button type="button" data-fe="${act}" ${enabled && !busy ? "" : "disabled"} ${tip ? `data-tooltip="${esc(tip)}"` : ""} ${extra}>${label}</button>`;
   let html = `<div class="qin-fe-title">${esc(u.name)}</div>`;
-  if (mode === "move") html += `<div class="qin-fe-hint">Blue: move · Purple: climb the ladder (all movement) · Red: forced march (officer units, ends turn) · Green: swap<br>Right-click or Esc to go back</div>` + b("cancel", "Back", true);
-  else if (mode === "attack") html += `<div class="qin-fe-hint">Click an enemy marked in red.<br>Right-click or Esc to go back</div>` + b("cancel", "Back", true);
-  else if (mode === "ladder") html += `<div class="qin-fe-hint">Click a gold wall square next to the unit to set the ladders there.<br>Right-click or Esc to go back</div>` + b("cancel", "Back", true);
-  else if (mode === "fire") html += `<div class="qin-fe-hint">Click an orange tile next to the unit to set it on fire (forest or tall grass).<br>Right-click or Esc to go back</div>` + b("cancel", "Back", true);
-  else if (mode === "second") html += `<div class="qin-fe-hint">Dual Weapons: strike another enemy marked in red (Attack −2), or skip.</div>` + b("skipSecond", "Skip", true);
+  if (mode === "second") html += `<div class="qin-fe-hint">Dual Weapons: strike another enemy marked in red (Attack −2), or skip.</div>` + b("skipSecond", "Skip", true);
   else if (mode === "reposition") html += (current?.s?.turn?.activation?.reposition?.outrider
     ? `<div class="qin-fe-hint">Outrider: ride on to a green tile, or stay.</div>`
     : current?.s?.turn?.activation?.reposition?.skirmish

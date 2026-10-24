@@ -723,3 +723,10 @@ details.qin-recent[open] > summary { margin-bottom: 4px; }
 .qin-recruit-list .nm, .qin-recruit-list li img { cursor: pointer; }
 .qin-recruit-list .nm:hover { text-decoration: underline; }
 .qin-recruit-list li.off .nm, .qin-recruit-list li.off img { opacity: 1; }
+/* while picking a square: a hint along the bottom of the screen instead of the box beside the unit */
+.qin-pick-hint { position: fixed; left: 50%; bottom: 96px; translate: -50% 0; z-index: 60; pointer-events: none; max-width: min(720px, 90vw);
+  padding: 7px 16px; text-align: center; line-height: 1.45; color: #dfe6f4; font-size: 14px;
+  background: linear-gradient(rgba(20,32,62,.94), rgba(14,22,44,.94)); border: 2px solid #c9a13a; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,.5); }
+.qin-pick-hint b { color: #f2d48a; }
+.qin-pick-hint .qin-fe-back { color: #fff; font-weight: bold; }
+.qin-pick-hint .qin-fe-back i { color: #f2d48a; margin-right: 4px; }
