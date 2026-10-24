@@ -663,7 +663,11 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin-party-unit > img { width: 46px; height: 46px; border-radius: 50%; border: 2px solid #3a78c8; object-fit: cover; cursor: pointer; }
 .qin-party-name { display: flex; align-items: center; gap: 5px; font-weight: bold; }
 .qin-party-name a { cursor: pointer; }
-.qin-party-sub { font-size: .8em; opacity: .75; margin: 1px 0 3px; }
+.qin-party-sub { display: flex; flex-wrap: wrap; gap: 3px; margin: 2px 0 4px; }
+.qin-party-tag { font-size: .74em; line-height: 1.5; padding: 0 5px; border-radius: 3px; border: 1px solid rgba(160,140,100,.6); background: rgba(127,127,127,.15); white-space: nowrap; }
+.qin-party-tag.tier { font-weight: bold; color: #fff; border-color: transparent; }
+.qin-party-tag.tier.t1 { background: #8a5630; } .qin-party-tag.tier.t2 { background: #7c838b; } .qin-party-tag.tier.t3 { background: #94700f; } .qin-party-tag.tier.t4 { background: #6b3fa0; }
+.qin-party-tag.off { border-color: rgba(58,120,200,.6); }
 .qin-party-bars { display: grid; grid-template-columns: auto 1fr auto; gap: 1px 6px; align-items: center; font-size: .78em; }
 .qin-party-bars .qin-bar { margin-top: 0; height: 7px; }
 .qin-party-bars b { font-weight: normal; white-space: nowrap; text-align: right; } .qin-party-bars b small { opacity: .7; }

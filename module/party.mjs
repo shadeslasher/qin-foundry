@@ -78,7 +78,7 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
         <img src="${esc(a.img)}" alt="" data-action="open" data-id="${a.id}">
         <div class="qin-party-main">
           <div class="qin-party-name"><a data-action="open" data-id="${a.id}">${esc(a.name)}</a> ${status}${btns("unit", a.id)}</div>
-          <div class="qin-party-sub">T${s.tier} · Lv ${s.level ?? 1}${s.unitType ? ` · ${esc(s.unitType)}` : ""}${off ? ` · <i class="fa-solid fa-user-shield"></i> ${esc(off.name)}` : ""}</div>
+          <div class="qin-party-sub"><span class="qin-party-tag tier t${Math.min(4, s.tier)}">T${s.tier}</span><span class="qin-party-tag">Lv ${s.level ?? 1}</span>${s.unitType ? `<span class="qin-party-tag">${esc(s.unitType)}</span>` : ""}${off ? `<span class="qin-party-tag off"><i class="fa-solid fa-user-shield"></i> ${esc(off.name)}</span>` : ""}</div>
           <div class="qin-party-bars">
             <span>Health</span><div class="qin-bar"><i style="width:${pct(s.men.value, s.men.max)}%"></i></div><b>${s.men.value}/${s.men.max}</b>
             <span>Morale</span><div class="qin-bar morale"><i style="width:${pct(s.morale, 100)}%"></i></div><b>${s.morale} <small>${esc(s.moraleState ?? "")}</small></b>
