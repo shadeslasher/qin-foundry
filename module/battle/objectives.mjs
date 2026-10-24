@@ -108,9 +108,9 @@ export function evaluateObjectives(cfg, units, st, { burnt = {}, fires = {} } = 
 }
 
 /** Plain words for a condition, for the tracker and the log. names: id -> unit name; tileName(x, y) -> e.g. "Bridge". */
-export function describe(c, { names = {}, tileName = () => "" } = {}) {
+export function describe(c, { names = {}, tileName = () => "" } = {}, { coords = true } = {}) {
   const units = (ids) => (ids ?? []).map(id => names[id] ?? "a unit").join(", ") || "(pick units)";
-  const tile = (c) => (c.x === undefined || c.x === null ? "(pick a tile)" : `${tileName(c.x, c.y) || "the tile"} (${c.x}, ${c.y})`);
+  const tile = (c) => (c.x === undefined || c.x === null ? "(pick a tile)" : `${tileName(c.x, c.y) || "the tile"}${coords ? ` (${c.x}, ${c.y})` : ""}`);
   switch (c.type) {
     case "routUnit": return `Rout ${units(c.unitIds)}`;
     case "routAll": return "Rout all enemy units";

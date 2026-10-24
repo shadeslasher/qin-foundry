@@ -285,7 +285,7 @@ export function drawObjectiveMarkers({ extraction = null } = {}) {
     for (const c of list) {
       if (!open.get(c.id)) continue;
       const T = types[c.type]; if (!T) continue;
-      const text = `${side}: ${describe(c, n)}`;
+      const text = `${side}: ${describe(c, n, { coords: false })}`;
       if (c.type === "escape") continue; // escapers are shown by the pink squares they head for
       if (c.pair) continue;                // a Hold's paired defeat shares the Hold's grey marker
       if (T.needs === "tile" && c.x !== null && c.x !== undefined) mark(c.x, c.y, T.color, c.type === "hold" ? `${text} for ${c.rounds} rounds (no enemy may end its turn there)` : text);
