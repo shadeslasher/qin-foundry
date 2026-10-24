@@ -428,7 +428,7 @@ function targetOf(c, scene = canvas.scene) {
 function tourWords(c, scene) {
   const n = namesFor(scene);
   const units = (ids) => (ids ?? []).map(id => n.names[id] ?? "a unit").join(", ");
-  const tile = () => { const name = n.tileName(c.x, c.y); return name ? `the ${name}` : `the tile (${c.x}, ${c.y})`; };
+  const tile = () => n.tileName(c.x, c.y) || "Tile";
   const rounds = (k) => `${k} round${k === 1 ? "" : "s"}`, Rounds = (k) => `${k} Round${k === 1 ? "" : "s"}`;
   switch (c.type) {
     case "routUnit": case "unitRouted": return units(c.unitIds);
@@ -459,6 +459,8 @@ function flashTarget(tg, ms) {
 
 /** Screen position of a canvas point. */
 function toScreen(x, y) {
+  const c = canvas.clientCoordinatesFromCanvas?.({ x, y });
+  if (c && Number.isFinite(c.x)) return { x: c.x, y: c.y };
   const r = canvas.app.view.getBoundingClientRect(), p = canvas.stage.worldTransform.apply({ x, y });
   return { x: r.left + p.x, y: r.top + p.y };
 }
@@ -507,7 +509,7 @@ export async function playTour() {
     card.className = `qin-tour-card ${s.side === "v" ? "v" : "d"}`;
     card.innerHTML = `<b style="color:${hex6(s.tg.color === 0xb4b8bd ? 0xd9dce0 : s.tg.color)}">${VERB[s.c.type]}</b><span>${esc(tourWords(s.c, scene))}</span>`;
     document.body.appendChild(card); t.els.push(card);
-    const r = card.getBoundingClientRect(), above = toScreen(s.tg.cx, s.tg.top), below = toScreen(s.tg.cx, s.tg.bottom);
+    const r = { width: card.offsetWidth, height: card.offsetHeight }, above = toScreen(s.tg.cx, s.tg.top), below = toScreen(s.tg.cx, s.tg.bottom);
     const left = Math.max(8, Math.min(window.innerWidth - r.width - 8, above.x - r.width / 2));
     const top = above.y - r.height - 10 >= 8 ? above.y - r.height - 10 : Math.min(window.innerHeight - r.height - 8, below.y + 10);
     card.style.left = `${left}px`; card.style.top = `${top}px`;
