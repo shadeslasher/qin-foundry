@@ -62,7 +62,8 @@ test('ranged: a losing shot still deals base damage; melee defender out of reach
   assert.strictEqual(r.winner, 'defender');
   assert.strictEqual(r.damageToDefender, 3, 'base damage even when losing (armor 3 soaks it here)');
   assert.strictEqual(R.unitById(s, a).men, 100);
-  assert.strictEqual(R.unitById(s, a).morale, 50 - (7 - 1));
+  assert.strictEqual(R.unitById(s, a).morale, 50, 'no strike back possible, so losing the roll costs the attacker no morale');
+  assert.strictEqual(r.loser, null);
 });
 
 test('overwatch: a ranged unit ends its turn and shoots the first enemy that ends its turn in range', () => {
@@ -732,4 +733,19 @@ test('facing is only up, down, left or right: the longer way wins, left/right on
   must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'startRound' }));
   const A = R.unitById(s, a);
   targets.forEach(([, , want], i) => { dice([5, 5]); R.resolveAttack(s, A, R.unitById(s, ids[i]), { free: true }); assert.deepStrictEqual(A.facing, want); });
+});
+
+test('a melee attacker that loses the roll (and gets struck back) still loses morale', () => {
+  const s = setup();
+  const a = add(s, { typeId: 'han_ji_inf', side: 'player', owner: 'p1', x: 5, y: 7 });
+  const d = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 6 });
+  must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'startRound' }));
+  must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: a }));
+  must(R.act(s, P1, { type: 'skipMove', unitId: a }));
+  dice([0, 0, 9, 0]);
+  must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
+  const r = s.log.filter(e => e.detail && e.detail.type === 'attack').pop().detail.result;
+  assert.strictEqual(r.winner, 'defender');
+  assert.strictEqual(r.loser, a);
+  assert.ok(r.moraleLoss > 0);
 });

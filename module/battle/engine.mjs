@@ -755,30 +755,32 @@ function resolveAttack(s, attacker, defender, opts) {
   const aNeg = A.total <= 0, dNeg = D.total <= 0;
 
   // Who deals damage
-  let dmgToDef = 0, dmgToAtt = 0;
+  let dmgToDef = 0, dmgToAtt = 0, canCounter = false; // canCounter: the defender may strike back at all
   const base = (u) => damageValue(s, u);
   const winBonus = (side) => (winner === side ? diff : 0);
   if (!ranged) {
     if (!aNeg) dmgToDef = base(attacker) + winBonus('attacker');
     // ranged defenders deal no return damage against melee attackers
-    if (!dNeg && (dt.weapon !== 'ranged' || trait(defender, 'hybrid')) && meleeLevelOk(s, defender, attacker)) dmgToAtt = base(defender) + winBonus('defender');
-    if (ambush) dmgToAtt = 0; // attacked from hiding: the defender rolls but can't strike back
+    canCounter = (dt.weapon !== 'ranged' || !!trait(defender, 'hybrid')) && meleeLevelOk(s, defender, attacker);
+    if (!dNeg && canCounter) dmgToAtt = base(defender) + winBonus('defender');
+    if (ambush) { dmgToAtt = 0; canCounter = false; } // attacked from hiding: the defender rolls but can't strike back
   } else {
     if (!aNeg) dmgToDef = base(attacker) + winBonus('attacker'); // like melee: base damage, + the difference on a win
     const canReturn = dt.weapon === 'ranged' ? rangeOk(s, defender, attacker) && !trait(defender, 'reload') // crossbows (Reload) never shoot back
       : manhattan(attacker, defender) === 1 && meleeLevelOk(s, defender, attacker);
+    canCounter = !!canReturn;
     if (!dNeg && canReturn) dmgToAtt = base(defender) + winBonus('defender');
-    if (ambush) dmgToAtt = 0;
+    if (ambush) { dmgToAtt = 0; canCounter = false; }
   }
-  if (free) dmgToAtt = 0;
+  if (free) { dmgToAtt = 0; canCounter = false; }
   // A charged unit can't strike back unless it has Anti-Cavalry; never against a charge into its rear
-  if (charge && (rear || !trait(defender, 'anti-cavalry'))) dmgToAtt = 0;
+  if (charge && (rear || !trait(defender, 'anti-cavalry'))) { dmgToAtt = 0; canCounter = false; }
   // Winning the exchange while defending: Counter-Attack and Charge Reflection hit back harder
   if (winner === 'defender' && dmgToAtt > 0) {
     dmgToAtt += tierVal(trait(defender, 'counter-attack'), [2, 4]);
     if (charge && trait(defender, 'charge reflection')) dmgToAtt += chargeBonus;
   }
-  if (trait(attacker, 'duelist')) dmgToAtt = 0; // Duelist: ignores counter-strike damage
+  if (trait(attacker, 'duelist')) { dmgToAtt = 0; canCounter = false; } // Duelist: ignores counter-strike damage
 
   // Casualties = damage - (armor reduced by the other side's armor penetration) - formation damage reduction.
   // Armor is also lowered by Sunder, and Shield Breaker ignores the armor a unit gets from shields.
@@ -791,8 +793,9 @@ function resolveAttack(s, attacker, defender, opts) {
   const casAtt = Math.max(0, dmgToAtt - Math.max(0, armorOf(at, attacker, trait(defender, 'shield breaker')) - (dt.armorPen || 0)) - (af.casReduce || 0));
 
   // Morale loss for the loser
+  // An attacker that can't be struck back (ranged out of reach, charges, Duelist, ambushes...) loses no morale for losing the roll
   let moraleLoss = 0, mult = 1, loser = null;
-  if (winner) {
+  if (winner && !(winner === 'defender' && !canCounter)) {
     loser = winner === 'attacker' ? defender : attacker;
     const base = Math.max(0, diff - 1); // the loser of the roll loses the difference - 1
     moraleLoss = base;
