@@ -25,7 +25,8 @@ const part = (roll, re) => roll.parts.filter(([l]) => re.test(l)).reduce((t, [, 
 test('terrain and overlays add up', () => {
   const s = field({ '3,3': { terrain: 'forest', overlays: ['hill'] } });
   const r = R.tileRules(s, 3, 3);
-  assert.deepStrictEqual([r.move, r.meleeDef, r.rangedDef, r.range, r.downhill, r.hides], [1, 1, 1, -1, 1, true]);
+  assert.deepStrictEqual([r.move, r.meleeDef, r.rangedDef, r.range, r.downhill, r.hides], [1, 0, 2, 1, 1, true]); // forest: ranged defense +2 only (no melee defense, no range change); hill: range +1
+  assert.strictEqual(R.tileRules(field({ '1,1': { terrain: 'plains', overlays: ['watchtower'] } }), 1, 1).atk, 1, 'watchtower: Attack +1');
   assert.strictEqual(R.tileRules(s, 0, 0).move, 0);
 });
 
@@ -67,7 +68,7 @@ test('defense, range, command and camp defences in the rolls', () => {
   assert.strictEqual(part(atk, /downhill/), 1, 'hill: Command +1 attacking downhill');
   d.y = 3; a.y = 6;
   const def = R.buildRoll(s, d, 'defender', { attacker: a, defender: d, ranged: true });
-  assert.strictEqual(part(def, /^Terrain .*ranged defense/), 1, 'forest: ranged defense +1');
+  assert.strictEqual(part(def, /^Terrain .*ranged defense/), 2, 'forest: ranged defense +2');
   // camp stakes only defend against attacks from outside the camp
   const c = R.unitById(s, add(s, { typeId: 'inf', side: 'enemy', x: 8, y: 8 }));
   const m = R.unitById(s, add(s, { typeId: 'inf', side: 'player', owner: 'p1', x: 8, y: 9 }));

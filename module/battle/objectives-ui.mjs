@@ -243,9 +243,9 @@ function currentEval(scene, o) {
     { burnt: b.siege?.burnt ?? {}, fires: b.siege?.fires ?? {} });
 }
 
-/** An outline with an arrow pointing inward from the middle of each edge. */
+/** An outline with corner brackets reaching just past the tile. */
 function drawMark(g, x, y, color, size) {
-  const X = x * size, Y = y * size, i = size * 0.04, W = size - 2 * i, s = size * 0.11, m = size * 0.08;
+  const X = x * size, Y = y * size, i = size * 0.04, W = size - 2 * i;
   g.lineStyle(size * 0.1, 0x000000, 0.35).drawRect(X + i, Y + i, W, W);
   g.lineStyle(size * 0.05, color, 1).drawRect(X + i, Y + i, W, W);
   // corner brackets reaching just past the tile, so the target reads from a distance
@@ -255,12 +255,6 @@ function drawMark(g, x, y, color, size) {
     g.lineStyle({ width: w, color: c, alpha: a, cap: "square", join: "miter" });
     for (const [px, py, dx, dy] of corners) g.moveTo(px + dx * L, py).lineTo(px, py).lineTo(px, py + dy * L);
   }
-  const cx = X + size / 2, cy = Y + size / 2;
-  const tri = (pts) => g.lineStyle(Math.max(1, size * 0.02), 0x000000, 0.55).beginFill(color, 1).drawPolygon(pts).endFill();
-  tri([cx - s, Y + i + m, cx + s, Y + i + m, cx, Y + i + m + s * 1.1]);
-  tri([cx - s, Y + size - i - m, cx + s, Y + size - i - m, cx, Y + size - i - m - s * 1.1]);
-  tri([X + i + m, cy - s, X + i + m, cy + s, X + i + m + s * 1.1, cy]);
-  tri([X + size - i - m, cy - s, X + size - i - m, cy + s, X + size - i - m - s * 1.1, cy]);
 }
 
 export function drawObjectiveMarkers({ extraction = null } = {}) {

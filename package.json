@@ -1,6 +1,6 @@
 {
   "name": "qin-foundry",
-  "version": "0.47.0",
+  "version": "0.47.1",
   "description": "Qin: The Warring States system for Foundry VTT",
   "directories": {
     "test": "test"
