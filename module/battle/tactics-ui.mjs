@@ -347,7 +347,8 @@ let siegeLayer = null;
  */
 /**
  * A gate's doors over the map's own gatehouse art (the generator draws it closed). Locked: nothing extra.
- * Open: the doors on both faces swung outward. Broken: doors smashed, one hanging, one torn off on the ground.
+ * Open: the doors on both faces swung outward. Broken: the doorway gapes open with splintered stumps on the hinges,
+ * and the smashed doors lie in planks and chips on the ground in front of it.
  * Burned: scorched until the map is redrawn as ruins. Geometry follows the generator's gatehouse: the door
  * openings sit on both faces of the wall, 0.32 of a square wide for a single gate, 0.82 for a double.
  */
@@ -387,22 +388,66 @@ function drawGate(g, size, wallAt = () => false) {
     return gr;
   };
   const lean = 0.22; // open doors lean slightly away from the opening
-  for (const face of [-1, 1]) {                    // both faces of the wall
-    const nrm = ew ? [0, face] : [face, 0];
-    const fx = cx + nrm[0] * (half - T * 0.03), fy = cy + nrm[1] * (half - T * 0.03);
-    for (const side of [-1, 1]) {                  // the two leaves of the door
-      const hx = fx + tan[0] * side * mouth / 2, hy = fy + tan[1] * side * mouth / 2;
-      const open = [nrm[0] * Math.cos(lean) + tan[0] * side * Math.sin(lean), nrm[1] * Math.cos(lean) + tan[1] * side * Math.sin(lean)];
-      if (g.state === "open") box.addChild(leaf(hx, hy, open));
-      else if (side === -1) { // broken: this leaf hangs half open and smashed
-        const a = 0.55, d = [nrm[0] * Math.sin(a) - tan[0] * side * Math.cos(a), nrm[1] * Math.sin(a) - tan[1] * side * Math.cos(a)];
-        box.addChild(leaf(hx, hy, d, { broken: true }));
-      } else { // the other leaf torn off, lying on the ground beyond the gate
-        const lx = fx + nrm[0] * T * 0.28 + tan[0] * mouth * 0.05, ly = fy + nrm[1] * T * 0.28 + tan[1] * mouth * 0.05;
-        const a = 0.35, d = [tan[0] * Math.cos(a) + nrm[0] * Math.sin(a), tan[1] * Math.cos(a) + nrm[1] * Math.sin(a)];
-        const gr = leaf(lx - d[0] * leafLen / 2, ly - d[1] * leafLen / 2, d, { broken: true }); gr.alpha = 0.95; box.addChild(gr);
+  if (g.state === "open") {
+    for (const face of [-1, 1]) {                  // both faces of the wall
+      const nrm = ew ? [0, face] : [face, 0];
+      const fx = cx + nrm[0] * (half - T * 0.03), fy = cy + nrm[1] * (half - T * 0.03);
+      for (const side of [-1, 1]) {                // the two leaves of the door
+        const hx = fx + tan[0] * side * mouth / 2, hy = fy + tan[1] * side * mouth / 2;
+        box.addChild(leaf(hx, hy, [nrm[0] * Math.cos(lean) + tan[0] * side * Math.sin(lean), nrm[1] * Math.cos(lean) + tan[1] * side * Math.sin(lean)]));
       }
     }
+    return box;
+  }
+  // broken: the doorway gapes open with splintered stumps on its hinges, and the smashed doors lie in pieces
+  // on the ground in front of it (planks, iron bands and chips scattered outward)
+  let seed = 0; for (const [x, y] of g.squares) seed = (seed * 31 + x * 73 + y * 151) % 9973;
+  const rnd = () => { seed = (seed * 16807 + 11) % 2147483647; return (seed % 10000) / 10000; };
+  const WOOD = [0x6b4424, 0x7a5030, 0x5e3b1f, 0x83592f];
+  const plank = (px, py, ang, len, wid, color, band) => {
+    const gr = new PIXI.Graphics(), c = Math.cos(ang), sn = Math.sin(ang);
+    const pt = (u, v) => [px + c * u - sn * v, py + sn * u + c * v];
+    const jag = len * (0.08 + rnd() * 0.1);
+    const poly = [...pt(-len / 2, -wid / 2), ...pt(len / 2 - jag, -wid / 2), ...pt(len / 2, -wid * 0.1), ...pt(len / 2 - jag * 0.6, wid / 2),
+      ...pt(-len / 2 + jag * 0.5, wid / 2), ...pt(-len / 2 - jag * 0.4, wid * 0.05)];
+    gr.beginFill(0x0e100a, 0.35).drawPolygon(poly.map((v, i) => v + (i % 2 ? T * 0.02 : T * 0.015))).endFill();
+    gr.lineStyle(Math.max(1, T * 0.01), 0x2a1a0c, 1).beginFill(color, 1).drawPolygon(poly).endFill();
+    gr.lineStyle(Math.max(1, T * 0.006), 0x3a2410, 0.6).moveTo(...pt(-len / 2 + jag, 0)).lineTo(...pt(len / 2 - jag, 0)); // grain
+    if (band) gr.lineStyle(Math.max(1.5, T * 0.016), 0x3b3f45, 1).moveTo(...pt(len * 0.15, -wid / 2)).lineTo(...pt(len * 0.15, wid / 2));
+    return gr;
+  };
+  for (const face of [-1, 1]) {
+    const nrm = ew ? [0, face] : [face, 0];
+    const fx = cx + nrm[0] * (half - T * 0.02), fy = cy + nrm[1] * (half - T * 0.02);
+    // the dark, open doorway
+    const dw = mouth + T * 0.02, dd = T * 0.1;
+    const dx = ew ? dw : dd, dy = ew ? dd : dw;
+    box.addChild(new PIXI.Graphics().beginFill(0x15100b, 0.95).drawRect(fx - nrm[0] * dd / 2 - dx / 2, fy - nrm[1] * dd / 2 - dy / 2, dx, dy).endFill());
+    // splintered stumps left on each hinge
+    for (const side of [-1, 1]) {
+      const hx = fx + tan[0] * side * mouth / 2, hy = fy + tan[1] * side * mouth / 2;
+      const stub = new PIXI.Graphics().lineStyle(Math.max(1, T * 0.01), 0x2a1a0c, 1).beginFill(0x6b4424, 1);
+      const L = leafLen * (0.35 + rnd() * 0.15), w2 = th / 2, ix = -tan[0] * side, iy = -tan[1] * side;
+      stub.drawPolygon([hx + nrm[0] * w2, hy + nrm[1] * w2, hx + ix * L + nrm[0] * w2, hy + iy * L + nrm[1] * w2,
+        hx + ix * L * 0.7, hy + iy * L * 0.7, hx + ix * L * 0.95 - nrm[0] * w2, hy + iy * L * 0.95 - nrm[1] * w2, hx - nrm[0] * w2, hy - nrm[1] * w2]).endFill();
+      stub.lineStyle(0).beginFill(0x1a120a, 1).drawCircle(hx, hy, th * 0.45).endFill();
+      box.addChild(stub);
+    }
+    // the smashed doors: a big broken leaf lying flat just outside, then planks and chips flung further out
+    const out = (d, along) => [fx + nrm[0] * d + tan[0] * along, fy + nrm[1] * d + tan[1] * along];
+    const baseAng = Math.atan2(tan[1], tan[0]);
+    const [lx, ly] = out(T * 0.17, (rnd() - 0.5) * mouth * 0.5);
+    box.addChild(plank(lx, ly, baseAng + (rnd() - 0.5) * 0.7, mouth * 0.95, th * 1.6, WOOD[0], true));
+    for (let i = 0; i < 5; i++) {
+      const [px, py] = out(T * (0.12 + rnd() * 0.3), (rnd() - 0.5) * mouth * 2.2);
+      box.addChild(plank(px, py, baseAng + rnd() * Math.PI, T * (0.1 + rnd() * 0.13), th * (0.55 + rnd() * 0.35), WOOD[i % WOOD.length], rnd() < 0.3));
+    }
+    const chips = new PIXI.Graphics();
+    for (let i = 0; i < 9; i++) {
+      const [px, py] = out(T * (0.05 + rnd() * 0.38), (rnd() - 0.5) * mouth * 2.6);
+      chips.beginFill(WOOD[i % WOOD.length], 1).drawCircle(px, py, T * (0.008 + rnd() * 0.012)).endFill();
+    }
+    box.addChild(chips);
   }
   return box;
 }
