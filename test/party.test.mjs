@@ -8,12 +8,15 @@ const unit = (id, name, owner, men, morale) => ({ id, name, type: 'unit', system
   testUserPermission: (u) => u.id === owner || u.isGM });
 const actors = [unit('1', 'Spears', 'a', 60, 30), unit('2', 'Archers', 'a', 100, 50), unit('3', 'Cavalry', 'b', 10, 80), unit('4', 'Bandits', null, 50, 50),
   { id: '5', name: 'Liu Bei', type: 'character', testUserPermission: () => true }];
-globalThis.game = { users: { find: (f) => users.find(f) }, actors: { contents: actors } };
+globalThis.game = { users: { find: (f) => users.find(f), filter: (f) => users.filter(f) }, actors: { contents: actors } };
+globalThis.foundry.applications.api.DialogV2 ??= class {};
 const { partyGroups, restoreUpdate, DEFAULT_MORALE } = await import('../module/party.mjs');
 
-test('party: units grouped by their player, unowned units and characters left out', () => {
+test('party: every player listed with their units; unowned units and characters left out', () => {
+  users.push({ id: 'c', name: 'Cara', isGM: false });
   const g = partyGroups();
-  assert.deepStrictEqual(g.map(x => x.user.name), ['Alice', 'Bob']);
+  assert.deepStrictEqual(g.map(x => x.user.name), ['Alice', 'Bob', 'Cara']);
+  assert.strictEqual(g[2].units.length, 0, 'a player with no units still shows');
   assert.deepStrictEqual(g[0].units.map(a => a.name), ['Archers', 'Spears']);
   assert.deepStrictEqual(g[1].units.map(a => a.name), ['Cavalry']);
 });
@@ -22,4 +25,15 @@ test('party: heal fills health, morale goes back to the default, nothing when al
   assert.strictEqual(restoreUpdate(actors[1], 'heal'), null);
   assert.deepStrictEqual(restoreUpdate(actors[2], 'morale'), { 'system.morale': DEFAULT_MORALE });
   assert.strictEqual(restoreUpdate(actors[1], 'morale'), null);
+});
+
+test('recruiting: needs a character, an allowed army, a cost and enough coin', async () => {
+  const { recruitCheck } = await import('../module/recruit.mjs');
+  const base = { coin: 800, cost: 775, armies: ['Han'], army: 'Han', hasCharacter: true };
+  assert.ok(recruitCheck(base).ok);
+  assert.ok(!recruitCheck({ ...base, coin: 700 }).ok, 'not enough coin');
+  assert.ok(!recruitCheck({ ...base, army: 'Bandits' }).ok, 'army not allowed');
+  assert.ok(!recruitCheck({ ...base, armies: [] }).ok, 'no armies picked yet');
+  assert.ok(!recruitCheck({ ...base, hasCharacter: false }).ok, 'no character');
+  assert.ok(!recruitCheck({ ...base, cost: 0 }).ok, 'no cost set');
 });

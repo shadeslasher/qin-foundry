@@ -699,3 +699,24 @@ details.qin-recent > summary h4 { margin: 0; flex: 1; }
 details.qin-recent > summary::after { content: "\f078"; font-family: "Font Awesome 6 Free"; font-weight: 900; font-size: .8em; opacity: .7; transition: transform .15s; }
 details.qin-recent:not([open]) > summary::after { transform: rotate(-90deg); }
 details.qin-recent[open] > summary { margin-bottom: 4px; }
+/* party panel: officer picker, recruit row */
+.qin-party-off { display: flex; align-items: center; gap: 5px; margin: 0 0 4px; font-size: .8em; }
+.qin-party-off i { opacity: .75; }
+.qin-party-off select { flex: 1; height: 22px; font-size: 1em; padding: 0 4px; }
+.qin-party-recruit { display: flex; align-items: center; gap: 6px; margin-top: 5px; }
+.qin-party-recruit > button:first-child { width: auto; flex: none; padding: 1px 10px; line-height: 1.6; font-size: .85em; }
+.qin-party-recruit .qin-muted { flex: 1; font-size: .78em; }
+.qin-party-recruit .qin-party-armies { width: 26px; height: 24px; padding: 0; flex: none; }
+.qin-party-none { padding: 4px 2px; font-size: .85em; }
+/* recruit window */
+.qin-recruit .window-content { padding: 8px; overflow-y: auto; }
+.qin-recruit-head { display: flex; align-items: center; gap: 10px; padding: 6px 8px; margin-bottom: 6px; border: 1px solid rgba(181,139,42,.6); border-radius: 6px; background: rgba(201,180,138,.15); }
+.qin-recruit-head img { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; }
+.qin-recruit-head i { color: #c9a13a; }
+.qin-recruit-list h4 { margin: 8px 0 3px; font-size: .95em; border-bottom: 1px solid rgba(160,140,100,.5); }
+.qin-recruit-list ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.qin-recruit-list li { display: grid; grid-template-columns: 30px auto 1fr auto auto; gap: 7px; align-items: center; padding: 3px 5px; border-radius: 4px; background: rgba(127,127,127,.08); }
+.qin-recruit-list li.off { opacity: .55; }
+.qin-recruit-list li img { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; }
+.qin-recruit-list .cost { white-space: nowrap; font-size: .9em; } .qin-recruit-list .cost i { color: #c9a13a; }
+.qin-recruit-list button { width: auto; flex: none; padding: 0 9px; line-height: 1.7; font-size: .85em; }

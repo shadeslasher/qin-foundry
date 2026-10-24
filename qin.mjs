@@ -1,4 +1,5 @@
 import { PartyPanel, registerParty } from "./module/party.mjs";
+import { registerRecruitQuery } from "./module/recruit.mjs";
 import * as CFG from "./module/config.mjs";
 import { CharacterData, HenchmanData, UnitData } from "./module/data/actor-models.mjs";
 import * as IM from "./module/data/item-models.mjs";
@@ -175,6 +176,7 @@ Hooks.once("init", () => {
   });
 
   registerBattleQuery();
+  registerRecruitQuery();
   registerCombatQuery();
 });
 

@@ -5,8 +5,8 @@ const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? ""
 const SIDES = { player: "Player", ally: "Ally", enemy: "Enemy", neutral: "Neutral" };
 
 /** The battle units' three armies (anything else is listed after them as "Other"). */
-const ARMIES = ["Han", "Bandits", "Yellow Turbans", "Other"];
-function factionGroup(f) {
+export const ARMIES = ["Han", "Bandits", "Yellow Turbans", "Other"];
+export function factionGroup(f) {
   const k = String(f ?? "").toLowerCase();
   if (/yellow|turban/.test(k)) return "Yellow Turbans";
   if (/bandit|zhang-yan|black.?mountain/.test(k)) return "Bandits";
@@ -15,14 +15,14 @@ function factionGroup(f) {
 }
 
 /** Units to start from: the units in Actor compendiums (e.g. Three Kingdoms Battle Units). */
-async function templates() {
-  const info = (sys) => ({ category: sys?.category ?? "infantry", tier: Number(sys?.tier) || 99, faction: factionGroup(sys?.faction) });
+export async function templates() {
+  const info = (sys) => ({ category: sys?.category ?? "infantry", tier: Number(sys?.tier) || 99, faction: factionGroup(sys?.faction), cost: Number(sys?.cost) || 0 });
   const out = []; // compendium units only (copies already in the world aren't offered as templates)
   for (const pack of game.packs ?? []) {
     if (pack.documentName !== "Actor") continue;
     let index;
-    try { index = await pack.getIndex({ fields: ["type", "system.category", "system.tier", "system.faction"] }); } catch { continue; }
-    for (const e of index) if (e.type === "unit") out.push({ id: e.uuid ?? `Compendium.${pack.collection}.Actor.${e._id}`, name: e.name, world: false, ...info(e.system) });
+    try { index = await pack.getIndex({ fields: ["type", "img", "system.category", "system.tier", "system.faction", "system.cost"] }); } catch { continue; }
+    for (const e of index) if (e.type === "unit") out.push({ id: e.uuid ?? `Compendium.${pack.collection}.Actor.${e._id}`, name: e.name, img: e.img, world: false, ...info(e.system) });
   }
   return out;
 }
