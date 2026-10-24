@@ -429,15 +429,15 @@ function tourWords(c, scene) {
   const n = namesFor(scene);
   const units = (ids) => (ids ?? []).map(id => n.names[id] ?? "a unit").join(", ");
   const tile = () => { const name = n.tileName(c.x, c.y); return name ? `the ${name}` : `the tile (${c.x}, ${c.y})`; };
-  const rounds = (k) => `${k} round${k === 1 ? "" : "s"}`;
+  const rounds = (k) => `${k} round${k === 1 ? "" : "s"}`, Rounds = (k) => `${k} Round${k === 1 ? "" : "s"}`;
   switch (c.type) {
     case "routUnit": case "unitRouted": return units(c.unitIds);
     case "routAll": return "all enemy units";
     case "seize": case "burn": case "tileSeized": return tile();
     case "hold": return `${tile()} for ${rounds(c.rounds ?? 1)}`;
-    case "survive": return rounds(c.rounds ?? 1);
+    case "survive": return Rounds(c.rounds ?? 1);
     case "escape": return units(c.unitIds) || "to the pink squares";
-    case "turnLimit": return `lose after round ${c.rounds ?? 1}`;
+    case "turnLimit": return Rounds(c.rounds ?? 1);
   }
   return "";
 }
