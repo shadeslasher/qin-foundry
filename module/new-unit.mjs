@@ -6,12 +6,13 @@ const SIDES = { player: "Player", ally: "Ally", enemy: "Enemy", neutral: "Neutra
 
 /** Units to start from: the world's unit actors, then units in Actor compendiums (e.g. Three Kingdoms Battle Units). */
 async function templates() {
-  const out = (game.actors?.contents ?? []).filter(a => a.type === "unit").map(a => ({ id: a.uuid, name: a.name, group: "In this world" }));
+  const info = (sys) => ({ category: sys?.category ?? "infantry", tier: Number(sys?.tier) || 99 });
+  const out = (game.actors?.contents ?? []).filter(a => a.type === "unit").map(a => ({ id: a.uuid, name: a.name, world: true, ...info(a.system) }));
   for (const pack of game.packs ?? []) {
     if (pack.documentName !== "Actor") continue;
     let index;
-    try { index = await pack.getIndex({ fields: ["type"] }); } catch { continue; }
-    for (const e of index) if (e.type === "unit") out.push({ id: e.uuid ?? `Compendium.${pack.collection}.Actor.${e._id}`, name: e.name, group: pack.title });
+    try { index = await pack.getIndex({ fields: ["type", "system.category", "system.tier"] }); } catch { continue; }
+    for (const e of index) if (e.type === "unit") out.push({ id: e.uuid ?? `Compendium.${pack.collection}.Actor.${e._id}`, name: e.name, world: false, ...info(e.system) });
   }
   return out;
 }
@@ -20,10 +21,14 @@ async function templates() {
 async function formHTML() {
   const players = game.users.filter(u => !u.isGM);
   const list = await templates();
-  const groups = {};
-  for (const t of list) (groups[t.group] ??= []).push(t);
-  const unitOpts = `<option value="">Blank unit</option>` + Object.entries(groups).map(([g, ts]) =>
-    `<optgroup label="${esc(g)}">${ts.sort((a, b) => a.name.localeCompare(b.name)).map(t => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join("")}</optgroup>`).join("");
+  // grouped by type (Infantry, Ranged Infantry, Cavalry), then by tier, then by name; units made in this world are marked
+  const TYPES = [["infantry", "Infantry"], ["ranged", "Ranged Infantry"], ["cavalry", "Cavalry"]];
+  const typeOf = (t) => (TYPES.some(([k]) => k === t.category) ? t.category : "infantry");
+  const unitOpts = `<option value="">Blank unit</option>` + TYPES.map(([k, label]) => {
+    const ts = list.filter(t => typeOf(t) === k).sort((a, b) => a.tier - b.tier || a.name.localeCompare(b.name) || (a.world ? -1 : 1));
+    if (!ts.length) return "";
+    return `<optgroup label="${label}">${ts.map(t => `<option value="${esc(t.id)}">${t.tier < 99 ? `T${t.tier} · ` : ""}${esc(t.name)}${t.world ? " (this world)" : ""}</option>`).join("")}</optgroup>`;
+  }).join("");
   const ownerOpts = `<option value="">No player (GM only)</option>` + players.map(u => `<option value="${u.id}">${esc(u.name)}${u.character ? ` (${esc(u.character.name)})` : ""}</option>`).join("");
   const chars = (game.actors?.contents ?? []).filter(a => a.type === "character").sort((a, b) => a.name.localeCompare(b.name));
   const officerOpts = `<option value="">No officer</option>` + chars.map(a => `<option value="${esc(a.uuid)}">${esc(a.name)}</option>`).join("");
