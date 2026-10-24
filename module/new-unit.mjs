@@ -31,14 +31,14 @@ async function templates() {
 async function formHTML() {
   const players = game.users.filter(u => !u.isGM);
   const list = await templates();
-  // grouped by type (Infantry, Ranged Infantry, Cavalry) and army (Han, Bandits, Yellow Turbans), then by tier and name;
+  // grouped by army (Han, Bandits, Yellow Turbans) and then type (Infantry, Ranged Infantry, Cavalry), then by tier and name;
   // units made in this world are marked
   const TYPES = [["infantry", "Infantry"], ["ranged", "Ranged Infantry"], ["cavalry", "Cavalry"]];
   const typeOf = (t) => (TYPES.some(([k]) => k === t.category) ? t.category : "infantry");
-  const unitOpts = `<option value="">Blank unit</option>` + TYPES.flatMap(([k, label]) => ARMIES.map(army => {
+  const unitOpts = `<option value="">Blank unit</option>` + ARMIES.flatMap(army => TYPES.map(([k, label]) => {
     const ts = list.filter(t => typeOf(t) === k && t.faction === army).sort((a, b) => a.tier - b.tier || a.name.localeCompare(b.name) || (a.world ? -1 : 1));
     if (!ts.length) return "";
-    return `<optgroup label="${label} · ${army}">${ts.map(t => `<option value="${esc(t.id)}">${t.tier < 99 ? `T${t.tier} · ` : ""}${esc(t.name)}${t.world ? " (this world)" : ""}</option>`).join("")}</optgroup>`;
+    return `<optgroup label="${army} · ${label}">${ts.map(t => `<option value="${esc(t.id)}">${t.tier < 99 ? `T${t.tier} · ` : ""}${esc(t.name)}${t.world ? " (this world)" : ""}</option>`).join("")}</optgroup>`;
   })).join("");
   const ownerOpts = `<option value="">No player (GM only)</option>` + players.map(u => `<option value="${u.id}">${esc(u.name)}${u.character ? ` (${esc(u.character.name)})` : ""}</option>`).join("");
   const chars = (game.actors?.contents ?? []).filter(a => a.type === "character").sort((a, b) => a.name.localeCompare(b.name));
