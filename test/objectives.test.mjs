@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert';
 import * as R from '../module/battle/engine.mjs';
 import { evaluateObjectives, freshObjState } from '../module/battle/objectives.mjs';
+import * as D from '../module/battle/engine-data.mjs';
 
 const HOST = { id: 'host', host: true };
 const P1 = { id: 'p1', host: false };
@@ -137,4 +138,15 @@ test('stalemate ends the battle; starting a battle marks the tour', () => {
   must(R.act(s, HOST, { type: 'declareOutcome', result: 'stalemate' }));
   assert.strictEqual(s.outcome.result, 'stalemate');
   assert.strictEqual(R.prompt(s).kind, 'over');
+});
+
+test('with no player tactician the GM may place player tactics freely; players may not', () => {
+  const s = R.newState(); s.players.p1 = { name: 'Alice' }; plains(s);
+  must(R.act(s, HOST, { type: 'addUnit', typeId: 'han_ji_inf', side: 'player', owner: 'p1', x: 1, y: 1 }));
+  must(R.act(s, HOST, { type: 'startBattle' }));
+  const keys = D.TACTICS.filter(t => !t.highGround).map(t => t.key);
+  const k1 = keys[0], k2 = keys.at(-1);
+  must(R.act(s, HOST, { type: 'placeTactic', side: 'player', key: k1, x: 3, y: 3, highGround: true }));
+  must(R.act(s, HOST, { type: 'placeTactic', side: 'player', key: k2, x: 5, y: 5, highGround: true }));
+  assert.ok(!R.act(s, P1, { type: 'placeTactic', side: 'player', key: k1, x: 4, y: 4, highGround: true }).ok);
 });

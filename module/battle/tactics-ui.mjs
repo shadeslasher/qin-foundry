@@ -92,7 +92,7 @@ export class TacticsApp extends Base {
       if (tac.kind === "officer" && !gm) body += `<p class="qin-muted">The GM is placing ${esc(tac.name)}'s tactics.</p>`;
       else if (tac.kind === "player" && !canPlace) body += `<p class="qin-muted">${esc(tac.name)} is placing the tactics.</p>`;
     }
-    if ((canPlace && tac) || (gm && side !== "player")) {
+    if ((canPlace && tac) || gm) {
       // the tactics this tactician may use: player side by Art of War level; ally and enemy: all of them
       const rows = TACTICS.map(d => {
         const done = placed.find(p => p.key === d.key);
@@ -102,7 +102,8 @@ export class TacticsApp extends Base {
           : full ? "" : `<a data-act="place" data-side="${side}" data-key="${d.key}">Place</a>`;
         return `<div class="qin-tac-row ${locked ? "locked" : ""}" ${tipAttrs(d)}><span>${esc(d.name)}${locked ? ` <small>· Art of War ${d.aow}</small>` : ""}${done && side === "player" ? ` <small class="qin-tac-placed">(placed)</small>` : ""}</span><span>${sizeLabel(d)}</span><span>${btn}</span></div>`;
       }).join("");
-      if (side !== "player" || tac) body += `<details class="qin-tac-list" data-side="${side}" ${(this.openLists ??= new Set(gm ? [] : ["player"])).has(side) ? "open" : ""}><summary>${side === "player" ? "Tactics" : "Place a tactic"}</summary><div class="qin-tac-row hd"><span>Tactic</span><span>Size</span><span></span></div>${rows}</details>`;
+      if (side === "player" && !tac && gm) body += `<p class="qin-muted">No tactician: you can place any player tactics, with no Art of War limit (for testing).</p>`;
+      if (side !== "player" || tac || gm) body += `<details class="qin-tac-list" data-side="${side}" ${(this.openLists ??= new Set(gm ? [] : ["player"])).has(side) ? "open" : ""}><summary>${side === "player" ? "Tactics" : "Place a tactic"}</summary><div class="qin-tac-row hd"><span>Tactic</span><span>Size</span><span></span></div>${rows}</details>`;
     }
     if (placed.length && (gm || side === "player")) {
       body += placed.map(p => `<div class="qin-tac-chip" ${tipAttrs(tacticDef(p.key))}><span><b>${esc(tacticDef(p.key)?.name ?? p.key)}</b> <small>${sizeLabel(tacticDef(p.key), p.size)} · at ${p.x}, ${p.y}</small></span>${canPlace ? `<span><a data-act="place" data-side="${side}" data-key="${p.key}" data-id="${p.id}" data-tooltip="Move"><i class="fa-solid fa-up-down-left-right"></i></a> <a data-act="remove" data-id="${p.id}" data-tooltip="Remove"><i class="fa-solid fa-xmark"></i></a></span>` : ""}</div>`).join("");

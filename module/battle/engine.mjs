@@ -1435,7 +1435,7 @@ const ACTIONS = {
     if (!tacticPlacer(s, actor, a.side)) return err('Only the tactician places these tactics');
     if (!inBounds(s, a.x, a.y)) return err('Off the map');
     const existing = a.id ? T.placed.find(p => p.id === a.id && p.side === a.side) : null;
-    if (a.side === 'player') {
+    if (a.side === 'player' && !(actor.host && !tac)) { // the GM may place player tactics freely with no tactician (testing)
       if (!tac) return err('Choose a tactician first');
       if (def.aow > tac.aow) return err(def.name + ' needs Art of War ' + def.aow);
       const others = T.placed.filter(p => p.side === 'player' && p !== existing);
