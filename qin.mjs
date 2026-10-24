@@ -1,3 +1,4 @@
+import { PartyPanel, registerParty } from "./module/party.mjs";
 import * as CFG from "./module/config.mjs";
 import { CharacterData, HenchmanData, UnitData } from "./module/data/actor-models.mjs";
 import * as IM from "./module/data/item-models.mjs";
@@ -161,6 +162,12 @@ Hooks.once("init", () => {
     editable: [{ key: "KeyB" }], precedence: CONST.KEYBINDING_PRECEDENCE?.NORMAL,
     onDown: () => { if (BattlePanel.instance?.rendered) BattlePanel.instance.close(); else BattlePanel.open(); return true; },
   });
+  game.keybindings.register(SYSTEM_ID, "partyPanel", {
+    name: "Open party panel", hint: "Every player's units with health, morale and XP; press again to close it.",
+    editable: [{ key: "KeyP" }], precedence: CONST.KEYBINDING_PRECEDENCE?.NORMAL,
+    onDown: () => { PartyPanel.toggle(); return true; },
+  });
+  registerParty();
   game.keybindings.register(SYSTEM_ID, "newUnit", {
     name: "New unit (GM)", hint: "Opens the New unit window (or brings it to the front).",
     editable: [{ key: "KeyN" }], restricted: true, precedence: CONST.KEYBINDING_PRECEDENCE?.NORMAL,

@@ -648,3 +648,30 @@ button.qin-armed { outline: 2px solid #9b2c22; }
   background: rgba(18, 17, 26, .85); color: #e8e4d8; border: 1px solid #6b6a60; cursor: pointer; }
 .qin-tour-skip kbd { font-size: 11px; margin-left: 4px; padding: 0 4px; border: 1px solid #8a887d; border-radius: 3px; }
 @media (prefers-reduced-motion: reduce) { .qin-tour-card, .qin-tour-strip { animation-duration: 1ms !important; } .qin-tour-strip { clip-path: none; } }
+
+/* ------------------------------------------------------------ party panel (P) */
+.qin-party .window-content { padding: 6px 8px; overflow-y: auto; }
+.qin-party-all { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; padding: 5px 7px; border: 1px solid rgba(160,140,100,.5); border-radius: 5px; background: rgba(127,127,127,.1); }
+.qin-party-all b { margin-right: auto; }
+.qin-party-all button { width: auto; flex: none; font-size: .85em; padding: 1px 8px; line-height: 1.6; }
+.qin-party-player { margin-bottom: 8px; }
+.qin-party-player h3 { display: flex; align-items: center; gap: 6px; margin: 4px 0; padding-bottom: 3px; border-bottom: 1px solid rgba(160,140,100,.6); font-size: 1.05em; }
+.qin-party-player h3 small { font-weight: normal; opacity: .7; font-size: .8em; }
+.qin-party-dot { width: 11px; height: 11px; border-radius: 50%; border: 1px solid rgba(0,0,0,.4); flex: none; }
+.qin-party-player ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.qin-party-unit { display: grid; grid-template-columns: 46px 1fr; gap: 8px; padding: 5px 6px; border: 1px solid rgba(160,140,100,.45); border-radius: 5px; background: rgba(127,127,127,.08); }
+.qin-party-unit > img { width: 46px; height: 46px; border-radius: 50%; border: 2px solid #3a78c8; object-fit: cover; cursor: pointer; }
+.qin-party-name { display: flex; align-items: center; gap: 5px; font-weight: bold; }
+.qin-party-name a { cursor: pointer; }
+.qin-party-sub { font-size: .8em; opacity: .75; margin: 1px 0 3px; }
+.qin-party-bars { display: grid; grid-template-columns: auto 1fr auto; gap: 1px 6px; align-items: center; font-size: .78em; }
+.qin-party-bars .qin-bar { margin-top: 0; height: 7px; }
+.qin-party-bars b { font-weight: normal; white-space: nowrap; text-align: right; } .qin-party-bars b small { opacity: .7; }
+.qin-party-btns { margin-left: auto; display: inline-flex; gap: 3px; }
+.qin-party-btns button { width: 24px; height: 22px; padding: 0; line-height: 1; flex: none; font-size: .8em; }
+.qin-party-status { font-size: .72em; font-weight: bold; padding: 0 5px; border-radius: 3px; background: #7e2018; color: #fff; }
+.qin-party-status.escaped { background: #b0367a; } .qin-party-status.surrendered { background: #8a6d1d; }
+.qin-party-player h3 { color: inherit; font-family: inherit; }
+.qin-party-bars .qin-bar.morale i { background: #3a78c8; }
+.qin-party-bars .qin-bar.xp i { background: #b58b2a; }
+.qin-party-bars .qin-bar { background: rgba(160,150,130,.35); }
