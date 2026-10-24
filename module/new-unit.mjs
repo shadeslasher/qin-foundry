@@ -14,10 +14,10 @@ function factionGroup(f) {
   return "Other";
 }
 
-/** Units to start from: the world's unit actors, then units in Actor compendiums (e.g. Three Kingdoms Battle Units). */
+/** Units to start from: the units in Actor compendiums (e.g. Three Kingdoms Battle Units). */
 async function templates() {
   const info = (sys) => ({ category: sys?.category ?? "infantry", tier: Number(sys?.tier) || 99, faction: factionGroup(sys?.faction) });
-  const out = (game.actors?.contents ?? []).filter(a => a.type === "unit").map(a => ({ id: a.uuid, name: a.name, world: true, ...info(a.system) }));
+  const out = []; // compendium units only (copies already in the world aren't offered as templates)
   for (const pack of game.packs ?? []) {
     if (pack.documentName !== "Actor") continue;
     let index;
