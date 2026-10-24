@@ -1,3 +1,33 @@
+{{#*inline "objectivesCard"}}
+  <div class="qin-card qin-obj-card"><h4>Victory &amp; defeat</h4>
+    <div class="qin-obj-grp v"><i class="fa-solid fa-flag"></i> Victory <span class="qin-muted">complete all</span></div>
+    <ul class="qin-obj-rows">
+      {{#each objCard.victory}}{{> objRow}}{{else}}<li class="qin-muted qin-obj-none">No victory conditions: the battle won't end in victory by itself.</li>{{/each}}
+    </ul>
+    <select class="qin-obj-add" data-obj-add="victory"><option value="">+ Add victory condition…</option>{{#each objCard.victoryTypes}}<option value="{{k}}">{{label}}</option>{{/each}}</select>
+    <div class="qin-obj-grp d"><i class="fa-solid fa-skull"></i> Defeat <span class="qin-muted">any one</span></div>
+    <ul class="qin-obj-rows">
+      {{#each objCard.defeat}}{{> objRow}}{{/each}}
+      <li class="qin-obj-row always"><span class="qin-obj-sw" style="border-color:#8a8578"></span><span class="qin-obj-what">All player units routed (always)</span><span></span></li>
+    </ul>
+    <select class="qin-obj-add" data-obj-add="defeat"><option value="">+ Add defeat condition…</option>{{#each objCard.defeatTypes}}<option value="{{k}}">{{label}}</option>{{/each}}</select>
+    <p class="qin-muted">Saved with this scene. Players see the conditions in the top right once the battle starts.</p>
+  </div>
+{{/inline}}
+{{#*inline "objRow"}}
+  <li class="qin-obj-row{{#if paired}} paired{{/if}}"><span class="qin-obj-sw" style="border-color:{{color}}{{#if escape}};background:rgba(255,79,168,.45){{/if}}"></span>
+    <span class="qin-obj-what"><b>{{label}}</b>
+      {{#if needsUnits}}<span class="qin-obj-chip">{{units}}</span><button type="button" data-action="objPick" data-id="{{id}}" data-kind="units" class="{{#if pickingUnits}}qin-on{{/if}}">{{#if pickingUnits}}<i class="fa-solid fa-check"></i> Done{{else}}<i class="fa-solid fa-crosshairs"></i> Pick units{{/if}}</button>{{/if}}
+      {{#if needsTile}}<span class="qin-obj-chip">{{tile}}</span>{{#unless paired}}<button type="button" data-action="objPick" data-id="{{id}}" data-kind="tile" class="{{#if pickingTile}}qin-on{{/if}}"><i class="fa-solid fa-crosshairs"></i> Pick tile</button>{{/unless}}{{/if}}
+      {{#if rounds}}{{#if (eq type "hold")}}for {{/if}}<input type="number" min="1" value="{{rounds}}" data-obj-rounds="{{id}}"> rounds{{/if}}
+      {{#if escape}}<span class="qin-obj-chip">{{@root.objCard.extraction}} extraction square{{#unless (eq @root.objCard.extraction 1)}}s{{/unless}}</span>
+        <button type="button" data-action="objExtract" data-mode="paint" class="{{#if (eq @root.objCard.brush "paint")}}qin-on{{/if}}"><i class="fa-solid fa-paintbrush"></i> Paint</button>
+        <button type="button" data-action="objExtract" data-mode="erase" class="{{#if (eq @root.objCard.brush "erase")}}qin-on{{/if}}"><i class="fa-solid fa-eraser"></i> Erase</button>{{/if}}
+      {{#if paired}}<span class="qin-muted">(goes with the Hold)</span>{{/if}}
+    </span>
+    {{#if paired}}<span></span>{{else}}<a data-action="objRemove" data-id="{{id}}" title="Remove"><i class="fa-solid fa-xmark"></i></a>{{/if}}
+  </li>
+{{/inline}}
 {{#*inline "deployCard"}}
   <div class="qin-card qin-deploy-card"><h4>Deployment zones</h4>
     <div class="qin-deploy-btns">
@@ -46,6 +76,7 @@
     {{/if}}
   </div>
   {{#if deploy}}{{> deployCard}}{{/if}}
+  {{#if objCard}}{{> objectivesCard}}{{/if}}
   </div>
 {{else}}
   {{#if wrongScene}}<p class="qin-warn">The battle is on scene <b>{{battleScene}}</b>.</p>{{/if}}
@@ -59,6 +90,7 @@
     </div>
   </div>
   {{#if deploy}}{{> deployCard}}{{/if}}
+  {{#if objCard}}{{> objectivesCard}}{{/if}}
 
   {{#if held.length}}
   <div class="qin-card qin-held">

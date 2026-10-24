@@ -3,6 +3,7 @@
 
 import * as data from './engine-data.mjs';
 import { deployMoveCheck, zoneSet } from './deploy-rules.mjs';
+import { evaluateObjectives, freshObjState, emptyObjectives } from './objectives.mjs';
 
 // Four sides. Any two different sides are hostile; units of the same side never attack each other.
 const SIDES = ['player', 'enemy', 'ally', 'neutral'];
@@ -24,6 +25,10 @@ function newState() {
     nextUnitId: 1,
     turn: freshTurn('setup', 0),
     log: [],
+    objectives: emptyObjectives(), // victory / defeat conditions (from the scene)
+    objState: freshObjState(),     // what the battle has done towards them
+    objEval: null,                 // where each condition stands (for the tracker)
+    outcome: null,                 // { result: 'victory' | 'defeat', round, at } once the battle is decided
   };
 }
 
@@ -64,8 +69,9 @@ const inBounds = (s, x, y) => x >= 0 && y >= 0 && x < s.map.cols && y < s.map.ro
  * has no battle map (then the older region-based terrain applies).
  */
 function tileRules(s, x, y) {
-  const tile = s.map.tiles && s.map.tiles[x + ',' + y];
+  let tile = s.map.tiles && s.map.tiles[x + ',' + y];
   if (!tile) return null;
+  tile = burnState(s, x, y, tile); // fire: a burning square has the Fire overlay; a burnt one has turned to scorched ground or ruins
   let overlays = tile.overlays || [];
   const gate = overlays.includes('city-gate') ? gateAt(s, x, y) : null;
   if (gate && gate.state === 'burned') overlays = overlays.map(o => (o === 'city-gate' ? 'ruins' : o)); // burned gates are ruins
@@ -121,6 +127,62 @@ const isWallTop = (s, x, y) => overlaysAt(s, x, y).some(o => o === 'city-wall' |
 const isWallish = (s, x, y) => overlaysAt(s, x, y).some(o => o === 'city-wall' || o === 'fortress-tower' || o === 'city-gate');
 const onWall = (s, u) => isWallTop(s, u.x, u.y);
 function siegeState(s) { if (!s.siege) s.siege = { ladders: [], dropped: [], gates: [] }; if (!s.siege.gates) s.siege.gates = []; return s.siege; }
+
+// ---------------------------------------------------------------- fire
+// A square that catches fire burns for its burn time (rounds, the longest of its flammable parts), then burns
+// down: flammable parts turn into what they burn into (scorched ground, ruins, or nothing). Spreading comes later.
+//   siege.fires: { "x,y": { left } }   siege.burnt: { "x,y": true }
+const burnPart = (id, kind) => (kind === 'terrain' ? data.MAP_TERRAIN[id] : data.MAP_OVERLAYS[id]) || null;
+/** The square as fire has left it: burning adds the Fire overlay, burnt replaces its flammable parts. */
+function burnState(s, x, y, tile) {
+  const sg = s.siege, k = x + ',' + y;
+  if (!sg || (!sg.burnt?.[k] && !sg.fires?.[k])) return tile;
+  let terrain = tile.terrain, overlays = [...(tile.overlays || [])];
+  if (sg.burnt?.[k]) {
+    const tp = burnPart(terrain, 'terrain');
+    if (tp?.flammable) terrain = tp.burnsInto && data.MAP_TERRAIN[tp.burnsInto] ? tp.burnsInto : terrain === 'forest' ? 'scorched' : terrain;
+    const out = [];
+    for (const o of overlays) {
+      const op = burnPart(o, 'overlay');
+      if (!op?.flammable) { out.push(o); continue; }
+      const into = op.burnsInto;
+      if (into && data.MAP_OVERLAYS[into]) out.push(into);
+      else if (into && data.MAP_TERRAIN[into]) terrain = into;
+    }
+    overlays = out;
+  }
+  if (sg.fires?.[k] && !overlays.includes('fire')) overlays.push('fire');
+  return { ...tile, terrain, overlays };
+}
+/** Is this square flammable, and how long does it burn? null when it can't burn (or already burnt). */
+function burnInfo(s, x, y) {
+  const k = x + ',' + y, tile = s.map.tiles && s.map.tiles[k];
+  if (!tile || s.siege?.burnt?.[k]) return null;
+  const parts = [burnPart(tile.terrain, 'terrain'), ...(tile.overlays || []).map(o => burnPart(o, 'overlay'))].filter(p => p?.flammable);
+  if (!parts.length) return null;
+  return { burnTime: Math.max(1, ...parts.map(p => p.burnTime || 1)), name: parts.map(p => p.name).join(', ') };
+}
+/** Set a square alight. Returns false if it can't burn or is already burning. */
+function igniteTile(s, x, y, why) {
+  const info = burnInfo(s, x, y), k = x + ',' + y;
+  if (!info) return false;
+  const sg = siegeState(s); sg.fires = sg.fires || {}; sg.burnt = sg.burnt || {};
+  if (sg.fires[k]) return false;
+  sg.fires[k] = { left: info.burnTime };
+  log(s, (why ? why + ': ' : '') + 'the ' + info.name.toLowerCase() + ' at ' + k + ' catches fire (burns for ' + info.burnTime + ' round' + (info.burnTime === 1 ? '' : 's') + ').', { type: 'setFire', x, y });
+  return true;
+}
+/** End of a round: fires burn down. */
+function burnRound(s) {
+  const sg = s.siege; if (!sg?.fires) return;
+  for (const [k, f] of Object.entries(sg.fires)) {
+    f.left -= 1;
+    if (f.left > 0) continue;
+    const [x, y] = k.split(',').map(Number), info = burnInfo(s, x, y);
+    delete sg.fires[k]; sg.burnt = sg.burnt || {}; sg.burnt[k] = true;
+    log(s, 'The ' + (info ? info.name.toLowerCase() : 'square') + ' at ' + k + ' burns down.', { type: 'burntDown', x, y });
+  }
+}
 /** City gates: { id, squares: [[x, y]...], owner: 'friendly' | 'enemy', state: 'locked' | 'open' | 'broken' | 'burned' }. */
 const gateAt = (s, x, y) => (s.siege && s.siege.gates ? s.siege.gates.find(g => g.squares.some(([gx, gy]) => gx === x && gy === y)) : null) || null;
 const gateBlocks = (g) => !g || g.state === 'locked';
@@ -789,7 +851,7 @@ function resolveAttack(s, attacker, defender, opts) {
     if (tr && tr.flammable) {
       const sg = siegeState(s); sg.scorch = sg.scorch || {};
       const left = Math.max(0, (tr.fireRes || 0) - (sg.scorch[key] || 0));
-      if (left <= 0) { delete sg.scorch[key]; log(s, attacker.name + "'s fire arrows set " + defender.name + "'s square alight.", { type: 'setFire', x: defender.x, y: defender.y }); }
+      if (left <= 0) { delete sg.scorch[key]; igniteTile(s, defender.x, defender.y, attacker.name + "'s fire arrows"); }
       else { sg.scorch[key] = (sg.scorch[key] || 0) + 1; log(s, attacker.name + "'s fire arrows scorch " + defender.name + "'s square (burn resistance " + (left - 1) + ' left).'); }
     }
   }
@@ -884,7 +946,36 @@ function gainMorale(s, u, n, why) {
 function settle(s, opts = {}) {
   s._settleDepth = (s._settleDepth || 0) + 1;
   try { settleLoop(s, opts); } finally { s._settleDepth--; }
-  if (!s._settleDepth) { processFear(s); delete s._settleDepth; }
+  if (!s._settleDepth) { processFear(s); delete s._settleDepth; checkOutcome(s); }
+}
+
+// ---------------------------------------------------------------- victory and defeat
+const objState = (s) => { if (!s.objState) s.objState = freshObjState(); return s.objState; };
+const BATTLE_PHASES = ['tactics', 'formations', 'officer', 'officerless', 'final'];
+/** A unit's turn ends: the square counts as seized by its side; a unit that must escape leaves from an extraction square. */
+function trackEndOfTurn(s, u) {
+  if (!alive(u)) return;
+  const st = objState(s), k = u.x + ',' + u.y;
+  if (u.side === 'player') st.playerEnded[k] = true;
+  if (u.side === 'enemy') st.enemyEnded[k] = true;
+  const mustEscape = (s.objectives?.victory ?? []).some(c => c.type === 'escape' && (c.unitIds ?? []).includes(u.id));
+  if (mustEscape && (s.objectives?.extraction ?? []).includes(k)) {
+    u.status = 'escaped';
+    if (!st.escaped.includes(u.id)) st.escaped.push(u.id);
+    removeFromTurn(s, u.id);
+    log(s, u.name + ' escapes the battlefield.', { type: 'escaped', unit: u.id });
+  }
+}
+/** Re-check every condition; once the battle is decided it ends (phase 'over'). */
+function checkOutcome(s) {
+  if (s.outcome || !BATTLE_PHASES.includes(s.turn.phase)) return;
+  const ev = evaluateObjectives(s.objectives, s.units.map(u => ({ id: u.id, side: u.side, status: u.status })), objState(s),
+    { burnt: s.siege?.burnt ?? {}, fires: s.siege?.fires ?? {} });
+  s.objEval = ev;
+  if (!ev.result) return;
+  s.outcome = { result: ev.result, round: s.turn.round, at: Date.now() };
+  log(s, ev.result === 'victory' ? 'Victory! Every victory condition is met.' : 'Defeat.', { type: 'outcome', result: ev.result });
+  s.turn = freshTurn('over', s.turn.round);
 }
 function settleLoop(s, opts) {
   for (let guard = 0; guard < 50; guard++) {
@@ -1008,6 +1099,7 @@ function prompt(s) {
   if (t.phase === 'setup') return { kind: 'setup', rank: -1 };
   if (t.phase === 'tactics') return { kind: 'tactics', rank: -1 };
   if (t.phase === 'formations') return { kind: 'formations', rank: -1 };
+  if (t.phase === 'over') return { kind: 'over', rank: -1 }; // decided: victory or defeat
   if (t.activation) {
     const u = unitById(s, t.activation.unitId);
     return { kind: 'activation', unitId: t.activation.unitId, rank: hasOfficer(u) ? rankOf(s, u.id) : Infinity };
@@ -1049,6 +1141,7 @@ function finalQueue(s) {
 // Move the turn forward through empty phases.
 function advance(s) {
   const t = s.turn;
+  if (t.phase === 'over') return;
   for (let guard = 0; guard < 20; guard++) {
     if (t.activation) return;
     const p = prompt(s);
@@ -1062,6 +1155,8 @@ function advance(s) {
 
 function endRound(s) {
   const next = s.turn.round + 1;
+  objState(s).roundsDone = s.turn.round; // rounds survived / held / used up
+  burnRound(s); // fires burn down
   for (const u of s.units) u.facing = null; // every unit's facing clears when the round ends
   // Inspiration: at the end of the round, allied units next to it gain 4 morale
   for (const u of liveUnits(s)) if (trait(u, 'inspiration')) {
@@ -1079,7 +1174,8 @@ function endRound(s) {
   for (const tc of s.tactics ? s.tactics.placed : []) if (tc.state === 'active' && tc.untilRound !== undefined && tc.untilRound < next) tc.state = 'spent';
   s.turn = freshTurn('formations', next);
   for (const u of s.units) u.round = newRoundFlags();
-  log(s, 'Round ' + next + ': declare formations.');
+  log(s, 'Round ' + next + ' begins.');
+  checkOutcome(s); // rounds survived / time limits / holds
 }
 
 function startActivation(s, u, extra) {
@@ -1132,6 +1228,7 @@ function finishActivation(s, u) {
   bookkeep(s, u);
   t.activation = null;
   if (alive(u)) log(s, u.name + ' ends its turn.');
+  trackEndOfTurn(s, u); // seizing squares, escaping
   settle(s);
   advance(s);
 }
@@ -1282,10 +1379,13 @@ const ACTIONS = {
     for (const u of s.units) u.round = newRoundFlags();
     for (const u of s.units) u.facing = null; // no facing until a unit attacks or is attacked
     log(s, 'Battle begins. Tacticians, choose your tactics.');
+    s.objState = freshObjState(); s.outcome = null; s.objEval = null;
+    checkOutcome(s); // the tracker starts with every condition open
   },
   resetBattle(s) {
     s.turn = freshTurn('setup', 0);
     s.tactics = null;
+    s.objState = freshObjState(); s.outcome = null; s.objEval = null;
     for (const u of s.units) u.round = newRoundFlags();
     log(s, 'Host returned to setup.');
   },
@@ -1697,8 +1797,9 @@ const ACTIONS = {
     const { u, act: ac } = r;
     if (u.round.attacked || ac.forcedMarched) return err('Setting a fire replaces the attack');
     if (Math.abs(a.x - u.x) + Math.abs(a.y - u.y) !== 1) return err('Pick a tile next to the unit');
+    if (!burnInfo(s, a.x, a.y) || s.siege?.fires?.[a.x + ',' + a.y]) return err("That tile can't catch fire");
     if (!fireTactics(s, 'setFire', u).length) return err('No Set Aflame tactic covers this unit');
-    log(s, u.name + ' sets the tile at ' + a.x + ', ' + a.y + ' on fire.', { type: 'setFire', x: a.x, y: a.y });
+    igniteTile(s, a.x, a.y, u.name + ' (Set Aflame)');
     u.round.attacked = true;
     finishActivation(s, u);
   },

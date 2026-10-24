@@ -552,3 +552,67 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin-newunit-app .qin-newunit { display: flex; flex-direction: column; gap: 6px; }
 .qin-newunit-app .form-footer { display: flex; gap: 8px; margin-top: 6px; }
 .qin-newunit-app .form-footer button { flex: 1; }
+
+/* ------------------------------------------------------------ victory and defeat */
+@font-face { font-family: "Qin Cinzel"; src: url("fonts/cinzel-latin-900-normal.woff2") format("woff2"); font-weight: 900; font-display: swap; } /* Cinzel, SIL Open Font License (fonts/Cinzel-OFL.txt) */
+
+/* setup card (battle panel) */
+.qin-obj-card .qin-obj-grp { margin: 6px 0 3px; font-weight: bold; display: flex; align-items: baseline; gap: 6px; }
+.qin-obj-card .qin-obj-grp.v { color: #2c5f9e; } .qin-obj-card .qin-obj-grp.d { color: #9b2c22; }
+.qin-obj-card .qin-obj-grp .qin-muted { margin-left: auto; font-weight: normal; font-size: 0.85em; }
+.qin-obj-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.qin-obj-row { display: grid; grid-template-columns: 14px 1fr auto; gap: 6px; align-items: center; background: rgba(255,255,255,.45); border: 1px solid #d8ccb0; border-radius: 4px; padding: 4px 6px; }
+.qin-obj-row.paired { background: transparent; border-style: dashed; }
+.qin-obj-row.always { background: transparent; border-style: dashed; color: #6b6150; font-style: italic; }
+.qin-obj-sw { width: 12px; height: 12px; border: 2px solid; border-radius: 2px; box-sizing: border-box; }
+.qin-obj-what { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; min-width: 0; }
+.qin-obj-what button { font-size: 0.85em; padding: 1px 6px; line-height: 1.5; width: auto; flex: none; }
+.qin-obj-what button.qin-on { background: #dcebff; border-color: #3a78c8; font-weight: bold; }
+.qin-obj-what input[type=number] { width: 3.2em; }
+.qin-obj-chip { font-size: 0.85em; background: #efe6d2; border: 1px solid #c9b48a; border-radius: 3px; padding: 0 5px; }
+.qin-obj-row a[data-action] { color: #8a7d62; cursor: pointer; }
+.qin-obj-add { width: 100%; margin-top: 4px; }
+
+/* tracker: top right, left of the sidebar */
+.qin-obj-tracker { position: fixed; top: 8px; right: 54px; width: 300px; z-index: 70; pointer-events: none;
+  background: rgba(18, 17, 22, .86); border: 1px solid #4b4a44; border-radius: 8px; box-shadow: 0 4px 18px rgba(0,0,0,.55); color: #e8e4d8; font-size: 13.5px; overflow: hidden; }
+.qin-obj-tracker h4 { margin: 0; padding: 6px 10px; font-size: 12.5px; letter-spacing: .14em; text-transform: uppercase; display: flex; justify-content: space-between; align-items: baseline; border: none; }
+.qin-obj-tracker h4 small { letter-spacing: 0; text-transform: none; font-weight: 400; color: #b9b2a0; font-size: 11.5px; }
+.qin-obj-tracker .v h4 { background: linear-gradient(90deg, rgba(58,120,200,.45), rgba(58,120,200,.08)); border-left: 4px solid #3a78c8; color: #cfe1ff; }
+.qin-obj-tracker .d h4 { background: linear-gradient(90deg, rgba(200,68,58,.45), rgba(200,68,58,.08)); border-left: 4px solid #c8443a; color: #ffd6d0; }
+.qin-obj-tracker ul { list-style: none; margin: 0; padding: 4px 8px 6px; display: flex; flex-direction: column; gap: 3px; }
+.qin-obj-tracker li { display: grid; grid-template-columns: 14px 1fr auto; gap: 7px; align-items: center; padding: 2px; line-height: 1.25; }
+.qin-obj-tracker .qin-obj-st { font-size: 12px; color: #c9c2ae; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.qin-obj-tracker li.done, .qin-obj-tracker li.done .qin-obj-st { color: #f2d48a; }
+.qin-obj-tracker li.failed, .qin-obj-tracker li.failed .qin-obj-st { color: #9a9488; text-decoration: line-through; }
+.qin-obj-tracker li.triggered, .qin-obj-tracker li.triggered .qin-obj-st { color: #ff9a8a; font-weight: bold; }
+.qin-obj-tracker li.always { color: #b9b2a0; font-style: italic; }
+.qin-obj-pips { display: inline-flex; gap: 3px; } .qin-obj-pips b { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid #b4b8bd; } .qin-obj-pips b.f { background: #b4b8bd; }
+.qin-obj-timer { grid-column: 2 / 4; height: 5px; background: rgba(255,255,255,.12); border-radius: 3px; overflow: hidden; margin: 1px 0 3px; }
+.qin-obj-timer i { display: block; height: 100%; }
+
+/* the Victory / Defeat banner */
+.qin-outcome { position: fixed; inset: 0; z-index: 90; pointer-events: none; display: grid; place-items: center; overflow: hidden; container-type: inline-size; --c: 40, 110, 220; }
+.qin-outcome.lose { --c: 200, 40, 40; }
+.qin-outcome .dim { position: absolute; inset: 0; background: rgba(0,0,0,.25); animation: qin-oc-dim 400ms ease both; }
+.qin-outcome .band { position: absolute; left: 0; right: 0; top: 50%; height: 22cqw; max-height: 45vh; translate: 0 -50%; overflow: hidden; }
+.qin-outcome .band .half { position: absolute; top: 0; bottom: 0; width: 50%; background: rgba(var(--c), .45); backdrop-filter: blur(2px); }
+.qin-outcome.open .band { background: rgba(var(--c), .45); backdrop-filter: blur(2px); } .qin-outcome.open .band .half { display: none; }
+.qin-outcome .band .half.l { left: 0; } .qin-outcome .band .half.r { right: 0; }
+.qin-outcome .band::before, .qin-outcome .band::after { content: ""; position: absolute; left: 0; right: 0; height: 3px; z-index: 2; background: linear-gradient(90deg, transparent, rgba(255,255,255,.9) 20%, rgba(255,255,255,.9) 80%, transparent); }
+.qin-outcome .band::before { top: 0; } .qin-outcome .band::after { bottom: 0; }
+.qin-outcome.open .band { animation: qin-oc-open 520ms cubic-bezier(.2,.8,.2,1) both; }
+.qin-outcome.sides .band .l { animation: qin-oc-fromL 560ms cubic-bezier(.2,.8,.2,1) both; }
+.qin-outcome.sides .band .r { animation: qin-oc-fromR 560ms cubic-bezier(.2,.8,.2,1) both; }
+.qin-outcome .word { position: relative; z-index: 3; font: 900 8cqw/1 "Qin Cinzel", "Modesto Condensed", Georgia, serif; letter-spacing: .08em; color: #fff;
+  text-shadow: 0 0 .25em rgba(var(--c), 1), 0 .04em .02em rgba(0,0,0,.6); animation: 760ms cubic-bezier(.16,1,.3,1) 260ms both; }
+.qin-outcome.win .word { animation-name: qin-oc-slideL; } .qin-outcome.lose .word { animation-name: qin-oc-slideR; }
+.qin-outcome.out { animation: qin-oc-out 600ms ease forwards; }
+@keyframes qin-oc-dim { from { opacity: 0; } to { opacity: 1; } }
+@keyframes qin-oc-open { from { clip-path: inset(50% 0 50% 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes qin-oc-fromL { from { translate: -100% 0; } to { translate: 0 0; } }
+@keyframes qin-oc-fromR { from { translate: 100% 0; } to { translate: 0 0; } }
+@keyframes qin-oc-slideL { from { translate: -120cqw 0; opacity: 0; } 60% { opacity: 1; } to { translate: 0 0; opacity: 1; } }
+@keyframes qin-oc-slideR { from { translate: 120cqw 0; opacity: 0; } 60% { opacity: 1; } to { translate: 0 0; opacity: 1; } }
+@keyframes qin-oc-out { to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .qin-outcome, .qin-outcome * { animation-duration: 1ms !important; animation-delay: 0ms !important; } }

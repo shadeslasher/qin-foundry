@@ -8,9 +8,10 @@ import { setBattleRequest, highlightUnit } from "./battle-ui.mjs";
 import { TacticsApp } from "./tactics-ui.mjs";
 import { importBattleMap } from "./battlemap.mjs";
 import { deployCardState, startZoneBrush, clearZones, confirmZones, discardZones, savedZones } from "./deploy.mjs";
+import { objectivesCardState, addCondition, removeCondition, setRounds, startPick, startExtractionBrush } from "./objectives-ui.mjs";
 
 const QUERY = `${SYSTEM_ID}.battle`;
-const PHASE_NAME = { tactics: "Tactics", setup: "Setup", formations: "Declare formations", officer: "Officer phase", officerless: "Officer-less phase", final: "Final pass" };
+const PHASE_NAME = { over: "Battle over", tactics: "Tactics", setup: "Setup", formations: "Declare formations", officer: "Officer phase", officerless: "Officer-less phase", final: "Final pass" };
 
 export function registerBattleQuery() {
   CONFIG.queries[QUERY] = async ({ userId, action }) => runAction(userId, action);
@@ -59,6 +60,9 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
       zoneClear: () => clearZones(),
       zoneConfirm: () => confirmZones(),
       zoneDiscard: () => discardZones(),
+      objPick: (ev, el) => startPick(el.dataset.id, el.dataset.kind),
+      objRemove: (ev, el) => removeCondition(el.dataset.id),
+      objExtract: (ev, el) => startExtractionBrush(el.dataset.mode),
     },
   };
   static PARTS = { body: { template: systemPath("templates/battle/panel.hbs"), scrollable: [".qin-battle-scroll"] } };
@@ -86,7 +90,10 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
       : !hasMapRenderer() ? { why: "Redrawing and painting this map need the map generator, which comes with the Three Kingdoms module." }
       : { ready: true };
     // deployment zones card: the GM, before the battle begins (or back in setup)
-    if (game.user.isGM && canvas.scene && (!battle.active || (battle.sceneId === canvas.scene.id && battle.turn?.phase === "setup"))) ctx.deploy = deployCardState();
+    if (game.user.isGM && canvas.scene && (!battle.active || (battle.sceneId === canvas.scene.id && battle.turn?.phase === "setup"))) {
+      ctx.deploy = deployCardState();
+      ctx.objCard = objectivesCardState(); // victory and defeat conditions, saved with the scene
+    }
     if (!battle.active) {
       // players only see the units they control; the GM sees every unit
       ctx.sceneUnits = unitTokens(canvas.scene).filter(t => game.user.isGM || t.actor?.isOwner).map(t => ({ id: t.id, name: t.name, img: t.texture?.src, side: t.actor.system.side }));
@@ -120,6 +127,12 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
         prompt.text += zones ? `<br><span class="qin-muted">Deployment: drag your units onto the blue-white squares. Deployment locks when tactics are finished.</span>`
           : `<br><span class="qin-muted">No deployment zones on this map: units stay where the GM placed them.</span>`;
         btn("Open tactics", "openTactics", { primary: true });
+        break;
+      }
+      case "over": {
+        const won = battle.outcome?.result === "victory";
+        prompt.text = `<b>${won ? "Victory!" : "Defeat."}</b> ${won ? "Every victory condition is met." : "A defeat condition was met."}`
+          + (game.user.isGM ? `<br><span class="qin-muted">Press End battle (GM controls, below) to finish: units then lose XP for their casualties.</span>` : "");
         break;
       }
       case "formations":
@@ -200,7 +213,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
       round: t.round, phase: t.phase === "formations" && !useForms ? "Start of round" : PHASE_NAME[t.phase], prompt, held, controls, order, units,
       log: (s.log || []).slice(-12).reverse().map(e => e.text),
       wrongScene: canvas.scene?.id !== battle.sceneId, battleScene: scene?.name,
-      showSkip: game.user.isGM && !["setup", "formations", "tactics"].includes(p.kind),
+      showSkip: game.user.isGM && !["setup", "formations", "tactics", "over"].includes(p.kind),
       tacticsWaiting: game.user.isGM && s.tactics?.phase === "battle" ? s.tactics.placed.filter(t => t.state === "hidden" && !["raiseFlag", "setAflame"].includes(t.key)).length : 0,
       gates: game.user.isGM ? (s.siege?.gates ?? []).map(g => ({ id: g.id, where: g.squares.map(([x, y]) => `${x},${y}`).join(" + "),
         owners: [["friendly", "Friendly (player & ally)"], ["enemy", "Enemy"]].map(([v, l]) => ({ v, l, sel: v === g.owner })),
@@ -222,6 +235,11 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
       if (tok?.actor) await tok.actor.update({ "system.side": sel.value });
       BattlePanel.refresh();
     }));
+    // victory and defeat conditions (GM, before the battle)
+    this.element.querySelectorAll("select[data-obj-add]").forEach(sel => sel.addEventListener("change", () => {
+      if (sel.value) addCondition(sel.dataset.objAdd, sel.value);
+    }));
+    this.element.querySelectorAll("input[data-obj-rounds]").forEach(inp => inp.addEventListener("change", () => setRounds(inp.dataset.objRounds, inp.value)));
     this.element.querySelectorAll("select[data-gate]").forEach(sel => sel.addEventListener("change", () => {
       battleRequest({ type: "setGate", gateId: sel.dataset.gate, [sel.dataset.field]: sel.value });
     }));

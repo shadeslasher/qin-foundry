@@ -141,7 +141,7 @@ export class UnitData extends foundry.abstract.TypeDataModel {
       morale: int(50, { min: 0, max: 100 }),
       formation: new fields.StringField({ initial: "none" }),      // id of one of this unit's formation items
       hidden: new fields.BooleanField({ initial: false }),
-      status: new fields.StringField({ initial: "active", choices: ["active", "defeated", "surrendered"] }),
+      status: new fields.StringField({ initial: "active", choices: ["active", "defeated", "surrendered", "escaped"] }),
       officer: new fields.StringField({ initial: "" }),            // UUID of a character actor
       traits: new fields.HTMLField({ initial: "" }),                // older free-text traits; the list below replaces it
       traitList: new fields.ArrayField(new fields.SchemaField({

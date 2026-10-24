@@ -16,6 +16,7 @@ import { registerFactions, factionList } from "./module/factions.mjs";
 import { refreshBattleUI, repositionBattleUI, lockUnitTokens, onUnitSelected, registerUnitClicks } from "./module/battle/battle-ui.mjs";
 import { refreshTactics, registerTactics } from "./module/battle/tactics-ui.mjs";
 import { registerDeployZones, drawDeployZones, setDeployChangeHandler } from "./module/battle/deploy.mjs";
+import { registerObjectives, refreshObjectives, setObjectivesChangeHandler } from "./module/battle/objectives-ui.mjs";
 import { NEW_UNIT_TOOL, newUnitDialog } from "./module/new-unit.mjs";
 import { UNIT_EDITOR_TOOL, UnitEditorApp, registerUnitEditor, reapplyUnitEdits } from "./module/unit-editor.mjs";
 import { registerMapRenderer, syncBattleMap, initBattleMapSync, redrawScene, MapEditorApp } from "./module/battle/maprender.mjs";
@@ -67,6 +68,7 @@ Hooks.once("init", () => {
       redrawAllUnitBars();
       refreshTactics();
       drawDeployZones();
+      refreshObjectives();
       syncBattleMap();
       if (getBattle().active && !BattlePanel.instance?.rendered && game.settings.get(SYSTEM_ID, "autoOpenBattle")) BattlePanel.open();
     },
@@ -185,6 +187,8 @@ registerUnitBars();
 registerUnitInfo();
 registerTactics();
 registerDeployZones();
+registerObjectives();
+setObjectivesChangeHandler(() => BattlePanel.refresh());
 setDeployChangeHandler(() => BattlePanel.refresh());
 registerUnitClicks();
 Hooks.on("renderCombatTracker", onRenderCombatTracker);

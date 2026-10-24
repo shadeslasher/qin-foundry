@@ -10,6 +10,7 @@ import { FORMATIONS, HEROIC_ACTIONS } from "./engine-data.mjs";
 import { SYSTEM_ID } from "../config.mjs";
 import { decodeTiles, gatesFromMap, FLAG as MAP_FLAG } from "./battlemap.mjs";
 import { DEPLOY_FLAG } from "./deploy-rules.mjs";
+import { OBJECTIVES_FLAG, emptyObjectives, freshObjState } from "./objectives.mjs";
 
 const SETTING = "battle";
 let writing = false;
@@ -135,6 +136,10 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
   s.tactics = battle.tactics ?? null;
   s.siege = battle.siege ?? null;
   s.deployZones = scene?.getFlag?.(SYSTEM_ID, DEPLOY_FLAG) ?? []; // deployment squares, saved with the scene
+  s.objectives = foundry.utils.deepClone(scene?.getFlag?.(SYSTEM_ID, OBJECTIVES_FLAG) ?? emptyObjectives()); // victory / defeat conditions
+  s.objState = battle.objState ?? freshObjState();
+  s.objEval = battle.objEval ?? null;
+  s.outcome = battle.outcome ?? null;
   s.library.formations = [{ id: "none", name: "No formation", desc: "No modifiers." }];
   s.library.unitTypes = [];
   s.library.officers = [];
@@ -254,6 +259,7 @@ async function writeBack(battle, s, scene) {
       if (unseen && !tok.hidden) { t.hidden = true; t[`flags.${SYSTEM_ID}.stealthHidden`] = true; }
       else if (!unseen && flagged) { t.hidden = false; t[`flags.${SYSTEM_ID}.stealthHidden`] = false; }
     }
+    if (u.status === "escaped" && !tok.hidden) t.hidden = true; // escaped units leave the map
     if (Object.keys(t).length > 1) tokenUpdates.push(t);
   }
   await Promise.all(actorUpdates);
@@ -265,6 +271,9 @@ async function writeBack(battle, s, scene) {
   battle.turn = s.turn;
   battle.tactics = s.tactics ?? null;
   battle.siege = s.siege ?? null;
+  battle.objState = s.objState ?? null;
+  battle.objEval = s.objEval ?? null;
+  battle.outcome = s.outcome ?? null;
   battle.log = s.log.slice(-60);
   await game.settings.set(SYSTEM_ID, SETTING, battle);
 }
@@ -401,6 +410,14 @@ async function runActionNow(userId, action) {
     // Always end the battle, even if settling XP fails (a missing actor, say), so tokens unlock
     try { await settleXpAfterBattle(battle); }
     catch (e) { console.error("Qin | settling XP after the battle failed", e); ui.notifications.warn("The battle ended, but settling XP failed: see the console (F12)."); }
+    // units that escaped come back: active again and visible
+    try {
+      const sc = game.scenes.get(battle.sceneId);
+      for (const tok of unitTokens(sc)) if (tok.actor?.system?.status === "escaped") {
+        await tok.actor.update({ "system.status": "active" }, { qinBattle: true });
+        if (tok.hidden) await tok.update({ hidden: false }, { qinBattle: true });
+      }
+    } catch (e) { console.warn("Qin | restoring escaped units", e); }
     await game.settings.set(SYSTEM_ID, SETTING, emptyBattle());
     return { ok: true };
   } else if (!battle.active) {

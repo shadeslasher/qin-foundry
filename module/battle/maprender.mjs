@@ -7,7 +7,7 @@
 // { x, y, overlay, on }) with { id, ok, code, data, blob? }.
 // Without one, imported maps still work; they just can't be redrawn.
 import { SYSTEM_ID } from "../config.mjs";
-import { FLAG, encodeBattleMap } from "./battlemap.mjs";
+import { FLAG, encodeBattleMap, decodeTiles } from "./battlemap.mjs";
 import { getBattle } from "./adapter.mjs";
 import { MAP_TERRAIN, MAP_OVERLAYS } from "./engine-data.mjs";
 
@@ -47,6 +47,9 @@ export const mapFlag = (scene) => scene?.getFlag?.(SYSTEM_ID, FLAG) ?? null;
 /** Can this scene's map be redrawn here? */
 export const canRedraw = (scene) => !!(renderer && mapFlag(scene)?.layoutCode);
 
+let tilesMemo = null; // { flag, tiles } for the scene being redrawn
+function tilesOf(scene) { const f = mapFlag(scene); if (!tilesMemo || tilesMemo.flag !== f) tilesMemo = { flag: f, tiles: decodeTiles(f) }; return tilesMemo.tiles; }
+
 /** Changes the battle has made to the map, drawn on top of the saved layout (burned gates become ruins). */
 function battleEdits(scene) {
   const b = getBattle();
@@ -54,6 +57,20 @@ function battleEdits(scene) {
   const edits = [];
   for (const g of b.siege?.gates ?? []) if (g.state === "burned")
     for (const [x, y] of g.squares) edits.push({ x, y, overlay: "city-gate", on: false }, { x, y, overlay: "ruins", on: true });
+  // fire: burning squares show flames; burnt ones show what they burned into (scorched ground, ruins, or nothing)
+  const flag = mapFlag(scene), tiles = flag ? tilesOf(scene) : null;
+  for (const k of Object.keys(b.siege?.burnt ?? {})) {
+    const [x, y] = k.split(",").map(Number), tile = tiles?.[k]; if (!tile) continue;
+    const t = MAP_TERRAIN[tile.terrain];
+    if (t?.flammable) edits.push({ x, y, terrain: t.burnsInto && MAP_TERRAIN[t.burnsInto] ? t.burnsInto : "scorched" });
+    for (const o of tile.overlays ?? []) {
+      const op = MAP_OVERLAYS[o]; if (!op?.flammable) continue;
+      edits.push({ x, y, overlay: o, on: false });
+      if (op.burnsInto && MAP_OVERLAYS[op.burnsInto]) edits.push({ x, y, overlay: op.burnsInto, on: true });
+      else if (op.burnsInto && MAP_TERRAIN[op.burnsInto]) edits.push({ x, y, terrain: op.burnsInto });
+    }
+  }
+  for (const k of Object.keys(b.siege?.fires ?? {})) { const [x, y] = k.split(",").map(Number); edits.push({ x, y, overlay: "fire", on: true }); }
   return edits;
 }
 
@@ -146,7 +163,8 @@ let lastKey = null;
 const battleMapKey = () => {
   const b = getBattle();
   if (!b.active) return "";
-  return b.sceneId + "|" + (b.siege?.gates ?? []).filter(g => g.state === "burned").map(g => g.id).sort().join(",");
+  return b.sceneId + "|" + [...(b.siege?.gates ?? []).filter(g => g.state === "burned").map(g => g.id),
+    ...Object.keys(b.siege?.fires ?? {}).map(k => "f" + k), ...Object.keys(b.siege?.burnt ?? {}).map(k => "b" + k)].sort().join(",");
 };
 /** Called whenever the battle setting changes: one GM redraws when the drawn changes (burned gates) change. */
 export function syncBattleMap() {
