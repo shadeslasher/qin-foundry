@@ -80,7 +80,7 @@ function tileRules(s, x, y) {
     if (p.pass === 'noCavalry') noCav = true;
     if (p.bridge) bridge = true;
     if (p.hides) r.hides = true;
-    if (p.flammable) r.flammable = true;
+    if (p.flammable) { r.flammable = true; r.fireRes = Math.min(r.fireRes ?? 99, p.fireRes || 0); }
     if (p.wall) r.wall = true;
     if (p.water) r.water = true;
     if (p.name) r.names.push(p.name);
@@ -695,7 +695,7 @@ function resolveAttack(s, attacker, defender, opts) {
       moraleLoss = base * mult + (passive(s, attacker).extraMoraleLossOnWin || 0);
       const terror = trait(attacker, 'terror'); // Terror: +2 morale loss; Terror+: double it
       if (terror === 1) moraleLoss += 2; else if (terror >= 2) moraleLoss *= 2;
-      if (ranged && trait(attacker, 'fire arrows')) moraleLoss += 5; // Fire Arrows: the loser loses 5 more morale
+      if (ranged && trait(attacker, 'fire arrows')) moraleLoss += 3; // Fire Arrows: a hit costs 3 more morale
     } else {
       moraleLoss = base + (passive(s, defender).extraMoraleLossOnWin || 0);
     }
@@ -736,10 +736,15 @@ function resolveAttack(s, attacker, defender, opts) {
   }
   if (casDef > 0 && trait(attacker, 'barbed arrows')) fx(defender).slow = true;          // -1 movement on its next turn
   if (ranged) defender.round.hitByRanged = true;                                          // for Volley Fire
-  // Fire Arrows: the target's square catches fire if it can burn
-  if (ranged && trait(attacker, 'fire arrows')) {
-    const tr = tileRules(s, defender.x, defender.y);
-    if (tr && tr.flammable) log(s, attacker.name + "'s fire arrows set " + defender.name + "'s square alight.", { type: 'setFire', x: defender.x, y: defender.y });
+  // Fire Arrows, on a hit: the target's flammable square loses 1 burn resistance, or catches fire once it has none left
+  if (ranged && winner === 'attacker' && trait(attacker, 'fire arrows')) {
+    const tr = tileRules(s, defender.x, defender.y), key = defender.x + ',' + defender.y;
+    if (tr && tr.flammable) {
+      const sg = siegeState(s); sg.scorch = sg.scorch || {};
+      const left = Math.max(0, (tr.fireRes || 0) - (sg.scorch[key] || 0));
+      if (left <= 0) { delete sg.scorch[key]; log(s, attacker.name + "'s fire arrows set " + defender.name + "'s square alight.", { type: 'setFire', x: defender.x, y: defender.y }); }
+      else { sg.scorch[key] = (sg.scorch[key] || 0) + 1; log(s, attacker.name + "'s fire arrows scorch " + defender.name + "'s square (burn resistance " + (left - 1) + ' left).'); }
+    }
   }
   if (trait(attacker, 'reload')) fx(attacker).reload = 'empty';                           // must take the Reload action before attacking again
 

@@ -296,11 +296,11 @@ test('crossbows (Reload) never shoot back when shot at', () => {
   assert.strictEqual(x.r.damageToAttacker, 0);
 });
 
-test('Fire Arrows: the loser of a won shot loses 5 more morale', () => {
+test('Fire Arrows: a hit costs the target 3 more morale', () => {
   const bow = unitType('fa', { weapon: 'ranged', rangeMax: 3 });
   const plain = duel(bow, unitType('d'), [9, 0, 0, 0]);
   const fire = duel(bow, unitType('d'), [9, 0, 0, 0], traits({ 'fire arrows': 1 }));
-  assert.strictEqual(plain.r.moraleLoss + 5, fire.r.moraleLoss);
+  assert.strictEqual(plain.r.moraleLoss + 3, fire.r.moraleLoss);
 });
 
 test('Skirmisher: after attacking it may move 1 tile (Skirmisher+ 2), then the turn ends', () => {
