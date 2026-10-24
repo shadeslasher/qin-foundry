@@ -32,10 +32,12 @@ function duel(aType, dType, rolls, setupFn, extra = []) {
 const part = (roll, re) => roll.parts.filter(([l]) => re.test(l)).reduce((t, [, v]) => t + v, 0);
 const traits = (o) => (u) => { u.traitTiers = o; };
 
-test('Anti-Cavalry / Anti-Infantry: Command rolls against that category, both attacking and defending', () => {
+test('Anti-Cavalry (+0/+2/+4) and Anti-Infantry (+1/+2/+4): only on the unit\'s own attacks', () => {
   const { r } = duel(unitType('a'), unitType('c', { category: 'cavalry' }), [3, 0, 0, 0], (a, d) => { a.traitTiers = { 'anti-cavalry': 3 }; d.traitTiers = { 'anti-infantry': 2 }; });
   assert.strictEqual(part(r.attackRoll, /^Anti-Cavalry/), 4);
-  assert.strictEqual(part(r.defendRoll, /^Anti-Infantry/), 2);
+  assert.strictEqual(part(r.defendRoll, /^Anti-Infantry/), 0, 'not when defending');
+  const b = duel(unitType('a'), unitType('c', { category: 'cavalry' }), [3, 0, 0, 0], traits({ 'anti-cavalry': 1 }));
+  assert.strictEqual(part(b.r.attackRoll, /^Anti-Cavalry/), 0, 'plain Anti-Cavalry adds nothing to the roll');
 });
 
 test('Precision: Attack +2/+4 if the unit has not moved before attacking; Hefty Weapon -2 after moving', () => {
@@ -101,13 +103,14 @@ test('Sunder and Poison stick to a beaten defender and do not stack; Shield Brea
 });
 
 test('Terror: +2 morale loss; Terror+: double; Fragile loser loses 5 more', () => {
-  // diff 11 (9+2 vs 0)
-  let { D } = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], traits({ terror: 1 }));
-  assert.strictEqual(D.morale, 50 - 13);
-  ({ D } = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], traits({ terror: 2 })));
-  assert.strictEqual(D.morale, 50 - 22);
-  ({ D } = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], (a, d) => { d.traitTiers = { fragile: 1 }; }));
-  assert.strictEqual(D.morale, 50 - 16);
+  // diff 11 (9+2 vs 0): the loser loses 10, plus the morale its casualties cost
+  const cm = (r) => r.casualtyMorale.defender;
+  let { D, r } = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], traits({ terror: 1 }));
+  assert.strictEqual(D.morale, 50 - 12 - cm(r));
+  ({ D, r } = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], traits({ terror: 2 })));
+  assert.strictEqual(D.morale, Math.max(0, 50 - 20 - cm(r)));
+  ({ D, r } = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], (a, d) => { d.traitTiers = { fragile: 1 }; }));
+  assert.strictEqual(D.morale, 50 - 15 - cm(r));
 });
 
 test('Reload: after attacking it must take the Reload action (allowed after moving, ends the turn) before attacking again', () => {
@@ -169,7 +172,7 @@ test('Charge Reflection: a defender that beats a charge adds the charge bonus to
   s.library.unitTypes.push(unitType('cav', { category: 'cavalry' }), unitType('d'));
   const a = add(s, { typeId: 'cav', side: 'player', owner: 'p1', x: 5, y: 1 });
   const d = add(s, { typeId: 'd', side: 'enemy', x: 5, y: 5 });
-  R.unitById(s, d).traitTiers = { 'charge reflection': 1 };
+  R.unitById(s, d).traitTiers = { 'charge reflection': 1, 'anti-cavalry': 1 }; // only Anti-Cavalry units strike back at a charge
   must(R.act(s, HOST, { type: 'startBattle' })); dice([0, 0]); must(R.act(s, HOST, { type: 'startRound' }));
   must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: a }));
   s.freeMovement = false;
@@ -177,7 +180,7 @@ test('Charge Reflection: a defender that beats a charge adds the charge bonus to
   dice([0, 0, 9, 0]);
   must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
   const r = s.log.filter(e => e.detail && e.detail.type === 'attack').pop().detail.result;
-  // A: 0+2+1 = 3, D: 9 -> diff 6. Return: 6 + 6 + 1 (reflected charge) = 13 - 3 = 10.
+  // A: 0+2+2 = 4 (3 tiles: +2), D: 9 -> diff 5. Return: 6 + 5 + 2 (reflected charge) = 13 - 3 = 10.
   assert.strictEqual(R.unitById(s, a).men, 100 - 10);
   assert.ok(r.charge);
 });

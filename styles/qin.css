@@ -540,3 +540,4 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin .qin-trait.replaced { border-left-color: var(--qin-muted); background: rgba(255,255,255,0.22); }
 .qin .qin-trait.replaced .qin-trait-name { text-decoration: line-through; opacity: 0.6; }
 .qin .qin-trait.replaced .qin-trait-desc, .qin .qin-trait.replaced .qin-trait-chain { opacity: 0.55; }
+.qin .qin-officer-warn { color: var(--qin-red); font-weight: bold; margin: 4px 0; }

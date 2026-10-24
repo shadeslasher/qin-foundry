@@ -379,7 +379,15 @@ function forcedMarchCost(s, u) { return hasTactic(s, u, 'rapidAdvance') || pendi
 
 /** Enemy units this unit could attack right now. */
 function attackTargets(s, u) {
-  return liveUnits(s).filter(d => hostile(u, d) && visibleTo(s, d, alliance(u.side)) && rangeOk(s, u, d));
+  const pinned = pinnedShooter(s, u), hybrid = !!trait(u, 'hybrid');
+  return liveUnits(s).filter(d => hostile(u, d) && visibleTo(s, d, alliance(u.side)) && rangeOk(s, u, d) &&
+    (!pinned || (hybrid && manhattan(u, d) === 1)));
+}
+
+/** Test option: a ranged unit that started its turn next to an enemy can't shoot this turn (Hybrid units may still fight in melee). */
+function pinnedShooter(s, u) {
+  const ac = s.turn && s.turn.activation;
+  return !!(s.options && s.options.rangedPinned && ac && ac.unitId === u.id && ac.startedEngaged && typeOf(s, u).weapon === 'ranged');
 }
 
 /** What the Fire Emblem-style action menu may offer the active unit. */
@@ -505,9 +513,7 @@ function buildRoll(s, unit, role, ctx) {
   const of = formationOf(s, other);
   const dice = yinYang();
   const parts = [['Yin/Yang (' + dice.yin + ' vs ' + dice.yang + ')', dice.value]];
-  parts.push(['Command', o ? o.command : 0]);
-  parts.push(['Fire', o ? o.fire : 0]);
-  parts.push(['Skill (' + t.skill + ')', o ? (o.skills && o.skills[t.skill]) || 0 : 0]);
+  parts.push(['Command', o ? o.command : 0]); // the officer's Command at full value (Fire and weapon skill don't add to the roll)
   parts.push(['Unit Value', t.unitValue || 0]);
 
   if (role === 'attacker') {
@@ -523,6 +529,7 @@ function buildRoll(s, unit, role, ctx) {
     if (ctx.hybridMelee) parts.push(['Hybrid: melee attack', -2]);
     if (ctx.second) parts.push(['Second attack (Dual Weapons)', -2]);
     if (trait(unit, 'hefty weapon') && unit.round.moved) parts.push(['Hefty Weapon (moved)', -2]);
+    else if (ctx.ranged && unit.round.moved && !trait(unit, 'moving shot') && s.options && s.options.rangedMovePenalty) parts.push(['Shot after moving', -2]);
     if (!unit.round.moved && trait(unit, 'precision')) parts.push(['Precision', tierVal(trait(unit, 'precision'), [2, 4])]);
     if (trait(unit, 'swarm') && liveUnits(s).some(o => o !== unit && friendly(o, unit) && manhattan(o, other) === 1))
       parts.push(['Swarm', tierVal(trait(unit, 'swarm'), [1, 2])]);
@@ -541,7 +548,8 @@ function buildRoll(s, unit, role, ctx) {
     // Defense bonuses: everything that makes a unit harder to hit is added to the defender's roll
     if (!ctx.ranged && unit.round.holding) parts.push(['Holding: melee defense', 2]); // Hold doesn't help against ranged attacks
     if (!ctx.ranged && unit.round.holding && trait(unit, 'brace')) parts.push(['Brace: melee defense', 2]);
-    if (trait(unit, 'shielded')) parts.push(ctx.ranged ? ['Shielded: ranged defense', tierVal(trait(unit, 'shielded'), [2, 4, 6])] : ['Shielded: melee defense', tierVal(trait(unit, 'shielded'), [1, 2, 3])]);
+    if (trait(unit, 'shielded') && trait(ctx.attacker, 'shield breaker')) parts.push(['Shielded (ignored: Shield Breaker)', 0]);
+    else if (trait(unit, 'shielded')) parts.push(ctx.ranged ? ['Shielded: ranged defense', tierVal(trait(unit, 'shielded'), [2, 4, 6])] : ['Shielded: melee defense', tierVal(trait(unit, 'shielded'), [1, 2, 3])]);
     if (ctx.ranged && trait(unit, 'shield battery') && fx(unit).stillLast) parts.push(['Shield Battery: ranged defense', 2]);
     if (fx(unit).poison) parts.push(['Poisoned: melee & ranged defense', -fx(unit).poison]);
     if (f.defAll) parts.push(['Melee & ranged defense (' + f.name + ')', f.defAll]);
@@ -560,8 +568,9 @@ function buildRoll(s, unit, role, ctx) {
   if (hasTactic(s, unit, 'fear')) parts.push(['Tactic: Surrounded by Fear', 4]);
 
   const oc = (typeOf(s, other) || {}).category;
-  if (oc === 'cavalry' && trait(unit, 'anti-cavalry')) parts.push(['Anti-Cavalry', tierVal(trait(unit, 'anti-cavalry'), [1, 2, 4])]);
-  if (oc === 'infantry' && trait(unit, 'anti-infantry')) parts.push(['Anti-Infantry', tierVal(trait(unit, 'anti-infantry'), [1, 2, 4])]);
+  // Anti-Cavalry (+0/+2/+4) and Anti-Infantry (+1/+2/+4) only count on the unit's own attacks
+  if (role === 'attacker' && oc === 'cavalry' && trait(unit, 'anti-cavalry') > 1) parts.push(['Anti-Cavalry', tierVal(trait(unit, 'anti-cavalry'), [0, 2, 4])]);
+  if (role === 'attacker' && oc === 'infantry' && trait(unit, 'anti-infantry')) parts.push(['Anti-Infantry', tierVal(trait(unit, 'anti-infantry'), [1, 2, 4])]);
   const ms = moraleState(unit.morale);
   if (ms === 'Encouraged') parts.push(['Encouraged', 2]);
   const steady = p.ignoreMoralePenalty ? 'officer passive' : trait(unit, 'unwavering') ? 'Unwavering' : null;
@@ -661,12 +670,14 @@ function resolveAttack(s, attacker, defender, opts) {
     if (ambush) dmgToAtt = 0; // attacked from hiding: the defender rolls but can't strike back
   } else {
     if (!aNeg) dmgToDef = base(attacker) + winBonus('attacker'); // like melee: base damage, + the difference on a win
-    const canReturn = dt.weapon === 'ranged' ? rangeOk(s, defender, attacker)
+    const canReturn = dt.weapon === 'ranged' ? rangeOk(s, defender, attacker) && !fx(defender).reload // an empty crossbow can't shoot back
       : manhattan(attacker, defender) === 1 && meleeLevelOk(s, defender, attacker);
     if (!dNeg && canReturn) dmgToAtt = base(defender) + winBonus('defender');
     if (ambush) dmgToAtt = 0;
   }
   if (free) dmgToAtt = 0;
+  // A charged unit can't strike back unless it has Anti-Cavalry; never against a charge into its rear
+  if (charge && (rear || !trait(defender, 'anti-cavalry'))) dmgToAtt = 0;
   // Winning the exchange while defending: Counter-Attack and Charge Reflection hit back harder
   if (winner === 'defender' && dmgToAtt > 0) {
     dmgToAtt += tierVal(trait(defender, 'counter-attack'), [2, 4]);
@@ -685,14 +696,15 @@ function resolveAttack(s, attacker, defender, opts) {
   let moraleLoss = 0, mult = 1, loser = null;
   if (winner) {
     loser = winner === 'attacker' ? defender : attacker;
-    moraleLoss = diff;
+    const base = Math.max(0, diff - 1); // the loser of the roll loses the difference - 1
+    moraleLoss = base;
     if (winner === 'attacker') {
       mult = 1; // charges and rear attacks don't multiply morale loss
-      moraleLoss = diff * mult + (passive(s, attacker).extraMoraleLossOnWin || 0);
+      moraleLoss = base * mult + (passive(s, attacker).extraMoraleLossOnWin || 0);
       const terror = trait(attacker, 'terror'); // Terror: +2 morale loss; Terror+: double it
       if (terror === 1) moraleLoss += 2; else if (terror >= 2) moraleLoss *= 2;
     } else {
-      moraleLoss = diff + (passive(s, defender).extraMoraleLossOnWin || 0);
+      moraleLoss = base + (passive(s, defender).extraMoraleLossOnWin || 0);
     }
     if (trait(loser, 'fragile')) moraleLoss += 5;
   }
@@ -711,11 +723,17 @@ function resolveAttack(s, attacker, defender, opts) {
       const bt = typeOf(s, b);
       const cas = Math.max(0, Math.floor(dmgToDef / 2) - Math.max(0, armorOf(bt, b, false) - (at.armorPen || 0)) - (formationOf(s, b).casReduce || 0));
       b.men = Math.max(0, b.men - cas);
+      b.morale = clamp(b.morale - Math.floor(cas * 50 / (b.maxMen || 100)), 0, 100);
       trample = { unit: b.id, casualties: cas };
       log(s, 'Fierce Charge++: ' + b.name + ', behind ' + defender.name + ', takes half the damage (-' + cas + ').', { type: 'trample', unit: b.id, casualties: cas });
     }
   }
   if (loser) loser.morale = clamp(loser.morale - moraleLoss, 0, 100);
+  // casualties cost morale too: 1 for every 2% of the unit's full health lost
+  const casMorale = (u, cas) => Math.floor(cas * 50 / (u.maxMen || 100));
+  const cmD = casMorale(defender, casDef), cmA = casMorale(attacker, casAtt);
+  if (cmD) defender.morale = clamp(defender.morale - cmD, 0, 100);
+  if (cmA) attacker.morale = clamp(attacker.morale - cmA, 0, 100);
 
   // Lasting effects of a successful attack (the attacker won the roll)
   if (winner === 'attacker') {
@@ -726,6 +744,7 @@ function resolveAttack(s, attacker, defender, opts) {
   if (casDef > 0 && trait(attacker, 'barbed arrows')) fx(defender).slow = true;          // -1 movement on its next turn
   if (ranged) defender.round.hitByRanged = true;                                          // for Volley Fire
   if (trait(attacker, 'reload')) fx(attacker).reload = 'empty';                           // must take the Reload action before attacking again
+  if (ranged && dmgToAtt > 0 && dt.weapon === 'ranged' && trait(defender, 'reload')) fx(defender).reload = 'empty'; // shooting back uses the load too
 
   // Facing and memory for this round (a free attack doesn't use up the unit's attack)
   if (!free) attacker.round.attacked = true;
@@ -746,13 +765,14 @@ function resolveAttack(s, attacker, defender, opts) {
     attackRoll: A, defendRoll: D, diff, winner,
     damageToDefender: dmgToDef, damageToAttacker: dmgToAtt,
     casualtiesDefender: casDef, casualtiesAttacker: casAtt,
-    moraleLoss, moraleMultiplier: mult, loser: loser ? loser.id : null,
+    moraleLoss, moraleMultiplier: mult, loser: loser ? loser.id : null, casualtyMorale: { defender: cmD, attacker: cmA },
   };
   const tags = [ranged ? 'ranged' : 'melee', charge && 'cavalry charge', rear && 'rear', ambush && 'from hiding', free && 'free attack'].filter(Boolean).join(', ');
   const wtxt = winner ? (winner === 'attacker' ? attacker.name : defender.name) + ' wins by ' + diff : 'Tie';
   log(s, attacker.name + ' attacks ' + defender.name + ' (' + tags + '): ' + A.total + ' vs ' + D.total + '. ' + wtxt +
     '. Casualties: ' + defender.name + ' -' + casDef + ', ' + attacker.name + ' -' + casAtt +
-    (loser ? '. ' + loser.name + ' loses ' + moraleLoss + ' morale' + (mult > 1 ? ' (x' + mult + ')' : '') : '') + '.',
+    (loser ? '. ' + loser.name + ' loses ' + moraleLoss + ' morale' + (mult > 1 ? ' (x' + mult + ')' : '') : '') +
+    (cmD || cmA ? '. Losses cost morale: ' + [cmD && defender.name + ' -' + cmD, cmA && attacker.name + ' -' + cmA].filter(Boolean).join(', ') : '') + '.',
     { type: 'attack', result });
 
   // XP: casualties inflicted x (enemy tier / own tier), rounded down
@@ -1013,7 +1033,8 @@ function endRound(s) {
 function startActivation(s, u, extra) {
   if (u.overwatch) { delete u.overwatch; log(s, u.name + ' stands down from overwatch.', { type: 'overwatch', unit: u.id, on: false }); }
   s.turn.activation = Object.assign({ unitId: u.id, step: 'move', started: false, startedHidden: !!u.hidden,
-    movedThisActivation: false, tilesMoved: 0, forcedMarched: false, interject: false, from: { x: u.x, y: u.y } }, extra || {});
+    movedThisActivation: false, tilesMoved: 0, forcedMarched: false, interject: false, from: { x: u.x, y: u.y },
+    startedEngaged: hostileAdjacent(s, u) }, extra || {});
 }
 
 /** Tiles that count for a charge against `target`: none if the unit started its turn next to it (no stepping out and back in). */
@@ -1024,9 +1045,9 @@ function chargeTiles(ac, target) {
 
 function finishActivation(s, u) {
   const t = s.turn;
-  // End-of-turn morale regen for units with an officer (up to 75)
+  // End-of-turn morale regen for units with an officer (up to 75), only on a turn the unit didn't fight
   const o = officerOf(s, u);
-  if (o && alive(u) && u.morale < 75) {
+  if (o && alive(u) && u.morale < 75 && !u.round.attacked && !u.round.wasAttacked) {
     const before = u.morale;
     u.morale = Math.min(75, u.morale + o.fire + o.command);
     if (u.morale !== before) log(s, u.name + ' regains ' + (u.morale - before) + ' morale (officer Fire + Command).');
@@ -1480,6 +1501,7 @@ const ACTIONS = {
     if (!d || !alive(d) || !hostile(u, d)) return err('Pick an enemy unit');
     if (!visibleTo(s, d, alliance(u.side))) return err('You cannot see that unit');
     if (!rangeOk(s, u, d)) return err('Target out of range');
+    if (pinnedShooter(s, u) && !(trait(u, 'hybrid') && manhattan(u, d) === 1)) return err('It started its turn next to an enemy: it can\'t shoot this turn');
     // attacking commits the move: apply any encirclement it caused first
     settle(s);
     if (!alive(d)) { log(s, d.name + ' gave up before the attack landed.'); if (alive(u)) finishActivation(s, u); return; }

@@ -33,11 +33,11 @@ test('melee: winner deals damage + difference, loser deals base; casualties minu
   const A = R.unitById(s, a), D = R.unitById(s, d);
   assert.strictEqual(D.men, 100 - (6 + 7 - 3));   // 90
   assert.strictEqual(A.men, 100 - (6 - 3));       // 97
-  assert.strictEqual(D.morale, 50 - 7);
-  assert.strictEqual(A.morale, 50);
+  assert.strictEqual(D.morale, 50 - (7 - 1) - 5, 'loser loses diff - 1, and 10 casualties cost 5 morale');
+  assert.strictEqual(A.morale, 50 - 1, '3 casualties cost 1 morale');
 });
 
-test('officer-less units count Command, Fire and Skill as 0; officer adds them', () => {
+test('officer-less units count Command as 0; an officer adds its Command (Fire and weapon skill no longer add)', () => {
   const s = setup();
   const a = add(s, { typeId: 'han_ji_inf', officerId: 'wen_ping', side: 'player', owner: 'p1', x: 2, y: 2 });
   const d = add(s, { typeId: 'yt_spearmen', side: 'enemy', x: 3, y: 2 });
@@ -45,7 +45,7 @@ test('officer-less units count Command, Fire and Skill as 0; officer adds them',
   dice([0, 0, 0, 0]);
   const rA = R.buildRoll(s, A, 'attacker', { attacker: A, defender: D });
   const rD = R.buildRoll(s, D, 'defender', { attacker: A, defender: D });
-  assert.strictEqual(rA.total, 0 + 4 + 3 + 4 + 2 + 2);  // yy, Command 4, Fire 3, Qiangshu 4, UV 2, attacker +2
+  assert.strictEqual(rA.total, 0 + 4 + 2 + 2);  // yy, Command 4, UV 2, attacker +2
   assert.strictEqual(rD.total, 2);                      // UV only
 });
 
@@ -62,7 +62,7 @@ test('ranged: a losing shot still deals base damage; melee defender out of reach
   assert.strictEqual(r.winner, 'defender');
   assert.strictEqual(r.damageToDefender, 3, 'base damage even when losing (armor 3 soaks it here)');
   assert.strictEqual(R.unitById(s, a).men, 100);
-  assert.strictEqual(R.unitById(s, a).morale, 50 - 7);
+  assert.strictEqual(R.unitById(s, a).morale, 50 - (7 - 1));
 });
 
 test('overwatch: a ranged unit ends its turn and shoots the first enemy that ends its turn in range', () => {
@@ -100,7 +100,7 @@ test('ranged attacker loses +2 after moving; ranged defender returns fire', () =
   assert.strictEqual(R.unitById(s, a).men, 100 - (3 - 2)); // ranged defender returns base damage
 });
 
-test('cavalry charge: +1 per 2 tiles moved, no morale multiplier (rear neither)', () => {
+test('cavalry charge: 2 tiles = +1, no morale multiplier (rear neither); no strike back from the rear', () => {
   const s = setup();
   const a = add(s, { typeId: 'han_lancer_cav', side: 'player', owner: 'p1', x: 5, y: 2 });
   const d = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 5 });
@@ -117,7 +117,8 @@ test('cavalry charge: +1 per 2 tiles moved, no morale multiplier (rear neither)'
   assert.ok(r.attackRoll.parts.some(([l, v]) => /Cavalry charge \(2 tiles/.test(l) && v === 1));
   assert.ok(!r.defendRoll.parts.some(([l]) => /charg/i.test(l)), 'no defender penalty');
   assert.strictEqual(r.diff, 8);
-  assert.strictEqual(R.unitById(s, d).morale, Math.max(0, 50 - 8), 'neither the rear attack nor the charge multiplies morale loss');
+  assert.strictEqual(R.unitById(s, d).morale, Math.max(0, 50 - (8 - 1) - Math.floor(r.casualtiesDefender * 50 / 100)), 'neither the rear attack nor the charge multiplies morale loss');
+  assert.strictEqual(r.damageToAttacker, 0, 'a charged unit strikes back only with Anti-Cavalry, and never from the rear');
 });
 
 test('no charge against a unit the cavalry started its turn next to (no stepping out and back in)', () => {
@@ -386,7 +387,7 @@ test('demoralized penalty, Han Dang ignores it; surrender at 0 morale costs adja
   const e = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 4 });
   const A = R.unitById(s, a), B = R.unitById(s, b), E = R.unitById(s, e);
   dice([0, 0, 0, 0]);
-  assert.strictEqual(R.buildRoll(s, A, 'defender', { attacker: E, defender: A }).total, 0 + 4 + 3 + 0 + 2); // no -2
+  assert.strictEqual(R.buildRoll(s, A, 'defender', { attacker: E, defender: A }).total, 0 + 4 + 2); // Command 4 + UV 2, no -2
   assert.strictEqual(R.buildRoll(s, B, 'defender', { attacker: E, defender: B }).total, 2 - 2);
   must(R.act(s, HOST, { type: 'adjust', unitId: a, morale: -20 }));
   assert.strictEqual(A.status, 'surrendered');

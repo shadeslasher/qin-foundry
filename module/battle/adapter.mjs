@@ -4,6 +4,7 @@ import { broadcastBattleAnim } from "../attack-fx.mjs";
 // engine. Runs only on the active GM's client; players reach it through queries.
 import * as E from "./engine.mjs";
 import { traitTiersOf, shieldArmorOf } from "./traits.mjs";
+import { officerEligibility } from "../officer-rules.mjs";
 export { traitTiersOf, shieldArmorOf };
 import { FORMATIONS, HEROIC_ACTIONS } from "./engine-data.mjs";
 import { SYSTEM_ID } from "../config.mjs";
@@ -118,11 +119,17 @@ export function startingCarry(traits) {
 
 const tileCache = new Map(); // sceneId -> { flag, tiles } (decoded battle map squares)
 
+const warned = new Set();
+function warnOnce(msg) { if (warned.has(msg) || !game.user?.isGM) return; warned.add(msg); ui.notifications?.warn(msg); }
+
 /** Engine state assembled from the battle setting and the scene's unit tokens. */
 export function buildState(battle, { useLastPosition = null, terrainFor = null } = {}) {
   const scene = game.scenes.get(battle.sceneId);
   const s = E.newState();
   s.freeMovement = true;
+  // test options (world settings) for trying out rules in play
+  const opt = (k) => { try { return !!game.settings.get("qin", k); } catch { return false; } };
+  s.options = { rangedMovePenalty: opt("rangedMovePenalty"), rangedPinned: opt("rangedPinned") };
   s.turn = battle.turn;
   s.log = battle.log ?? [];
   s.tactics = battle.tactics ?? null;
@@ -159,7 +166,9 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
       rangeMin: ranged ? Math.min(sys.rangeMin || 1, sys.range) : 1, rangeMax: ranged ? sys.range : 1, formations: ["none", ...forms.map(f => f.id)],
     });
     let officerId = null;
-    const officer = sys.officerActor;
+    let officer = sys.officerActor;
+    const elig = officer ? officerEligibility(officer, sys) : null;
+    if (officer && !elig.ok) { warnOnce(`${a.name}: ${officer.name} can't lead it (${elig.reason}), so it fights without an officer.`); officer = null; }
     if (officer) {
       if (!officers.has(officer.uuid)) officers.set(officer.uuid, officerLibraryEntry(officer));
       officerId = officer.uuid;

@@ -2,6 +2,7 @@ import { ASPECTS, SKILLS, DOMAINS, SKILL_LEVELS, BOL_LEVELS, MAGIC_WAYS, OFFICER
 import { factionOf, openFactionPicker } from "../factions.mjs";
 import { actionsPerRound } from "../rules/qin-rules.mjs";
 import { traitAtLevel, parseTraitText, pendingTraitChoices, replacedTraits } from "../battle/traits.mjs";
+import { officerEligibility } from "../officer-rules.mjs";
 
 const { api, sheets } = foundry.applications;
 // v14 renamed ActorSheetV2/ItemSheetV2 to ActorSheet/ItemSheet; fall back to the v13 names.
@@ -446,7 +447,9 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
       } : null,
       // characters that can be picked as officer: any for the GM, a player's own characters for them
       officerChoices: this.isEditable ? (game.actors?.contents ?? []).filter(a => a.type === "character" && (game.user.isGM || a.isOwner))
-        .sort((a, b) => a.name.localeCompare(b.name)).map(a => ({ uuid: a.uuid, name: a.name, selected: a.uuid === system.officer })) : [],
+        .sort((a, b) => a.name.localeCompare(b.name)).map(a => { const e = officerEligibility(a, system);
+          return { uuid: a.uuid, name: a.name, selected: a.uuid === system.officer, disabled: !e.ok && a.uuid !== system.officer, reason: e.reason }; }) : [],
+      officerProblem: officer ? (officerEligibility(officer, system).ok ? "" : officerEligibility(officer, system).reason) : "",
       menPct: Math.min(100, Math.round(100 * system.men.value / (system.men.max || 100))),
       xpPct: Math.min(100, Math.round(100 * (system.xp?.value ?? 0) / (system.xp?.max || 100))),
       traitCards: (() => { const lv = system.level ?? 1, gone = replacedTraits(system.traitList, lv);
@@ -472,6 +475,8 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
       if (!uuid) return ui.notifications.warn("Drag a character from the Actors list (tokens can't be dragged off the scene).");
       const actor = await fromUuid(uuid);
       if (actor?.type !== "character") return ui.notifications.warn("Officers must be Qin characters.");
+      const e = officerEligibility(actor, this.document.system);
+      if (!e.ok) return ui.notifications.warn(`${actor.name} can't lead ${this.document.name}: ${e.reason}.`);
       await this.document.update({ "system.officer": actor.uuid });
     });
     this.element.querySelector("select[data-officer-pick]")?.addEventListener("change", (ev) => this.document.update({ "system.officer": ev.target.value }));

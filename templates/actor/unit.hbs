@@ -81,15 +81,17 @@
           <div>
             <h3><a data-action="openOfficer">{{officer.name}}</a></h3>
             <p>Fire {{officerStats.fire}} · Command {{officerStats.command}} · {{officerStats.skillLabel}} {{officerStats.skill}}</p>
+            <p class="qin-muted">Command {{officerStats.command}} is added to the unit's rolls; Fire + Command restores morale on turns it doesn't fight.</p>
+            {{#if officerProblem}}<p class="qin-officer-warn"><i class="fa-solid fa-triangle-exclamation"></i> Can't lead this unit ({{officerProblem}}): it fights without an officer.</p>{{/if}}
             {{#if editable}}<a data-action="clearOfficer"><i class="fa-solid fa-xmark"></i> Remove officer</a>{{/if}}
           </div>
         {{else}}
-          <p>Choose an officer below, or drag a Qin character here from the Actors list. Without one, the unit counts Command, Fire and Skill as 0 and has no initiative.</p>
+          <p>Choose an officer below, or drag a Qin character here from the Actors list. An officer needs the unit's weapon skill at the unit's tier or higher (and Horsemanship for cavalry). Without one, the unit counts Command as 0 and has no initiative.</p>
         {{/if}}
       </div>
       {{#if editable}}
       <div class="qin-officer-pick"><label>Officer</label>
-        <select data-officer-pick><option value="">No officer</option>{{#each officerChoices}}<option value="{{uuid}}" {{#if selected}}selected{{/if}}>{{name}}</option>{{/each}}</select>
+        <select data-officer-pick><option value="">No officer</option>{{#each officerChoices}}<option value="{{uuid}}" {{#if selected}}selected{{/if}} {{#if disabled}}disabled{{/if}}>{{name}}{{#if disabled}} ({{reason}}){{/if}}</option>{{/each}}</select>
       </div>
       {{else}}<p class="qin-muted">Only this unit's owner or the GM can change its officer.</p>{{/if}}
     </section>
