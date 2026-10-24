@@ -1,3 +1,18 @@
+{{#*inline "deployCard"}}
+  <div class="qin-card qin-deploy-card"><h4>Deployment zones</h4>
+    <div class="qin-deploy-btns">
+      <button type="button" data-action="zonePaint" class="{{#if (eq deploy.mode "paint")}}qin-on{{/if}}" title="Click or drag over the map to add deployment squares"><i class="fa-solid fa-paintbrush"></i> Paint zone</button>
+      <button type="button" data-action="zoneErase" class="{{#if (eq deploy.mode "erase")}}qin-on{{/if}}" title="Click or drag over squares to remove them"><i class="fa-solid fa-eraser"></i> Erase zone</button>
+      <button type="button" data-action="zoneClear" class="qin-wide" {{#unless deploy.count}}disabled{{/unless}}><i class="fa-solid fa-xmark"></i> Remove all zones</button>
+      <button type="button" data-action="zoneConfirm" class="qin-wide qin-primary" {{#unless deploy.changed}}disabled{{/unless}}><i class="fa-solid fa-check"></i> Confirm zones</button>
+    </div>
+    <p class="qin-muted"><span class="qin-deploy-chip"></span>
+      {{#if deploy.changed}}{{deploy.count}} square{{#unless (eq deploy.count 1)}}s{{/unless}} painted, not saved yet. <a data-action="zoneDiscard">Discard changes</a>
+      {{else}}{{#if deploy.count}}{{deploy.count}} square{{#unless (eq deploy.count 1)}}s{{/unless}} saved on this scene. Players drag their units onto them during the tactics phase.
+      {{else}}No deployment zones on this scene: players won't be able to move their units.{{/if}}{{/if}}
+      {{#if deploy.mode}}<br>Right-click or Esc stops the brush.{{/if}}</p>
+  </div>
+{{/inline}}
 <div class="qin-battle-wrap">
 {{#unless active}}
   <div class="qin-battle-scroll">
@@ -30,6 +45,7 @@
       <p>The GM hasn't started a battle.</p>
     {{/if}}
   </div>
+  {{#if deploy}}{{> deployCard}}{{/if}}
   </div>
 {{else}}
   {{#if wrongScene}}<p class="qin-warn">The battle is on scene <b>{{battleScene}}</b>.</p>{{/if}}
@@ -42,6 +58,7 @@
       {{/each}}
     </div>
   </div>
+  {{#if deploy}}{{> deployCard}}{{/if}}
 
   {{#if held.length}}
   <div class="qin-card qin-held">

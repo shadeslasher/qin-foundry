@@ -2,6 +2,7 @@
 // All state lives in one plain object so it can be saved as JSON.
 
 import * as data from './engine-data.mjs';
+import { deployMoveCheck, zoneSet } from './deploy-rules.mjs';
 
 // Four sides. Any two different sides are hostile; units of the same side never attack each other.
 const SIDES = ['player', 'enemy', 'ally', 'neutral'];
@@ -1261,11 +1262,16 @@ const ACTIONS = {
     const u = unitById(s, a.unitId); if (!u) return err('No such unit');
     u.facing = { dx: sign(a.dx), dy: sign(a.dy) };
   },
-  place(s, actor, a) { // sandbox placement: host any time; players their own units during setup
+  place(s, actor, a) { // sandbox placement: host any time; players their own units onto free deployment squares during the tactics phase
     const u = unitById(s, a.unitId); if (!u) return err('No such unit');
-    if (!actor.host && !(s.turn.phase === 'setup' && controls(s, actor, u))) return err('You can only place your units during setup');
     if (!inBounds(s, a.x, a.y)) return err('Off the map');
-    const o = unitAt(s, a.x, a.y); if (o && o !== u) return err('Tile occupied');
+    const o = unitAt(s, a.x, a.y);
+    if (!actor.host) {
+      if (!controls(s, actor, u)) return err('You can only place your own units');
+      const chk = deployMoveCheck({ phase: s.turn.phase, isGM: false, zones: zoneSet(s.deployZones), occupied: !!(o && o !== u) }, a.x, a.y);
+      if (!chk.ok) return err(chk.reason);
+    }
+    if (o && o !== u) return err('Tile occupied');
     u.x = a.x; u.y = a.y; settle(s);
   },
   startBattle(s) {

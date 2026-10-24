@@ -4,6 +4,7 @@ import * as E from "./engine.mjs";
 import { getBattle, buildState, isWritingBack } from "./adapter.mjs";
 import { SYSTEM_ID } from "../config.mjs";
 import { openUnitInfo, unitVisible, setPickingCheck } from "../unit-info.mjs";
+import { deployMoveCheck, zoneSet, DEPLOY_FLAG } from "./deploy-rules.mjs";
 
 setPickingCheck(() => !!mode);
 
@@ -495,12 +496,22 @@ export function registerUnitClicks() {
   });
 }
 
-/** Unit tokens can't be dragged during a battle round: units move with the Move action. */
+/**
+ * Who may drag a unit token where. Players: only their own units, only during the tactics phase, and only onto
+ * free deployment squares (never outside a battle). The GM: anywhere outside the battle rounds.
+ * During the rounds units move with the Move action.
+ */
 export function lockUnitTokens(tokenDoc, change, options) {
   if (options?.qinBattle || isWritingBack() || !("x" in change || "y" in change)) return;
   if (tokenDoc.actor?.type !== "unit") return;
   const battle = game.settings.get(SYSTEM_ID, "battle");
-  if (!battle?.active || tokenDoc.parent?.id !== battle.sceneId || battle.turn?.phase === "setup") return;
-  ui.notifications.warn("Units move with the Move action during a battle (the GM can go back to setup to reposition).");
+  const scene = tokenDoc.parent;
+  const phase = battle?.active && scene?.id === battle.sceneId ? (battle.turn?.phase ?? "setup") : "none";
+  const size = scene?.grid?.size ?? 100;
+  const x = Math.round((change.x ?? tokenDoc.x) / size), y = Math.round((change.y ?? tokenDoc.y) / size);
+  const occupied = (scene?.tokens ?? []).some(t => t.id !== tokenDoc.id && t.actor?.type === "unit" && Math.round(t.x / size) === x && Math.round(t.y / size) === y);
+  const chk = deployMoveCheck({ phase, isGM: game.user.isGM, zones: zoneSet(scene?.getFlag?.(SYSTEM_ID, DEPLOY_FLAG)), occupied }, x, y);
+  if (chk.ok) return;
+  ui.notifications.warn(chk.reason);
   return false;
 }

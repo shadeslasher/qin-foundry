@@ -7,6 +7,7 @@ import { scaledPosition } from "../sheets/sheets.mjs";
 import { setBattleRequest, highlightUnit } from "./battle-ui.mjs";
 import { TacticsApp } from "./tactics-ui.mjs";
 import { importBattleMap } from "./battlemap.mjs";
+import { deployCardState, startZoneBrush, clearZones, confirmZones, discardZones, savedZones } from "./deploy.mjs";
 
 const QUERY = `${SYSTEM_ID}.battle`;
 const PHASE_NAME = { tactics: "Tactics", setup: "Setup", formations: "Declare formations", officer: "Officer phase", officerless: "Officer-less phase", final: "Final pass" };
@@ -53,6 +54,11 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
       redrawMap: () => redrawScene(canvas.scene),
       toggleCompact: async () => { await game.settings.set(SYSTEM_ID, "compactUnits", !game.settings.get(SYSTEM_ID, "compactUnits")); BattlePanel.refresh(); },
       paintMap: () => MapEditorApp.open(canvas.scene),
+      zonePaint: () => startZoneBrush("paint"),
+      zoneErase: () => startZoneBrush("erase"),
+      zoneClear: () => clearZones(),
+      zoneConfirm: () => confirmZones(),
+      zoneDiscard: () => discardZones(),
     },
   };
   static PARTS = { body: { template: systemPath("templates/battle/panel.hbs"), scrollable: [".qin-battle-scroll"] } };
@@ -79,6 +85,8 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
     if (mf) ctx.mapCard = !mf.layoutCode ? { why: "This map has no layout code, so it can't be redrawn. Re-import it from a new export." }
       : !hasMapRenderer() ? { why: "Redrawing and painting this map need the map generator, which comes with the Three Kingdoms module." }
       : { ready: true };
+    // deployment zones card: the GM, before the battle begins (or back in setup)
+    if (game.user.isGM && canvas.scene && (!battle.active || (battle.sceneId === canvas.scene.id && battle.turn?.phase === "setup"))) ctx.deploy = deployCardState();
     if (!battle.active) {
       // players only see the units they control; the GM sees every unit
       ctx.sceneUnits = unitTokens(canvas.scene).filter(t => game.user.isGM || t.actor?.isOwner).map(t => ({ id: t.id, name: t.name, img: t.texture?.src, side: t.actor.system.side }));
@@ -106,6 +114,10 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
         const tac = T?.sides?.player;
         prompt.text = game.user.isGM ? "Tactics phase: choose tacticians and place their tactics, then finish (or skip)."
           : tac ? `Tactics phase. Player tactician: <b>${foundry.utils.escapeHTML(tac.name)}</b>.` : "Tactics phase: the GM is choosing tacticians.";
+        // deployment: players drag their units onto the blue-white squares until tactics are finished
+        const zones = savedZones(game.scenes.get(battle.sceneId)).size;
+        prompt.text += zones ? `<br><span class="qin-muted">Deployment: drag your units onto the blue-white squares. Deployment locks when tactics are finished.</span>`
+          : `<br><span class="qin-muted">No deployment zones on this map: units stay where the GM placed them.</span>`;
         btn("Open tactics", "openTactics", { primary: true });
         break;
       }

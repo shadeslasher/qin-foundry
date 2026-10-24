@@ -9,6 +9,7 @@ export { traitTiersOf, shieldArmorOf };
 import { FORMATIONS, HEROIC_ACTIONS } from "./engine-data.mjs";
 import { SYSTEM_ID } from "../config.mjs";
 import { decodeTiles, gatesFromMap, FLAG as MAP_FLAG } from "./battlemap.mjs";
+import { DEPLOY_FLAG } from "./deploy-rules.mjs";
 
 const SETTING = "battle";
 let writing = false;
@@ -131,6 +132,7 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
   s.log = battle.log ?? [];
   s.tactics = battle.tactics ?? null;
   s.siege = battle.siege ?? null;
+  s.deployZones = scene?.getFlag?.(SYSTEM_ID, DEPLOY_FLAG) ?? []; // deployment squares, saved with the scene
   s.library.formations = [{ id: "none", name: "No formation", desc: "No modifiers." }];
   s.library.unitTypes = [];
   s.library.officers = [];
