@@ -37,6 +37,9 @@ export async function battleRequest(action) {
 const { api } = foundry.applications;
 
 // v14 renamed ApplicationV2 to Application.
+/** Is the Recent log folded away on this computer? */
+function recentClosed() { try { return localStorage.getItem("qin.recentClosed") === "1"; } catch { return false; } }
+
 export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application ?? api.ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "qin-battle-panel",
@@ -214,7 +217,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
 
     Object.assign(ctx, {
       round: t.round, phase: t.phase === "formations" && !useForms ? "Start of round" : PHASE_NAME[t.phase], prompt, held, controls, order, units,
-      log: (s.log || []).slice(-12).reverse().map(e => e.text),
+      log: (s.log || []).slice(-12).reverse().map(e => e.text), recentClosed: recentClosed(),
       wrongScene: canvas.scene?.id !== battle.sceneId, battleScene: scene?.name,
       showSkip: game.user.isGM && !["setup", "formations", "tactics", "over"].includes(p.kind),
       canDeclare: game.user.isGM && !s.outcome && !["setup", "over"].includes(t.phase),
@@ -228,6 +231,10 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
 
   _onRender(context, options) {
     super._onRender?.(context, options);
+    // the Recent log folds away; remembered on this computer
+    this.element.querySelector("details.qin-recent")?.addEventListener("toggle", (ev) => {
+      try { localStorage.setItem("qin.recentClosed", ev.currentTarget.open ? "0" : "1"); } catch { /* storage unavailable */ }
+    });
     // Hovering a unit button (Take turn, Act, interject...) marks that unit on the map
     this.element.querySelectorAll("[data-unit-id]").forEach(el => {
       el.addEventListener("mouseenter", () => highlightUnit(el.dataset.unitId, true));

@@ -692,3 +692,10 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin-party-tag.coin i, .qin-party-money i { color: #c9a13a; }
 .qin-party-money { font-size: .78em; font-weight: normal; opacity: .9; white-space: nowrap; }
 .qin-cost-row { white-space: nowrap; }
+/* Recent log: click the heading to fold it away */
+details.qin-recent > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+details.qin-recent > summary::-webkit-details-marker { display: none; }
+details.qin-recent > summary h4 { margin: 0; flex: 1; }
+details.qin-recent > summary::after { content: "\f078"; font-family: "Font Awesome 6 Free"; font-weight: 900; font-size: .8em; opacity: .7; transition: transform .15s; }
+details.qin-recent:not([open]) > summary::after { transform: rotate(-90deg); }
+details.qin-recent[open] > summary { margin-bottom: 4px; }

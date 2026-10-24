@@ -145,9 +145,9 @@
       </ul>
     </div>
 
-    <div class="qin-card"><h4>Recent</h4>
+    <details class="qin-card qin-recent" {{#unless recentClosed}}open{{/unless}}><summary><h4>Recent</h4></summary>
       <ul class="qin-log">{{#each log}}<li>{{this}}</li>{{/each}}</ul>
-    </div>
+    </details>
 
     {{#if isGM}}
     {{#if gates.length}}
