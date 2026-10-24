@@ -275,42 +275,59 @@ export function drawObjectiveMarkers({ extraction = null } = {}) {
     groundLayer = new PIXI.Container(); groundLayer.eventMode = "none"; groundLayer.addChild(g);
     const parent = canvas.tokens ?? canvas.interface ?? canvas.stage;
     parent.addChildAt?.(groundLayer, 0) ?? parent.addChild(groundLayer);
-    for (const k of ext) { const [x, y] = k.split(",").map(Number); hoverSpots.push({ x, y, text: "Extraction (Escape)" }); }
+    for (const k of ext) { const [x, y] = k.split(",").map(Number); hoverSpots.push({ x, y, side: "v", verb: "Escape", what: "Extraction", color: EXTRACT.fill }); }
   }
   // outlines with inward arrows: tiles and units still to deal with
   const g = new PIXI.Graphics(); g.eventMode = "none";
   const unitPos = (id) => { const t = scene.tokens.get(id); return t && !t.hidden ? { x: Math.round(t.x / size), y: Math.round(t.y / size) } : null; };
-  const mark = (x, y, color, text) => { drawMark(g, x, y, color, size); hoverSpots.push({ x, y, text }); };
-  for (const [side, list, types] of [["Victory", o.victory, VICTORY_TYPES], ["Defeat", o.defeat, DEFEAT_TYPES]]) {
+  const mark = (x, y, color, spot) => { drawMark(g, x, y, color, size); hoverSpots.push({ x, y, color, ...spot }); };
+  for (const [side, list, types] of [["v", o.victory, VICTORY_TYPES], ["d", o.defeat, DEFEAT_TYPES]]) {
     for (const c of list) {
       if (!open.get(c.id)) continue;
       const T = types[c.type]; if (!T) continue;
-      const text = `${side}: ${describe(c, n, { coords: false })}`;
+      const spot = { side, verb: VERB[c.type], what: tourWords(c, scene) };
       if (c.type === "escape") continue; // escapers are shown by the pink squares they head for
       if (c.pair) continue;                // a Hold's paired defeat shares the Hold's grey marker
-      if (T.needs === "tile" && c.x !== null && c.x !== undefined) mark(c.x, c.y, T.color, c.type === "hold" ? `${text} for ${c.rounds} rounds (no enemy may end its turn there)` : text);
-      if (T.needs === "units") for (const id of c.unitIds ?? []) { const p = unitPos(id); if (p) mark(p.x, p.y, T.color, text); }
+      if (T.needs === "tile" && c.x !== null && c.x !== undefined) mark(c.x, c.y, T.color, spot);
+      if (T.needs === "units") for (const id of c.unitIds ?? []) { const p = unitPos(id); if (p) mark(p.x, p.y, T.color, spot); }
     }
   }
   markerLayer = new PIXI.Container(); markerLayer.eventMode = "none"; markerLayer.addChild(g);
   (canvas.interface ?? canvas.stage).addChild(markerLayer);
 }
 
-function clearHoverLabel() { if (hoverLabel && !hoverLabel.destroyed) hoverLabel.destroy(); hoverLabel = null; }
+function clearHoverLabel() { hoverLabel?.remove(); hoverLabel = null; }
+/** Hovering a marked square shows the same card as the tour, a little smaller. */
 function onHover(ev) {
-  if (!canvas?.ready || !hoverSpots.length || ev.target !== canvas.app.view) { if (hoverLabel) clearHoverLabel(); return; }
+  if (!canvas?.ready || !hoverSpots.length || tour || ev.target !== canvas.app.view) { if (hoverLabel) clearHoverLabel(); return; }
   const size = gridSize(), p = canvasPoint(ev), x = Math.floor(p.x / size), y = Math.floor(p.y / size);
-  const here = hoverSpots.filter(s => s.x === x && s.y === y).map(s => s.text);
-  const text = [...new Set(here)].join("\n");
-  if (hoverLabel?.qinText === text && hoverLabel?.qinAt === `${x},${y}`) return;
+  const here = hoverSpots.filter(s => s.x === x && s.y === y);
+  const seen = new Set(), entries = here.filter(e => { const k = e.verb + "|" + e.what; if (seen.has(k)) return false; seen.add(k); return true; });
+  const key = `${x},${y}|` + entries.map(e => e.verb + e.what).join("/");
+  if (hoverLabel?.dataset.key === key) return;
   clearHoverLabel();
-  if (!text) return;
-  const Txt = foundry.canvas?.containers?.PreciseText ?? PIXI.Text;
-  const t = new Txt(text, new PIXI.TextStyle({ fontFamily: "Signika, sans-serif", fontSize: Math.round(size * 0.2), fontWeight: "bold", fill: "#ffffff", stroke: "#000000", strokeThickness: 4, align: "center" }));
-  t.anchor?.set?.(0.5, 1); t.position.set(x * size + size / 2, y * size - 4);
-  t.qinText = text; t.qinAt = `${x},${y}`; t.eventMode = "none";
-  (canvas.interface ?? canvas.stage).addChild(t);
-  hoverLabel = t;
+  if (!entries.length) return;
+  const card = makeCard(entries, "qin-hover-card");
+  card.dataset.key = key;
+  placeCard(card, { cx: (x + 0.5) * size, top: y * size, bottom: (y + 1) * size });
+  hoverLabel = card;
+}
+
+/** A dark card with the verb (in the condition's colour) and its target; blue edge for victory, red for defeat. */
+function makeCard(entries, cls) {
+  const hex6 = (n) => "#" + n.toString(16).padStart(6, "0");
+  const card = document.createElement("div");
+  card.className = `qin-tour-card ${cls} ${entries[0].side === "v" ? "v" : "d"}`;
+  card.innerHTML = entries.map(e => `<b style="color:${hex6(e.color === 0xb4b8bd ? 0xd9dce0 : e.color)}">${esc(e.verb)}</b><span>${esc(e.what)}</span>`).join("");
+  document.body.appendChild(card);
+  return card;
+}
+/** Put a card centred above a target (or below it when there's no room above), kept on screen. */
+function placeCard(card, tg) {
+  const w = card.offsetWidth, h = card.offsetHeight, above = toScreen(tg.cx, tg.top), below = toScreen(tg.cx, tg.bottom);
+  const left = Math.max(8, Math.min(window.innerWidth - w - 8, above.x - w / 2));
+  const top = above.y - h - 8 >= 8 ? above.y - h - 8 : Math.min(window.innerHeight - h - 8, below.y + 8);
+  card.style.left = `${left}px`; card.style.top = `${top}px`;
 }
 
 /* ------------------------------------------------------------ the tracker (top right, left of the sidebar) */
@@ -395,6 +412,7 @@ export function registerObjectives() {
   });
   Hooks.on("updateToken", (doc, change) => { if (doc.parent?.id === canvas.scene?.id && ("x" in change || "y" in change || "hidden" in change)) drawObjectiveMarkers(); });
   Hooks.on("collapseSidebar", () => setTimeout(placeTracker, 50));
+  Hooks.on("canvasPan", () => clearHoverLabel());
   window.addEventListener("resize", () => placeTracker());
   document.addEventListener("pointermove", onHover);
 }
@@ -499,20 +517,14 @@ export async function playTour() {
   t.key = (ev) => { if (ev.key === "Escape") { ev.stopPropagation(); ev.preventDefault(); endTour(); } };
   document.addEventListener("keydown", t.key, true);
   const home = { x: canvas.stage.pivot.x, y: canvas.stage.pivot.y, scale: canvas.stage.scale.x };
-  const hex6 = (n) => "#" + n.toString(16).padStart(6, "0");
   for (const s of stops) {
     if (t.cancelled) return;
     await canvas.animatePan({ x: s.tg.cx, y: s.tg.cy, duration: 550 });
     if (t.cancelled) return;
     t.stopFlash = flashTarget(s.tg, 1500);
-    const card = document.createElement("div");
-    card.className = `qin-tour-card ${s.side === "v" ? "v" : "d"}`;
-    card.innerHTML = `<b style="color:${hex6(s.tg.color === 0xb4b8bd ? 0xd9dce0 : s.tg.color)}">${VERB[s.c.type]}</b><span>${esc(tourWords(s.c, scene))}</span>`;
-    document.body.appendChild(card); t.els.push(card);
-    const r = { width: card.offsetWidth, height: card.offsetHeight }, above = toScreen(s.tg.cx, s.tg.top), below = toScreen(s.tg.cx, s.tg.bottom);
-    const left = Math.max(8, Math.min(window.innerWidth - r.width - 8, above.x - r.width / 2));
-    const top = above.y - r.height - 10 >= 8 ? above.y - r.height - 10 : Math.min(window.innerHeight - r.height - 8, below.y + 10);
-    card.style.left = `${left}px`; card.style.top = `${top}px`;
+    const card = makeCard([{ side: s.side, verb: VERB[s.c.type], what: tourWords(s.c, scene), color: s.tg.color }], "qin-tour-big");
+    t.els.push(card);
+    placeCard(card, s.tg);
     await sleep(1500, t);
     card.remove();
   }
