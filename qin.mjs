@@ -19,6 +19,7 @@ import { refreshBattleUI, repositionBattleUI, lockUnitTokens, lockUnitMoves, onU
 import { refreshTactics, registerTactics } from "./module/battle/tactics-ui.mjs";
 import { registerDeployZones, drawDeployZones, setDeployChangeHandler } from "./module/battle/deploy.mjs";
 import { registerPreBattleCover } from "./module/battle/cover.mjs";
+import { registerTurnBanner, renderTurnBanner } from "./module/battle/turn-banner.mjs";
 import { registerObjectives, refreshObjectives, setObjectivesChangeHandler } from "./module/battle/objectives-ui.mjs";
 import { NEW_UNIT_TOOL, newUnitDialog } from "./module/new-unit.mjs";
 import { UNIT_EDITOR_TOOL, UnitEditorApp, registerUnitEditor, reapplyUnitEdits } from "./module/unit-editor.mjs";
@@ -72,6 +73,7 @@ Hooks.once("init", () => {
       refreshTactics();
       drawDeployZones();
       refreshObjectives();
+      renderTurnBanner();
       syncBattleMap();
       if (getBattle().active && !BattlePanel.instance?.rendered && game.settings.get(SYSTEM_ID, "autoOpenBattle")) BattlePanel.open();
     },
@@ -198,6 +200,7 @@ registerUnitInfo();
 registerTactics();
 registerDeployZones();
 registerPreBattleCover();
+registerTurnBanner();
 registerObjectives();
 setObjectivesChangeHandler(() => BattlePanel.refresh());
 setDeployChangeHandler(() => BattlePanel.refresh());
