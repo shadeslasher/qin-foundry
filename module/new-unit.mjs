@@ -4,14 +4,24 @@
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
 const SIDES = { player: "Player", ally: "Ally", enemy: "Enemy", neutral: "Neutral" };
 
+/** The battle units' three armies (anything else is listed after them as "Other"). */
+const ARMIES = ["Han", "Bandits", "Yellow Turbans", "Other"];
+function factionGroup(f) {
+  const k = String(f ?? "").toLowerCase();
+  if (/yellow|turban/.test(k)) return "Yellow Turbans";
+  if (/bandit|zhang-yan|black.?mountain/.test(k)) return "Bandits";
+  if (/^han\b|han-empire|^han$/.test(k)) return "Han";
+  return "Other";
+}
+
 /** Units to start from: the world's unit actors, then units in Actor compendiums (e.g. Three Kingdoms Battle Units). */
 async function templates() {
-  const info = (sys) => ({ category: sys?.category ?? "infantry", tier: Number(sys?.tier) || 99 });
+  const info = (sys) => ({ category: sys?.category ?? "infantry", tier: Number(sys?.tier) || 99, faction: factionGroup(sys?.faction) });
   const out = (game.actors?.contents ?? []).filter(a => a.type === "unit").map(a => ({ id: a.uuid, name: a.name, world: true, ...info(a.system) }));
   for (const pack of game.packs ?? []) {
     if (pack.documentName !== "Actor") continue;
     let index;
-    try { index = await pack.getIndex({ fields: ["type", "system.category", "system.tier"] }); } catch { continue; }
+    try { index = await pack.getIndex({ fields: ["type", "system.category", "system.tier", "system.faction"] }); } catch { continue; }
     for (const e of index) if (e.type === "unit") out.push({ id: e.uuid ?? `Compendium.${pack.collection}.Actor.${e._id}`, name: e.name, world: false, ...info(e.system) });
   }
   return out;
@@ -21,14 +31,15 @@ async function templates() {
 async function formHTML() {
   const players = game.users.filter(u => !u.isGM);
   const list = await templates();
-  // grouped by type (Infantry, Ranged Infantry, Cavalry), then by tier, then by name; units made in this world are marked
+  // grouped by type (Infantry, Ranged Infantry, Cavalry) and army (Han, Bandits, Yellow Turbans), then by tier and name;
+  // units made in this world are marked
   const TYPES = [["infantry", "Infantry"], ["ranged", "Ranged Infantry"], ["cavalry", "Cavalry"]];
   const typeOf = (t) => (TYPES.some(([k]) => k === t.category) ? t.category : "infantry");
-  const unitOpts = `<option value="">Blank unit</option>` + TYPES.map(([k, label]) => {
-    const ts = list.filter(t => typeOf(t) === k).sort((a, b) => a.tier - b.tier || a.name.localeCompare(b.name) || (a.world ? -1 : 1));
+  const unitOpts = `<option value="">Blank unit</option>` + TYPES.flatMap(([k, label]) => ARMIES.map(army => {
+    const ts = list.filter(t => typeOf(t) === k && t.faction === army).sort((a, b) => a.tier - b.tier || a.name.localeCompare(b.name) || (a.world ? -1 : 1));
     if (!ts.length) return "";
-    return `<optgroup label="${label}">${ts.map(t => `<option value="${esc(t.id)}">${t.tier < 99 ? `T${t.tier} · ` : ""}${esc(t.name)}${t.world ? " (this world)" : ""}</option>`).join("")}</optgroup>`;
-  }).join("");
+    return `<optgroup label="${label} · ${army}">${ts.map(t => `<option value="${esc(t.id)}">${t.tier < 99 ? `T${t.tier} · ` : ""}${esc(t.name)}${t.world ? " (this world)" : ""}</option>`).join("")}</optgroup>`;
+  })).join("");
   const ownerOpts = `<option value="">No player (GM only)</option>` + players.map(u => `<option value="${u.id}">${esc(u.name)}${u.character ? ` (${esc(u.character.name)})` : ""}</option>`).join("");
   const chars = (game.actors?.contents ?? []).filter(a => a.type === "character").sort((a, b) => a.name.localeCompare(b.name));
   const officerOpts = `<option value="">No officer</option>` + chars.map(a => `<option value="${esc(a.uuid)}">${esc(a.name)}</option>`).join("");
