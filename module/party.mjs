@@ -78,7 +78,7 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
         <img src="${esc(a.img)}" alt="" data-action="open" data-id="${a.id}">
         <div class="qin-party-main">
           <div class="qin-party-name"><a data-action="open" data-id="${a.id}">${esc(a.name)}</a> ${status}${btns("unit", a.id)}</div>
-          <div class="qin-party-sub"><span class="qin-party-tag tier t${Math.min(4, s.tier)}">T${s.tier}</span><span class="qin-party-tag">Lv ${s.level ?? 1}</span>${s.unitType ? `<span class="qin-party-tag">${esc(s.unitType)}</span>` : ""}${off ? `<span class="qin-party-tag off"><i class="fa-solid fa-user-shield"></i> ${esc(off.name)}</span>` : ""}</div>
+          <div class="qin-party-sub"><span class="qin-party-tag tier t${Math.min(4, s.tier)}">T${s.tier}</span><span class="qin-party-tag">Lv ${s.level ?? 1}</span>${s.unitType ? `<span class="qin-party-tag">${esc(s.unitType)}</span>` : ""}${off ? `<span class="qin-party-tag off"><i class="fa-solid fa-user-shield"></i> ${esc(off.name)}</span>` : ""}${s.cost ? `<span class="qin-party-tag coin" data-tooltip="Recruitment cost ${s.cost} · upkeep ${s.upkeep} a month"><i class="fa-solid fa-coins"></i> ${s.upkeep}/mo</span>` : ""}</div>
           <div class="qin-party-bars">
             <span>Health</span><div class="qin-bar"><i style="width:${pct(s.men.value, s.men.max)}%"></i></div><b>${s.men.value}/${s.men.max}</b>
             <span>Morale</span><div class="qin-bar morale"><i style="width:${pct(s.morale, 100)}%"></i></div><b>${s.morale} <small>${esc(s.moraleState ?? "")}</small></b>
@@ -86,12 +86,17 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
           </div>
         </div></li>`;
     };
+    const upkeep = (units) => units.reduce((n, a) => n + (a.system.upkeep ?? 0), 0);
+    const money = (g) => {
+      const coin = g.user.character?.system?.coin;
+      return `<span class="qin-party-money" data-tooltip="Upkeep for these units each month${coin !== undefined ? `; ${esc(g.user.character.name)}'s coin` : ""}"><i class="fa-solid fa-coins"></i> ${upkeep(g.units)}/mo${coin !== undefined ? ` · ${coin} coin` : ""}</span>`;
+    };
     const body = groups.length ? groups.map(g => `<section class="qin-party-player">
         <h3><span class="qin-party-dot" style="background:${esc(g.user.color?.css ?? g.user.color ?? "#888")}"></span>${esc(g.user.name)}
-          <small>${g.units.length} unit${g.units.length === 1 ? "" : "s"}</small>${btns("player", g.user.id)}</h3>
+          <small>${g.units.length} unit${g.units.length === 1 ? "" : "s"}</small>${money(g)}${btns("player", g.user.id)}</h3>
         <ul>${g.units.map(unit).join("")}</ul></section>`).join("")
       : `<p class="qin-muted">No units are owned by a player yet. Make one with New unit (N) and pick an owner.</p>`;
-    const top = gm && groups.length ? `<div class="qin-party-all"><b>Whole party</b>
+    const top = gm && groups.length ? `<div class="qin-party-all"><b>Whole party <span class="qin-party-money"><i class="fa-solid fa-coins"></i> ${upkeep(groups.flatMap(g => g.units))}/mo</span></b>
         <button type="button" data-action="heal" data-scope="all"><i class="fa-solid fa-heart-pulse"></i> Heal all</button>
         <button type="button" data-action="morale" data-scope="all"><i class="fa-solid fa-flag"></i> Morale to ${DEFAULT_MORALE}</button></div>` : "";
     return `<div class="qin-party-wrap">${top}${body}</div>`;

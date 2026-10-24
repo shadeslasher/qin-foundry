@@ -76,6 +76,7 @@ export class CharacterData extends QinBaseActor {
         override: new fields.ArrayField(int(0, { min: 0 }), { initial: [0, 0, 0, 0, 0] }),
       }),
       renown: int(0, { min: 0 }),
+      coin: int(0, { min: 0 }),
       experience: new fields.SchemaField({ value: int(0), total: int(0) }),
       deeds: new fields.HTMLField({ initial: "" }),
     };
@@ -136,6 +137,7 @@ export class UnitData extends foundry.abstract.TypeDataModel {
       range: int(1, { min: 1 }),                                    // 1 = melee; 2+ = ranged
       rangeMin: int(1, { min: 1 }),
       unitValue: int(1, { min: 0 }),
+      cost: int(0, { min: 0 }),                                     // recruitment cost in coins; upkeep is a quarter of it a month
       level: int(1, { min: 1 }),                                    // every 100 XP; for the promotion tree (not tier)
       xp: new fields.SchemaField({ value: int(0, { min: 0 }), max: int(100, { min: 1 }) }),
       morale: int(50, { min: 0, max: 100 }),
@@ -178,6 +180,7 @@ export class UnitData extends foundry.abstract.TypeDataModel {
     const m = this.morale;
     this.moraleState = m <= 0 ? "Surrendered" : m <= 25 ? "Demoralized" : m >= 75 ? "Encouraged" : "Neutral";
     this.weapon = this.range > 1 ? "ranged" : "melee";
+    this.upkeep = Math.round((this.cost || 0) / 4);
     // everything reads `traits`: make it the traits unlocked at the unit's current level
     if (this.traitList?.length) this.traits = traitTextOf(this.traitList, this.level);
   }
