@@ -65,6 +65,24 @@ export class TacticsApp extends Base {
     return this.instance.render({ force: true });
   }
 
+  /** Bottom left of the screen (just right of the scene controls, above the players list), so the map stays clear.
+   *  It stays anchored there as it grows, until it's dragged somewhere else. */
+  _onRender(context, options) {
+    super._onRender?.(context, options);
+    const p = this.position, el = this.element;
+    if (!el || (this.#anchor && (Math.round(p.left) !== this.#anchor.left || Math.round(p.top) !== this.#anchor.top))) return; // moved by hand
+    requestAnimationFrame(() => {
+      const controls = document.getElementById("scene-controls") ?? document.getElementById("controls");
+      const players = document.getElementById("players");
+      const left = Math.round(Math.max(8, (controls?.getBoundingClientRect().right ?? 60) + 10));
+      const floor = players ? Math.min(window.innerHeight, players.getBoundingClientRect().top) : window.innerHeight;
+      const top = Math.round(Math.max(8, floor - el.offsetHeight - 10));
+      this.setPosition({ left, top });
+      this.#anchor = { left: Math.round(this.position.left), top: Math.round(this.position.top) };
+    });
+  }
+  #anchor = null;
+
   async _renderHTML() {
     const b = tacticsNow();
     if (!b) return `<p class="qin-muted">The tactics phase is over.</p>`;
