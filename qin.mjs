@@ -15,7 +15,7 @@ import { registerCombatQuery, onRenderCombatTracker } from "./module/combat-acti
 import { registerAttackFxSocket, registerDamageFloats } from "./module/attack-fx.mjs";
 import { registerUnitBars, redrawAllUnitBars, registerFacingKey } from "./module/unit-bars.mjs";
 import { registerFactions, factionList } from "./module/factions.mjs";
-import { refreshBattleUI, repositionBattleUI, lockUnitTokens, onUnitSelected, registerUnitClicks } from "./module/battle/battle-ui.mjs";
+import { refreshBattleUI, repositionBattleUI, lockUnitTokens, lockUnitMoves, onUnitSelected, registerUnitClicks } from "./module/battle/battle-ui.mjs";
 import { refreshTactics, registerTactics } from "./module/battle/tactics-ui.mjs";
 import { registerDeployZones, drawDeployZones, setDeployChangeHandler } from "./module/battle/deploy.mjs";
 import { registerPreBattleCover } from "./module/battle/cover.mjs";
@@ -213,7 +213,11 @@ Hooks.on("updateToken", (doc, change, options) => {
 Hooks.on("updateActor", () => { BattlePanel.refresh(); refreshBattleUI(); });
 Hooks.on("canvasReady", () => refreshBattleUI());
 Hooks.on("canvasPan", () => repositionBattleUI());
-Hooks.on("preUpdateToken", lockUnitTokens);
+// Foundry 13+ moves tokens through its movement API: refuse a move there (preMoveToken). Older versions: preUpdateToken.
+Hooks.once("init", () => {
+  if ((game.release?.generation ?? 12) >= 13) Hooks.on("preMoveToken", lockUnitMoves);
+  else Hooks.on("preUpdateToken", lockUnitTokens);
+});
 Hooks.on("controlToken", onUnitSelected);
 
 Hooks.on("getSceneControlButtons", (controls) => {

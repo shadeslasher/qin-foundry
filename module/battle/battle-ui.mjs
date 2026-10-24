@@ -503,12 +503,24 @@ export function registerUnitClicks() {
  */
 export function lockUnitTokens(tokenDoc, change, options) {
   if (options?.qinBattle || isWritingBack() || !("x" in change || "y" in change)) return;
+  return checkUnitMove(tokenDoc, change.x ?? tokenDoc.x, change.y ?? tokenDoc.y);
+}
+/**
+ * The same rule through Foundry's movement API (v13+): refusing a drag here cancels it cleanly. Refusing it later
+ * in preUpdateToken left the dragged tokens stuck mid-drag (all moving together, no Esc, no clicking away).
+ */
+export function lockUnitMoves(tokenDoc, movement, operation) {
+  if (operation?.qinBattle || isWritingBack()) return;
+  const to = movement?.destination; if (!to) return;
+  return checkUnitMove(tokenDoc, to.x ?? tokenDoc.x, to.y ?? tokenDoc.y);
+}
+function checkUnitMove(tokenDoc, px, py) {
   if (tokenDoc.actor?.type !== "unit") return;
   const battle = game.settings.get(SYSTEM_ID, "battle");
   const scene = tokenDoc.parent;
   const phase = battle?.active && scene?.id === battle.sceneId ? (battle.turn?.phase ?? "setup") : "none";
   const size = scene?.grid?.size ?? 100;
-  const x = Math.round((change.x ?? tokenDoc.x) / size), y = Math.round((change.y ?? tokenDoc.y) / size);
+  const x = Math.round(px / size), y = Math.round(py / size);
   const occupied = (scene?.tokens ?? []).some(t => t.id !== tokenDoc.id && t.actor?.type === "unit" && Math.round(t.x / size) === x && Math.round(t.y / size) === y);
   const chk = deployMoveCheck({ phase, isGM: game.user.isGM, zones: zoneSet(scene?.getFlag?.(SYSTEM_ID, DEPLOY_FLAG)), occupied }, x, y);
   if (chk.ok) return;
