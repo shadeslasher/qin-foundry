@@ -147,6 +147,11 @@ Hooks.once("init", () => {
     name: "Previous turn (combat)", hint: "Step back one turn (GM only).",
     editable: [{ key: "PageUp" }], onDown: turnKey(-1), restricted: true, precedence: CONST.KEYBINDING_PRECEDENCE?.NORMAL,
   });
+  game.keybindings.register(SYSTEM_ID, "battlePanel", {
+    name: "Open battle panel", hint: "Opens the Battle window; press again to close it.",
+    editable: [{ key: "KeyB" }], precedence: CONST.KEYBINDING_PRECEDENCE?.NORMAL,
+    onDown: () => { if (BattlePanel.instance?.rendered) BattlePanel.instance.close(); else BattlePanel.open(); return true; },
+  });
 
   registerBattleQuery();
   registerCombatQuery();
