@@ -34,7 +34,7 @@ export async function newUnitDialog() {
     <div class="form-group"><label>Owner</label><select name="owner">${ownerOpts}</select></div>
     <div class="form-group"><label>Side</label><select name="side">${sideOpts}</select></div>
     <div class="form-group"><label>Officer</label><select name="officer">${officerOpts}</select></div>
-    <p class="qin-muted">The unit goes in the Actors directory, in a folder for its owner under "Player Units". Drag it onto a scene when it's needed. Picking an owner also picks their character as officer, if they have one.</p>
+    <p class="qin-muted">The unit goes in the Actors directory: player units in a folder for their owner under "Player Units"; enemy, ally and neutral units in "Enemy Units", "Ally Units" or "Neutral Units". Drag it onto a scene when it's needed. Picking an owner also picks their character as officer, if they have one.</p>
   </div>`;
   const DialogV2 = foundry.applications.api.DialogV2;
   const res = await DialogV2.wait({
@@ -61,10 +61,19 @@ export async function newUnitDialog() {
   return createUnit(res);
 }
 
+const findFolder = (name, parent) => game.folders.find(f => f.type === "Actor" && f.name === name && (f.folder?.id ?? null) === (parent?.id ?? null));
+
+/** Enemy, ally and neutral units: "Enemy Units", "Ally Units", "Neutral Units" (made when first needed). */
+const SIDE_FOLDERS = { enemy: { name: "Enemy Units", color: "#c8443a" }, ally: { name: "Ally Units", color: "#3fa66a" }, neutral: { name: "Neutral Units", color: "#d4a017" } };
+async function sideFolder(side) {
+  const f = SIDE_FOLDERS[side]; if (!f) return null;
+  return findFolder(f.name, null) ?? await Folder.create({ name: f.name, type: "Actor", sorting: "a", color: f.color });
+}
+
 /** The owner's folder: "Player Units" / "<player>'s units" (made when first needed). */
 async function ownerFolder(userId) {
   const user = game.users.get(userId); if (!user) return null;
-  const find = (name, parent) => game.folders.find(f => f.type === "Actor" && f.name === name && (f.folder?.id ?? null) === (parent?.id ?? null));
+  const find = findFolder;
   const top = find("Player Units", null) ?? await Folder.create({ name: "Player Units", type: "Actor", sorting: "a" });
   const name = `${user.name}'s units`;
   return find(name, top) ?? await Folder.create({ name, type: "Actor", folder: top.id, sorting: "a", color: user.color?.css ?? user.color ?? null });
@@ -84,12 +93,14 @@ async function createUnit({ template, name, owner, side, officer }) {
   // a player's unit keeps its health, morale and XP on the actor between battles
   data.prototypeToken = { ...(data.prototypeToken ?? {}), name: data.name, actorLink: !!owner || !!data.prototypeToken?.actorLink,
     disposition: side === "enemy" ? CONST.TOKEN_DISPOSITIONS.HOSTILE : side === "neutral" ? CONST.TOKEN_DISPOSITIONS.NEUTRAL : CONST.TOKEN_DISPOSITIONS.FRIENDLY };
-  data.folder = owner ? (await ownerFolder(owner))?.id ?? null : null;
+  // enemy, ally and neutral units go in their side's folder; player units in their owner's folder
+  const folder = SIDE_FOLDERS[side] ? await sideFolder(side) : owner ? await ownerFolder(owner) : null;
+  data.folder = folder?.id ?? null;
   // remember the template, so the Unit Editor can update this copy later
   if (template) data.flags = foundry.utils.mergeObject(data.flags ?? {}, { [game.system.id]: { template } });
   const actor = await Actor.create(data);
   if (!actor) return;
-  ui.notifications.info(`Created ${actor.name}${owner ? ` in ${game.users.get(owner)?.name}'s units` : ""}.`);
+  ui.notifications.info(`Created ${actor.name}${folder ? ` in ${folder.name}` : ""}.`);
   return actor;
 }
 
