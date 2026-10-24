@@ -291,7 +291,9 @@ function renderMenu(sub = null) {
   else if (mode === "ladder") html += `<div class="qin-fe-hint">Click a gold wall square next to the unit to set the ladders there.<br>Right-click or Esc to go back</div>` + b("cancel", "Back", true);
   else if (mode === "fire") html += `<div class="qin-fe-hint">Click an orange tile next to the unit to set it on fire (forest or tall grass).<br>Right-click or Esc to go back</div>` + b("cancel", "Back", true);
   else if (mode === "second") html += `<div class="qin-fe-hint">Dual Weapons: strike another enemy marked in red (Attack −2), or skip.</div>` + b("skipSecond", "Skip", true);
-  else if (mode === "reposition") html += (current?.s?.turn?.activation?.reposition?.skirmish
+  else if (mode === "reposition") html += (current?.s?.turn?.activation?.reposition?.outrider
+    ? `<div class="qin-fe-hint">Outrider: ride on to a green tile, or stay.</div>`
+    : current?.s?.turn?.activation?.reposition?.skirmish
     ? `<div class="qin-fe-hint">Skirmisher: move to a green tile, or stay.</div>`
     : `<div class="qin-fe-hint">Won the attack: move to a green tile beside the enemy, or stay.</div>`) + b("stay", "Stay here", true);
   else if (sub === "heroic") {
@@ -317,6 +319,7 @@ function renderMenu(sub = null) {
     if (flags.setFire) html += b("setFire", "Set Fire", true, "Set Aflame tactic: instead of attacking, set an adjacent flammable tile on fire. Ends the turn.");
     if (flags.reloading) html += b("reload", "Reload", flags.reload, "Reload the weapon (needed before it can attack again). Can follow a move; ends the turn.");
     else html += b("attack", "Attack", flags.attack, flags.attack ? "" : "No enemy in range");
+    if (flags.outrider) html += b("outrider", "Ride on", true, "Outrider: instead of attacking, move a little further. Ends the turn after.");
     html += b("hold", "Hold", flags.hold, "No more action this turn; +2 melee defense this round");
     if (flags.overwatch) html += b("overwatch", "Overwatch", true, "End the turn and watch: shoot the first enemy that ends its turn in range before this unit's next turn (one shot)");
     html += b("ability", "Ability", flags.ability, abilityTip);
@@ -360,6 +363,7 @@ function onMenuClick(ev) {
     case "skipSecond": return send({ type: "secondAttack", unitId: id });
     case "back": return renderMenu();
     case "hold": return send({ type: "holdPosition", unitId: id });
+    case "outrider": return send({ type: "outrider", unitId: id });
     case "overwatch": return send({ type: "overwatch", unitId: id });
     case "end": return send({ type: "endTurn", unitId: id });
     case "undo": return send({ type: "undoMove", unitId: id });

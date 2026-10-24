@@ -380,18 +380,21 @@ test('end-of-turn regen up to 75; kill morale can exceed 75 up to 100', () => {
   R.unitById(s, a).morale += 0;
 });
 
-test('demoralized penalty, Han Dang ignores it; surrender at 0 morale costs adjacent allies 5', () => {
+test('demoralized penalty, Han Dang ignores it; a surrender at 0 morale costs only adjacent Levy allies 5', () => {
   const s = setup();
   const a = add(s, { typeId: 'han_ji_inf', officerId: 'han_dang', side: 'player', owner: 'p1', x: 5, y: 5, morale: 20 });
   const b = add(s, { typeId: 'han_ji_inf', side: 'player', owner: 'p1', x: 6, y: 5, morale: 20 });
+  const c = add(s, { typeId: 'han_ji_inf', side: 'player', owner: 'p1', x: 4, y: 5, morale: 20 });
   const e = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 4 });
-  const A = R.unitById(s, a), B = R.unitById(s, b), E = R.unitById(s, e);
+  const A = R.unitById(s, a), B = R.unitById(s, b), C = R.unitById(s, c), E = R.unitById(s, e);
+  C.traitTiers = { levy: 1 };
   dice([0, 0, 0, 0]);
   assert.strictEqual(R.buildRoll(s, A, 'defender', { attacker: E, defender: A }).total, 0 + 4 + 2); // Command 4 + UV 2, no -2
   assert.strictEqual(R.buildRoll(s, B, 'defender', { attacker: E, defender: B }).total, 2 - 2);
   must(R.act(s, HOST, { type: 'adjust', unitId: a, morale: -20 }));
   assert.strictEqual(A.status, 'surrendered');
-  assert.strictEqual(B.morale, 15);
+  assert.strictEqual(B.morale, 20, 'no loss without Levy');
+  assert.strictEqual(C.morale, 15, 'Levy: -5');
 });
 
 test('full encirclement: -50 morale once', () => {

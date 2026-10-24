@@ -103,9 +103,14 @@ function standable(s, x, y) {
   return r ? r.pass !== 'none' || r.wall : passable(s, x, y);
 }
 /** Movement it costs to enter a square: 1 + its Move modifier, never less than 1 (roads and paving cost the normal 1). */
-function enterCost(s, x, y) {
+function enterCost(s, x, y, u) {
   const r = tileRules(s, x, y);
-  return r ? Math.max(1, 1 + r.move) : 1;
+  if (!r) return 1;
+  let move = r.move;
+  // Woodsmen: forests cost this unit no extra movement
+  const tile = s.map.tiles && s.map.tiles[x + ',' + y];
+  if (u && tile && tile.terrain === 'forest' && trait(u, 'woodsmen')) move -= (data.MAP_TERRAIN.forest.move || 0);
+  return Math.max(1, 1 + move);
 }
 
 // ---------------------------------------------------------------- walls and siege
@@ -310,7 +315,7 @@ function reachable(s, u, budget) {
       const stepOk = fromWall && toWall ? true : fromWall ? insideCity(s, nx, ny) && passable(s, nx, ny, u)
         : toWall ? insideCity(s, x, y) : passable(s, nx, ny, u);
       if (!stepOk) continue;
-      const nd = d + enterCost(s, nx, ny);
+      const nd = d + enterCost(s, nx, ny, u);
       if (nd > budget || (best.has(k) && best.get(k) <= nd)) continue;
       const o = unitAt(s, nx, ny);
       if (o && (trait(o, 'heavy') || !stealthFriends(alliance(o.side), alliance(u.side)))) continue;
@@ -383,6 +388,14 @@ function attackTargets(s, u) {
   return liveUnits(s).filter(d => hostile(u, d) && visibleTo(s, d, alliance(u.side)) && rangeOk(s, u, d));
 }
 
+/** Outrider: after a normal move, the empty tiles it could ride on to (1, Outrider+ 2) instead of attacking. */
+function outriderTiles(s, u) {
+  const ac = s.turn.activation, n = trait(u, 'outrider');
+  if (!n || !ac || ac.unitId !== u.id || !ac.movedThisActivation || ac.forcedMarched || u.round.attacked || ac.outrode) return [];
+  const reach = reachable(s, u, n >= 2 ? 2 : 1);
+  return [...reach.keys()].map(k => k.split(',').map(Number)).filter(([x, y]) => !(x === u.x && y === u.y) && !unitAt(s, x, y));
+}
+
 /** What the Fire Emblem-style action menu may offer the active unit. */
 function actionMenu(s, u) {
   const ac = s.turn.activation;
@@ -406,6 +419,7 @@ function actionMenu(s, u) {
     closeGate: canStillAct && gatesNear(s, u).some(g => g.state === 'open' && gateKeyHolder(s, u, g) && !g.squares.some(([x, y]) => unitAt(s, x, y))),
     setFire: canStillAct && pendingTactic(s, u, 'setFire'),
     hold: canStillAct,
+    outrider: canStillAct && outriderTiles(s, u).length > 0,
     overwatch: canStillAct && !reloading && typeOf(s, u).weapon === 'ranged',
     ability: skillOk || artOk, skill: skillOk, art: artOk,
     heroic: !!(o && (o.heroicActions || []).length && !u.round.heroicUsed && (u.heroicUsed || 0) < (o.fire || 0)),
@@ -453,13 +467,26 @@ function stealthFriends(a, b) {
   if (a === b) return true;
   return (a === 'player' && b === 'ally') || (a === 'ally' && b === 'player');
 }
-/** A unit that moves next to hidden hostile units reveals them. */
+/** A unit that moves next to hidden hostile units reveals them (Scouts: within 2 tiles). */
 function revealAround(s, u) {
+  const reach = trait(u, 'scouts') ? 2 : 1;
   for (const o of liveUnits(s)) {
-    if (o.hidden && !stealthFriends(alliance(o.side), alliance(u.side)) && manhattan(o, u) === 1) {
+    if (o.hidden && !stealthFriends(alliance(o.side), alliance(u.side)) && manhattan(o, u) <= reach) {
       o.hidden = false;
       log(s, o.name + ' is spotted by ' + u.name + '.', { type: 'revealed', unit: o.id });
     }
+  }
+}
+/** Scouts: hostile Scouts within 2 tiles of this unit (they reveal it, and it can't hide there). */
+function scoutNear(s, u) {
+  return liveUnits(s).find(o => o !== u && trait(o, 'scouts') && !stealthFriends(alliance(o.side), alliance(u.side)) && manhattan(o, u) <= 2) || null;
+}
+/** Scouts reveal every hidden enemy within 2 tiles of them. */
+function scoutSweep(s) {
+  for (const u of liveUnits(s)) {
+    if (!u.hidden) continue;
+    const sc = scoutNear(s, u);
+    if (sc) { u.hidden = false; log(s, u.name + ' is spotted by ' + sc.name + ' (Scouts).', { type: 'revealed', unit: u.id }); }
   }
 }
 /** Hostile troops next to this unit (they stop it hiding and reveal it at the end of its turn). */
@@ -529,7 +556,9 @@ function buildRoll(s, unit, role, ctx) {
     if (ctx.chargeCancelled) parts.push(['Charge bonus (cancelled: ' + of.name + ')', 0]);
     if (ctx.rear) parts.push(['Rear attack', 2]);
     if (ctx.rear && of.rearAtk) parts.push(['Rear attack vs ' + of.name, of.rearAtk]);
-    if (ctx.ambush) parts.push(['Attacking from hiding', 2]);
+    if (ctx.ambush) parts.push(trait(unit, 'ambusher') ? ['Attacking from hiding (Ambusher)', 4] : ['Attacking from hiding', 2]);
+    if (trait(unit, 'shock troop') && !fx(unit).attackedOnce) parts.push(['Shock Troop (first attack of the battle)', tierVal(trait(unit, 'shock troop'), [2, 4, 6])]);
+    if (fx(unit).suppressed) parts.push(['Suppressed (Suppressing Fire)', -1]);
     for (const tc of tacticsOn(s, unit, ['attack', 'flanking', 'ambush'])) parts.push(['Tactic: ' + tacticDef(tc.key).name, 2]);
     // Cavalry Charge: only an attack that is a cavalry charge gains it
     if (ctx.charge) for (const tc of tacticsOn(s, unit, ['cavalryCharge'])) parts.push(['Tactic: ' + tacticDef(tc.key).name + ' (charging)', 4]);
@@ -540,6 +569,12 @@ function buildRoll(s, unit, role, ctx) {
     // Defense bonuses: everything that makes a unit harder to hit is added to the defender's roll
     if (!ctx.ranged && unit.round.holding) parts.push(['Holding: melee defense', 2]); // Hold doesn't help against ranged attacks
     if (!ctx.ranged && unit.round.holding && trait(unit, 'brace')) parts.push(['Brace: melee defense', 2]);
+    // Hold the Line (trait): an adjacent allied unit that is holding gives infantry Melee defense +1/+2 (the best one counts)
+    if (!ctx.ranged && t.category === 'infantry') {
+      const htl = Math.max(0, ...liveUnits(s).filter(o => o !== unit && friendly(o, unit) && manhattan(o, unit) === 1 && o.round.holding)
+        .map(o => tierVal(trait(o, 'hold the line'), [1, 2])));
+      if (htl) parts.push(['Hold the Line (holding ally): melee defense', htl]);
+    }
     if (trait(unit, 'shielded') && trait(ctx.attacker, 'shield breaker')) parts.push(['Shielded (ignored: Shield Breaker)', 0]);
     else if (trait(unit, 'shielded')) parts.push(ctx.ranged ? ['Shielded: ranged defense', tierVal(trait(unit, 'shielded'), [2, 4, 6])] : ['Shielded: melee defense', tierVal(trait(unit, 'shielded'), [1, 2, 3])]);
     if (ctx.ranged && trait(unit, 'shield battery') && fx(unit).stillLast) parts.push(['Shield Battery: ranged defense', 2]);
@@ -563,10 +598,12 @@ function buildRoll(s, unit, role, ctx) {
   // Anti-Cavalry (+0/+2/+4) and Anti-Infantry (+1/+2/+4) only count on the unit's own attacks
   if (role === 'attacker' && oc === 'cavalry' && trait(unit, 'anti-cavalry') > 1) parts.push(['Anti-Cavalry', tierVal(trait(unit, 'anti-cavalry'), [0, 2, 4])]);
   if (role === 'attacker' && oc === 'infantry' && trait(unit, 'anti-infantry')) parts.push(['Anti-Infantry', tierVal(trait(unit, 'anti-infantry'), [1, 2, 4])]);
-  const ms = moraleState(unit.morale);
+  let ms = moraleState(unit.morale);
+  if (ms === 'Surrendered' && trait(unit, 'fanatic')) ms = 'Demoralized'; // Fanatic: fights on at 0 morale
   if (ms === 'Encouraged') parts.push(['Encouraged', 2]);
   const steady = p.ignoreMoralePenalty ? 'officer passive' : trait(unit, 'unwavering') ? 'Unwavering' : null;
-  if (ms === 'Demoralized') parts.push(['Demoralized' + (steady ? ' (ignored: ' + steady + ')' : ''), steady ? 0 : -2]);
+  if (ms === 'Demoralized' && trait(unit, 'zealot')) parts.push(['Zealot (morale 25 or less)', tierVal(trait(unit, 'zealot'), [1, 2, 3])]);
+  else if (ms === 'Demoralized') parts.push(['Demoralized' + (steady ? ' (ignored: ' + steady + ')' : ''), steady ? 0 : -2]);
   // Strength penalties scale with the unit's full health (cavalry have 50)
   const full = unit.maxMen || 100;
   // Strength penalties follow the soldier figures on the token (one per 20% of full strength):
@@ -681,7 +718,10 @@ function resolveAttack(s, attacker, defender, opts) {
   // Armor is also lowered by Sunder, and Shield Breaker ignores the armor a unit gets from shields.
   const af = formationOf(s, attacker);
   const armorOf = (t, u, breaker) => Math.max(0, (t.armor ?? t.defense ?? 0) - (fx(u).sunder || 0) - (breaker ? (t.shieldArmor || 0) : 0));
-  const casDef = Math.max(0, dmgToDef - Math.max(0, armorOf(dt, defender, trait(attacker, 'shield breaker')) - (at.armorPen || 0)) - (df.casReduce || 0));
+  const hitDef = (dmg) => Math.max(0, dmg - Math.max(0, armorOf(dt, defender, trait(attacker, 'shield breaker')) - (at.armorPen || 0)) - (df.casReduce || 0));
+  // Repeating: the attack lands as two hits of half damage each; armor (less armor pen) counts against each hit
+  const repeating = !!trait(attacker, 'repeating') && dmgToDef > 0;
+  const casDef = repeating ? hitDef(Math.ceil(dmgToDef / 2)) + hitDef(Math.floor(dmgToDef / 2)) : hitDef(dmgToDef);
   const casAtt = Math.max(0, dmgToAtt - Math.max(0, armorOf(at, attacker, trait(defender, 'shield breaker')) - (dt.armorPen || 0)) - (af.casReduce || 0));
 
   // Morale loss for the loser
@@ -696,10 +736,14 @@ function resolveAttack(s, attacker, defender, opts) {
       const terror = trait(attacker, 'terror'); // Terror: +2 morale loss; Terror+: double it
       if (terror === 1) moraleLoss += 2; else if (terror >= 2) moraleLoss *= 2;
       if (ranged && trait(attacker, 'fire arrows')) moraleLoss += 3; // Fire Arrows: a hit costs 3 more morale
+      // Trample: a winning charge against infantry costs the defender 5 more morale
+      if (charge && trait(attacker, 'trample') && dt.category === 'infantry') moraleLoss += 5;
+      if (rear && trait(defender, 'cowardly')) moraleLoss *= 2; // Cowardly: rear attacks cause double morale loss
     } else {
       moraleLoss = base + (passive(s, defender).extraMoraleLossOnWin || 0);
     }
     if (trait(loser, 'fragile')) moraleLoss += 5;
+    if (trait(loser, 'disciplined')) moraleLoss = Math.floor(moraleLoss / 2); // Disciplined: halved (rounded down)
   }
 
   // Apply simultaneously
@@ -733,7 +777,9 @@ function resolveAttack(s, attacker, defender, opts) {
     const pz = trait(attacker, 'poison'), sd = trait(attacker, 'sunder');
     if (pz) fx(defender).poison = Math.max(fx(defender).poison || 0, tierVal(pz, [1, 2]));   // doesn't stack; Poison+ replaces Poison
     if (sd) fx(defender).sunder = Math.max(fx(defender).sunder || 0, tierVal(sd, [2, 4]));   // doesn't stack; Sunder+ replaces Sunder
+    if (trait(attacker, 'suppressing fire')) fx(defender).suppressed = true;                // Attack -1 until the end of its next turn
   }
+  fx(attacker).attackedOnce = true;                                                        // Shock Troop: only the first attack of the battle
   if (casDef > 0 && trait(attacker, 'barbed arrows')) fx(defender).slow = true;          // -1 movement on its next turn
   if (ranged) defender.round.hitByRanged = true;                                          // for Volley Fire
   // Fire Arrows, on a hit: the target's flammable square loses 1 burn resistance, or catches fire once it has none left
@@ -845,7 +891,8 @@ function settleLoop(s, opts) {
     for (const u of liveUnits(s)) {
       let ended = null;
       if (u.men <= 0) { u.status = 'defeated'; ended = 'is destroyed'; }
-      else if (u.morale <= 0 && !hasTactic(s, u, 'fear')) { u.status = 'surrendered'; ended = 'surrenders'; } // Surrounded by Fear: never surrenders
+      // Surrounded by Fear and Fanatic: never surrenders (it fights until destroyed)
+      else if (u.morale <= 0 && !hasTactic(s, u, 'fear') && !trait(u, 'fanatic')) { u.status = 'surrendered'; ended = 'surrenders'; }
       if (!ended) continue;
       changed = true;
       log(s, u.name + ' ' + ended + '.', { type: 'defeat', unit: u.id });
@@ -853,10 +900,11 @@ function settleLoop(s, opts) {
       if (carrying(u)) dropEquipment(s, u, ' falls, leaving its ');
       for (const tc of s.tactics ? s.tactics.placed : []) if (tc.key === 'fear' && tc.unitId === u.id && tc.state === 'active') tc.state = 'spent';
       removeFromTurn(s, u.id);
+      // Levy: loses 5 morale when an adjacent ally surrenders or is destroyed (other units don't)
       for (const n of liveUnits(s)) {
-        if (friendly(n, u) && manhattan(n, u) === 1) {
+        if (trait(n, 'levy') && friendly(n, u) && manhattan(n, u) === 1) {
           n.morale = clamp(n.morale - 5, 0, 100);
-          log(s, n.name + ' loses 5 morale (adjacent ally ' + ended.replace('is ', '') + ').');
+          log(s, n.name + ' loses 5 morale (Levy: adjacent ally ' + ended.replace('is ', '') + ').');
         }
       }
     }
@@ -899,6 +947,7 @@ function processFear(s) {
 function checkEncirclement(s) {
   let changed = false;
   for (const u of liveUnits(s)) {
+    if (trait(u, 'stalwart')) { u.surrounded = false; continue; } // Stalwart: can't be surrounded
     let enemies = 0, open = 0;
     for (const [dx, dy] of ORTHO) {
       const x = u.x + dx, y = u.y + dy;
@@ -1021,7 +1070,7 @@ function endRound(s) {
     }
   }
   // Hiding: a unit in cover (forest, tall grass) at the end of the round hides, unless an enemy is next to it
-  for (const u of liveUnits(s)) if (!u.hidden && hidesIn(s, u) && !hostileAdjacent(s, u)) {
+  for (const u of liveUnits(s)) if (!u.hidden && hidesIn(s, u) && !hostileAdjacent(s, u) && !scoutNear(s, u)) {
     u.hidden = true;
     log(s, u.name + ' disappears into cover.', { type: 'hidden', unit: u.id });
   }
@@ -1073,6 +1122,9 @@ function finishActivation(s, u) {
       log(s, u.name + ' is spotted (ended its turn next to an enemy).', { type: 'revealed', unit: u.id });
     }
   } else u.hidden = false;
+  scoutSweep(s); // Scouts: hidden enemies within 2 tiles of a scout are revealed
+  // Suppressing Fire lasts until the end of the suppressed unit's next turn
+  if (alive(u) && fx(u).suppressed) { delete fx(u).suppressed; }
   // Overwatch: enemy ranged units watching shoot a unit that ends its turn in their range
   if (alive(u)) overwatchFire(s, u);
   if (t.pendingFinish === u.id) t.pendingFinish = null;
@@ -1485,6 +1537,21 @@ const ACTIONS = {
     log(s, u.name + ' takes up overwatch.', { type: 'overwatch', unit: u.id, on: true });
     finishActivation(s, u);
   },
+  outrider(s, actor, a) { // Outrider: after moving, ride on 1 tile (Outrider+ 2) instead of attacking; ends the turn after
+    const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
+    const { u, act: ac } = r;
+    if (!trait(u, 'outrider')) return err('Only Outrider units can ride on');
+    if (!ac.movedThisActivation) return err('Outrider rides on after a move');
+    if (u.round.attacked || ac.forcedMarched || ac.outrode) return err('Too late to ride on this turn');
+    const tiles = outriderTiles(s, u);
+    if (!tiles.length) return err('No empty tile to ride on to');
+    settle(s); // riding on commits the first move
+    if (!alive(u)) return;
+    delete ac.undo;
+    ac.outrode = true; u.round.attacked = true; // instead of attacking
+    ac.step = 'reposition'; ac.reposition = { skirmish: true, outrider: true, tiles };
+    log(s, u.name + ' may ride on: move up to ' + (trait(u, 'outrider') >= 2 ? 2 : 1) + ' more tile' + (trait(u, 'outrider') >= 2 ? 's' : '') + '.');
+  },
   holdPosition(s, actor, a) {
     const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
     if (r.u.round.attacked || r.act.forcedMarched) return err('Too late to hold this turn');
@@ -1550,7 +1617,7 @@ const ACTIONS = {
     if (a.x !== undefined && a.y !== undefined) {
       if (!ac.reposition.tiles.some(([x, y]) => x === a.x && y === a.y)) return err('Pick one of the marked tiles');
       u.x = a.x; u.y = a.y;
-      log(s, u.name + (ac.reposition.skirmish ? ' skirmishes back.' : ' moves up beside the enemy.'));
+      log(s, u.name + (ac.reposition.outrider ? ' rides on.' : ac.reposition.skirmish ? ' skirmishes back.' : ' moves up beside the enemy.'));
       revealAround(s, u);
     }
     const { targetId, won, melee, skirmish } = ac.reposition;
