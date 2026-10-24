@@ -164,3 +164,20 @@ test('the player-side turn goes to whoever takes a turn first (no separate claim
   assert.strictEqual(R.prompt(s).kind, 'activation');
   assert.strictEqual(R.prompt(s).unitId, b);
 });
+
+test('take back: a turn started by mistake can be given back until the unit does anything', () => {
+  const s = R.newState(); s.players.p1 = { name: 'Alice' }; plains(s);
+  const a = must(R.act(s, HOST, { type: 'addUnit', typeId: 'han_ji_inf', side: 'player', owner: 'p1', x: 1, y: 1 })).unitId;
+  const b = must(R.act(s, HOST, { type: 'addUnit', typeId: 'han_ji_inf', side: 'player', owner: 'p1', x: 3, y: 1 })).unitId;
+  must(R.act(s, HOST, { type: 'addUnit', typeId: 'yt_warriors', side: 'enemy', x: 10, y: 10 }));
+  must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'skipTactics' })); must(R.act(s, HOST, { type: 'startRound' }));
+  while (R.prompt(s).kind !== 'claim') { const p = R.prompt(s); if (p.kind === 'host-pick') must(R.act(s, HOST, { type: 'begin', unitId: s.units.find(u => u.side === p.side && !u.round.activated).id })); else if (p.kind === 'activation') must(R.act(s, HOST, { type: 'endTurn', unitId: p.unitId })); else break; }
+  must(R.act(s, P1, { type: 'begin', unitId: a }));
+  assert.ok(R.actionMenu(s, R.unitById(s, a)).takeBack);
+  must(R.act(s, P1, { type: 'takeBack', unitId: a }));
+  assert.strictEqual(R.prompt(s).kind, 'claim', 'back to choosing a unit');
+  assert.ok(!R.unitById(s, a).round.activated);
+  must(R.act(s, P1, { type: 'begin', unitId: b }));
+  must(R.act(s, P1, { type: 'moveTo', unitId: b, x: 3, y: 2 }));
+  assert.ok(!R.act(s, P1, { type: 'takeBack', unitId: b }).ok, 'not after moving');
+});

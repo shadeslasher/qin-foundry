@@ -490,6 +490,7 @@ function actionMenu(s, u) {
     ability: skillOk || artOk, skill: skillOk, art: artOk,
     heroic: !!(o && (o.heroicActions || []).length && !u.round.heroicUsed && (u.heroicUsed || 0) < (o.fire || 0)),
     undo: !!ac.undo,
+    takeBack: !!ac.takeBack,
     endTurn: true,
   };
 }
@@ -1270,8 +1271,13 @@ function act(s, actor, a) {
     if (!fn) return err('Unknown action');
     const hostOnly = HOST_ONLY.has(a.type);
     if (hostOnly && !actor.host) return err('Only the host can do that');
+    // Take back: starting a unit's turn (Take turn, or Act for an officer) can be taken back until the unit does anything
+    const starting = a.type === 'begin' || (a.type === 'decide' && a.choice === 'act');
+    const snap = starting ? takeBackSnapshot(s) : null;
     const res = fn(s, actor, a) || ok();
     if (res.ok && s.turn.activation && a.type !== 'moveTo' && a.type !== 'undoMove') delete s.turn.activation.undo;
+    if (res.ok && s.turn.activation && a.type !== 'takeBack') delete s.turn.activation.takeBack;
+    if (res.ok && snap && s.turn.activation) s.turn.activation.takeBack = snap;
     // A unit that died during its own turn still hands the turn on.
     if (s.turn.pendingFinish) {
       const u = unitById(s, s.turn.pendingFinish); s.turn.pendingFinish = null;
@@ -1282,6 +1288,14 @@ function act(s, actor, a) {
   } catch (e) {
     return err('Rules error: ' + e.message);
   }
+}
+
+/** What a Take back restores: everything the rules change, not the map or the library (too big, never changed by starting a turn). */
+const TAKE_BACK_KEYS = ['units', 'turn', 'tactics', 'siege', 'objState', 'objEval', 'outcome'];
+function takeBackSnapshot(s) {
+  const o = {};
+  for (const k of TAKE_BACK_KEYS) if (s[k] !== undefined) o[k] = JSON.parse(JSON.stringify(s[k]));
+  return o;
 }
 
 const HOST_ONLY = new Set(['triggerAllTactics', 'setGate', 'setHidden', 'setMap', 'paintTerrain', 'setLibrary', 'addUnit', 'editUnit', 'removeUnit',
@@ -1539,6 +1553,14 @@ const ACTIONS = {
       if (a.choice === 'forfeit') { u.round.activated = true; t.held = t.held.filter(x => x !== u.id); log(s, u.name + ' gives up its turn.'); advance(s); return; }
     }
     return err("It isn't that unit's decision right now");
+  },
+  takeBack(s, actor, a) { // undo Take turn / Act before the unit has done anything
+    const ac = s.turn.activation, u = ac && unitById(s, ac.unitId);
+    if (!ac || !ac.takeBack || (a.unitId && a.unitId !== ac.unitId)) return err('This turn can no longer be taken back');
+    if (!controls(s, actor, u)) return err('Not your unit');
+    const snap = ac.takeBack;
+    for (const k of TAKE_BACK_KEYS) if (snap[k] !== undefined) s[k] = snap[k];
+    log(s, u.name + ': turn taken back.');
   },
   claim(s, actor) {
     const p = prompt(s);

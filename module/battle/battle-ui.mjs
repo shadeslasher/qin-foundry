@@ -330,6 +330,7 @@ function renderMenu(sub = null) {
   } else {
     const abilityTip = !officer ? "No officer" : officer.skill ? `${officer.skill.name}: ${officer.skill.text || ""}` : "This officer has no battle ability";
     if (flags.undo) html += b("undo", "↶ Undo move", true, "Go back to where the unit started (only for a normal move, before doing anything else)");
+    if (flags.takeBack) html += b("takeBack", "↶ Take back turn", true, "Not this unit after all: give the turn back (only before it does anything)");
     html += b("move", "Move", flags.move, flags.move ? "" : "Already moved or can't move");
     if (flags.openGate) html += b("openGate", "Open gate", true, "Unbar the gate next to this unit (owners from either side, anyone from inside the city). Ends the turn.");
     if (flags.closeGate) html += b("closeGate", "Shut gate", true, "Shut and bar the gate next to this unit (the gateway must be empty). Ends the turn.");
@@ -388,6 +389,7 @@ function onMenuClick(ev) {
     case "overwatch": return send({ type: "overwatch", unitId: id });
     case "end": return send({ type: "endTurn", unitId: id });
     case "undo": return send({ type: "undoMove", unitId: id });
+    case "takeBack": return send({ type: "takeBack", unitId: id });
     case "heroic": return renderMenu("heroic");
     case "heroicPick": return send({ type: "heroic", unitId: id, index: Number(btn.dataset.index) });
     case "ability": {
