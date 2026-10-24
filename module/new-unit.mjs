@@ -78,12 +78,24 @@ export class NewUnitApp extends foundry.applications.api.ApplicationV2 {
       try {
         const actor = await createUnit(Object.fromEntries(new FormData(form).entries()));
         if (actor) { const name = form.querySelector("[name=name]"); if (name) name.value = ""; } // keep the other choices for the next one
+      } catch (err) {
+        console.error("Qin | New unit failed", err);
+        ui.notifications.error(`The unit couldn't be created: ${err.message}`);
       } finally { if (btn) btn.disabled = false; }
     });
   }
 }
 
 export function newUnitDialog() { return NewUnitApp.open(); }
+
+const findFolder = (name, parent) => game.folders.find(f => f.type === "Actor" && f.name === name && (f.folder?.id ?? null) === (parent?.id ?? null));
+
+/** Enemy, ally and neutral units each get one folder at the top of the Actors directory (made when first needed). */
+const SIDE_FOLDERS = { enemy: { name: "Enemy Units", color: "#c8443a" }, ally: { name: "Ally Units", color: "#3fa66a" }, neutral: { name: "Neutral Units", color: "#d4a017" } };
+async function sideFolder(side) {
+  const f = SIDE_FOLDERS[side]; if (!f) return null;
+  return findFolder(f.name, null) ?? await Folder.create({ name: f.name, type: "Actor", sorting: "a", color: f.color });
+}
 
 /** The owner's folder: "Player Units" / "<player>'s units" (made when first needed). */
 async function ownerFolder(userId) {
@@ -94,7 +106,7 @@ async function ownerFolder(userId) {
   return find(name, top) ?? await Folder.create({ name, type: "Actor", folder: top.id, sorting: "a", color: user.color?.css ?? user.color ?? null });
 }
 
-async function createUnit({ template, name, owner, side, officer }) {
+export async function createUnit({ template, name, owner, side, officer }) {
   let data;
   if (template) {
     const src = await fromUuid(template);
