@@ -77,7 +77,7 @@ export class RecruitApp extends foundry.applications.api.ApplicationV2 {
     classes: ["qin", "qin-recruit"],
     window: { title: "Recruit", icon: "fa-solid fa-coins", resizable: true },
     position: { width: 420, height: 600 },
-    actions: { buy: RecruitApp.#buy },
+    actions: { buy: RecruitApp.#buy, info: RecruitApp.#info },
   };
   static open(userId) {
     let app = this.#open.get(userId);
@@ -88,6 +88,7 @@ export class RecruitApp extends foundry.applications.api.ApplicationV2 {
   static refreshAll() { for (const app of this.#open.values()) if (app.rendered) app.render(); }
   get title() { return `Recruit: ${game.users.get(this.userId)?.name ?? ""}`; }
 
+  static async #info(event, target) { (await import("./unit-info.mjs")).openUnitInfoForActor(target.dataset.uuid); }
   static async #buy(event, target) {
     const t = this.list?.find(x => x.id === target.dataset.uuid); if (!t) return;
     const ok = await foundry.applications.api.DialogV2.confirm({ window: { title: "Recruit" },
@@ -110,8 +111,8 @@ export class RecruitApp extends foundry.applications.api.ApplicationV2 {
       if (!ts.length) return "";
       return `<h4>${army} · ${label}</h4><ul>${ts.map(t => {
         const chk = recruitCheck({ coin, cost: t.cost, armies, army: t.faction, hasCharacter: !!pc });
-        return `<li class="${chk.ok ? "" : "off"}"><img src="${esc(t.img)}" alt=""><span class="qin-party-tag tier t${Math.min(4, t.tier)}">T${t.tier}</span>
-          <span class="nm">${esc(t.name)}</span><span class="cost" data-tooltip="Upkeep ${Math.round(t.cost / 4)} a month"><i class="fa-solid fa-coins"></i> ${t.cost}</span>
+        return `<li class="${chk.ok ? "" : "off"}"><img src="${esc(t.img)}" alt="" data-action="info" data-uuid="${esc(t.id)}"><span class="qin-party-tag tier t${Math.min(4, t.tier)}">T${t.tier}</span>
+          <a class="nm" data-action="info" data-uuid="${esc(t.id)}" data-tooltip="Show this unit's details">${esc(t.name)}</a><span class="cost" data-tooltip="Upkeep ${Math.round(t.cost / 4)} a month"><i class="fa-solid fa-coins"></i> ${t.cost}</span>
           <button type="button" data-action="buy" data-uuid="${esc(t.id)}" ${chk.ok ? "" : `disabled data-tooltip="${esc(chk.reason)}"`}>Recruit</button></li>`;
       }).join("")}</ul>`;
     })).join("");

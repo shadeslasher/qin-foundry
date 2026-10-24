@@ -720,3 +720,6 @@ details.qin-recent[open] > summary { margin-bottom: 4px; }
 .qin-recruit-list li img { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; }
 .qin-recruit-list .cost { white-space: nowrap; font-size: .9em; } .qin-recruit-list .cost i { color: #c9a13a; }
 .qin-recruit-list button { width: auto; flex: none; padding: 0 9px; line-height: 1.7; font-size: .85em; }
+.qin-recruit-list .nm, .qin-recruit-list li img { cursor: pointer; }
+.qin-recruit-list .nm:hover { text-decoration: underline; }
+.qin-recruit-list li.off .nm, .qin-recruit-list li.off img { opacity: 1; }

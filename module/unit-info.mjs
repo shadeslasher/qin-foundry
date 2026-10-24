@@ -291,6 +291,16 @@ export function openUnitInfo(token) {
   return new UnitInfoApp(token).render({ force: true });
 }
 
+/** The Info window for a unit actor that isn't on the map (e.g. a compendium unit in the Recruit window). */
+export async function openUnitInfoForActor(uuidOrActor) {
+  const actor = typeof uuidOrActor === "string" ? await fromUuid(uuidOrActor) : uuidOrActor;
+  if (!actor || actor.type !== "unit") return ui.notifications.warn("That unit couldn't be opened.");
+  const id = `a-${actor.id}`;
+  const open = foundry.applications.instances?.get(`qin-unit-info-${id}`);
+  if (open) return open.render({ force: true });
+  return new UnitInfoApp({ id, actor, document: { name: actor.name } }).render({ force: true });
+}
+
 /** Keep open Info windows current when the unit changes. */
 export function registerUnitInfo() {
   const refresh = (actor) => {
