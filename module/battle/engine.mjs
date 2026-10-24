@@ -92,6 +92,9 @@ function tileRules(s, x, y) {
     if (p.water) r.water = true;
     if (p.name) r.names.push(p.name);
   }
+  // cover only counts on open ground: a road, watchtower or any other overlay in a forest leaves the unit in view
+  // (a hill keeps its trees)
+  if (r.hides && overlays.some(o => o !== 'hill' && !(data.MAP_OVERLAYS[o] || {}).hides)) r.hides = false;
   // walls, gates and towers hold units, but units don't walk onto them (until ladders and gates are in)
   r.pass = (none && !bridge) || r.wall ? 'none' : noCav ? 'noCavalry' : 'all';
   return r;

@@ -43,3 +43,12 @@ test('engine place: players deploy onto zone squares during tactics only', () =>
   must(R.act(s, HOST, { type: 'skipTactics' }));
   assert.ok(!R.act(s, P1, { type: 'place', unitId: a, x: 2, y: 3 }).ok, 'locked after tactics');
 });
+
+test('cover: forest and tall grass hide, but not with a road, watchtower or other overlay on the square (a hill keeps it)', async () => {
+  const { coverAt, hidesBeforeBattle } = await import('../module/battle/cover.mjs');
+  const tiles = { '0,0': { terrain: 'forest' }, '1,0': { terrain: 'forest', overlays: ['road'] }, '2,0': { terrain: 'forest', overlays: ['watchtower'] },
+    '3,0': { terrain: 'forest', overlays: ['hill'] }, '4,0': { terrain: 'tall-grass' }, '5,0': { terrain: 'plains' } };
+  assert.deepStrictEqual([0, 1, 2, 3, 4, 5].map(x => coverAt(tiles, x, 0)), [true, false, false, true, true, false]);
+  assert.ok(hidesBeforeBattle('enemy', true) && hidesBeforeBattle('neutral', true));
+  assert.ok(!hidesBeforeBattle('player', true) && !hidesBeforeBattle('ally', true) && !hidesBeforeBattle('enemy', false));
+});

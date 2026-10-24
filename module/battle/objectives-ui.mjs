@@ -249,9 +249,9 @@ function drawMark(g, x, y, color, size) {
   g.lineStyle(size * 0.1, 0x000000, 0.35).drawRect(X + i, Y + i, W, W);
   g.lineStyle(size * 0.05, color, 1).drawRect(X + i, Y + i, W, W);
   // corner brackets reaching just past the tile, so the target reads from a distance
-  const L = size * 0.3, o = -size * 0.08, bw = size * 0.06;
+  const L = size * 0.22, o = -size * 0.055, bw = size * 0.045;
   const corners = [[X + o, Y + o, 1, 1], [X + size - o, Y + o, -1, 1], [X + o, Y + size - o, 1, -1], [X + size - o, Y + size - o, -1, -1]];
-  for (const [w, c, a] of [[bw + size * 0.04, 0x000000, 0.4], [bw, color, 1]]) {
+  for (const [w, c, a] of [[bw + size * 0.03, 0x000000, 0.4], [bw, color, 1]]) {
     g.lineStyle({ width: w, color: c, alpha: a, cap: "square", join: "miter" });
     for (const [px, py, dx, dy] of corners) g.moveTo(px + dx * L, py).lineTo(px, py).lineTo(px, py + dy * L);
   }
