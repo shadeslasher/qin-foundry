@@ -248,6 +248,13 @@ function drawMark(g, x, y, color, size) {
   const X = x * size, Y = y * size, i = size * 0.04, W = size - 2 * i, s = size * 0.11, m = size * 0.08;
   g.lineStyle(size * 0.1, 0x000000, 0.35).drawRect(X + i, Y + i, W, W);
   g.lineStyle(size * 0.05, color, 1).drawRect(X + i, Y + i, W, W);
+  // corner brackets reaching just past the tile, so the target reads from a distance
+  const L = size * 0.3, o = -size * 0.08, bw = size * 0.06;
+  const corners = [[X + o, Y + o, 1, 1], [X + size - o, Y + o, -1, 1], [X + o, Y + size - o, 1, -1], [X + size - o, Y + size - o, -1, -1]];
+  for (const [w, c, a] of [[bw + size * 0.04, 0x000000, 0.4], [bw, color, 1]]) {
+    g.lineStyle({ width: w, color: c, alpha: a, cap: "square", join: "miter" });
+    for (const [px, py, dx, dy] of corners) g.moveTo(px + dx * L, py).lineTo(px, py).lineTo(px, py + dy * L);
+  }
   const cx = X + size / 2, cy = Y + size / 2;
   const tri = (pts) => g.lineStyle(Math.max(1, size * 0.02), 0x000000, 0.55).beginFill(color, 1).drawPolygon(pts).endFill();
   tri([cx - s, Y + i + m, cx + s, Y + i + m, cx, Y + i + m + s * 1.1]);
