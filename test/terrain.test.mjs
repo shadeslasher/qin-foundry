@@ -120,3 +120,18 @@ test('hill: Command +1 only against lower units, attacking or attacked; tall gra
   }
   assert.strictEqual(R.tileRules(field({ '1,1': { terrain: 'tall-grass' } }), 1, 1).hides, true);
 });
+
+test('a hidden unit that ends its turn out of cover is seen', () => {
+  const s = field({ '5,5': { terrain: 'forest' } });
+  s.library.unitTypes.push(unitType('inf'));
+  const u = add(s, { typeId: 'inf', side: 'player', owner: 'p1', x: 5, y: 5 });
+  add(s, { typeId: 'inf', side: 'enemy', x: 11, y: 11 });
+  R.unitById(s, u).hidden = true;
+  must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'skipTactics' }));
+  dice([0, 0]); must(R.act(s, HOST, { type: 'startRound' }));
+  must(R.act(s, P1, { type: 'begin', unitId: u }));
+  s.freeMovement = false;
+  must(R.act(s, P1, { type: 'moveTo', unitId: u, x: 5, y: 7 }));
+  must(R.act(s, P1, { type: 'endTurn', unitId: u }));
+  assert.strictEqual(R.unitById(s, u).hidden, false);
+});

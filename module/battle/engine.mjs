@@ -1224,6 +1224,9 @@ function finishActivation(s, u) {
     if (u.hidden && hostileAdjacent(s, u)) {
       u.hidden = false;
       log(s, u.name + ' is spotted (ended its turn next to an enemy).', { type: 'revealed', unit: u.id });
+    } else if (u.hidden && !hidesIn(s, u)) { // left its cover: out in the open, it's seen
+      u.hidden = false;
+      log(s, u.name + ' leaves cover and is seen.', { type: 'revealed', unit: u.id });
     }
   } else u.hidden = false;
   scoutSweep(s); // Scouts: hidden enemies within 2 tiles of a scout are revealed
