@@ -150,3 +150,17 @@ test('with no player tactician the GM may place player tactics freely; players m
   must(R.act(s, HOST, { type: 'placeTactic', side: 'player', key: k2, x: 5, y: 5, highGround: true }));
   assert.ok(!R.act(s, P1, { type: 'placeTactic', side: 'player', key: k1, x: 4, y: 4, highGround: true }).ok);
 });
+
+test('the player-side turn goes to whoever takes a turn first (no separate claim)', () => {
+  const s = R.newState(); s.players.p1 = { name: 'Alice' }; s.players.p2 = { name: 'Bob' }; plains(s);
+  const a = must(R.act(s, HOST, { type: 'addUnit', typeId: 'han_ji_inf', side: 'player', owner: 'p1', x: 1, y: 1 })).unitId;
+  const b = must(R.act(s, HOST, { type: 'addUnit', typeId: 'han_ji_inf', side: 'player', owner: 'p2', x: 3, y: 1 })).unitId;
+  must(R.act(s, HOST, { type: 'addUnit', typeId: 'yt_warriors', side: 'enemy', x: 10, y: 10 }));
+  must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'skipTactics' })); must(R.act(s, HOST, { type: 'startRound' }));
+  while (R.prompt(s).kind !== 'claim') { const p = R.prompt(s); if (p.kind === 'host-pick') must(R.act(s, HOST, { type: 'begin', unitId: s.units.find(u => u.side === p.side && !u.round.activated).id })); else if (p.kind === 'activation') must(R.act(s, HOST, { type: 'endTurn', unitId: p.unitId })); else break; }
+  assert.strictEqual(R.prompt(s).kind, 'claim');
+  assert.ok(!R.act(s, { id: 'p2', host: false }, { type: 'begin', unitId: a }).ok, "can't take someone else's unit");
+  must(R.act(s, { id: 'p2', host: false }, { type: 'begin', unitId: b }));
+  assert.strictEqual(R.prompt(s).kind, 'activation');
+  assert.strictEqual(R.prompt(s).unitId, b);
+});

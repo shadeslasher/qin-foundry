@@ -160,8 +160,8 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
       case "activation": prompt.text = `<b>${au.name}</b> is taking its turn${mine(au) ? " — your move." : "."}`; break;
       case "claim": {
         const left = s.units.filter(u => u.status === "active" && !u.officerId && u.side === "player" && !u.round.activated && mine(u));
-        prompt.text = "Player side: officer-less turn. First to claim moves one of their units.";
-        btn("Claim turn", "claim", { primary: true, disabled: !left.length });
+        prompt.text = "Player side: officer-less turn. The first player to press <b>Take turn</b> on one of their units moves it"
+          + (left.length ? " (below, or click the unit on the map)." : ".");
         break;
       }
       case "pick": prompt.text = `${s.players[p.player]?.name ?? "GM"} claimed the turn${p.player === me.id ? ": choose one of your officer-less units below." : "."}`; break;
@@ -171,7 +171,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
 
     // Units that can be picked to start an officer-less turn
     const pickable = s.units.filter(u => u.status === "active" && !u.officerId && !u.round.activated && (
-      (p.kind === "pick" && p.player === me.id && u.side === "player" && mine(u)) || (p.kind === "host-pick" && game.user.isGM && u.side === p.side)));
+      ((p.kind === "pick" && p.player === me.id || p.kind === "claim") && u.side === "player" && mine(u)) || (p.kind === "host-pick" && game.user.isGM && u.side === p.side)));
 
     // Held officers (interject portraits)
     const blocked = a && a.started;

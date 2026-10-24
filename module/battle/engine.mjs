@@ -1549,8 +1549,13 @@ const ACTIONS = {
     log(s, (actor.host ? 'Host' : (s.players[actor.id] || {}).name || 'A player') + ' claims the player-side turn.');
   },
   begin(s, actor, a) { // pick which officer-less unit takes the turn
-    const p = prompt(s), u = unitById(s, a.unitId);
+    let p = prompt(s); const u = unitById(s, a.unitId);
     if (!u || hasOfficer(u) || u.round.activated || !alive(u)) return err('Pick an officer-less unit that has not acted');
+    // the player-side turn goes to whoever takes a turn with one of their units first (no separate claim)
+    if (p.kind === 'claim' && u.side === 'player' && (u.owner === actor.id || (actor.host && !u.owner))) {
+      s.turn.claim = actor.id;
+      p = prompt(s);
+    }
     if (p.kind === 'pick') {
       if (actor.id !== s.turn.claim) return err('Another player claimed this turn');
       if (u.side !== 'player' || !(u.owner === actor.id || (actor.host && !u.owner))) return err('Pick one of your own units');

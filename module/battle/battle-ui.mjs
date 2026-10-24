@@ -447,7 +447,7 @@ function turnButtons(token) {
   const buttons = [];
   if (!u.officerId) {
     if (p.kind === "pick" && p.player === me && u.side === "player" && mineToMove) buttons.push(["Take turn", [{ type: "begin", unitId: u.id }]]);
-    else if (p.kind === "claim" && u.side === "player" && mineToMove) buttons.push(["Take turn", [{ type: "claim" }, { type: "begin", unitId: u.id }]]);
+    else if (p.kind === "claim" && u.side === "player" && mineToMove) buttons.push(["Take turn", [{ type: "begin", unitId: u.id }]]);
     else if (p.kind === "host-pick" && game.user.isGM && u.side === p.side) buttons.push(["Take turn", [{ type: "begin", unitId: u.id }]]);
   } else if ((p.kind === "decide" || p.kind === "final") && p.unitId === u.id && iControl(u)) {
     buttons.push(["Act", [{ type: "decide", unitId: u.id, choice: "act" }]]);
