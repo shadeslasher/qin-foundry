@@ -1380,6 +1380,7 @@ const ACTIONS = {
     for (const u of s.units) u.facing = null; // no facing until a unit attacks or is attacked
     log(s, 'Battle begins. Tacticians, choose your tactics.');
     s.objState = freshObjState(); s.outcome = null; s.objEval = null;
+    s.introAt = Date.now(); // every client plays the tour of the conditions once
     checkOutcome(s); // the tracker starts with every condition open
   },
   resetBattle(s) {
@@ -1396,11 +1397,11 @@ const ACTIONS = {
     rollInitiative(s); advance(s);
   },
   declareOutcome(s, actor, a) { // the GM ends the battle at once with a victory or a defeat
-    if (a.result !== 'victory' && a.result !== 'defeat') return err('Victory or defeat?');
+    if (!['victory', 'defeat', 'stalemate'].includes(a.result)) return err('Victory, defeat or stalemate?');
     if (s.outcome) return err('The battle is already over');
     if (!BATTLE_PHASES.includes(s.turn.phase)) return err('No battle is running');
     s.outcome = { result: a.result, round: s.turn.round, at: Date.now(), declared: true };
-    log(s, a.result === 'victory' ? 'Victory! The GM ends the battle.' : 'Defeat. The GM ends the battle.', { type: 'outcome', result: a.result });
+    log(s, { victory: 'Victory! The GM ends the battle.', defeat: 'Defeat. The GM ends the battle.', stalemate: 'Stalemate. The GM ends the battle.' }[a.result], { type: 'outcome', result: a.result });
     s.turn = freshTurn('over', s.turn.round);
   },
   skipPrompt(s) { // host safety valve: skip whoever the game is waiting on

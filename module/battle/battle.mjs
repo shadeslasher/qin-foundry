@@ -130,8 +130,11 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
         break;
       }
       case "over": {
-        const won = battle.outcome?.result === "victory";
-        prompt.text = `<b>${won ? "Victory!" : "Defeat."}</b> ${won ? "Every victory condition is met." : "A defeat condition was met."}`
+        const r = battle.outcome?.result, byGM = battle.outcome?.declared;
+        prompt.text = r === "stalemate" ? "<b>Stalemate.</b> The GM ended the battle."
+          : r === "victory" ? `<b>Victory!</b> ${byGM ? "The GM ended the battle." : "Every victory condition is met."}`
+          : `<b>Defeat.</b> ${byGM ? "The GM ended the battle." : "A defeat condition was met."}`;
+        prompt.text += ""
           + (game.user.isGM ? `<br><span class="qin-muted">Press End battle (GM controls, below) to finish: units then lose XP for their casualties.</span>` : "");
         break;
       }

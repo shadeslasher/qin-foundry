@@ -140,6 +140,7 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
   s.objState = battle.objState ?? freshObjState();
   s.objEval = battle.objEval ?? null;
   s.outcome = battle.outcome ?? null;
+  s.introAt = battle.introAt ?? null;
   s.library.formations = [{ id: "none", name: "No formation", desc: "No modifiers." }];
   s.library.unitTypes = [];
   s.library.officers = [];
@@ -274,6 +275,7 @@ async function writeBack(battle, s, scene) {
   battle.objState = s.objState ?? null;
   battle.objEval = s.objEval ?? null;
   battle.outcome = s.outcome ?? null;
+  battle.introAt = s.introAt ?? null;
   battle.log = s.log.slice(-60);
   await game.settings.set(SYSTEM_ID, SETTING, battle);
 }

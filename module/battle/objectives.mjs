@@ -120,7 +120,7 @@ export function describe(c, { names = {}, tileName = () => "" } = {}) {
     case "survive": return "Survive";
     case "escape": return `Escape: ${units(c.unitIds)}`;
     case "unitRouted": return `${units(c.unitIds)} routed`;
-    case "tileSeized": return `The enemy seizes ${tile(c)}`;
+    case "tileSeized": return `Defend ${tile(c)}`;
     case "turnLimit": return "Time runs out";
     case "allPlayerRouted": return "All player units routed";
   }

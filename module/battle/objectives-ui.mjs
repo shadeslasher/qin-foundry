@@ -343,7 +343,8 @@ export function renderTracker() {
     const c = byId.get(r.id) ?? { type: r.type };
     const T = types[r.type], color = hex(T?.color ?? 0x8a8578);
     const state = r.done ? "done" : r.failed ? "failed" : r.triggered ? "triggered" : "";
-    return `<li class="${state} ${cls}"><span class="qin-obj-sw" style="border-color:${color}${r.done ? `;background:${color}` : ""}"></span><span>${esc(describe(c, n))}</span><span class="qin-obj-st">${r.always ? "always" : status(r)}</span>${timer(r, color)}</li>`;
+    const go = targetOf(c, scene) ? ` data-locate="${esc(r.id)}" title="Show on the map"` : "";
+    return `<li class="${state} ${cls}"${go}><span class="qin-obj-sw" style="border-color:${color}${r.done ? `;background:${color}` : ""}"></span><span>${esc(describe(c, n))}</span><span class="qin-obj-st">${r.always ? "always" : status(r)}</span>${timer(r, color)}</li>`;
   };
   const v = ev.victory.map(r => line(r, VICTORY_TYPES)).join("");
   const d = ev.defeat.filter(r => !(r.pair && ev.victory.some(x => x.id === r.pair))).map(r => line(r, DEFEAT_TYPES, r.always ? "always" : "")).join("");
@@ -353,6 +354,7 @@ export function renderTracker() {
     trackerEl = document.createElement("div");
     trackerEl.id = "qin-objectives";
     trackerEl.className = "qin-obj-tracker";
+    trackerEl.addEventListener("click", (ev) => { const li = ev.target.closest("[data-locate]"); if (li) locate(li.dataset.locate); });
     document.body.appendChild(trackerEl);
   }
   trackerEl.innerHTML = html;
@@ -361,14 +363,15 @@ export function renderTracker() {
 
 /* ------------------------------------------------------------ Victory / Defeat banner */
 
-let lastOutcome = null;
+let lastOutcome = null, lastIntro = null;
 
 export function playOutcome(result) {
   document.getElementById("qin-outcome")?.remove();
   const el = document.createElement("div");
   el.id = "qin-outcome";
-  el.className = `qin-outcome ${result === "victory" ? "win" : "lose"} ${BAND_STYLE}`;
-  el.innerHTML = `<div class="dim"></div><div class="band"><div class="half l"></div><div class="half r"></div></div><div class="word">${result === "victory" ? "Victory" : "Defeat"}</div>`;
+  const kind = { victory: ["win", "Victory"], defeat: ["lose", "Defeat"], stalemate: ["draw", "Stalemate"] }[result] ?? ["lose", "Defeat"];
+  el.className = `qin-outcome ${kind[0]} ${BAND_STYLE}`;
+  el.innerHTML = `<div class="dim"></div><div class="band"><div class="half l"></div><div class="half r"></div></div><div class="word">${kind[1]}</div>`;
   document.body.appendChild(el);
   setTimeout(() => { el.classList.add("out"); setTimeout(() => el.remove(), 700); }, 3600);
 }
@@ -379,10 +382,13 @@ export function refreshObjectives() {
   const out = getBattle().outcome ?? null, key = out ? `${out.result}@${out.at}` : null;
   if (key && key !== lastOutcome) playOutcome(out.result);
   lastOutcome = key;
+  const b = getBattle(), intro = b.introAt ?? null;
+  if (intro && intro !== lastIntro && b.active && b.sceneId === canvas?.scene?.id && b.turn?.phase === "tactics") playTour();
+  lastIntro = intro;
 }
 
 export function registerObjectives() {
-  Hooks.once("ready", () => { const out = getBattle().outcome; lastOutcome = out ? `${out.result}@${out.at}` : null; }); // no replay on reload
+  Hooks.once("ready", () => { const b = getBattle(), out = b.outcome; lastOutcome = out ? `${out.result}@${out.at}` : null; lastIntro = b.introAt ?? null; }); // no replay on reload
   Hooks.on("canvasReady", () => { stopPick(); stopBrush(); drawObjectiveMarkers(); renderTracker(); });
   Hooks.on("updateScene", (scene, change) => {
     if (scene.id === canvas.scene?.id && foundry.utils.hasProperty(change, `flags.${SYSTEM_ID}`)) { drawObjectiveMarkers(); renderTracker(); }
@@ -391,4 +397,143 @@ export function registerObjectives() {
   Hooks.on("collapseSidebar", () => setTimeout(placeTracker, 50));
   window.addEventListener("resize", () => placeTracker());
   document.addEventListener("pointermove", onHover);
+}
+
+/* ------------------------------------------------------------ where a condition is, the tour at the start, and jumping there from the tracker */
+
+const VERB = { routUnit: "Rout", routAll: "Rout", seize: "Seize", burn: "Burn", hold: "Hold", survive: "Survive", escape: "Escape",
+  unitRouted: "Protect", tileSeized: "Defend", turnLimit: "Time limit" };
+
+/** The squares a condition points at (null for conditions without a place on the map). */
+function targetOf(c, scene = canvas.scene) {
+  if (!c || !scene) return null;
+  const size = gridSize();
+  const T = VICTORY_TYPES[c.type] ?? DEFEAT_TYPES[c.type];
+  if (!T) return null;
+  let squares = [];
+  if (c.type === "escape") squares = objectivesOf(scene).extraction.map(k => k.split(",").map(Number));
+  else if (T.needs === "tile" && c.x !== null && c.x !== undefined) squares = [[c.x, c.y]];
+  else if (T.needs === "units") for (const id of c.unitIds ?? []) {
+    const t = scene.tokens.get(id);
+    if (t && (!t.hidden || game.user.isGM)) squares.push([Math.round(t.x / size), Math.round(t.y / size)]);
+  }
+  if (!squares.length) return null;
+  const xs = squares.map(q => q[0]), ys = squares.map(q => q[1]);
+  return { squares, color: T.color, escape: c.type === "escape",
+    cx: (Math.min(...xs) + Math.max(...xs) + 1) / 2 * size, cy: (Math.min(...ys) + Math.max(...ys) + 1) / 2 * size,
+    top: Math.min(...ys) * size, bottom: (Math.max(...ys) + 1) * size };
+}
+
+/** What the tour card or strip says: the verb, then what it's about. */
+function tourWords(c, scene) {
+  const n = namesFor(scene);
+  const units = (ids) => (ids ?? []).map(id => n.names[id] ?? "a unit").join(", ");
+  const tile = () => { const name = n.tileName(c.x, c.y); return name ? `the ${name}` : `the tile (${c.x}, ${c.y})`; };
+  const rounds = (k) => `${k} round${k === 1 ? "" : "s"}`;
+  switch (c.type) {
+    case "routUnit": case "unitRouted": return units(c.unitIds);
+    case "routAll": return "all enemy units";
+    case "seize": case "burn": case "tileSeized": return tile();
+    case "hold": return `${tile()} for ${rounds(c.rounds ?? 1)}`;
+    case "survive": return rounds(c.rounds ?? 1);
+    case "escape": return units(c.unitIds) || "to the pink squares";
+    case "turnLimit": return `lose after round ${c.rounds ?? 1}`;
+  }
+  return "";
+}
+
+/** Flash a target's outline on the map for `ms`. Returns a function that removes it early. */
+function flashTarget(tg, ms) {
+  const size = gridSize(), g = new PIXI.Graphics(); g.eventMode = "none";
+  if (tg.escape) { g.lineStyle(size * 0.08, 0xffffff, 1); for (const [x, y] of tg.squares) g.drawRect(x * size + size * 0.04, y * size + size * 0.04, size * 0.92, size * 0.92); }
+  else for (const [x, y] of tg.squares) drawMark(g, x, y, tg.color, size);
+  (canvas.interface ?? canvas.stage).addChild(g);
+  const t0 = performance.now();
+  const tick = () => { const k = (performance.now() - t0) / 1000; g.alpha = 0.15 + 0.85 * Math.abs(Math.cos(k * Math.PI * 2.2)); };
+  canvas.app.ticker.add(tick);
+  let done = false;
+  const stop = () => { if (done) return; done = true; canvas.app.ticker.remove(tick); if (!g.destroyed) g.destroy(); };
+  setTimeout(stop, ms);
+  return stop;
+}
+
+/** Screen position of a canvas point. */
+function toScreen(x, y) {
+  const r = canvas.app.view.getBoundingClientRect(), p = canvas.stage.worldTransform.apply({ x, y });
+  return { x: r.left + p.x, y: r.top + p.y };
+}
+
+const sleep = (ms, tour) => new Promise(res => { const t = setTimeout(res, ms); tour?.timers.push([t, res]); });
+let tour = null;
+
+function endTour() {
+  if (!tour) return;
+  const t = tour; tour = null; t.cancelled = true;
+  for (const [h, res] of t.timers) { clearTimeout(h); res(); }
+  t.stopFlash?.();
+  for (const el of t.els) el.remove();
+  document.removeEventListener("keydown", t.key, true);
+}
+
+/** The start-of-battle tour: the camera visits every condition with a place on the map (the outline flashes and a card
+ *  says what to do there), then the conditions without one show as a strip across the middle. Esc or Skip ends it. */
+export async function playTour() {
+  if (!canvas?.ready || !visibleHere()) return;
+  endTour();
+  const scene = canvas.scene, o = objectivesOf(scene);
+  const stops = [], strips = [];
+  for (const [side, list] of [["v", o.victory], ["d", o.defeat.filter(d => !d.pair)]]) for (const c of list) {
+    const tg = targetOf(c, scene);
+    if (tg) stops.push({ side, c, tg });
+    else if (["routAll", "survive", "turnLimit"].includes(c.type)) strips.push({ side, c });
+  }
+  strips.sort((a, b) => (a.side === b.side ? 0 : a.side === "v" ? -1 : 1));
+  if (!stops.length && !strips.length) return;
+  const t = tour = { cancelled: false, timers: [], els: [], stopFlash: null };
+  const skip = document.createElement("button");
+  skip.type = "button"; skip.className = "qin-tour-skip"; skip.innerHTML = `Skip <kbd>Esc</kbd>`;
+  skip.addEventListener("click", endTour);
+  document.body.appendChild(skip); t.els.push(skip);
+  t.key = (ev) => { if (ev.key === "Escape") { ev.stopPropagation(); ev.preventDefault(); endTour(); } };
+  document.addEventListener("keydown", t.key, true);
+  const home = { x: canvas.stage.pivot.x, y: canvas.stage.pivot.y, scale: canvas.stage.scale.x };
+  const hex6 = (n) => "#" + n.toString(16).padStart(6, "0");
+  for (const s of stops) {
+    if (t.cancelled) return;
+    await canvas.animatePan({ x: s.tg.cx, y: s.tg.cy, duration: 550 });
+    if (t.cancelled) return;
+    t.stopFlash = flashTarget(s.tg, 1500);
+    const card = document.createElement("div");
+    card.className = `qin-tour-card ${s.side === "v" ? "v" : "d"}`;
+    card.innerHTML = `<b style="color:${hex6(s.tg.color === 0xb4b8bd ? 0xd9dce0 : s.tg.color)}">${VERB[s.c.type]}</b><span>${esc(tourWords(s.c, scene))}</span>`;
+    document.body.appendChild(card); t.els.push(card);
+    const r = card.getBoundingClientRect(), above = toScreen(s.tg.cx, s.tg.top), below = toScreen(s.tg.cx, s.tg.bottom);
+    const left = Math.max(8, Math.min(window.innerWidth - r.width - 8, above.x - r.width / 2));
+    const top = above.y - r.height - 10 >= 8 ? above.y - r.height - 10 : Math.min(window.innerHeight - r.height - 8, below.y + 10);
+    card.style.left = `${left}px`; card.style.top = `${top}px`;
+    await sleep(1500, t);
+    card.remove();
+  }
+  if (t.cancelled) return;
+  if (stops.length) await canvas.animatePan({ ...home, duration: 550 });
+  for (const s of strips) {
+    if (t.cancelled) return;
+    const strip = document.createElement("div");
+    strip.className = `qin-tour-strip ${s.side === "v" ? "v" : "d"}`;
+    strip.innerHTML = `<b>${VERB[s.c.type]}</b><span>${esc(tourWords(s.c, scene))}</span>`;
+    document.body.appendChild(strip); t.els.push(strip);
+    await sleep(2100, t);
+    strip.remove();
+    await sleep(100, t);
+  }
+  endTour();
+}
+
+/** Tracker click: move your own camera to the condition and flash it once. */
+async function locate(id) {
+  const scene = canvas?.scene; if (!scene) return;
+  const o = objectivesOf(scene), c = [...o.victory, ...o.defeat].find(x => x.id === id);
+  const tg = targetOf(c, scene); if (!tg) return;
+  await canvas.animatePan({ x: tg.cx, y: tg.cy, duration: 400 });
+  flashTarget(tg, 1300);
 }

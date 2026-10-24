@@ -594,6 +594,7 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 /* the Victory / Defeat banner */
 .qin-outcome { position: fixed; inset: 0; z-index: 90; pointer-events: none; display: grid; place-items: center; overflow: hidden; container-type: inline-size; --c: 40, 110, 220; }
 .qin-outcome.lose { --c: 200, 40, 40; }
+.qin-outcome.draw { --c: 120, 120, 120; }
 .qin-outcome .dim { position: absolute; inset: 0; background: rgba(0,0,0,.25); animation: qin-oc-dim 400ms ease both; }
 .qin-outcome .band { position: absolute; left: 0; right: 0; top: 50%; height: 22cqw; max-height: 45vh; translate: 0 -50%; overflow: hidden; }
 .qin-outcome .band .half { position: absolute; top: 0; bottom: 0; width: 50%; background: rgba(var(--c), .45); backdrop-filter: blur(2px); }
@@ -606,7 +607,7 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin-outcome.sides .band .r { animation: qin-oc-fromR 560ms cubic-bezier(.2,.8,.2,1) both; }
 .qin-outcome .word { position: relative; z-index: 3; font: 900 8cqw/1 "Qin Cinzel", "Modesto Condensed", Georgia, serif; letter-spacing: .08em; color: #fff;
   text-shadow: 0 0 .25em rgba(var(--c), 1), 0 .04em .02em rgba(0,0,0,.6); animation: 760ms cubic-bezier(.16,1,.3,1) 260ms both; }
-.qin-outcome.win .word { animation-name: qin-oc-slideL; } .qin-outcome.lose .word { animation-name: qin-oc-slideR; }
+.qin-outcome.win .word { animation-name: qin-oc-slideL; } .qin-outcome.lose .word { animation-name: qin-oc-slideR; } .qin-outcome.draw .word { animation-name: qin-oc-pop; }
 .qin-outcome.out { animation: qin-oc-out 600ms ease forwards; }
 @keyframes qin-oc-dim { from { opacity: 0; } to { opacity: 1; } }
 @keyframes qin-oc-open { from { clip-path: inset(50% 0 50% 0); } to { clip-path: inset(0 0 0 0); } }
@@ -615,6 +616,31 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 @keyframes qin-oc-slideL { from { translate: -120cqw 0; opacity: 0; } 60% { opacity: 1; } to { translate: 0 0; opacity: 1; } }
 @keyframes qin-oc-slideR { from { translate: 120cqw 0; opacity: 0; } 60% { opacity: 1; } to { translate: 0 0; opacity: 1; } }
 @keyframes qin-oc-out { to { opacity: 0; } }
+@keyframes qin-oc-pop { from { scale: 1.6; opacity: 0; filter: blur(8px); } to { scale: 1; opacity: 1; filter: none; } }
 @media (prefers-reduced-motion: reduce) { .qin-outcome, .qin-outcome * { animation-duration: 1ms !important; animation-delay: 0ms !important; } }
 .qin-battle button.qin-declare.win { color: #1f4f8f; border-color: #3a78c8; }
 .qin-battle button.qin-declare.lose { color: #8f1f1f; border-color: #c8443a; }
+.qin-battle button.qin-declare.draw { color: #4a4a4a; border-color: #8a8a8a; }
+/* tracker rows: click to jump there */
+.qin-obj-tracker li[data-locate] { pointer-events: auto; cursor: pointer; border-radius: 4px; }
+.qin-obj-tracker li[data-locate]:hover { background: rgba(255,255,255,.10); box-shadow: inset 0 0 0 1px rgba(255,255,255,.25); }
+.qin-obj-tracker li[data-locate]:hover .qin-obj-st::after { content: "\f05b"; font-family: "Font Awesome 6 Free"; font-weight: 900; color: #fff; margin-left: 6px; }
+
+/* start-of-battle tour */
+.qin-tour-card { position: fixed; z-index: 85; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 18px 10px;
+  background: rgba(18, 17, 26, .88); border: 2px solid #3a78c8; border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.5); animation: qin-tour-pop 220ms cubic-bezier(.2,.8,.2,1) both; }
+.qin-tour-card.d { border-color: #c8443a; }
+.qin-tour-card b { font: 900 34px/1 "Qin Cinzel", Georgia, serif; letter-spacing: .06em; text-transform: uppercase; -webkit-text-stroke: 1px #000; text-shadow: 0 2px 3px #000; }
+.qin-tour-card span { color: #fff; font-weight: bold; font-size: 15px; text-shadow: 0 1px 2px #000; white-space: nowrap; }
+@keyframes qin-tour-pop { from { opacity: 0; scale: 1.12; } to { opacity: 1; scale: 1; } }
+.qin-tour-strip { position: fixed; left: 0; right: 0; top: 50%; translate: 0 -50%; height: 80px; z-index: 85; pointer-events: none; display: flex; align-items: center; justify-content: center; gap: 18px;
+  color: #fff; background: rgba(40, 110, 220, .55); border-top: 2px solid rgba(255,255,255,.85); border-bottom: 2px solid rgba(255,255,255,.85); backdrop-filter: blur(2px);
+  animation: qin-tour-strip 2100ms ease both; }
+.qin-tour-strip.d { background: rgba(200, 40, 40, .55); }
+.qin-tour-strip b { font: 900 38px/1 "Qin Cinzel", Georgia, serif; letter-spacing: .06em; text-transform: uppercase; text-shadow: 0 2px 4px rgba(0,0,0,.6); }
+.qin-tour-strip span { font-weight: bold; font-size: 22px; text-shadow: 0 1px 3px rgba(0,0,0,.6); }
+@keyframes qin-tour-strip { 0% { clip-path: inset(50% 0 50% 0); } 12%, 88% { clip-path: inset(0 0 0 0); } 100% { clip-path: inset(50% 0 50% 0); } }
+.qin-tour-skip { position: fixed; bottom: 70px; left: 50%; translate: -50% 0; z-index: 86; width: auto; padding: 4px 14px; border-radius: 16px;
+  background: rgba(18, 17, 26, .85); color: #e8e4d8; border: 1px solid #6b6a60; cursor: pointer; }
+.qin-tour-skip kbd { font-size: 11px; margin-left: 4px; padding: 0 4px; border: 1px solid #8a887d; border-radius: 3px; }
+@media (prefers-reduced-motion: reduce) { .qin-tour-card, .qin-tour-strip { animation-duration: 1ms !important; } .qin-tour-strip { clip-path: none; } }

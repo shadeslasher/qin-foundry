@@ -130,3 +130,11 @@ test('the GM can end the battle at once with a victory or a defeat', () => {
   assert.strictEqual(s.turn.phase, 'over');
   assert.ok(!R.act(s, HOST, { type: 'declareOutcome', result: 'victory' }).ok, 'already over');
 });
+
+test('stalemate ends the battle; starting a battle marks the tour', () => {
+  const { s } = setup({});
+  assert.ok(s.introAt > 0, 'startBattle sets introAt');
+  must(R.act(s, HOST, { type: 'declareOutcome', result: 'stalemate' }));
+  assert.strictEqual(s.outcome.result, 'stalemate');
+  assert.strictEqual(R.prompt(s).kind, 'over');
+});
