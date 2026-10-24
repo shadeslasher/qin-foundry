@@ -616,3 +616,5 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 @keyframes qin-oc-slideR { from { translate: 120cqw 0; opacity: 0; } 60% { opacity: 1; } to { translate: 0 0; opacity: 1; } }
 @keyframes qin-oc-out { to { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .qin-outcome, .qin-outcome * { animation-duration: 1ms !important; animation-delay: 0ms !important; } }
+.qin-battle button.qin-declare.win { color: #1f4f8f; border-color: #3a78c8; }
+.qin-battle button.qin-declare.lose { color: #8f1f1f; border-color: #c8443a; }

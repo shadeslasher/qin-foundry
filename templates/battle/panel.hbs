@@ -171,6 +171,10 @@
         <button type="button" data-action="do" data-type="resetBattle">Back to setup</button>
         <button type="button" data-action="endBattle">End battle</button>
       </div>
+      {{#if canDeclare}}<div class="qin-btns">
+        <button type="button" class="qin-declare win" data-action="do" data-type="declareOutcome" data-result="victory" title="End the battle now as a victory (everyone sees the Victory banner)"><i class="fa-solid fa-flag"></i> Victory</button>
+        <button type="button" class="qin-declare lose" data-action="do" data-type="declareOutcome" data-result="defeat" title="End the battle now as a defeat (everyone sees the Defeat banner)"><i class="fa-solid fa-skull"></i> Defeat</button>
+      </div>{{/if}}
     </div>
     {{/if}}
   </div>

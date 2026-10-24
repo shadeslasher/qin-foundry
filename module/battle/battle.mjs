@@ -214,6 +214,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
       log: (s.log || []).slice(-12).reverse().map(e => e.text),
       wrongScene: canvas.scene?.id !== battle.sceneId, battleScene: scene?.name,
       showSkip: game.user.isGM && !["setup", "formations", "tactics", "over"].includes(p.kind),
+      canDeclare: game.user.isGM && !s.outcome && !["setup", "over"].includes(t.phase),
       tacticsWaiting: game.user.isGM && s.tactics?.phase === "battle" ? s.tactics.placed.filter(t => t.state === "hidden" && !["raiseFlag", "setAflame"].includes(t.key)).length : 0,
       gates: game.user.isGM ? (s.siege?.gates ?? []).map(g => ({ id: g.id, where: g.squares.map(([x, y]) => `${x},${y}`).join(" + "),
         owners: [["friendly", "Friendly (player & ally)"], ["enemy", "Enemy"]].map(([v, l]) => ({ v, l, sel: v === g.owner })),
@@ -252,7 +253,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
     const d = target.dataset;
     if (d.type === "openTactics") return TacticsApp.open();
     const action = { type: d.type };
-    for (const k of ["unitId", "choice", "index"]) if (d[k] !== undefined) action[k] = k === "index" ? Number(d[k]) : d[k];
+    for (const k of ["unitId", "choice", "index", "result"]) if (d[k] !== undefined) action[k] = k === "index" ? Number(d[k]) : d[k];
     await battleRequest(action);
   }
   static async #startBattle() {

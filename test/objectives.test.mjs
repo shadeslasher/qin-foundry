@@ -121,3 +121,12 @@ test('fire: a burning square burns for its burn time, then burns down (burn vict
   assert.ok(R.tileRules(s, 6, 6).names.includes('Ruins') && !R.tileRules(s, 6, 6).names.includes('Watchtower'), 'the watchtower is now ruins');
   assert.strictEqual(s.outcome?.result, 'victory');
 });
+
+test('the GM can end the battle at once with a victory or a defeat', () => {
+  const { s } = setup({});
+  assert.ok(!R.act(s, P1, { type: 'declareOutcome', result: 'victory' }).ok, 'players cannot');
+  must(R.act(s, HOST, { type: 'declareOutcome', result: 'defeat' }));
+  assert.strictEqual(s.outcome.result, 'defeat');
+  assert.strictEqual(s.turn.phase, 'over');
+  assert.ok(!R.act(s, HOST, { type: 'declareOutcome', result: 'victory' }).ok, 'already over');
+});

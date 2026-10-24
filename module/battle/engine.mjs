@@ -1280,7 +1280,7 @@ function act(s, actor, a) {
 
 const HOST_ONLY = new Set(['triggerAllTactics', 'setGate', 'setHidden', 'setMap', 'paintTerrain', 'setLibrary', 'addUnit', 'editUnit', 'removeUnit',
   'startBattle', 'resetBattle', 'startRound', 'skipPrompt', 'addMod', 'removeMod', 'adjust', 'setFacing',
-  'setTactician', 'finishTactics', 'skipTactics']);
+  'setTactician', 'finishTactics', 'skipTactics', 'declareOutcome']);
 
 const ACTIONS = {
   // ---------- host / GM
@@ -1394,6 +1394,14 @@ const ACTIONS = {
     if (s.turn.phase !== 'formations') return err('Not in the formations step');
     s.turn.phase = 'officer'; s.turn.decided = []; s.turn.held = [];
     rollInitiative(s); advance(s);
+  },
+  declareOutcome(s, actor, a) { // the GM ends the battle at once with a victory or a defeat
+    if (a.result !== 'victory' && a.result !== 'defeat') return err('Victory or defeat?');
+    if (s.outcome) return err('The battle is already over');
+    if (!BATTLE_PHASES.includes(s.turn.phase)) return err('No battle is running');
+    s.outcome = { result: a.result, round: s.turn.round, at: Date.now(), declared: true };
+    log(s, a.result === 'victory' ? 'Victory! The GM ends the battle.' : 'Defeat. The GM ends the battle.', { type: 'outcome', result: a.result });
+    s.turn = freshTurn('over', s.turn.round);
   },
   skipPrompt(s) { // host safety valve: skip whoever the game is waiting on
     const p = prompt(s), t = s.turn;
