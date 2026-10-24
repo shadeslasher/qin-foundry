@@ -179,7 +179,7 @@ function enterReposition() {
   for (const [x, y] of tiles) drawSquare(overlay, x, y, 0x3fbf5f, 0.3, 1);
   renderMenu();
   startPicking((x, y) => {
-    if (!tiles.some(([tx, ty]) => tx === x && ty === y)) return ui.notifications.warn("Click a green tile next to the enemy, or press Stay here.");
+    if (!tiles.some(([tx, ty]) => tx === x && ty === y)) return ui.notifications.warn(ac?.reposition?.skirmish ? "Click a green tile, or press Stay here." : "Click a green tile next to the enemy, or press Stay here.");
     send({ type: "reposition", unitId: current.u.id, x, y });
   });
 }
@@ -291,7 +291,9 @@ function renderMenu(sub = null) {
   else if (mode === "ladder") html += `<div class="qin-fe-hint">Click a gold wall square next to the unit to set the ladders there.<br>Right-click or Esc to go back</div>` + b("cancel", "Back", true);
   else if (mode === "fire") html += `<div class="qin-fe-hint">Click an orange tile next to the unit to set it on fire (forest or tall grass).<br>Right-click or Esc to go back</div>` + b("cancel", "Back", true);
   else if (mode === "second") html += `<div class="qin-fe-hint">Dual Weapons: strike another enemy marked in red (Attack −2), or skip.</div>` + b("skipSecond", "Skip", true);
-  else if (mode === "reposition") html += `<div class="qin-fe-hint">Won the attack: move to a green tile beside the enemy, or stay.</div>` + b("stay", "Stay here", true);
+  else if (mode === "reposition") html += (current?.s?.turn?.activation?.reposition?.skirmish
+    ? `<div class="qin-fe-hint">Skirmisher: move to a green tile, or stay.</div>`
+    : `<div class="qin-fe-hint">Won the attack: move to a green tile beside the enemy, or stay.</div>`) + b("stay", "Stay here", true);
   else if (sub === "heroic") {
     html += `<div class="qin-fe-hint">Heroic action (free, doesn't end the turn) · ${officer.fire - (u.heroicUsed || 0)}/${officer.fire} left</div>`;
     (officer.heroicActions || []).forEach((h, i) => {

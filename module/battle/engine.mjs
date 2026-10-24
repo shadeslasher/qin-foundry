@@ -1515,7 +1515,7 @@ const ACTIONS = {
       return;
     }
     if (offerSecond(s, u, ac, d, res.winner === 'attacker', !res.ranged)) return;
-    finishActivation(s, u);
+    endAfterAttack(s, u, ac);
   },
   secondAttack(s, actor, a) { // Dual Weapons follow-up: attack one of the offered enemies, or skip (no targetId)
     const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
@@ -1536,7 +1536,7 @@ const ACTIONS = {
     delete ac.second;
     if (kind === 'dual') ac.dualDone = true;
     if (alive(u) && kind === 'dual' && offerSecond(s, u, ac, target, won, melee)) return;
-    if (alive(u)) finishActivation(s, u);
+    if (alive(u)) endAfterAttack(s, u, ac);
   },
   reposition(s, actor, a) { // Wedge follow-up: pick one of the offered tiles, or stay (no x/y)
     const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
@@ -1545,14 +1545,15 @@ const ACTIONS = {
     if (a.x !== undefined && a.y !== undefined) {
       if (!ac.reposition.tiles.some(([x, y]) => x === a.x && y === a.y)) return err('Pick one of the marked tiles');
       u.x = a.x; u.y = a.y;
-      log(s, u.name + ' moves up beside the enemy.');
+      log(s, u.name + (ac.reposition.skirmish ? ' skirmishes back.' : ' moves up beside the enemy.'));
       revealAround(s, u);
     }
-    const { targetId, won, melee } = ac.reposition;
+    const { targetId, won, melee, skirmish } = ac.reposition;
     delete ac.reposition;
+    if (skirmish) { settle(s); if (alive(u)) finishActivation(s, u); return; }
     // Wedge + Dual Weapons (or Fury of a Phoenix): after moving up, the next attack comes from the new tile
     if (offerSecond(s, u, ac, unitById(s, targetId), won, melee !== false)) return;
-    finishActivation(s, u);
+    endAfterAttack(s, u, ac);
   },
   reload(s, actor, a) { // Reload trait: reloads the weapon; allowed after moving, ends the turn
     const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
@@ -1693,6 +1694,22 @@ function backsTurned(s, u, to) {
     struck = true;
   }
   return struck;
+}
+
+/** The end of an attacking turn: Skirmisher (move 1 tile, Skirmisher+ 2) after attacking, else the turn ends. */
+function endAfterAttack(s, u, ac) {
+  const sk = trait(u, 'skirmisher');
+  if (alive(u) && sk && !ac.skirmished) {
+    ac.skirmished = true;
+    const reach = reachable(s, u, sk >= 2 ? 2 : 1);
+    const tiles = [...reach.keys()].map(k => k.split(',').map(Number)).filter(([x, y]) => !(x === u.x && y === u.y) && !unitAt(s, x, y));
+    if (tiles.length) {
+      ac.step = 'reposition'; ac.reposition = { skirmish: true, tiles };
+      log(s, u.name + ' may skirmish: move up to ' + (sk >= 2 ? 2 : 1) + ' tile' + (sk >= 2 ? 's' : '') + '.');
+      return;
+    }
+  }
+  finishActivation(s, u);
 }
 
 /** After an attack: Dual Weapons (once), then Fury of a Phoenix (once a round). Sets up the 'second' step. */

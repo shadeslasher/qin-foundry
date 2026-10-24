@@ -302,3 +302,14 @@ test('Fire Arrows: the loser of a won shot loses 5 more morale', () => {
   const fire = duel(bow, unitType('d'), [9, 0, 0, 0], traits({ 'fire arrows': 1 }));
   assert.strictEqual(plain.r.moraleLoss + 5, fire.r.moraleLoss);
 });
+
+test('Skirmisher: after attacking it may move 1 tile (Skirmisher+ 2), then the turn ends', () => {
+  const { s, A } = duel(unitType('sk', { weapon: 'ranged', rangeMax: 3 }), unitType('d'), [3, 0, 0, 0], traits({ skirmisher: 1 }));
+  const ac = s.turn.activation;
+  assert.ok(ac && ac.step === 'reposition' && ac.reposition.skirmish, 'offered a skirmish move');
+  assert.ok(ac.reposition.tiles.every(([x, y]) => Math.abs(x - A.x) + Math.abs(y - A.y) === 1));
+  const [x, y] = ac.reposition.tiles.find(([tx, ty]) => ty > A.y) || ac.reposition.tiles[0];
+  must(R.act(s, P1, { type: 'reposition', unitId: A.id, x, y }));
+  assert.deepStrictEqual([A.x, A.y], [x, y]);
+  assert.ok(!s.turn.activation || s.turn.activation.unitId !== A.id, 'turn over');
+});
