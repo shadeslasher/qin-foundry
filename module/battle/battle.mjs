@@ -1,7 +1,7 @@
 // Battle panel (all clients) and the player -> GM request channel.
 import { SYSTEM_ID, systemPath, SIDES } from "../config.mjs";
 import * as E from "./engine.mjs";
-import { getBattle, buildState, runAction, unitTokens } from "./adapter.mjs";
+import { getBattle, buildState, runAction, unitTokens, formationsEnabled } from "./adapter.mjs";
 import { mapFlag, hasMapRenderer, redrawScene, MapEditorApp } from "./maprender.mjs";
 import { scaledPosition } from "../sheets/sheets.mjs";
 import { setBattleRequest, highlightUnit } from "./battle-ui.mjs";
@@ -95,6 +95,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
     const { s, scene } = buildState(battle);
     const t = s.turn;
     const p = E.prompt(s);
+    const useForms = formationsEnabled();
     const me = { id: game.user.isGM ? "host" : game.user.id, host: game.user.isGM };
     const mine = (u) => u && (u.owner === game.user.id || (game.user.isGM && !u.owner));
     const unit = (id) => E.unitById(s, id);
@@ -107,7 +108,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
     switch (p.kind) {
       case "setup":
         prompt.text = game.user.isGM ? "Back in setup. Reposition units, then begin again." : "The GM is setting up.";
-        if (game.user.isGM) btn("Begin (declare formations)", "startBattle", { primary: true });
+        if (game.user.isGM) btn(useForms ? "Begin (declare formations)" : "Begin", "startBattle", { primary: true });
         break;
       case "tactics": {
         const T = battle.tactics;
@@ -122,9 +123,11 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
         break;
       }
       case "formations":
-        prompt.text = "Choose formations for your units, then mark yourself ready.";
-        if (!game.user.isGM) btn(t.ready[game.user.id] ? "Ready ✓" : "Ready", "ready");
-        else btn("Start round (roll initiative)", "startRound", { primary: true });
+        if (useForms) {
+          prompt.text = "Choose formations for your units, then mark yourself ready.";
+          if (!game.user.isGM) btn(t.ready[game.user.id] ? "Ready ✓" : "Ready", "ready");
+        } else prompt.text = game.user.isGM ? "Start the round when you're ready." : "Waiting for the GM to start the round.";
+        if (game.user.isGM) btn("Start round (roll initiative)", "startRound", { primary: true });
         break;
       case "decide": case "final": {
         const u = unit(p.unitId);
@@ -185,16 +188,16 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
 
     const units = s.units.filter(shown).map(u => ({
       id: u.id, name: u.name, side: u.side, men: u.men, maxMen: u.maxMen ?? 100, xp: u.xp ?? 0, morale: u.morale, moraleState: E.moraleState(u.morale), status: u.status,
-      formation: s.library.formations.find(f => f.id === u.formation)?.name ?? "—", officer: E.officerOf(s, u)?.name ?? null,
+      formation: useForms ? (s.library.formations.find(f => f.id === u.formation)?.name ?? "—") : "", officer: E.officerOf(s, u)?.name ?? null,
       done: u.round.activated, mine: mine(u), img: tokenImg(u.id), pickable: pickable.includes(u),
       sideEditable: game.user.isGM && (t.phase === "formations" || t.phase === "setup"),
-      formationOptions: (t.phase === "formations" || t.phase === "setup") && mine(u)
+      formationOptions: useForms && (t.phase === "formations" || t.phase === "setup") && mine(u)
         ? s.library.formations.filter(f => { const ty = E.typeOf(s, u); return !ty?.formations || ty.formations.includes(f.id); }).map(f => ({ id: f.id, name: f.name, selected: f.id === u.formation }))
         : null,
     })).sort((x, y) => (x.side > y.side ? 1 : -1));
 
     Object.assign(ctx, {
-      round: t.round, phase: PHASE_NAME[t.phase], prompt, held, controls, order, units,
+      round: t.round, phase: t.phase === "formations" && !useForms ? "Start of round" : PHASE_NAME[t.phase], prompt, held, controls, order, units,
       log: (s.log || []).slice(-12).reverse().map(e => e.text),
       wrongScene: canvas.scene?.id !== battle.sceneId, battleScene: scene?.name,
       showSkip: game.user.isGM && !["setup", "formations", "tactics"].includes(p.kind),

@@ -1,7 +1,7 @@
 // Battle unit details for everyone at the table: the hover tooltip, a movement preview while hovering,
 // and a read-only "Info" window (portrait, stats, officer, formations, traits).
 import * as E from "./battle/engine.mjs";
-import { getBattle, buildState, emptyBattle } from "./battle/adapter.mjs";
+import { getBattle, buildState, emptyBattle, formationsEnabled } from "./battle/adapter.mjs";
 import { formationSummary } from "./sheets/sheets.mjs";
 import { factionOf } from "./factions.mjs";
 import { SKILLS } from "./config.mjs";
@@ -268,11 +268,11 @@ export class UnitInfoApp extends Base {
           <div class="qin-muted">Fights with ${esc(skill)} · click to view sheet</div></div>
         </a>` : `<p class="qin-muted">No officer. The unit rolls with Command, Fire and Skill at 0.</p>`}
       </section>
-      <section><h3>Formations</h3>${forms.length ? `<ul class="qin-ui-forms">${forms.map(f => {
+      ${!formationsEnabled() ? "" : `<section><h3>Formations</h3>${forms.length ? `<ul class="qin-ui-forms">${forms.map(f => {
         const sum = formationSummary(f.system);
         const active = sys.formation === f.id;
         return `<li class="${active ? "active" : ""}"><div><b>${esc(f.name)}</b>${active ? ` <span class="qin-tag">in use</span>` : ""}</div>${sum ? `<div class="qin-ui-fx">${esc(sum)}</div>` : ""}</li>`;
-      }).join("")}</ul>` : `<p class="qin-muted">No formations known.</p>`}</section>
+      }).join("")}</ul>` : `<p class="qin-muted">No formations known.</p>`}</section>`}
       <section><h3>Traits</h3>${traitsHTML(sys.traits)}</section>
     </div>`;
   }

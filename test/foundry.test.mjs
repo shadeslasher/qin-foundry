@@ -39,6 +39,7 @@ test("battle adapter: a full officer turn through Foundry tokens", async () => {
   game.user = gm;
   M.setSetting("battle", A.emptyBattle());
   M.setSetting("formations", A.defaultFormations());
+  M.setSetting("useFormations", true); // formations are on hold by default; this test covers them when turned on
   M.setSetting("manageStealth", true);
   M.setSetting("rotateFacing", true);
 
@@ -107,4 +108,23 @@ test("battle adapter: a full officer turn through Foundry tokens", async () => {
   r = await A.runAction("gm", { type: "endBattle" });
   assert.ok(r.ok && !A.getBattle().active);
   assert.strictEqual(ally.system.xp.value, Math.max(0, allyXpBefore - allyCasualties), "after battle, XP drops by casualties suffered");
+});
+
+test("formations on hold (default): the battle ignores them and leaves the sheet's choice alone", async () => {
+  const gm = M.addUser("gm2", true);
+  game.user = gm;
+  M.setSetting("battle", A.emptyBattle());
+  M.setSetting("useFormations", false);
+  const shieldWall = { id: "fsw2", type: "formation", name: "Shield Wall", system: { moveMod: -1, defAll: 2, description: "" } };
+  const sys = Object.assign(new UnitData(), { side: "player", tier: 2, category: "infantry", weaponSkill: "qiangshu", unitValue: 2, damage: 6, armor: 3, armorPen: 0, move: 3, range: 1, rangeMin: 1, men: { value: 100, max: 100 }, xp: { value: 0, max: 100 }, morale: 50, formation: "fsw2", hidden: false, status: "active", officer: "" });
+  sys.prepareDerivedData();
+  const unit = M.makeActor({ type: "unit", items: [shieldWall], system: sys });
+  const scene = M.makeScene("field2");
+  M.addToken(scene, { id: "tokF", name: "Ji Infantry", x: 1, y: 1, actor: unit });
+  const r = await A.runAction("gm2", { type: "startBattle", sceneId: "field2" });
+  assert.ok(r.ok, r.error);
+  const { s } = A.buildState(A.getBattle());
+  assert.strictEqual(s.units[0].formation, "none", "no formation in battle");
+  assert.strictEqual(unit.system.formation, "fsw2", "the sheet keeps its formation");
+  M.setSetting("useFormations", true);
 });

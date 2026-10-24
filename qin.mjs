@@ -79,6 +79,11 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: Boolean, default: true,
   });
   registerUnitEditor();
+  game.settings.register(SYSTEM_ID, "useFormations", { // on hold since 2026-10-24: too fiddly for players
+    name: "Use formations in battles", hint: "When off, units fight without formations: the battle panel doesn't offer them and their modifiers don't apply. Units keep the formations on their sheets.",
+    scope: "world", config: true, type: Boolean, default: false,
+    onChange: () => { BattlePanel.refresh(); redrawAllUnitBars(); },
+  });
   game.settings.register(SYSTEM_ID, "compactUnits", { // the Battle panel's "Less info" button, per player
     scope: "client", config: false, type: Boolean, default: false,
   });

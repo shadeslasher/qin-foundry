@@ -153,7 +153,8 @@ export function unitStatus(token) {
   const round = meta.round ?? {}, fx = meta.fx ?? {};
   const tr = tiersFor(s.traits);
   const form = actor.items?.get?.(s.formation);
-  const f = form?.type === "formation" ? form.system : {};
+  let formsOn = false; try { formsOn = !!game.settings.get("qin", "useFormations"); } catch { /* not registered */ }
+  const f = formsOn && form?.type === "formation" ? form.system : {}; // formations on hold: no modifiers
   // rolls: changes to ALL Command rolls (attacking and defending): morale and losses
   let rolls = 0, attack = 0;
   const m = s.morale ?? 0;
