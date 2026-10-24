@@ -295,3 +295,10 @@ test('crossbows (Reload) never shoot back when shot at', () => {
   const x = duel(bow, xb, [0, 0, 9, 0], (a, d) => { d.traitTiers = { reload: 1 }; });
   assert.strictEqual(x.r.damageToAttacker, 0);
 });
+
+test('Fire Arrows: the loser of a won shot loses 5 more morale', () => {
+  const bow = unitType('fa', { weapon: 'ranged', rangeMax: 3 });
+  const plain = duel(bow, unitType('d'), [9, 0, 0, 0]);
+  const fire = duel(bow, unitType('d'), [9, 0, 0, 0], traits({ 'fire arrows': 1 }));
+  assert.strictEqual(plain.r.moraleLoss + 5, fire.r.moraleLoss);
+});

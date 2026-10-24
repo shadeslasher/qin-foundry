@@ -70,7 +70,7 @@ function tileRules(s, x, y) {
   if (gate && gate.state === 'burned') overlays = overlays.map(o => (o === 'city-gate' ? 'ruins' : o)); // burned gates are ruins
   const parts = [data.MAP_TERRAIN[tile.terrain] || { name: tile.terrain }, ...overlays.map(o => data.MAP_OVERLAYS[o] || { name: o })];
   const r = { move: 0, meleeDef: 0, rangedDef: 0, range: 0, atk: 0, downhill: 0, high: false, command: 0, moraleTurn: 0, healthTurn: 0, campDef: 0,
-    hides: false, wall: false, water: false, names: [], camp: overlays.some(o => o === 'camp' || o.startsWith('camp-')) };
+    hides: false, wall: false, water: false, flammable: false, names: [], camp: overlays.some(o => o === 'camp' || o.startsWith('camp-')) };
   let none = false, noCav = false, bridge = false;
   for (const p of parts) {
     for (const k of ['move', 'meleeDef', 'rangedDef', 'range', 'atk', 'downhill', 'command', 'moraleTurn', 'healthTurn', 'campDef']) r[k] += p[k] || 0;
@@ -80,6 +80,7 @@ function tileRules(s, x, y) {
     if (p.pass === 'noCavalry') noCav = true;
     if (p.bridge) bridge = true;
     if (p.hides) r.hides = true;
+    if (p.flammable) r.flammable = true;
     if (p.wall) r.wall = true;
     if (p.water) r.water = true;
     if (p.name) r.names.push(p.name);
@@ -694,6 +695,7 @@ function resolveAttack(s, attacker, defender, opts) {
       moraleLoss = base * mult + (passive(s, attacker).extraMoraleLossOnWin || 0);
       const terror = trait(attacker, 'terror'); // Terror: +2 morale loss; Terror+: double it
       if (terror === 1) moraleLoss += 2; else if (terror >= 2) moraleLoss *= 2;
+      if (ranged && trait(attacker, 'fire arrows')) moraleLoss += 5; // Fire Arrows: the loser loses 5 more morale
     } else {
       moraleLoss = base + (passive(s, defender).extraMoraleLossOnWin || 0);
     }
@@ -734,6 +736,11 @@ function resolveAttack(s, attacker, defender, opts) {
   }
   if (casDef > 0 && trait(attacker, 'barbed arrows')) fx(defender).slow = true;          // -1 movement on its next turn
   if (ranged) defender.round.hitByRanged = true;                                          // for Volley Fire
+  // Fire Arrows: the target's square catches fire if it can burn
+  if (ranged && trait(attacker, 'fire arrows')) {
+    const tr = tileRules(s, defender.x, defender.y);
+    if (tr && tr.flammable) log(s, attacker.name + "'s fire arrows set " + defender.name + "'s square alight.", { type: 'setFire', x: defender.x, y: defender.y });
+  }
   if (trait(attacker, 'reload')) fx(attacker).reload = 'empty';                           // must take the Reload action before attacking again
 
   // Facing and memory for this round (a free attack doesn't use up the unit's attack)
