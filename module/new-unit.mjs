@@ -16,8 +16,8 @@ async function templates() {
   return out;
 }
 
-export async function newUnitDialog() {
-  if (!game.user.isGM) return ui.notifications.warn("Only the GM can create units this way.");
+/** The form's contents (unit list, owners, officers). */
+async function formHTML() {
   const players = game.users.filter(u => !u.isGM);
   const list = await templates();
   const groups = {};
@@ -28,47 +28,62 @@ export async function newUnitDialog() {
   const chars = (game.actors?.contents ?? []).filter(a => a.type === "character").sort((a, b) => a.name.localeCompare(b.name));
   const officerOpts = `<option value="">No officer</option>` + chars.map(a => `<option value="${esc(a.uuid)}">${esc(a.name)}</option>`).join("");
   const sideOpts = Object.entries(SIDES).map(([k, l]) => `<option value="${k}">${l}</option>`).join("");
-  const content = `<div class="qin-newunit">
-    <div class="form-group"><label>Unit</label><select name="template">${unitOpts}</select></div>
-    <div class="form-group"><label>Name</label><input type="text" name="name" placeholder="Same as the unit"></div>
-    <div class="form-group"><label>Owner</label><select name="owner">${ownerOpts}</select></div>
-    <div class="form-group"><label>Side</label><select name="side">${sideOpts}</select></div>
-    <div class="form-group"><label>Officer</label><select name="officer">${officerOpts}</select></div>
-    <p class="qin-muted">The unit goes in the Actors directory: player units in a folder for their owner under "Player Units"; enemy, ally and neutral units in "Enemy Units", "Ally Units" or "Neutral Units". Drag it onto a scene when it's needed.</p>
-  </div>`;
-  const DialogV2 = foundry.applications.api.DialogV2;
-  const res = await DialogV2.wait({
-    window: { title: "New unit", icon: "fa-solid fa-people-group" },
-    position: { width: 440 },
-    content,
-    buttons: [
-      { action: "create", label: "Create unit", icon: "fa-solid fa-check", default: true,
-        callback: (ev, button) => Object.fromEntries(new FormData(button.form).entries()) },
-      { action: "cancel", label: "Cancel" },
-    ],
-    render: (ev, dialog) => {
-      const root = dialog.element ?? ev?.target?.element;
-      const owner = root?.querySelector("[name=owner]"), off = root?.querySelector("[name=officer]"), side = root?.querySelector("[name=side]");
-      owner?.addEventListener("change", () => {
-        const u = game.users.get(owner.value);
-        if (off) off.value = ""; // picking an owner starts with no officer; choose one if the unit has one
-        if (side) side.value = u ? "player" : side.value;
-      });
-    },
-    rejectClose: false,
-  });
-  if (!res || typeof res !== "object") return;
-  return createUnit(res);
+  return `<form class="dialog-form standard-form qin-newunit">
+    <div class="dialog-content">
+      <div class="form-group"><label>Unit</label><select name="template">${unitOpts}</select></div>
+      <div class="form-group"><label>Name</label><input type="text" name="name" placeholder="Same as the unit"></div>
+      <div class="form-group"><label>Owner</label><select name="owner">${ownerOpts}</select></div>
+      <div class="form-group"><label>Side</label><select name="side">${sideOpts}</select></div>
+      <div class="form-group"><label>Officer</label><select name="officer">${officerOpts}</select></div>
+      <p class="qin-muted">The unit goes in the Actors directory: player units in a folder for their owner under "Player Units"; enemy, ally and neutral units in "Enemy Units", "Ally Units" or "Neutral Units". Drag it onto a scene when it's needed. This window stays open, so you can make several units in a row.</p>
+    </div>
+    <footer class="form-footer">
+      <button type="submit" data-create><i class="fa-solid fa-check"></i> Create unit</button>
+      <button type="button" data-close><i class="fa-solid fa-xmark"></i> Close</button>
+    </footer>
+  </form>`;
 }
 
-const findFolder = (name, parent) => game.folders.find(f => f.type === "Actor" && f.name === name && (f.folder?.id ?? null) === (parent?.id ?? null));
-
-/** Enemy, ally and neutral units: "Enemy Units", "Ally Units", "Neutral Units" (made when first needed). */
-const SIDE_FOLDERS = { enemy: { name: "Enemy Units", color: "#c8443a" }, ally: { name: "Ally Units", color: "#3fa66a" }, neutral: { name: "Neutral Units", color: "#d4a017" } };
-async function sideFolder(side) {
-  const f = SIDE_FOLDERS[side]; if (!f) return null;
-  return findFolder(f.name, null) ?? await Folder.create({ name: f.name, type: "Actor", sorting: "a", color: f.color });
+/** The New unit window (GM). Stays open after each unit is created. */
+export class NewUnitApp extends foundry.applications.api.ApplicationV2 {
+  static #inst = null;
+  static DEFAULT_OPTIONS = {
+    id: "qin-new-unit", classes: ["dialog", "qin-newunit-app"],
+    window: { title: "New unit", icon: "fa-solid fa-people-group", resizable: false },
+    position: { width: 440, height: "auto" },
+  };
+  /** Open it, or bring it to the front if it's already open. */
+  static open() {
+    if (!game.user.isGM) return ui.notifications.warn("Only the GM can create units this way.");
+    const app = (this.#inst ??= new NewUnitApp());
+    if (app.rendered) { app.bringToFront?.(); return app; }
+    app.render({ force: true });
+    return app;
+  }
+  async _renderHTML() { return formHTML(); }
+  _replaceHTML(result, content) {
+    content.innerHTML = result;
+    const form = content.querySelector("form");
+    const owner = form.querySelector("[name=owner]"), off = form.querySelector("[name=officer]"), side = form.querySelector("[name=side]");
+    owner?.addEventListener("change", () => {
+      if (off) off.value = ""; // picking an owner starts with no officer; choose one if the unit has one
+      if (side && game.users.get(owner.value)) side.value = "player";
+    });
+    form.querySelector("[data-close]")?.addEventListener("click", () => this.close());
+    form.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const btn = form.querySelector("[data-create]");
+      if (btn?.disabled) return;
+      if (btn) btn.disabled = true;
+      try {
+        const actor = await createUnit(Object.fromEntries(new FormData(form).entries()));
+        if (actor) { const name = form.querySelector("[name=name]"); if (name) name.value = ""; } // keep the other choices for the next one
+      } finally { if (btn) btn.disabled = false; }
+    });
+  }
 }
+
+export function newUnitDialog() { return NewUnitApp.open(); }
 
 /** The owner's folder: "Player Units" / "<player>'s units" (made when first needed). */
 async function ownerFolder(userId) {

@@ -159,14 +159,10 @@ Hooks.once("init", () => {
     editable: [{ key: "KeyB" }], precedence: CONST.KEYBINDING_PRECEDENCE?.NORMAL,
     onDown: () => { if (BattlePanel.instance?.rendered) BattlePanel.instance.close(); else BattlePanel.open(); return true; },
   });
-  let newUnitOpen = false; // one New unit window at a time
   game.keybindings.register(SYSTEM_ID, "newUnit", {
-    name: "New unit (GM)", hint: "Opens the New unit window.",
+    name: "New unit (GM)", hint: "Opens the New unit window (or brings it to the front).",
     editable: [{ key: "KeyN" }], restricted: true, precedence: CONST.KEYBINDING_PRECEDENCE?.NORMAL,
-    onDown: () => {
-      if (!newUnitOpen) { newUnitOpen = true; Promise.resolve(newUnitDialog()).finally(() => { newUnitOpen = false; }); }
-      return true;
-    },
+    onDown: () => { newUnitDialog(); return true; },
   });
 
   registerBattleQuery();

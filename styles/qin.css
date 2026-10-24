@@ -548,3 +548,7 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin-deploy-btns button.qin-on { background: #dcebff; border-color: #3a78c8; box-shadow: inset 0 0 0 1px #3a78c8; font-weight: bold; }
 .qin-deploy-card a[data-action] { color: var(--qin-red, #9b2c22); cursor: pointer; text-decoration: underline; }
 .qin-deploy-chip { display: inline-block; width: 0.9em; height: 0.9em; background: #e6f1ff; border: 2px solid #9fb8d6; vertical-align: -0.1em; margin-right: 3px; }
+/* New unit window (stays open between units) */
+.qin-newunit-app .qin-newunit { display: flex; flex-direction: column; gap: 6px; }
+.qin-newunit-app .form-footer { display: flex; gap: 8px; margin-top: 6px; }
+.qin-newunit-app .form-footer button { flex: 1; }
