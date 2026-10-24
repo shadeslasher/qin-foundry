@@ -163,7 +163,7 @@ function enterAttack() {
   renderMenu();
   startPicking((x, y) => {
     const d = targets.find(t => t.x === x && t.y === y);
-    if (!d) return ui.notifications.warn("Click one of the enemy units marked in red.");
+    if (!d) return pickWarn("Click one of the enemy units marked in red.");
     send({ type: "attack", unitId: u.id, targetId: d.id });
   });
 }
@@ -199,7 +199,7 @@ function enterSecond() {
   renderMenu();
   startPicking((x, y) => {
     const d = targets.find(o => o.x === x && o.y === y);
-    if (!d) return ui.notifications.warn("Click an enemy marked in red, or press Skip.");
+    if (!d) return pickWarn("Click an enemy marked in red, or press Skip.");
     send({ type: "secondAttack", unitId: current.u.id, targetId: d.id });
   });
 }
@@ -216,7 +216,7 @@ function enterLadder() {
   for (const [x, y] of tiles) drawSquare(overlay, x, y, 0xd9a441, 0.35, 1);
   renderMenu();
   startPicking((x, y) => {
-    if (!tiles.some(([tx, ty]) => tx === x && ty === y)) return ui.notifications.warn("Click one of the gold wall squares.");
+    if (!tiles.some(([tx, ty]) => tx === x && ty === y)) return pickWarn("Click one of the gold wall squares.");
     send({ type: "placeLadder", unitId: current.u.id, x, y });
   });
 }
@@ -233,7 +233,7 @@ function enterSetFire() {
   for (const [x, y] of tiles) drawSquare(overlay, x, y, 0xff7a1a, 0.35, 1);
   renderMenu();
   startPicking((x, y) => {
-    if (!tiles.some(([tx, ty]) => tx === x && ty === y)) return ui.notifications.warn("Click one of the orange tiles next to the unit.");
+    if (!tiles.some(([tx, ty]) => tx === x && ty === y)) return pickWarn("Click one of the orange tiles next to the unit.");
     send({ type: "setFire", unitId: current.u.id, x, y });
   });
 }
@@ -268,6 +268,14 @@ function placeMenu() {
   if (side === "left" && left.x - 8 - w < 0) side = "right";
   menuEl.style.left = `${Math.round(side === "right" ? right.x + 8 : left.x - 8 - w)}px`;
   menuEl.style.top = `${Math.round(right.y)}px`;
+}
+
+/** A wrong click while picking: one warning, not a new one for every click. */
+let lastPickWarn = 0;
+function pickWarn(msg) {
+  if (Date.now() - lastPickWarn < 4000) return;
+  lastPickWarn = Date.now();
+  ui.notifications.warn(msg);
 }
 
 let pickHintEl = null;
