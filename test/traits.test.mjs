@@ -287,3 +287,11 @@ test('trait cards: level locks, upgrades, choices, and a higher version replacin
   assert.ok(!/Anti-Cavalry -/.test(T.traitTextOf(list, 9)), 'Anti-Cavalry is replaced by Anti-Cavalry+');
   assert.deepStrictEqual([...T.replacedTraits(list, 9)], [[2, 'Anti-Cavalry+']]);
 });
+
+test('crossbows (Reload) never shoot back when shot at', () => {
+  const bow = unitType('bow', { weapon: 'ranged', rangeMax: 3 }), xb = unitType('xb', { weapon: 'ranged', rangeMax: 3 });
+  const plain = duel(bow, unitType('arch', { weapon: 'ranged', rangeMax: 3 }), [0, 0, 9, 0]);
+  assert.ok(plain.r.damageToAttacker > 0, 'archers shoot back');
+  const x = duel(bow, xb, [0, 0, 9, 0], (a, d) => { d.traitTiers = { reload: 1 }; });
+  assert.strictEqual(x.r.damageToAttacker, 0);
+});

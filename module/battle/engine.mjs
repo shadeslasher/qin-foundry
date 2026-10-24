@@ -379,15 +379,7 @@ function forcedMarchCost(s, u) { return hasTactic(s, u, 'rapidAdvance') || pendi
 
 /** Enemy units this unit could attack right now. */
 function attackTargets(s, u) {
-  const pinned = pinnedShooter(s, u), hybrid = !!trait(u, 'hybrid');
-  return liveUnits(s).filter(d => hostile(u, d) && visibleTo(s, d, alliance(u.side)) && rangeOk(s, u, d) &&
-    (!pinned || (hybrid && manhattan(u, d) === 1)));
-}
-
-/** Test option: a ranged unit that started its turn next to an enemy can't shoot this turn (Hybrid units may still fight in melee). */
-function pinnedShooter(s, u) {
-  const ac = s.turn && s.turn.activation;
-  return !!(s.options && s.options.rangedPinned && ac && ac.unitId === u.id && ac.startedEngaged && typeOf(s, u).weapon === 'ranged');
+  return liveUnits(s).filter(d => hostile(u, d) && visibleTo(s, d, alliance(u.side)) && rangeOk(s, u, d));
 }
 
 /** What the Fire Emblem-style action menu may offer the active unit. */
@@ -529,7 +521,6 @@ function buildRoll(s, unit, role, ctx) {
     if (ctx.hybridMelee) parts.push(['Hybrid: melee attack', -2]);
     if (ctx.second) parts.push(['Second attack (Dual Weapons)', -2]);
     if (trait(unit, 'hefty weapon') && unit.round.moved) parts.push(['Hefty Weapon (moved)', -2]);
-    else if (ctx.ranged && unit.round.moved && !trait(unit, 'moving shot') && s.options && s.options.rangedMovePenalty) parts.push(['Shot after moving', -2]);
     if (!unit.round.moved && trait(unit, 'precision')) parts.push(['Precision', tierVal(trait(unit, 'precision'), [2, 4])]);
     if (trait(unit, 'swarm') && liveUnits(s).some(o => o !== unit && friendly(o, unit) && manhattan(o, other) === 1))
       parts.push(['Swarm', tierVal(trait(unit, 'swarm'), [1, 2])]);
@@ -670,7 +661,7 @@ function resolveAttack(s, attacker, defender, opts) {
     if (ambush) dmgToAtt = 0; // attacked from hiding: the defender rolls but can't strike back
   } else {
     if (!aNeg) dmgToDef = base(attacker) + winBonus('attacker'); // like melee: base damage, + the difference on a win
-    const canReturn = dt.weapon === 'ranged' ? rangeOk(s, defender, attacker) && !fx(defender).reload // an empty crossbow can't shoot back
+    const canReturn = dt.weapon === 'ranged' ? rangeOk(s, defender, attacker) && !trait(defender, 'reload') // crossbows (Reload) never shoot back
       : manhattan(attacker, defender) === 1 && meleeLevelOk(s, defender, attacker);
     if (!dNeg && canReturn) dmgToAtt = base(defender) + winBonus('defender');
     if (ambush) dmgToAtt = 0;
@@ -744,7 +735,6 @@ function resolveAttack(s, attacker, defender, opts) {
   if (casDef > 0 && trait(attacker, 'barbed arrows')) fx(defender).slow = true;          // -1 movement on its next turn
   if (ranged) defender.round.hitByRanged = true;                                          // for Volley Fire
   if (trait(attacker, 'reload')) fx(attacker).reload = 'empty';                           // must take the Reload action before attacking again
-  if (ranged && dmgToAtt > 0 && dt.weapon === 'ranged' && trait(defender, 'reload')) fx(defender).reload = 'empty'; // shooting back uses the load too
 
   // Facing and memory for this round (a free attack doesn't use up the unit's attack)
   if (!free) attacker.round.attacked = true;
@@ -1033,8 +1023,7 @@ function endRound(s) {
 function startActivation(s, u, extra) {
   if (u.overwatch) { delete u.overwatch; log(s, u.name + ' stands down from overwatch.', { type: 'overwatch', unit: u.id, on: false }); }
   s.turn.activation = Object.assign({ unitId: u.id, step: 'move', started: false, startedHidden: !!u.hidden,
-    movedThisActivation: false, tilesMoved: 0, forcedMarched: false, interject: false, from: { x: u.x, y: u.y },
-    startedEngaged: hostileAdjacent(s, u) }, extra || {});
+    movedThisActivation: false, tilesMoved: 0, forcedMarched: false, interject: false, from: { x: u.x, y: u.y } }, extra || {});
 }
 
 /** Tiles that count for a charge against `target`: none if the unit started its turn next to it (no stepping out and back in). */
@@ -1501,7 +1490,6 @@ const ACTIONS = {
     if (!d || !alive(d) || !hostile(u, d)) return err('Pick an enemy unit');
     if (!visibleTo(s, d, alliance(u.side))) return err('You cannot see that unit');
     if (!rangeOk(s, u, d)) return err('Target out of range');
-    if (pinnedShooter(s, u) && !(trait(u, 'hybrid') && manhattan(u, d) === 1)) return err('It started its turn next to an enemy: it can\'t shoot this turn');
     // attacking commits the move: apply any encirclement it caused first
     settle(s);
     if (!alive(d)) { log(s, d.name + ' gave up before the attack landed.'); if (alive(u)) finishActivation(s, u); return; }

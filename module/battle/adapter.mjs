@@ -127,9 +127,6 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
   const scene = game.scenes.get(battle.sceneId);
   const s = E.newState();
   s.freeMovement = true;
-  // test options (world settings) for trying out rules in play
-  const opt = (k) => { try { return !!game.settings.get("qin", k); } catch { return false; } };
-  s.options = { rangedMovePenalty: opt("rangedMovePenalty"), rangedPinned: opt("rangedPinned") };
   s.turn = battle.turn;
   s.log = battle.log ?? [];
   s.tactics = battle.tactics ?? null;

@@ -77,9 +77,6 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: Boolean, default: true,
   });
   registerUnitEditor();
-  // test options for trying out ranged rules in play (GM: Configure Settings)
-  game.settings.register(SYSTEM_ID, "rangedMovePenalty", { name: "Test rule: ranged -2 after moving", hint: "Ranged units that moved before shooting take -2 on the attack, on top of losing the +2 attacker bonus (Moving Shot ignores it; Hefty Weapon units keep their own -2 instead).", scope: "world", config: true, type: Boolean, default: false });
-  game.settings.register(SYSTEM_ID, "rangedPinned", { name: "Test rule: caught ranged units can't shoot", hint: "A ranged unit that starts its turn next to an enemy can't shoot that turn (Hybrid units can still fight in melee). It can move away, hold or use Overwatch.", scope: "world", config: true, type: Boolean, default: false });
   game.settings.register(SYSTEM_ID, "compactUnits", { // the Battle panel's "Less info" button, per player
     scope: "client", config: false, type: Boolean, default: false,
   });
