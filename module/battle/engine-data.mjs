@@ -200,7 +200,7 @@ const MAP_OVERLAYS = {
   'camp-stakes': { name: 'Camp stakes', move: 1, campDef: 1, hp: 15, flammable: true, fireRes: 0, burnTime: 1, burnsInto: null },
   'camp-palisade': { name: 'Camp palisade', pass: 'none', campDef: 2, hp: 30, flammable: true, fireRes: 1, burnTime: 2, burnsInto: null },
   'camp-wall': { name: 'Camp timber wall', pass: 'none', campDef: 3, hp: 60, flammable: true, fireRes: 2, burnTime: 3, burnsInto: null },
-  camp: { name: 'Camp', move: 1, flammable: true, fireRes: 0, burnTime: 2, burnsInto: 'scorched' },
+  camp: { name: 'Camp', flammable: true, fireRes: 0, burnTime: 2, burnsInto: 'scorched' },
   'command-tent': { name: 'Command tent', moraleTurn: 3, high: true, hp: 25, flammable: true, fireRes: 0, burnTime: 2, burnsInto: 'scorched' },
   'city-wall': { name: 'City wall', meleeDef: 2, rangedDef: 2, range: 1, wall: true, high: true, hp: 100 },
   // units in a gateway are under the gate (ground level): its defense, no range; locked gates can't be entered
