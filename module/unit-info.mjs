@@ -252,10 +252,10 @@ function traitsHTML(raw) {
   d.innerHTML = String(raw ?? "").replace(/<\/(p|div|li)>|<br\s*\/?>/gi, "\n");
   const lines = d.textContent.split(/\n+/).map(l => l.trim()).filter(Boolean);
   if (!lines.length) return `<p class="qin-muted">No traits.</p>`;
-  return `<ul class="qin-ui-traits">${lines.map(l => {
+  return `<div class="qin-ui-traits">${lines.map(l => {
     const m = l.match(/^(.+?)\s+[-–]\s+(.+)$/);
-    return m ? `<li><b>${esc(m[1])}</b> <span>${esc(m[2])}</span></li>` : `<li><b>${esc(l)}</b></li>`;
-  }).join("")}</ul>`;
+    return m ? `<div class="qin-ui-trait"><b>${esc(m[1])}</b><span>${esc(m[2])}</span></div>` : `<div class="qin-ui-trait"><b>${esc(l)}</b></div>`;
+  }).join("")}</div>`;
 }
 
 const Base = foundry.applications.api.ApplicationV2;
@@ -279,41 +279,44 @@ export class UnitInfoApp extends Base {
     const officer = officerOf(sys);
     const faction = factionOf(sys.faction);
     const forms = actor.items.filter(i => i.type === "formation").sort((a, b) => (a.sort || 0) - (b.sort || 0));
-    const stat = (k, v, sub = "") => `<div class="qin-ui-stat"><span>${k}</span><b>${v}</b>${sub ? `<small>${esc(sub)}</small>` : ""}</div>`;
     const menPct = Math.max(0, Math.min(100, Math.round(100 * sys.men.value / (sys.men.max || 100))));
-    const w = weaponLine(sys);
     const sideLabel = { player: "Player", enemy: "Enemy", ally: "Ally", neutral: "Neutral" }[sys.side] ?? sys.side;
     const skill = SKILLS[sys.weaponSkill]?.label ?? sys.weaponSkill;
+    const tierN = Math.max(1, Math.min(4, Number(sys.tier) || 1));
+    const gold = [officer?.system?.details?.title, faction?.name].filter(Boolean).join(" · ");
+    const tile = (icon, v, label, note = "") => `<div class="qin-ui-tile"${note ? ` data-tooltip="${esc(note)}"` : ""}><i>${icon}</i><b>${v}</b><small>${label}</small></div>`;
+    const fa = (cls) => `<i class="fa-solid ${cls} qin-ui-fa"></i>`;
     return `<div class="qin-ui">
-      <header class="qin-ui-head">
+      <header class="qin-ui-hd">
         <img class="qin-ui-portrait" src="${esc(actor.img)}" alt="">
         <div class="qin-ui-id">
-          <h2>${esc(tok.document.name)}</h2>
-          <div class="qin-ui-sub">Tier ${sys.tier} · Level ${sys.level ?? 1}${sys.unitType ? ` · ${esc(sys.unitType)}` : ""}${sys.category ? ` · ${esc(sys.category[0].toUpperCase() + sys.category.slice(1))}` : ""}</div>
-          <div class="qin-ui-sub"><span class="qin-ui-side ${esc(sys.side)}">${esc(sideLabel)}</span>${faction ? ` ${faction.img ? `<img class="qin-ui-flag" src="${esc(faction.img)}" alt="">` : ""}${esc(faction.name)}` : ""}</div>
-          <div class="qin-ui-bars">
-            <div><span>Health</span><div class="qin-bar"><i style="width:${menPct}%"></i></div><b>${sys.men.value} / ${sys.men.max}</b></div>
-            <div><span>Morale</span><div class="qin-bar morale"><i style="width:${Math.max(0, Math.min(100, sys.morale))}%"></i></div><b>${sys.morale} <small>${esc(sys.moraleState ?? "")}</small></b></div>
-          </div>
+          ${gold ? `<div class="qin-ui-ti">${faction?.img ? `<img src="${esc(faction.img)}" alt="">` : ""}${esc(gold)}</div>` : ""}
+          <div class="qin-ui-name">${esc(tok.document.name)}</div>
+          <div class="qin-ui-sub"><span class="qin-ui-side ${esc(sys.side)}">${esc(sideLabel)}</span><span>Tier ${sys.tier}</span><span class="dot">·</span><span>Level ${sys.level ?? 1}</span>${sys.unitType ? `<span class="dot">·</span><span>${esc(sys.unitType)}</span>` : ""}${sys.category ? `<span class="dot">·</span><span>${esc(sys.category[0].toUpperCase() + sys.category.slice(1))}</span>` : ""}</div>
         </div>
+        <span class="qin-tt-tier t${tierN}">T${esc(sys.tier)}</span>
       </header>
-      <section class="qin-ui-stats">
-        ${stat("Damage", sys.damage ?? 0)}${stat("Pierce", sys.armorPen ?? 0)}${stat("Armor", sys.armor ?? 0, sys.armorNote)}
-        ${stat("Movement", sys.move ?? 0)}${stat("Range", rangeText(sys) || "Melee")}${stat("Unit Value", sys.unitValue ?? 0)}
+      <div class="qin-ui-bars">
+        <span>Health</span><div class="qin-ui-bar"><i style="width:${menPct}%;background:${hex(healthColor(sys.men.value / (sys.men.max || 100)))}"></i></div><b>${sys.men.value} / ${sys.men.max}</b>
+        <span>Morale</span><div class="qin-ui-bar"><i style="width:${Math.max(0, Math.min(100, sys.morale))}%;background:${hex(moraleColor(sys.morale))}"></i></div><b>${sys.morale}<small>${esc(sys.moraleState ?? "")}</small></b>
+      </div>
+      <section class="qin-ui-tiles">
+        ${tile(TT_ICONS.dmg, sys.damage ?? 0, "Damage")}${tile(TT_ICONS.pen, sys.armorPen ?? 0, "Pierce")}${tile(TT_ICONS.armor, sys.armor ?? 0, "Armor", sys.armorNote)}
+        ${tile(TT_ICONS.move, sys.move ?? 0, "Move")}${tile(fa("fa-bullseye"), rangeText(sys) || "Melee", "Range")}${tile(fa("fa-coins"), sys.unitValue ?? 0, "Value")}
       </section>
-      <section><h3>Officer</h3>${officer ? `
+      <section class="qin-ui-sec"><div class="qin-ui-sech">Officer</div>${officer ? `
         <a class="qin-ui-officer" data-officer="${esc(officer.uuid)}" title="View ${esc(officer.name)}'s sheet">
           <img src="${esc(officer.img)}" alt="">
-          <div>${officer.system?.details?.title ? `<div class="gold">${esc(officer.system.details.title)}</div>` : ""}<b>${esc(officer.name)}</b>
-          <div class="qin-muted">Fights with ${esc(skill)} · click to view sheet</div></div>
+          <div>${officer.system?.details?.title ? `<div class="t">${esc(officer.system.details.title)}</div>` : ""}<div class="n">${esc(officer.name)}</div>
+          <div class="s">Fights with ${esc(skill)}</div></div><i class="fa-solid fa-chevron-right chev"></i>
         </a>` : `<p class="qin-muted">No officer. The unit rolls with Command, Fire and Skill at 0.</p>`}
       </section>
-      ${!formationsEnabled() ? "" : `<section><h3>Formations</h3>${forms.length ? `<ul class="qin-ui-forms">${forms.map(f => {
+      ${!formationsEnabled() ? "" : `<section class="qin-ui-sec"><div class="qin-ui-sech">Formations</div>${forms.length ? `<ul class="qin-ui-forms">${forms.map(f => {
         const sum = formationSummary(f.system);
         const active = sys.formation === f.id;
         return `<li class="${active ? "active" : ""}"><div><b>${esc(f.name)}</b>${active ? ` <span class="qin-tag">in use</span>` : ""}</div>${sum ? `<div class="qin-ui-fx">${esc(sum)}</div>` : ""}</li>`;
       }).join("")}</ul>` : `<p class="qin-muted">No formations known.</p>`}</section>`}
-      <section><h3>Traits</h3>${traitsHTML(sys.traits)}</section>
+      <section class="qin-ui-sec"><div class="qin-ui-sech">Traits</div>${traitsHTML(sys.traits)}</section>
     </div>`;
   }
 
