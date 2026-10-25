@@ -5,7 +5,7 @@ import { SYSTEM_ID } from "../config.mjs";
 import { getBattle } from "./adapter.mjs";
 import { decodeTiles, FLAG as MAP_FLAG } from "./battlemap.mjs";
 import { MAP_TERRAIN, MAP_OVERLAYS } from "./engine-data.mjs";
-import { OBJECTIVES_FLAG, VICTORY_TYPES, DEFEAT_TYPES, emptyObjectives, evaluateObjectives, freshObjState, describe, hasObjectives } from "./objectives.mjs";
+import { OBJECTIVES_FLAG, VICTORY_TYPES, DEFEAT_TYPES, emptyObjectives, evaluateObjectives, freshObjState, describe, hasObjectives, conditionUnitName } from "./objectives.mjs";
 
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
 const hex = (n) => "#" + Number(n).toString(16).padStart(6, "0");
@@ -31,10 +31,10 @@ async function saveObjectives(o, scene = canvas.scene) {
 }
 const newId = () => foundry.utils.randomID?.(8) ?? Math.random().toString(36).slice(2, 10);
 
-/** Names for the tracker and the card: units by token id, tiles by what's on them. */
+/** Names for the tracker and the card: units by token id (officer's name when led), tiles by what's on them. */
 function namesFor(scene) {
   const names = {};
-  for (const t of scene?.tokens ?? []) names[t.id] = t.name;
+  for (const t of scene?.tokens ?? []) names[t.id] = conditionUnitName(t);
   let tiles = null;
   const flag = scene?.getFlag?.(SYSTEM_ID, MAP_FLAG);
   try { tiles = flag ? decodeTiles(flag) : null; } catch { tiles = null; }
@@ -428,6 +428,9 @@ export function registerObjectives() {
     if (scene.id === canvas.scene?.id && foundry.utils.hasProperty(change, `flags.${SYSTEM_ID}`)) { drawObjectiveMarkers(); renderTracker(); }
   });
   Hooks.on("updateToken", (doc, change) => { if (doc.parent?.id === canvas.scene?.id && ("x" in change || "y" in change || "hidden" in change)) drawObjectiveMarkers(); });
+  Hooks.on("updateActor", (actor, change) => { // a unit's officer changed: conditions show the officer's name
+    if (actor.type === "unit" && foundry.utils.hasProperty(change, "system.officer")) { drawObjectiveMarkers(); renderTracker(); }
+  });
   Hooks.on("collapseSidebar", () => { placeTracker(); setTimeout(placeTracker, 50); setTimeout(placeTracker, 400); });
   Hooks.on("changeSidebarTab", () => setTimeout(placeTracker, 0));
   Hooks.once("ready", () => watchSidebar());

@@ -107,6 +107,13 @@ export function evaluateObjectives(cfg, units, st, { burnt = {}, fires = {} } = 
   return { victory, defeat, result };
 }
 
+/** The name a condition shows for a unit: its officer's name when it has one (David, 2026-10-25), else the token's. */
+export function conditionUnitName(tok) {
+  let off = null;
+  try { off = tok.actor?.system?.officerActor ?? null; } catch { off = null; }
+  return off?.name || tok.name;
+}
+
 /** Plain words for a condition, for the tracker and the log. names: id -> unit name; tileName(x, y) -> e.g. "Bridge". */
 export function describe(c, { names = {}, tileName = () => "" } = {}, { coords = true } = {}) {
   const units = (ids) => (ids ?? []).map(id => names[id] ?? "a unit").join(", ") || "(pick units)";

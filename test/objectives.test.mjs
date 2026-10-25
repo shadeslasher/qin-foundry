@@ -181,3 +181,9 @@ test('take back: a turn started by mistake can be given back until the unit does
   must(R.act(s, P1, { type: 'moveTo', unitId: b, x: 3, y: 2 }));
   assert.ok(!R.act(s, P1, { type: 'takeBack', unitId: b }).ok, 'not after moving');
 });
+
+test('conditions name a unit by its officer when it has one', async () => {
+  const { conditionUnitName } = await import('../module/battle/objectives.mjs');
+  assert.strictEqual(conditionUnitName({ name: 'Sabre Infantry', actor: { system: { officerActor: { name: 'Guan Yu' } } } }), 'Guan Yu');
+  assert.strictEqual(conditionUnitName({ name: 'Sabre Infantry', actor: { system: { officerActor: null } } }), 'Sabre Infantry');
+});
