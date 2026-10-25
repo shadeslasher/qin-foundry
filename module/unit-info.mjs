@@ -212,7 +212,6 @@ export function drawDangerZone() {
 export function toggleDangerZone() {
   dangerOn = !dangerOn;
   drawDangerZone();
-  ui.notifications?.info(dangerOn ? "Danger zone on (press Z again to hide)." : "Danger zone off.");
 }
 
 /** Z toggles the danger zone; rebindable in Configure Controls. Call during init. */

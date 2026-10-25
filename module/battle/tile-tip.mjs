@@ -73,7 +73,6 @@ export function toggleTileTip() {
   enabled = !enabled;
   try { localStorage.setItem(KEY, enabled ? "1" : "0"); } catch { /* fine */ }
   if (!enabled) hide();
-  ui.notifications.info(enabled ? "Tile info on: hover a square to see what it does. Press V again to turn it off." : "Tile info off.");
 }
 
 export function registerTileTip() {
