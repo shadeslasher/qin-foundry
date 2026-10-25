@@ -269,3 +269,16 @@ test('Deflect: defense +2 (+3 vs ranged) against the first attack each round; De
   const { D: D2 } = duel(unitType('a'), unitType('d'), [3, 0, 0, 0]);
   assert.strictEqual(D2.round.attacksTaken, 1);
 });
+
+test('cavalry: Command +1 in melee against infantry, attacking or defending; not for shots', () => {
+  const s = setup(); s.library.unitTypes.push(unitType('cav', { category: 'cavalry', move: 5 }), unitType('inf'), unitType('bow', { weapon: 'ranged', rangeMax: 3 }));
+  const C = R.unitById(s, add(s, { typeId: 'cav', side: 'player', owner: 'p1', x: 5, y: 5 }));
+  const I = R.unitById(s, add(s, { typeId: 'inf', side: 'enemy', x: 5, y: 4 }));
+  const B = R.unitById(s, add(s, { typeId: 'bow', side: 'enemy', x: 5, y: 7 }));
+  assert.strictEqual(part(rollOf(s, C, 'attacker', I), /^Cavalry vs infantry/), 1);
+  assert.strictEqual(part(rollOf(s, C, 'defender', I), /^Cavalry vs infantry/), 1, 'defending too');
+  assert.strictEqual(part(rollOf(s, I, 'attacker', C), /^Cavalry vs infantry/), 0, 'the infantry gets nothing');
+  assert.strictEqual(part(rollOf(s, C, 'defender', B, { ranged: true }), /^Cavalry vs infantry/), 0, 'not against a shot');
+  const C2 = R.unitById(s, add(s, { typeId: 'cav', side: 'enemy', x: 4, y: 5 }));
+  assert.strictEqual(part(rollOf(s, C, 'attacker', C2), /^Cavalry vs infantry/), 0, 'not against cavalry');
+});

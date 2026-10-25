@@ -180,8 +180,8 @@ test('Charge Reflection: a defender that beats a charge adds the charge bonus to
   dice([0, 0, 9, 0]);
   must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
   const r = s.log.filter(e => e.detail && e.detail.type === 'attack').pop().detail.result;
-  // A: 0+2+2 = 4 (3 tiles: +2), D: 9 -> diff 5. Return: 6 + 5 + 2 (reflected charge) = 13 - 3 = 10.
-  assert.strictEqual(R.unitById(s, a).men, 100 - 10);
+  // A: 0+2+2+1 (cavalry vs infantry) = 5 (3 tiles: +2), D: 9 -> diff 4. Return: 6 + 4 + 2 (reflected charge) = 12 - 3 = 9.
+  assert.strictEqual(R.unitById(s, a).men, 100 - 9);
   assert.ok(r.charge);
 });
 

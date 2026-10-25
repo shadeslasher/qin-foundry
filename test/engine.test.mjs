@@ -111,14 +111,14 @@ test('cavalry charge: 2 tiles = +1, no morale multiplier (rear neither); no stri
   must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: a }));
   s.freeMovement = false;
   must(R.act(s, P1, { type: 'moveTo', unitId: a, x: 5, y: 4 })); // 2 tiles -> +1
-  dice([3, 0, 0, 0]); // A: 3+2+2(att)+1(charge)+2(rear)=10, D: 0+2=2 -> diff 8
+  dice([3, 0, 0, 0]); // A: 3+2+2(att)+1(charge)+2(rear)+1(cavalry vs infantry)=11, D: 0+2=2 -> diff 9
   must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
   const r = s.log.filter(e => e.detail && e.detail.type === 'attack').pop().detail.result;
   assert.ok(r.charge && r.rear);
   assert.ok(r.attackRoll.parts.some(([l, v]) => /Cavalry charge \(2 tiles/.test(l) && v === 1));
   assert.ok(!r.defendRoll.parts.some(([l]) => /charg/i.test(l)), 'no defender penalty');
-  assert.strictEqual(r.diff, 8);
-  assert.strictEqual(R.unitById(s, d).morale, Math.max(0, 50 - (8 - 1) - r.casualtyMorale.defender), 'neither the rear attack nor the charge multiplies morale loss');
+  assert.strictEqual(r.diff, 9);
+  assert.strictEqual(R.unitById(s, d).morale, Math.max(0, 50 - (9 - 1) - r.casualtyMorale.defender), 'neither the rear attack nor the charge multiplies morale loss');
   assert.strictEqual(r.damageToAttacker, 0, 'a charged unit strikes back only with Anti-Cavalry, and never from the rear');
 });
 
@@ -579,8 +579,8 @@ test('Turtle: no attacker bonus, +2 defending, 2 fewer casualties; strength pena
   s.library.formations.push({ id: 'turt', name: 'Turtle', moveMod: -2, casReduce: 2, noAttackerBonus: true, defAll: 2 });
   const [A, D] = duel(s, unitType('a1', {}), unitType('d1', { formations: null, category: 'cavalry' }), [7, 2, 0, 0],
     (a, d) => { d.formation = 'turt'; d.maxMen = 50; d.men = 50; });
-  // attacker 5+2 = 7 vs defender 0+2 = 2 -> diff 5. Damage 6+5 = 11 - armor 3 - turtle 2 = 6
-  assert.strictEqual(D.men, 50 - 6);
+  // attacker 5+2 = 7 vs defender 0+2+1 (cavalry vs infantry) = 3 -> diff 4. Damage 6+4 = 10 - armor 3 - turtle 2 = 5
+  assert.strictEqual(D.men, 50 - 5);
   // defender's return damage 6 - 3 armor = 3 (turtle reduction only protects the turtle)
   assert.strictEqual(A.men, 100 - 3);
 });
