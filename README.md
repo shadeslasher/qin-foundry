@@ -86,3 +86,7 @@ npm test             # rules, battle engine and Foundry bridge tests
 npm run build:packs  # rebuild compendiums from tools/content.mjs
 npm run package      # rebuild dist/qin.zip (commit it; Foundry downloads it from the repo)
 ```
+
+## Credits
+
+- The boot icon on the unit hover card is traced from a [game-icons.net](https://game-icons.net) icon (CC BY 3.0).
