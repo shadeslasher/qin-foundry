@@ -593,6 +593,19 @@ function rangeOk(s, attacker, defender) {
   return !wallBlocksShot(s, attacker, defender);
 }
 
+/**
+ * Casualties from one hit (David, 2026-10-24): armor pen is damage that always goes through. Of a hit's damage,
+ * up to `pen` points get through regardless of armor; the rest gets through only where the whole hit beats the armor.
+ *   8 dmg, pen 1, armor 11 -> 1;  12 dmg, pen 1, armor 11 -> 1 (over the armor) + 1 (pen) = 2.
+ * A formation's casualty reduction only lowers the part that beat the armor.
+ */
+function casualtiesOf(dmg, armor, pen, reduce) {
+  if (!(dmg > 0)) return 0;
+  const through = Math.min(Math.max(0, pen || 0), dmg);
+  const over = Math.max(0, dmg - Math.max(0, armor || 0) - (reduce || 0));
+  return through + over;
+}
+
 // Build one side's roll. role: 'attacker' | 'defender'.
 function buildRoll(s, unit, role, ctx) {
   const t = typeOf(s, unit), o = officerOf(s, unit), f = formationOf(s, unit), p = passive(s, unit);
@@ -787,11 +800,11 @@ function resolveAttack(s, attacker, defender, opts) {
   // Armor is also lowered by Sunder, and Shield Breaker ignores the armor a unit gets from shields.
   const af = formationOf(s, attacker);
   const armorOf = (t, u, breaker) => Math.max(0, (t.armor ?? t.defense ?? 0) - (fx(u).sunder || 0) - (breaker ? (t.shieldArmor || 0) : 0));
-  const hitDef = (dmg) => Math.max(0, dmg - Math.max(0, armorOf(dt, defender, trait(attacker, 'shield breaker')) - (at.armorPen || 0)) - (df.casReduce || 0));
+  const hitDef = (dmg) => casualtiesOf(dmg, armorOf(dt, defender, trait(attacker, 'shield breaker')), at.armorPen, df.casReduce);
   // Repeating: the attack lands as two hits of half damage each; armor (less armor pen) counts against each hit
   const repeating = !!trait(attacker, 'repeating') && dmgToDef > 0;
   const casDef = repeating ? hitDef(Math.ceil(dmgToDef / 2)) + hitDef(Math.floor(dmgToDef / 2)) : hitDef(dmgToDef);
-  const casAtt = Math.max(0, dmgToAtt - Math.max(0, armorOf(at, attacker, trait(defender, 'shield breaker')) - (dt.armorPen || 0)) - (af.casReduce || 0));
+  const casAtt = casualtiesOf(dmgToAtt, armorOf(at, attacker, trait(defender, 'shield breaker')), dt.armorPen, af.casReduce);
 
   // Morale loss for the loser
   // An attacker that can't be struck back (ranged out of reach, charges, Duelist, ambushes...) loses no morale for losing the roll
@@ -828,7 +841,7 @@ function resolveAttack(s, attacker, defender, opts) {
     const b = unitAt(s, defender.x + dir.x, defender.y + dir.y);
     if (b && b !== attacker && alive(b) && hostile(attacker, b)) {
       const bt = typeOf(s, b);
-      const cas = Math.max(0, Math.floor(dmgToDef / 2) - Math.max(0, armorOf(bt, b, false) - (at.armorPen || 0)) - (formationOf(s, b).casReduce || 0));
+      const cas = casualtiesOf(Math.floor(dmgToDef / 2), armorOf(bt, b, false), at.armorPen, formationOf(s, b).casReduce);
       b.men = Math.max(0, b.men - cas);
       b.morale = clamp(b.morale - Math.floor(cas * 50 / (b.maxMen || 100)), 0, 100);
       trample = { unit: b.id, casualties: cas };
@@ -2040,7 +2053,7 @@ function viewFor(s, viewer) {
   return v;
 }
 
-export { overwatchFire as _overwatchFire,
+export { casualtiesOf, overwatchFire as _overwatchFire,
   moveOptions, attackTargets, actionMenu, threatArea, TACTIC_SIDES, tileRules, ladderTiles, climbTiles, insideCity, isWallTop, gateAt,
   newState, act, viewFor, prompt, reachable, movementOf, moraleState, visibleTo, rangeOk,
   resolveAttack, buildRoll, setRng, yinYang, typeOf, officerOf, unitById, SIDES, settle, advance,

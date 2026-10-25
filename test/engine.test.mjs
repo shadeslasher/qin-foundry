@@ -756,3 +756,11 @@ test('a melee attacker that loses the roll (and gets struck back) still loses mo
   assert.strictEqual(r.loser, a);
   assert.ok(r.moraleLoss > 0);
 });
+
+test('armor pen is damage that always goes through', () => {
+  assert.strictEqual(R.casualtiesOf(8, 11, 1), 1, '8 dmg vs 11 armor: only the pen');
+  assert.strictEqual(R.casualtiesOf(12, 11, 1), 2, '12 dmg vs 11 armor: 1 over the armor + 1 pen');
+  assert.strictEqual(R.casualtiesOf(7, 4, 0), 3, 'no pen: just what beats the armor');
+  assert.strictEqual(R.casualtiesOf(0, 4, 2), 0, 'no hit, nothing goes through');
+  assert.strictEqual(R.casualtiesOf(1, 9, 3), 1, 'pen never exceeds the damage');
+});
