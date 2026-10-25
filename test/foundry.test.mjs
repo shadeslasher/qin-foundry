@@ -91,7 +91,7 @@ test("battle adapter: a full officer turn through Foundry tokens", async () => {
   assert.ok(foe.system.men.value < 100, "enemy took casualties");
   // XP: casualties dealt x (enemy tier / own tier) — same tier here
   assert.strictEqual(ally.system.xp.value, 100 - foe.system.men.value, "XP equals casualties dealt at equal tier");
-  const allyCasualties = 100 - ally.system.men.value;
+  void (100 - ally.system.men.value); // casualties suffered no longer cost XP
   const allyXpBefore = ally.system.xp.value;
   assert.ok(M.chat.length > chatBefore && /qin-battle-card/.test(M.chat.at(-1).content), "attack card posted to chat");
   b = A.getBattle();
@@ -107,7 +107,7 @@ test("battle adapter: a full officer turn through Foundry tokens", async () => {
   assert.ok(!r.ok, "only the GM ends battles");
   r = await A.runAction("gm", { type: "endBattle" });
   assert.ok(r.ok && !A.getBattle().active);
-  assert.strictEqual(ally.system.xp.value, Math.max(0, allyXpBefore - allyCasualties), "after battle, XP drops by casualties suffered");
+  assert.strictEqual(ally.system.xp.value, allyXpBefore, "after battle, XP is kept (no loss for casualties suffered)");
 });
 
 test("formations on hold (default): the battle ignores them and leaves the sheet's choice alone", async () => {

@@ -409,9 +409,7 @@ async function runActionNow(userId, action) {
     battle.sceneId = scene.id;
   } else if (action.type === "endBattle") {
     if (!actor.host) return { ok: false, error: "Only the GM can end the battle" };
-    // Always end the battle, even if settling XP fails (a missing actor, say), so tokens unlock
-    try { await settleXpAfterBattle(battle); }
-    catch (e) { console.error("Qin | settling XP after the battle failed", e); ui.notifications.warn("The battle ended, but settling XP failed: see the console (F12)."); }
+    // (Units no longer lose XP for their casualties when the battle ends: David, 2026-10-24.)
     // units that escaped come back: active again and visible
     try {
       const sc = game.scenes.get(battle.sceneId);
@@ -466,7 +464,8 @@ async function runActionNow(userId, action) {
   return res;
 }
 
-/** After a battle, each unit loses XP equal to the casualties it suffered (health lost) during it. */
+/** No longer used (David, 2026-10-24): after a battle, each unit lost XP equal to the casualties it suffered. */
+// eslint-disable-next-line no-unused-vars
 async function settleXpAfterBattle(battle) {
   const scene = game.scenes.get(battle.sceneId);
   if (!scene) return;

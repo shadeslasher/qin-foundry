@@ -138,7 +138,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
           : r === "victory" ? `<b>Victory!</b> ${byGM ? "The GM ended the battle." : "Every victory condition is met."}`
           : `<b>Defeat.</b> ${byGM ? "The GM ended the battle." : "A defeat condition was met."}`;
         prompt.text += ""
-          + (game.user.isGM ? `<br><span class="qin-muted">Press End battle (GM controls, below) to finish: units then lose XP for their casualties.</span>` : "");
+          + (game.user.isGM ? `<br><span class="qin-muted">Press End battle (GM controls, below) to finish.</span>` : "");
         break;
       }
       case "formations":
@@ -272,7 +272,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
     await battleRequest({ type: "startBattle", sceneId: canvas.scene.id });
   }
   static async #endBattle() {
-    const ok = await (api.Dialog ?? api.DialogV2).confirm({ window: { title: "End battle?" }, content: "<p>End the battle? Units keep their health and morale. Each unit then loses XP equal to the casualties it suffered this battle.</p>" });
+    const ok = await (api.Dialog ?? api.DialogV2).confirm({ window: { title: "End battle?" }, content: "<p>End the battle? Units keep their health, morale and XP.</p>" });
     if (ok) await battleRequest({ type: "endBattle" });
   }
   static async #attackTarget(event, target) {
