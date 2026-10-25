@@ -214,17 +214,20 @@ test('Outrider: after a normal move, ride on 1 tile (Outrider+ 2) instead of att
 });
 
 // ---- Total War rebalance traits (David, 2026-10-25) ----
-test('Evasion: melee casualties -1/-2/-3 (EX -4), taken from the total including armor pen; not against ranged attacks', () => {
-  // attacker 9+2 = 11 vs 0: damage 6 + 11 = 17, pen 2, armor 3 -> 2 + 14 = 16; Evasion+ -> 14
+test('Evasion: ignores 25/40/55% of melee casualties (EX 70%), pen included, rounding the damage up; not against ranged attacks', () => {
+  // attacker 9+2 = 11 vs 0: damage 6 + 11 = 17, pen 2, armor 3 -> 2 + 14 = 16; Evasion+ ignores 40%: 9.6 -> 10
   let { r } = duel(unitType('a', { armorPen: 2 }), unitType('d'), [9, 0, 0, 0], (a, d) => { d.traitTiers = { evasion: 2 }; });
-  assert.strictEqual(r.casualtiesDefender, 14);
+  assert.strictEqual(r.casualtiesDefender, 10);
   ({ r } = duel(unitType('a', { armorPen: 2 }), unitType('d'), [9, 0, 0, 0], (a, d) => { d.traitTiers = { evasion: 3, 'evasion ex': 1 }; }));
-  assert.strictEqual(r.casualtiesDefender, 12, 'Evasion EX');
+  assert.strictEqual(r.casualtiesDefender, 5, 'Evasion EX: 16 x 0.3 = 4.8 -> 5');
   ({ r } = duel(unitType('a', { weapon: 'ranged', rangeMax: 3, armorPen: 2 }), unitType('d'), [9, 0, 0, 0], (a, d) => { d.traitTiers = { evasion: 3 }; }));
   assert.strictEqual(r.casualtiesDefender, 16, 'a shot is not evaded');
-  // the attacker evades the melee strike back too: defender wins 9 vs 2 (attacker bonus): dmg 6 + 7 = 13 - 3 armor = 10 -> Evasion 9
+  // the attacker evades the melee strike back too: defender wins 9 vs 2 (attacker bonus): dmg 6 + 7 = 13 - 3 armor = 10 -> Evasion 25%: 7.5 -> 8
   ({ r } = duel(unitType('a'), unitType('d'), [0, 0, 9, 0], (a, d) => { a.traitTiers = { evasion: 1 }; }));
-  assert.strictEqual(r.casualtiesAttacker, 9);
+  assert.strictEqual(r.casualtiesAttacker, 8);
+  // Repeating: evasion takes its share of the two hits together
+  ({ r } = duel(unitType('a', { armorPen: 2 }), unitType('d'), [9, 0, 0, 0], (a, d) => { a.traitTiers = { repeating: 1 }; d.traitTiers = { evasion: 3 }; }));
+  assert.strictEqual(r.casualtiesDefender, Math.ceil(13 * 0.45), '13 over two hits, 55% ignored -> 5.85 -> 6');
 });
 
 test('Disciplined: no longer halves morale loss, and the engine adds nothing at battle start (the sheet sets the resting morale)', () => {

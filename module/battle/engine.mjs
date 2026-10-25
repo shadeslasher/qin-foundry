@@ -617,17 +617,21 @@ function checkpointMorale(u) {
 /**
  * Casualties from one hit (David, 2026-10-25, Total War style): armor pen is extra damage that always goes through;
  * the hit's damage (base + the roll margin) gets through only where it beats the armor.
- *   casualties = pen + max(0, damage - armor - formation reduction) - evasion, never below 0.
+ *   casualties = pen + max(0, damage - armor - formation reduction), then Evasion ignores a share of it (melee only).
  *   8 dmg, pen 1, armor 11 -> 1;  12 dmg, pen 1, armor 11 -> 1 (over the armor) + 1 (pen) = 2.
- * Evasion (melee only) takes from the total, pen included. No damage at all (a negated roll) means no pen either.
+ * No damage at all (a negated roll) means no pen either.
  */
 function casualtiesOf(dmg, armor, pen, reduce, evade) {
   if (!(dmg > 0)) return 0;
   const over = Math.max(0, dmg - Math.max(0, armor || 0) - (reduce || 0));
-  return Math.max(0, Math.max(0, pen || 0) + over - (evade || 0));
+  return evadeCasualties(Math.max(0, pen || 0) + over, evade);
 }
-/** Evasion: melee casualties -1/-2/-3, Evasion EX -4. */
-function evasionOf(u) { return trait(u, 'evasion ex') ? 4 : tierVal(trait(u, 'evasion'), [1, 2, 3]); }
+/** Evasion: the share of melee casualties ignored — 25% / 40% / 55%, Evasion EX 70%. */
+const EVASION_PCT = [0, 25, 40, 55, 70];
+function evasionOf(u) { return EVASION_PCT[trait(u, 'evasion ex') ? 4 : Math.min(3, trait(u, 'evasion'))]; }
+/** What is left of a hit after Evasion ignores `pct` percent of it; the damage taken rounds up. */
+function evadeCasualties(cas, pct) { return pct > 0 && cas > 0 ? Math.ceil(cas * (100 - pct) / 100 - 1e-9) : cas; }
+
 /** Disciplined: the unit's resting morale is 50 + 5/10/15 (set on the sheet; the engine doesn't add it). */
 function disciplinedBonus(u) { return tierVal(trait(u, 'disciplined'), [5, 10, 15]); }
 
@@ -832,10 +836,10 @@ function resolveAttack(s, attacker, defender, opts) {
   const evDef = ranged ? 0 : evasionOf(defender);
   const returnRanged = dt.weapon === 'ranged' && !(!ranged && trait(defender, 'hybrid')); // a ranged unit's strike back is a shot, unless it's a Hybrid in melee
   const evAtt = returnRanged ? 0 : evasionOf(attacker);
-  const hitDef = (dmg, pen) => casualtiesOf(dmg, armorOf(dt, defender, trait(attacker, 'shield breaker')), pen, df.casReduce, evDef);
-  // Repeating: the attack lands as two hits of half damage (and half pen) each; armor counts against each hit
+  const hitDef = (dmg, pen) => casualtiesOf(dmg, armorOf(dt, defender, trait(attacker, 'shield breaker')), pen, df.casReduce, 0);
+  // Repeating: the attack lands as two hits of half damage (and half pen) each; armor counts against each hit. Evasion then takes its share of the total.
   const repeating = !!trait(attacker, 'repeating') && dmgToDef > 0;
-  const casDef = repeating ? hitDef(Math.ceil(dmgToDef / 2), Math.ceil((at.armorPen || 0) / 2)) + hitDef(Math.floor(dmgToDef / 2), Math.floor((at.armorPen || 0) / 2)) : hitDef(dmgToDef, at.armorPen);
+  const casDef = evadeCasualties(repeating ? hitDef(Math.ceil(dmgToDef / 2), Math.ceil((at.armorPen || 0) / 2)) + hitDef(Math.floor(dmgToDef / 2), Math.floor((at.armorPen || 0) / 2)) : hitDef(dmgToDef, at.armorPen), evDef);
   const casAtt = casualtiesOf(dmgToAtt, armorOf(at, attacker, trait(defender, 'shield breaker')), dt.armorPen, af.casReduce, evAtt);
 
   // Morale loss for the loser
@@ -2084,7 +2088,7 @@ function viewFor(s, viewer) {
   return v;
 }
 
-export { casualtiesOf, evasionOf, disciplinedBonus, checkpointMorale, checkpointsPassed, overwatchFire as _overwatchFire,
+export { casualtiesOf, evasionOf, evadeCasualties, disciplinedBonus, checkpointMorale, checkpointsPassed, overwatchFire as _overwatchFire,
   moveOptions, attackTargets, actionMenu, threatArea, TACTIC_SIDES, tileRules, ladderTiles, climbTiles, insideCity, isWallTop, gateAt,
   newState, act, viewFor, prompt, reachable, movementOf, moraleState, visibleTo, rangeOk,
   resolveAttack, buildRoll, setRng, yinYang, typeOf, officerOf, unitById, SIDES, settle, advance,

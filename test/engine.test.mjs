@@ -763,14 +763,18 @@ test('armor pen is damage that always goes through', () => {
   assert.strictEqual(R.casualtiesOf(7, 4, 0), 3, 'no pen: just what beats the armor');
   assert.strictEqual(R.casualtiesOf(0, 4, 2), 0, 'no hit, nothing goes through');
   assert.strictEqual(R.casualtiesOf(1, 9, 3), 3, 'pen is extra damage: it goes through even when the hit is small');
-  assert.strictEqual(R.casualtiesOf(12, 11, 1, 0, 2), 0, 'Evasion+ takes 2 from the total, pen included');
-  assert.strictEqual(R.casualtiesOf(20, 4, 2, 3, 1), 2 + 13 - 1, 'formation reduction only on the part over the armor; evasion on the total');
+  assert.strictEqual(R.casualtiesOf(12, 11, 1, 0, 40), 2, 'Evasion+ ignores 40% of the total, pen included: 2 -> 1.2 -> 2 (rounds up)');
+  assert.strictEqual(R.casualtiesOf(20, 4, 2, 3, 25), Math.ceil((2 + 13) * 0.75), 'formation reduction only on the part over the armor; evasion on the total');
+  assert.strictEqual(R.evadeCasualties(16, 55), 8, '16 at 55%: 7.2 -> 8');
+  assert.strictEqual(R.evadeCasualties(10, 70), 3);
+  assert.strictEqual(R.evadeCasualties(10, 0), 10);
 });
 
 test('Evasion / Evasion EX tiers and the Disciplined start bonus', () => {
-  assert.strictEqual(R.evasionOf({ traitTiers: { evasion: 1 } }), 1);
-  assert.strictEqual(R.evasionOf({ traitTiers: { evasion: 3 } }), 3);
-  assert.strictEqual(R.evasionOf({ traitTiers: { evasion: 3, 'evasion ex': 1 } }), 4, 'Evasion EX (the level-3 upgrade) is -4');
+  assert.strictEqual(R.evasionOf({ traitTiers: { evasion: 1 } }), 25);
+  assert.strictEqual(R.evasionOf({ traitTiers: { evasion: 2 } }), 40);
+  assert.strictEqual(R.evasionOf({ traitTiers: { evasion: 3 } }), 55);
+  assert.strictEqual(R.evasionOf({ traitTiers: { evasion: 3, 'evasion ex': 1 } }), 70, 'Evasion EX (the level-3 upgrade) ignores 70%');
   assert.strictEqual(R.evasionOf({ traitTiers: {} }), 0);
   assert.strictEqual(R.disciplinedBonus({ traitTiers: { disciplined: 2 } }), 10);
 });
