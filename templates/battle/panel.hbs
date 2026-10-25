@@ -109,8 +109,7 @@
   {{#if controls}}
   <div class="qin-card qin-controls-card">
     <h4>{{controls.name}} — your turn</h4>
-    <p>Use the action menu beside the unit on the map: <b>Move</b>, <b>Attack</b>, <b>Hold</b>, <b>Ability</b>, <b>Heroic action</b> or <b>End turn</b>.</p>
-    {{#if controls.heroicLeft}}<p class="qin-muted">Heroic actions left: {{controls.heroicLeft}}</p>{{/if}}
+    <p>Use the action menu beside the unit on the map: <b>Move</b>, <b>Attack</b>, <b>Hold</b>, <b>Ability</b> or <b>End turn</b>.</p>
     <div class="qin-btns"><button type="button" data-action="do" data-type="endTurn" data-unit-id="{{controls.id}}">End turn</button></div>
   </div>
   {{/if}}

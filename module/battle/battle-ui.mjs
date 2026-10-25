@@ -345,7 +345,7 @@ function renderMenu(sub = null) {
     html += b("hold", "Hold", flags.hold, "No more action this turn; +2 melee defense this round");
     if (flags.overwatch) html += b("overwatch", "Overwatch", true, "End the turn and watch: shoot the first enemy that ends its turn in range before this unit's next turn (one shot)");
     html += b("ability", "Ability", flags.ability, abilityTip);
-    html += b("heroic", "Heroic action", flags.heroic, officer ? "Free action from the heroic action list" : "Needs an officer");
+    if (flags.heroic) html += b("heroic", "Heroic action", true, "Free action from the heroic action list"); // off for now (engine HEROIC_ENABLED)
     html += b("end", "End turn", flags.endTurn);
   }
   menuEl.innerHTML = html;

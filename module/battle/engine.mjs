@@ -344,6 +344,9 @@ function movementOf(s, u) {
   return Math.max(0, (t ? t.move : 4) + (f.moveMod || 0) + (passive(s, u).moveBonus || 0) - slowed - load);
 }
 
+/** Heroic actions in battles are off for now (David, 2026-10-25); the code stays for later. */
+const HEROIC_ENABLED = false;
+
 function newRoundFlags() {
   return { activated: false, moved: false, cannotMove: false, holding: false, attacked: false,
     skillUsed: false, heroicUsed: false, meleeTarget: null, meleeAttacker: null,
@@ -489,7 +492,7 @@ function actionMenu(s, u) {
     outrider: canStillAct && outriderTiles(s, u).length > 0,
     overwatch: canStillAct && !reloading && typeOf(s, u).weapon === 'ranged',
     ability: skillOk || artOk, skill: skillOk, art: artOk,
-    heroic: !!(o && (o.heroicActions || []).length && !u.round.heroicUsed && (u.heroicUsed || 0) < (o.fire || 0)),
+    heroic: HEROIC_ENABLED && !!(o && (o.heroicActions || []).length && !u.round.heroicUsed && (u.heroicUsed || 0) < (o.fire || 0)),
     undo: !!ac.undo,
     takeBack: !!ac.takeBack,
     endTurn: true,
@@ -1914,6 +1917,7 @@ const ACTIONS = {
     settle(s);
   },
   heroic(s, actor, a) {
+    if (!HEROIC_ENABLED) return err('Heroic actions are not used in battles for now');
     const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
     const o = officerOf(s, r.u); const h = o && o.heroicActions && o.heroicActions[a.index];
     if (!h) return err('No such heroic action');
