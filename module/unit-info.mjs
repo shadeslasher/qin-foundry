@@ -69,7 +69,7 @@ export function unitTooltipHTML(token) {
   const chip = (icon, v, label) => `<div class="qin-tt-chip"><i>${TT_ICONS[icon]}</i><b>${v}</b><small>${label}</small></div>`;
   html += `<div class="qin-tt-chips">${chip("dmg", sys.damage ?? 0, "Dmg")}${chip("pen", sys.armorPen ?? 0, "Pierce")}${chip("armor", sys.armor ?? 0, "Armor")}${chip("move", sys.move ?? 0, "Move")}</div>`;
   const w = weaponLine(sys);
-  if (w) html += `<div class="qin-tt-weapon">${w}</div>`;
+  if (w) html += `<div class="qin-tt-weapon">${w}<small>Unit type</small></div>`;
   return html + `</div></div>`;
 }
 

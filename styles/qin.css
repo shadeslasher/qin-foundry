@@ -392,7 +392,8 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin-tt-chip .qin-tt-svg { width: 1.2em; height: 1.2em; vertical-align: top; }
 .qin-tt-chip b { display: block; font-size: 1.15em; }
 .qin-tt-chip small { display: block; color: #a99a7c; font-size: 0.75em; letter-spacing: .04em; text-transform: uppercase; }
-.qin-tt-weapon { margin-top: 7px; color: #e8c170; text-align: center; }
+.qin-tt-weapon { margin-top: 5px; padding: 6px 0; border-radius: 6px; background: rgba(255,255,255,.06); color: #ffe2a0; text-align: center; font-size: 1.15em; font-weight: 700; letter-spacing: .04em; }
+.qin-tt-weapon small { display: block; font-size: .62em; font-weight: 400; letter-spacing: .1em; text-transform: uppercase; color: #d9c9a6; margin-top: 1px; }
 
 /* ---------------- Battle tactics: the tactics screen */
 .qin-tactics .window-content { padding: 0; background: #1d1813; color: #f3ead8; }
