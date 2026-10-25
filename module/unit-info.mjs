@@ -54,13 +54,13 @@ export function unitTooltipHTML(token) {
   // header (dark red band): flag, gold line (officer's title, else the faction), name, then unit type and tier badge.
   // Without an officer the unit's own name is the big line and the tier badge sits beside it.
   const tierN = Math.max(1, Math.min(4, Number(sys.tier) || 1)); // badge colour: bronze, silver, gold, purple (4+)
-  const badge = `<span class="qin-tt-tier t${tierN}">T${esc(sys.tier)}</span>`;
+  const badge = `<span class="qin-tt-tier t${tierN}">T${esc(sys.tier)}</span>`; // a tab hanging from the card's top edge, top right
   const gold = officer ? (officer.system?.details?.title || facName) : facName;
   let html = `<div class="qin-tt"><div class="qin-tt-hd">${fac?.img ? `<img src="${esc(fac.img)}" alt="">` : ""}<div>`;
   if (gold) html += `<div class="qin-tt-ti">${esc(gold)}</div>`;
-  if (officer) html += `<div class="qin-tt-of">${esc(officer.name)}</div><div class="qin-tt-un">${esc(unitName)}${badge}</div>`;
-  else html += `<div class="qin-tt-of">${esc(unitName)}${badge}</div>`;
-  html += `</div></div><div class="qin-tt-body">`;
+  if (officer) html += `<div class="qin-tt-of">${esc(officer.name)}</div><div class="qin-tt-un">${esc(unitName)}</div>`;
+  else html += `<div class="qin-tt-of">${esc(unitName)}</div>`;
+  html += `</div>${badge}</div><div class="qin-tt-body">`;
   if (sys.hidden) html += `<div class="qin-tt-sub"><i class="fa-solid fa-eye-slash"></i><span>Hidden</span></div>`;
   html += `<div class="qin-tt-bl"><span>Health</span><span>${men} / ${max}</span></div>
     <div class="qin-tt-bar"><i style="width:${pct((100 * men) / max)}%;background:${hex(healthColor(men / max))}"></i></div>
