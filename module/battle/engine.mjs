@@ -347,7 +347,8 @@ function movementOf(s, u) {
 function newRoundFlags() {
   return { activated: false, moved: false, cannotMove: false, holding: false, attacked: false,
     skillUsed: false, heroicUsed: false, meleeTarget: null, meleeAttacker: null,
-    madeAttack: false, wasAttacked: false }; // for facing: has it attacked / been attacked this round
+    madeAttack: false, wasAttacked: false, // for facing: has it attacked / been attacked this round
+    attacksTaken: 0 }; // for Deflect: attacks against it this round
 }
 
 // ---------------------------------------------------------------- dice
@@ -612,17 +613,21 @@ function checkpointMorale(u) {
 }
 
 /**
- * Casualties from one hit (David, 2026-10-24): armor pen is damage that always goes through. Of a hit's damage,
- * up to `pen` points get through regardless of armor; the rest gets through only where the whole hit beats the armor.
+ * Casualties from one hit (David, 2026-10-25, Total War style): armor pen is extra damage that always goes through;
+ * the hit's damage (base + the roll margin) gets through only where it beats the armor.
+ *   casualties = pen + max(0, damage - armor - formation reduction) - evasion, never below 0.
  *   8 dmg, pen 1, armor 11 -> 1;  12 dmg, pen 1, armor 11 -> 1 (over the armor) + 1 (pen) = 2.
- * A formation's casualty reduction only lowers the part that beat the armor.
+ * Evasion (melee only) takes from the total, pen included. No damage at all (a negated roll) means no pen either.
  */
-function casualtiesOf(dmg, armor, pen, reduce) {
+function casualtiesOf(dmg, armor, pen, reduce, evade) {
   if (!(dmg > 0)) return 0;
-  const through = Math.min(Math.max(0, pen || 0), dmg);
   const over = Math.max(0, dmg - Math.max(0, armor || 0) - (reduce || 0));
-  return through + over;
+  return Math.max(0, Math.max(0, pen || 0) + over - (evade || 0));
 }
+/** Evasion: melee casualties -1/-2/-3, Evasion EX -4. */
+function evasionOf(u) { return trait(u, 'evasion ex') ? 4 : tierVal(trait(u, 'evasion'), [1, 2, 3]); }
+/** Disciplined: start the battle with morale +5/+10/+15. */
+function disciplinedBonus(u) { return tierVal(trait(u, 'disciplined'), [5, 10, 15]); }
 
 // Build one side's roll. role: 'attacker' | 'defender'.
 function buildRoll(s, unit, role, ctx) {
@@ -643,6 +648,7 @@ function buildRoll(s, unit, role, ctx) {
     if (ctx.charge && ctx.fierceBonus) parts.push([FIERCE_NAMES[Math.min(3, ctx.fierce)], ctx.fierceBonus]);
     if (ctx.charge && f.chargeBonus) parts.push(['Formation charge bonus (' + f.name + ')', f.chargeBonus]);
     if (ctx.charge && p.chargeAttackBonus) parts.push(['Officer passive: charge', p.chargeAttackBonus]);
+    if (!ctx.ranged && ctx.tilesMoved >= 2 && trait(unit, 'charging strike')) parts.push(['Charging Strike (moved ' + ctx.tilesMoved + ' tiles)', tierVal(trait(unit, 'charging strike'), [2, 4, 6])]);
     if (f.atkMod) parts.push(['Attack (' + f.name + ')', f.atkMod]); // attack modifiers only count when attacking
     if (ctx.hybridMelee) parts.push(['Hybrid: melee attack', -2]);
     if (ctx.second) parts.push(['Second attack (Dual Weapons)', -2]);
@@ -676,6 +682,9 @@ function buildRoll(s, unit, role, ctx) {
     if (trait(unit, 'shielded') && trait(ctx.attacker, 'shield breaker')) parts.push(['Shielded (ignored: Shield Breaker)', 0]);
     else if (trait(unit, 'shielded')) parts.push(ctx.ranged ? ['Shielded: ranged defense', tierVal(trait(unit, 'shielded'), [2, 4, 6])] : ['Shielded: melee defense', tierVal(trait(unit, 'shielded'), [1, 2, 3])]);
     if (ctx.ranged && trait(unit, 'shield battery') && fx(unit).stillLast) parts.push(['Shield Battery: ranged defense', 2]);
+    // Deflect: defense +2 (+3 against ranged) against the first attack each round; Deflect+ against the first two
+    if (trait(unit, 'deflect') && (unit.round.attacksTaken || 0) < tierVal(trait(unit, 'deflect'), [1, 2]))
+      parts.push([(trait(unit, 'deflect') > 1 ? 'Deflect+' : 'Deflect') + ': ' + (ctx.ranged ? 'ranged' : 'melee') + ' defense', ctx.ranged ? 3 : 2]);
     if (fx(unit).poison) parts.push(['Poisoned: melee & ranged defense', -fx(unit).poison]);
     if (f.defAll) parts.push(['Melee & ranged defense (' + f.name + ')', f.defAll]);
     if (ctx.ranged && f.defRanged) parts.push(['Ranged defense (' + f.name + ')', f.defRanged]);
@@ -814,15 +823,18 @@ function resolveAttack(s, attacker, defender, opts) {
   }
   if (trait(attacker, 'duelist')) { dmgToAtt = 0; canCounter = false; } // Duelist: ignores counter-strike damage
 
-  // Casualties = damage - (armor reduced by the other side's armor penetration) - formation damage reduction.
-  // Armor is also lowered by Sunder, and Shield Breaker ignores the armor a unit gets from shields.
+  // Casualties = armor pen + what the damage leaves after armor and formation reduction, less Evasion in melee.
+  // Armor is lowered by Sunder, and Shield Breaker ignores the armor a unit gets from shields.
   const af = formationOf(s, attacker);
   const armorOf = (t, u, breaker) => Math.max(0, (t.armor ?? t.defense ?? 0) - (fx(u).sunder || 0) - (breaker ? (t.shieldArmor || 0) : 0));
-  const hitDef = (dmg) => casualtiesOf(dmg, armorOf(dt, defender, trait(attacker, 'shield breaker')), at.armorPen, df.casReduce);
-  // Repeating: the attack lands as two hits of half damage each; armor (less armor pen) counts against each hit
+  const evDef = ranged ? 0 : evasionOf(defender);
+  const returnRanged = dt.weapon === 'ranged' && !(!ranged && trait(defender, 'hybrid')); // a ranged unit's strike back is a shot, unless it's a Hybrid in melee
+  const evAtt = returnRanged ? 0 : evasionOf(attacker);
+  const hitDef = (dmg, pen) => casualtiesOf(dmg, armorOf(dt, defender, trait(attacker, 'shield breaker')), pen, df.casReduce, evDef);
+  // Repeating: the attack lands as two hits of half damage (and half pen) each; armor counts against each hit
   const repeating = !!trait(attacker, 'repeating') && dmgToDef > 0;
-  const casDef = repeating ? hitDef(Math.ceil(dmgToDef / 2)) + hitDef(Math.floor(dmgToDef / 2)) : hitDef(dmgToDef);
-  const casAtt = casualtiesOf(dmgToAtt, armorOf(at, attacker, trait(defender, 'shield breaker')), dt.armorPen, af.casReduce);
+  const casDef = repeating ? hitDef(Math.ceil(dmgToDef / 2), Math.ceil((at.armorPen || 0) / 2)) + hitDef(Math.floor(dmgToDef / 2), Math.floor((at.armorPen || 0) / 2)) : hitDef(dmgToDef, at.armorPen);
+  const casAtt = casualtiesOf(dmgToAtt, armorOf(at, attacker, trait(defender, 'shield breaker')), dt.armorPen, af.casReduce, evAtt);
 
   // Morale loss for the loser
   // An attacker that can't be struck back (ranged out of reach, charges, Duelist, ambushes...) loses no morale for losing the roll
@@ -844,7 +856,6 @@ function resolveAttack(s, attacker, defender, opts) {
       moraleLoss = base + (passive(s, defender).extraMoraleLossOnWin || 0);
     }
     if (trait(loser, 'fragile')) moraleLoss += 5;
-    if (trait(loser, 'disciplined')) moraleLoss = Math.floor(moraleLoss / 2); // Disciplined: halved (rounded down)
   }
 
   // Apply simultaneously
@@ -859,7 +870,7 @@ function resolveAttack(s, attacker, defender, opts) {
     const b = unitAt(s, defender.x + dir.x, defender.y + dir.y);
     if (b && b !== attacker && alive(b) && hostile(attacker, b)) {
       const bt = typeOf(s, b);
-      const cas = casualtiesOf(Math.floor(dmgToDef / 2), armorOf(bt, b, false), at.armorPen, formationOf(s, b).casReduce);
+      const cas = casualtiesOf(Math.floor(dmgToDef / 2), armorOf(bt, b, false), Math.floor((at.armorPen || 0) / 2), formationOf(s, b).casReduce, evasionOf(b));
       b.men = Math.max(0, b.men - cas);
       b.morale = clamp(b.morale - checkpointMorale(b), 0, 100);
       trample = { unit: b.id, casualties: cas };
@@ -906,6 +917,7 @@ function resolveAttack(s, attacker, defender, opts) {
   if (!defender.round.wasAttacked && !defender.round.madeAttack) faceToward(defender, attacker);
   attacker.round.madeAttack = true;
   defender.round.wasAttacked = true;
+  defender.round.attacksTaken = (defender.round.attacksTaken || 0) + 1;
   if (attacker.hidden) attacker.hidden = false;
 
   const result = {
@@ -1434,6 +1446,10 @@ const ACTIONS = {
     for (const u of s.units) u.facing = null; // no facing until a unit attacks or is attacked
     log(s, 'Battle begins. Tacticians, choose your tactics.');
     for (const u of s.units) { if (u.fx) delete u.fx.checkpoints; fx(u).checkpoints = Math.min(4, checkpointsPassed(u)); } // checkpoints already passed before the battle don't cost morale
+    for (const u of s.units) { // Disciplined: start the battle with morale +5/+10/+15
+      const b = disciplinedBonus(u); if (!b || !alive(u)) continue;
+      u.morale = clamp(u.morale + b, 0, 100); log(s, u.name + ' is Disciplined: morale +' + b + ' (' + u.morale + ').');
+    }
     s.objState = freshObjState(); s.outcome = null; s.objEval = null;
     s.introAt = Date.now(); // every client plays the tour of the conditions once
     checkOutcome(s); // the tracker starts with every condition open
@@ -2071,7 +2087,7 @@ function viewFor(s, viewer) {
   return v;
 }
 
-export { casualtiesOf, checkpointMorale, checkpointsPassed, overwatchFire as _overwatchFire,
+export { casualtiesOf, evasionOf, disciplinedBonus, checkpointMorale, checkpointsPassed, overwatchFire as _overwatchFire,
   moveOptions, attackTargets, actionMenu, threatArea, TACTIC_SIDES, tileRules, ladderTiles, climbTiles, insideCity, isWallTop, gateAt,
   newState, act, viewFor, prompt, reachable, movementOf, moraleState, visibleTo, rangeOk,
   resolveAttack, buildRoll, setRng, yinYang, typeOf, officerOf, unitById, SIDES, settle, advance,

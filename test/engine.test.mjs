@@ -762,7 +762,17 @@ test('armor pen is damage that always goes through', () => {
   assert.strictEqual(R.casualtiesOf(12, 11, 1), 2, '12 dmg vs 11 armor: 1 over the armor + 1 pen');
   assert.strictEqual(R.casualtiesOf(7, 4, 0), 3, 'no pen: just what beats the armor');
   assert.strictEqual(R.casualtiesOf(0, 4, 2), 0, 'no hit, nothing goes through');
-  assert.strictEqual(R.casualtiesOf(1, 9, 3), 1, 'pen never exceeds the damage');
+  assert.strictEqual(R.casualtiesOf(1, 9, 3), 3, 'pen is extra damage: it goes through even when the hit is small');
+  assert.strictEqual(R.casualtiesOf(12, 11, 1, 0, 2), 0, 'Evasion+ takes 2 from the total, pen included');
+  assert.strictEqual(R.casualtiesOf(20, 4, 2, 3, 1), 2 + 13 - 1, 'formation reduction only on the part over the armor; evasion on the total');
+});
+
+test('Evasion / Evasion EX tiers and the Disciplined start bonus', () => {
+  assert.strictEqual(R.evasionOf({ traitTiers: { evasion: 1 } }), 1);
+  assert.strictEqual(R.evasionOf({ traitTiers: { evasion: 3 } }), 3);
+  assert.strictEqual(R.evasionOf({ traitTiers: { evasion: 3, 'evasion ex': 1 } }), 4, 'Evasion EX (the level-3 upgrade) is -4');
+  assert.strictEqual(R.evasionOf({ traitTiers: {} }), 0);
+  assert.strictEqual(R.disciplinedBonus({ traitTiers: { disciplined: 2 } }), 10);
 });
 
 test('casualty checkpoints: -5 morale for each fifth of health lost, once per battle', () => {

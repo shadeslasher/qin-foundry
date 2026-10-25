@@ -96,14 +96,14 @@ test('Zealot: Command rolls +1/+2/+3 at 25 morale or less instead of the Demoral
   assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Zealot/), 0, 'only when low');
 });
 
-test('Repeating: two hits of half damage, armor (less armor pen) counted against each', () => {
+test('Repeating: two hits of half damage (and half pen), armor counted against each', () => {
   // attacker 9+2 = 11 vs 0: damage 6 + 11 = 17 -> hits of 9 and 8, armor 3 -> 6 + 5 = 11 casualties (a normal hit: 14)
   let { D, r } = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], traits({ repeating: 1 }));
   assert.strictEqual(r.casualtiesDefender, 11);
   assert.strictEqual(D.men, 100 - 11);
-  // armor pen 2 against armor 3: 1 armor per hit -> 8 + 7 = 15
+  // armor pen 2 is split 1 + 1 over the two hits and goes through on top: (6 + 1) + (5 + 1) = 13
   ({ r } = duel(unitType('a', { armorPen: 2 }), unitType('d'), [9, 0, 0, 0], traits({ repeating: 1 })));
-  assert.strictEqual(r.casualtiesDefender, 15);
+  assert.strictEqual(r.casualtiesDefender, 13);
 });
 
 test('Trample: a winning charge against infantry costs the defender 5 more morale', () => {
@@ -126,7 +126,7 @@ test('Trample: a winning charge against infantry costs the defender 5 more moral
   assert.strictEqual(D.morale, Math.max(0, 50 - r.moraleLoss - r.casualtyMorale.defender));
 });
 
-test('Cowardly: rear attacks cause double morale loss; Disciplined: morale loss from a lost roll is halved', () => {
+test('Cowardly: rear attacks cause double morale loss; Disciplined no longer halves morale loss (it raises starting morale instead)', () => {
   // rear: the defender faces away (north), the attacker comes from the south
   let { r } = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], (a, d) => { d.traitTiers = { cowardly: 1 }; }, [], (a, d) => { d.facing = { dx: 0, dy: -1 }; });
   assert.ok(r.rear);
@@ -134,7 +134,7 @@ test('Cowardly: rear attacks cause double morale loss; Disciplined: morale loss 
   ({ r } = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], (a, d) => { d.traitTiers = { cowardly: 1 }; }));
   assert.strictEqual(r.moraleLoss, r.diff - 1, 'not from the front');
   ({ r } = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], (a, d) => { d.traitTiers = { disciplined: 1, fragile: 1 }; }));
-  assert.strictEqual(r.moraleLoss, Math.floor((r.diff - 1 + 5) / 2), 'halved after every other modifier, rounded down');
+  assert.strictEqual(r.moraleLoss, r.diff - 1 + 5, 'Fragile +5, no halving');
 });
 
 test('Fanatic: never surrenders at 0 morale, fights on (Demoralized) until destroyed', () => {
@@ -211,4 +211,63 @@ test('Outrider: after a normal move, ride on 1 tile (Outrider+ 2) instead of att
   assert.deepStrictEqual([C.x, C.y], [2, 4]);
   assert.ok(C.round.attacked, 'riding on replaces the attack');
   assert.ok(!s.turn.activation || s.turn.activation.unitId !== c, 'the turn ends');
+});
+
+// ---- Total War rebalance traits (David, 2026-10-25) ----
+test('Evasion: melee casualties -1/-2/-3 (EX -4), taken from the total including armor pen; not against ranged attacks', () => {
+  // attacker 9+2 = 11 vs 0: damage 6 + 11 = 17, pen 2, armor 3 -> 2 + 14 = 16; Evasion+ -> 14
+  let { r } = duel(unitType('a', { armorPen: 2 }), unitType('d'), [9, 0, 0, 0], (a, d) => { d.traitTiers = { evasion: 2 }; });
+  assert.strictEqual(r.casualtiesDefender, 14);
+  ({ r } = duel(unitType('a', { armorPen: 2 }), unitType('d'), [9, 0, 0, 0], (a, d) => { d.traitTiers = { evasion: 3, 'evasion ex': 1 }; }));
+  assert.strictEqual(r.casualtiesDefender, 12, 'Evasion EX');
+  ({ r } = duel(unitType('a', { weapon: 'ranged', rangeMax: 3, armorPen: 2 }), unitType('d'), [9, 0, 0, 0], (a, d) => { d.traitTiers = { evasion: 3 }; }));
+  assert.strictEqual(r.casualtiesDefender, 16, 'a shot is not evaded');
+  // the attacker evades the melee strike back too: defender wins 9 vs 2 (attacker bonus): dmg 6 + 7 = 13 - 3 armor = 10 -> Evasion 9
+  ({ r } = duel(unitType('a'), unitType('d'), [0, 0, 9, 0], (a, d) => { a.traitTiers = { evasion: 1 }; }));
+  assert.strictEqual(r.casualtiesAttacker, 9);
+});
+
+test('Disciplined: starts the battle with morale +5/+10/+15 and no longer halves morale loss', () => {
+  const { A, D } = duel(unitType('a'), unitType('d'), [3, 0, 0, 0], (a, d) => { a.traitTiers = { disciplined: 2 }; d.traitTiers = { disciplined: 3 }; });
+  assert.strictEqual(A.morale, 60, 'Disciplined+: 50 + 10 (it won, so lost none)');
+  const s = setup(); s.library.unitTypes.push(unitType('a'));
+  const u = R.unitById(s, add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 5, y: 5 }));
+  u.traitTiers = { disciplined: 3 }; u.morale = 90;
+  must(R.act(s, HOST, { type: 'startBattle' }));
+  assert.strictEqual(u.morale, 100, 'capped at 100');
+  assert.ok(D.morale <= 65 && D.morale > 50, 'defender started at 65 and lost a little');
+});
+
+test('Charging Strike: Attack +2/+4/+6 when the unit moved 2 or more tiles before a melee attack', () => {
+  const s = setup(); plains(s); s.library.unitTypes.push(unitType('a', { move: 4 }), unitType('d'));
+  const a = add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 5, y: 8 }), d = add(s, { typeId: 'd', side: 'enemy', x: 5, y: 4 });
+  R.unitById(s, a).traitTiers = { 'charging strike': 2 };
+  must(R.act(s, HOST, { type: 'startBattle' })); dice([0, 0]); must(R.act(s, HOST, { type: 'startRound' }));
+  must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: a }));
+  must(R.act(s, P1, { type: 'move', unitId: a, x: 5, y: 5 })); // 3 tiles
+  dice([3, 0, 0, 0]); must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
+  const r = s.log.filter(e => e.detail && e.detail.type === 'attack').pop().detail.result;
+  assert.strictEqual(part(r.attackRoll, /^Charging Strike/), 4);
+  // one tile only: nothing
+  const t = duel(unitType('a'), unitType('d'), [3, 0, 0, 0], traits({ 'charging strike': 3 }));
+  assert.strictEqual(part(t.r.attackRoll, /^Charging Strike/), 0);
+});
+
+test('Deflect: defense +2 (+3 vs ranged) against the first attack each round; Deflect+ the first two', () => {
+  const s = setup(); s.library.unitTypes.push(unitType('a'), unitType('d'), unitType('b', { weapon: 'ranged', rangeMax: 3 }));
+  const A = R.unitById(s, add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 5, y: 5 }));
+  const B = R.unitById(s, add(s, { typeId: 'b', side: 'player', owner: 'p1', x: 5, y: 7 }));
+  const D = R.unitById(s, add(s, { typeId: 'd', side: 'enemy', x: 5, y: 4 }));
+  D.traitTiers = { deflect: 1 };
+  assert.strictEqual(part(rollOf(s, D, 'defender', A), /^Deflect/), 2);
+  assert.strictEqual(part(rollOf(s, D, 'defender', B, { ranged: true }), /^Deflect/), 3);
+  D.round.attacksTaken = 1;
+  assert.strictEqual(part(rollOf(s, D, 'defender', A), /^Deflect/), 0, 'already attacked once this round');
+  D.traitTiers = { deflect: 2 };
+  assert.strictEqual(part(rollOf(s, D, 'defender', A), /^Deflect\+/), 2, 'Deflect+ still works on the second attack');
+  D.round.attacksTaken = 2;
+  assert.strictEqual(part(rollOf(s, D, 'defender', A), /^Deflect/), 0);
+  // the count comes from real attacks and resets each round
+  const { D: D2 } = duel(unitType('a'), unitType('d'), [3, 0, 0, 0]);
+  assert.strictEqual(D2.round.attacksTaken, 1);
 });
