@@ -37,7 +37,9 @@ function officerOf(sys) {
 /** Icons for the tooltip's stat tiles. */
 // There's no chestplate emoji, so armor is a small drawn cuirass in the same spirit as the others
 const CHESTPLATE = `<svg class="qin-tt-svg" viewBox="0 0 24 24"><path d="M7 3.5c1.6 1.3 3.2 1.9 5 1.9s3.4-.6 5-1.9l3.6 2.2-1.4 4.3-1.6-.6v8.1c0 1.6-2.4 3-5.6 3s-5.6-1.4-5.6-3v-8.1l-1.6.6-1.4-4.3z" fill="#b9c3cc" stroke="#3a4048" stroke-width="1.1" stroke-linejoin="round"/><path d="M12 5.4v15.1M8.2 11.5c2.4 1 5.2 1 7.6 0M8.2 15c2.4 1 5.2 1 7.6 0" fill="none" stroke="#6d7782" stroke-width="1"/><path d="M7.3 4.1c-.6 1.6-.3 3.4.9 5.5M16.7 4.1c.6 1.6.3 3.4-.9 5.5" fill="none" stroke="#c9a24a" stroke-width="1.1"/></svg>`;
-const TT_ICONS = { dmg: "⚔", armor: CHESTPLATE, pen: "➶", move: "👣" };
+// Pierce: a blade driven through a breastplate (the plate split where it enters)
+const PIERCE = `<svg class="qin-tt-svg" viewBox="0 0 24 24"><path d="M6.5 8.5c1.5 1 3.3 1.5 5.5 1.5s4-.5 5.5-1.5l2.5 1.6-1 3.2-1.2-.4v5.6c0 1.3-2.4 2.5-5.8 2.5s-5.8-1.2-5.8-2.5v-5.6l-1.2.4-1-3.2z" fill="#b9c3cc" stroke="#3a4048" stroke-width="1.1" stroke-linejoin="round"/><path d="M8.2 14.2c2.4.9 5.2.9 7.6 0" fill="none" stroke="#6d7782" stroke-width="1"/><path d="M12 16.2l-2.1-2.6 1.1-1.1 1-2.3 1 2.3 1.1 1.1z" fill="#5a6168" opacity=".85"/><path d="M12 1.2l1.7 4.4-.1 8.1-1.6 2.9-1.6-2.9-.1-8.1z" fill="#e9eef2" stroke="#3a4048" stroke-width="1"/><path d="M12 1.6v14.4" stroke="#aeb7bf" stroke-width=".8"/><path d="M9.3 3.8c1.6-.6 3.8-.6 5.4 0" fill="none" stroke="#c9a24a" stroke-width="1.6" stroke-linecap="round"/></svg>`;
+const TT_ICONS = { dmg: "⚔", armor: CHESTPLATE, pen: PIERCE, move: "👣" };
 
 const hex = (n) => "#" + Number(n).toString(16).padStart(6, "0");
 
@@ -65,7 +67,7 @@ export function unitTooltipHTML(token) {
     <div class="qin-tt-bl"><span>Morale</span><span>${morale}${sys.moraleState ? ` · ${esc(sys.moraleState)}` : ""}</span></div>
     <div class="qin-tt-bar"><i style="width:${pct(morale)}%;background:${hex(moraleColor(morale))}"></i></div>`;
   const chip = (icon, v, label) => `<div class="qin-tt-chip"><i>${TT_ICONS[icon]}</i><b>${v}</b><small>${label}</small></div>`;
-  html += `<div class="qin-tt-chips">${chip("dmg", sys.damage ?? 0, "Dmg")}${chip("armor", sys.armor ?? 0, "Armor")}${chip("pen", sys.armorPen ?? 0, "Pen")}${chip("move", sys.move ?? 0, "Move")}</div>`;
+  html += `<div class="qin-tt-chips">${chip("dmg", sys.damage ?? 0, "Dmg")}${chip("pen", sys.armorPen ?? 0, "Pierce")}${chip("armor", sys.armor ?? 0, "Armor")}${chip("move", sys.move ?? 0, "Move")}</div>`;
   const w = weaponLine(sys);
   if (w) html += `<div class="qin-tt-weapon">${w}</div>`;
   return html + `</div></div>`;
@@ -258,7 +260,7 @@ export class UnitInfoApp extends Base {
         </div>
       </header>
       <section class="qin-ui-stats">
-        ${stat("Damage", sys.damage ?? 0)}${stat("Armor", sys.armor ?? 0, sys.armorNote)}${stat("Armor Pen", sys.armorPen ?? 0)}
+        ${stat("Damage", sys.damage ?? 0)}${stat("Pierce", sys.armorPen ?? 0)}${stat("Armor", sys.armor ?? 0, sys.armorNote)}
         ${stat("Movement", sys.move ?? 0)}${stat("Range", rangeText(sys) || "Melee")}${stat("Unit Value", sys.unitValue ?? 0)}
       </section>
       <section><h3>Officer</h3>${officer ? `
