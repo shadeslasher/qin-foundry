@@ -746,3 +746,8 @@ details.qin-recent[open] > summary { margin-bottom: 4px; }
 .qin-tb-round { font: bold 11px sans-serif; letter-spacing: .12em; text-align: right; opacity: .9; }
 .qin-tb-round big { display: block; font: 900 22px/1 "Qin Cinzel", Georgia, serif; letter-spacing: 0; }
 @media (prefers-reduced-motion: reduce) { .qin-turn-banner.qin-tb-in { animation: none; } }
+/* roll breakdown: labels wrap inside their column, numbers never split */
+.qin-breakdown > div { min-width: 0; }
+.qin-breakdown .qin-row { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
+.qin-breakdown .qin-row > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.qin-breakdown .qin-row > span:last-child { flex: none; white-space: nowrap; text-align: right; }
