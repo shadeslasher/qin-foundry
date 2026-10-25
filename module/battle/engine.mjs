@@ -75,8 +75,10 @@ function tileRules(s, x, y) {
   let overlays = tile.overlays || [];
   const gate = overlays.includes('city-gate') ? gateAt(s, x, y) : null;
   if (gate && gate.state === 'burned') overlays = overlays.map(o => (o === 'city-gate' ? 'ruins' : o)); // burned gates are ruins
-  // a camp palisade or timber wall with a road through it is the camp's gate: open ground, no wall defense
-  const campGate = overlays.includes('road') && overlays.some(o => o === 'camp-palisade' || o === 'camp-wall');
+  // a camp palisade or timber wall with a road running out through it is the camp's gate: open ground, no wall defense
+  const isCampSq = (o) => o === 'camp' || (o || '').startsWith('camp-');
+  const campGate = overlays.includes('road') && overlays.some(o => o === 'camp-palisade' || o === 'camp-wall')
+    && ORTHO.some(([dx, dy]) => { const n = s.map.tiles[(x + dx) + ',' + (y + dy)]; const no = (n && n.overlays) || []; return n && no.includes('road') && !no.some(isCampSq); });
   if (campGate) overlays = overlays.map(o => (o === 'camp-palisade' || o === 'camp-wall' ? 'camp-gate' : o));
   const parts = [data.MAP_TERRAIN[tile.terrain] || { name: tile.terrain }, ...overlays.map(o => data.MAP_OVERLAYS[o] || { name: o })];
   const r = { move: 0, meleeDef: 0, rangedDef: 0, range: 0, atk: 0, downhill: 0, high: false, command: 0, moraleTurn: 0, healthTurn: 0, campDef: 0,

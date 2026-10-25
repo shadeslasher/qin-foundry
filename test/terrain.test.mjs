@@ -155,6 +155,9 @@ test('camps: a unit inside walks onto the palisade squares, no one enters them f
   const special = {};
   for (let x = 4; x <= 6; x++) for (let y = 4; y <= 6; y++) special[`${x},${y}`] = { terrain: 'plains', overlays: [x === 5 && y === 5 ? 'camp' : 'camp-palisade'] };
   special['4,5'] = { terrain: 'plains', overlays: ['camp-palisade', 'road'] };
+  special['3,5'] = { terrain: 'plains', overlays: ['road'] }; // the road runs out of the camp here
+  special['6,4'] = { terrain: 'plains', overlays: ['camp-palisade', 'road'] }; // a road along the inside of the wall is not a gate
+  special['6,5'] = { terrain: 'plains', overlays: ['camp-palisade', 'road'] };
   const s = field(special);
   s.library.unitTypes.push(unitType('inf'));
   const inside = add(s, { typeId: 'inf', side: 'player', owner: 'p1', x: 5, y: 5 });
@@ -167,6 +170,7 @@ test('camps: a unit inside walks onto the palisade squares, no one enters them f
   assert.ok(blue.has('5,4') && blue.has('6,6') && blue.has('4,5'), 'the defender can man every rampart square and the gate');
   assert.ok(blue.has('3,5'), 'and leave through the gate');
   assert.ok(!blue.has('7,5') && !blue.has('5,3'), 'but not step down off the rampart to the outside');
+  assert.strictEqual(R.tileRules(s, 6, 5).pass, 'none', 'a road along the wall with no road outside is no gate');
   // from outside: a second battle with the unit at (8,5)
   const s2 = field(special); s2.library.unitTypes.push(unitType('inf'));
   const outside = add(s2, { typeId: 'inf', side: 'player', owner: 'p1', x: 8, y: 5 });
