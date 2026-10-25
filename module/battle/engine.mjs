@@ -75,9 +75,13 @@ function tileRules(s, x, y) {
   let overlays = tile.overlays || [];
   const gate = overlays.includes('city-gate') ? gateAt(s, x, y) : null;
   if (gate && gate.state === 'burned') overlays = overlays.map(o => (o === 'city-gate' ? 'ruins' : o)); // burned gates are ruins
+  // a camp palisade or timber wall with a road through it is the camp's gate: open ground, no wall defense
+  const campGate = overlays.includes('road') && overlays.some(o => o === 'camp-palisade' || o === 'camp-wall');
+  if (campGate) overlays = overlays.map(o => (o === 'camp-palisade' || o === 'camp-wall' ? 'camp-gate' : o));
   const parts = [data.MAP_TERRAIN[tile.terrain] || { name: tile.terrain }, ...overlays.map(o => data.MAP_OVERLAYS[o] || { name: o })];
   const r = { move: 0, meleeDef: 0, rangedDef: 0, range: 0, atk: 0, downhill: 0, high: false, command: 0, moraleTurn: 0, healthTurn: 0, campDef: 0,
-    hides: false, wall: false, water: false, flammable: false, names: [], camp: overlays.some(o => o === 'camp' || o.startsWith('camp-')) };
+    hides: false, wall: false, water: false, flammable: false, names: [], camp: overlays.some(o => o === 'camp' || o.startsWith('camp-')),
+    campEdge: overlays.some(o => o === 'camp-palisade' || o === 'camp-wall') }; // a rampart square: entered from inside the camp only
   let none = false, noCav = false, bridge = false;
   for (const p of parts) {
     for (const k of ['move', 'meleeDef', 'rangedDef', 'range', 'atk', 'downhill', 'command', 'moraleTurn', 'healthTurn', 'campDef']) r[k] += p[k] || 0;
@@ -106,11 +110,25 @@ function passable(s, x, y, u) {
   if (r) return r.pass === 'all' || (r.pass === 'noCavalry' && !(u && (typeOf(s, u) || {}).category === 'cavalry'));
   return (data.TERRAIN[terrainAt(s, x, y)] || data.TERRAIN.flat).passable;
 }
-/** Can a unit be in this square at all? (walls and towers can hold units even though they can't be walked onto) */
+/** Can a unit be in this square at all? (walls, towers and camp ramparts hold units even though they can't be walked onto from outside) */
 function standable(s, x, y) {
   if (!inBounds(s, x, y)) return false;
   const r = tileRules(s, x, y);
-  return r ? r.pass !== 'none' || r.wall : passable(s, x, y);
+  return r ? r.pass !== 'none' || r.wall || r.campEdge : passable(s, x, y);
+}
+/** From a camp rampart square a unit only steps to other squares of the camp (not down to the outside). */
+function campEdgeDrop(s, x, y, nx, ny) {
+  const from = tileRules(s, x, y);
+  if (!from || !from.campEdge) return false;
+  const to = tileRules(s, nx, ny);
+  return !(to && to.camp);
+}
+/** A camp's palisade or timber wall square can be stepped onto from any other square of that camp (its defenders man the rampart), never from outside. */
+function campEdgeStep(s, x, y, nx, ny) {
+  const to = tileRules(s, nx, ny);
+  if (!to || !to.campEdge || !inBounds(s, nx, ny)) return false;
+  const from = tileRules(s, x, y);
+  return !!(from && from.camp);
 }
 /** Movement it costs to enter a square: 1 + its Move modifier, never less than 1 (roads and paving cost the normal 1). */
 function enterCost(s, x, y, u) {
@@ -383,8 +401,8 @@ function reachable(s, u, budget) {
       // wall tops: along the wall, and to and from the city inside (not down to the outside)
       const fromWall = isWallTop(s, x, y), toWall = isWallTop(s, nx, ny);
       const stepOk = fromWall && toWall ? true : fromWall ? insideCity(s, nx, ny) && passable(s, nx, ny, u)
-        : toWall ? insideCity(s, x, y) : passable(s, nx, ny, u);
-      if (!stepOk) continue;
+        : toWall ? insideCity(s, x, y) : passable(s, nx, ny, u) || campEdgeStep(s, x, y, nx, ny);
+      if (!stepOk || campEdgeDrop(s, x, y, nx, ny)) continue;
       const nd = d + enterCost(s, nx, ny, u);
       if (nd > budget || (best.has(k) && best.get(k) <= nd)) continue;
       const o = unitAt(s, nx, ny);

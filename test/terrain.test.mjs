@@ -149,3 +149,35 @@ test('tile info: the lines the V tooltip shows for a square', async () => {
   assert.deepStrictEqual(tileTipLines(R.tileRules(s, 3, 3)).lines, ['Impassable']);
   assert.strictEqual(tileTipLines(null), null);
 });
+
+test('camps: a unit inside walks onto the palisade squares, no one enters them from outside; a road through the wall is an open gate', () => {
+  // a 3x3 camp at (4..6, 4..6): the ring is palisade, the middle is camp; a road leaves west through (4,5)
+  const special = {};
+  for (let x = 4; x <= 6; x++) for (let y = 4; y <= 6; y++) special[`${x},${y}`] = { terrain: 'plains', overlays: [x === 5 && y === 5 ? 'camp' : 'camp-palisade'] };
+  special['4,5'] = { terrain: 'plains', overlays: ['camp-palisade', 'road'] };
+  const s = field(special);
+  s.library.unitTypes.push(unitType('inf'));
+  const inside = add(s, { typeId: 'inf', side: 'player', owner: 'p1', x: 5, y: 5 });
+  add(s, { typeId: 'inf', side: 'enemy', x: 11, y: 11 });
+  must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'skipTactics' }));
+  dice([0, 0]); must(R.act(s, HOST, { type: 'startRound' }));
+  must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: inside }));
+  s.freeMovement = false;
+  let blue = R.moveOptions(s, R.unitById(s, inside)).blue;
+  assert.ok(blue.has('5,4') && blue.has('6,6') && blue.has('4,5'), 'the defender can man every rampart square and the gate');
+  assert.ok(blue.has('3,5'), 'and leave through the gate');
+  assert.ok(!blue.has('7,5') && !blue.has('5,3'), 'but not step down off the rampart to the outside');
+  // from outside: a second battle with the unit at (8,5)
+  const s2 = field(special); s2.library.unitTypes.push(unitType('inf'));
+  const outside = add(s2, { typeId: 'inf', side: 'player', owner: 'p1', x: 8, y: 5 });
+  add(s2, { typeId: 'inf', side: 'enemy', x: 11, y: 11 });
+  must(R.act(s2, HOST, { type: 'startBattle' })); must(R.act(s2, HOST, { type: 'skipTactics' }));
+  dice([0, 0]); must(R.act(s2, HOST, { type: 'startRound' }));
+  must(R.act(s2, P1, { type: 'claim' })); must(R.act(s2, P1, { type: 'begin', unitId: outside }));
+  s2.freeMovement = false;
+  blue = R.moveOptions(s2, R.unitById(s2, outside)).blue;
+  assert.ok(blue.has('7,5') && !blue.has('6,5') && !blue.has('6,4'), 'from outside the palisade is a wall');
+  assert.strictEqual(R.tileRules(s, 4, 5).names.join(' · '), 'Plains · Camp gate · Road');
+  assert.strictEqual(R.tileRules(s, 4, 5).pass, 'all');
+  assert.strictEqual(R.tileRules(s, 4, 5).campDef, 0, 'the gate gives no wall defense');
+});
