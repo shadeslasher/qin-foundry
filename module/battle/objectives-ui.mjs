@@ -335,11 +335,27 @@ function placeCard(card, tg) {
 
 let trackerEl = null;
 
+/** The right-hand UI (sidebar tabs and the open sidebar panel): the tracker sits just left of whatever is showing. */
+function rightUI() {
+  return ["sidebar", "sidebar-tabs", "sidebar-content"].map(id => document.getElementById(id)).concat(ui.sidebar?.element ?? []).filter(Boolean);
+}
 function placeTracker() {
   if (!trackerEl) return;
-  const sb = document.getElementById("sidebar") ?? ui.sidebar?.element;
-  const left = sb?.getBoundingClientRect?.().left;
-  trackerEl.style.right = `${Math.max(8, (left ? window.innerWidth - left : 0) + 8)}px`;
+  let left = window.innerWidth;
+  for (const el of rightUI()) {
+    const r = el.getBoundingClientRect?.();
+    if (r && r.width > 0 && r.height > 0 && r.left > window.innerWidth / 3) left = Math.min(left, r.left);
+  }
+  trackerEl.style.right = `${Math.max(8, window.innerWidth - left + 8)}px`;
+}
+/** Follow the sidebar as it opens, closes and animates (its width changes frame by frame). */
+let sidebarWatch = null;
+function watchSidebar() {
+  if (sidebarWatch || typeof ResizeObserver === "undefined") return;
+  let queued = false;
+  sidebarWatch = new ResizeObserver(() => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; placeTracker(); }); });
+  for (const el of rightUI()) sidebarWatch.observe(el);
+  document.addEventListener("transitionend", (ev) => { if (rightUI().some(el => el.contains(ev.target))) placeTracker(); });
 }
 
 export function renderTracker() {
@@ -412,7 +428,9 @@ export function registerObjectives() {
     if (scene.id === canvas.scene?.id && foundry.utils.hasProperty(change, `flags.${SYSTEM_ID}`)) { drawObjectiveMarkers(); renderTracker(); }
   });
   Hooks.on("updateToken", (doc, change) => { if (doc.parent?.id === canvas.scene?.id && ("x" in change || "y" in change || "hidden" in change)) drawObjectiveMarkers(); });
-  Hooks.on("collapseSidebar", () => setTimeout(placeTracker, 50));
+  Hooks.on("collapseSidebar", () => { placeTracker(); setTimeout(placeTracker, 50); setTimeout(placeTracker, 400); });
+  Hooks.on("changeSidebarTab", () => setTimeout(placeTracker, 0));
+  Hooks.once("ready", () => watchSidebar());
   Hooks.on("canvasPan", () => clearHoverLabel());
   window.addEventListener("resize", () => placeTracker());
   document.addEventListener("pointermove", onHover);
