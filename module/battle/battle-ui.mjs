@@ -3,7 +3,7 @@
 import * as E from "./engine.mjs";
 import { getBattle, buildState, isWritingBack } from "./adapter.mjs";
 import { SYSTEM_ID } from "../config.mjs";
-import { openUnitInfo, unitVisible, setPickingCheck } from "../unit-info.mjs";
+import { openUnitInfo, unitVisible, setPickingCheck, canPinThreat, threatPinned, toggleThreatRange } from "../unit-info.mjs";
 import { deployMoveCheck, zoneSet, DEPLOY_FLAG } from "./deploy-rules.mjs";
 
 setPickingCheck(() => !!mode);
@@ -471,7 +471,8 @@ export function showUnitBox(token) {
   pickEl.dataset.tokenId = token.id;
   pickEl.innerHTML = `<div class="qin-fe-title">${esc(token.document.name)}</div>`
     + buttons.map(([label], i) => `<button type="button" data-i="${i}">${label}</button>`).join("")
-    + `<button type="button" data-info="1"><i class="fa-solid fa-circle-info"></i> Info</button>`;
+    + `<button type="button" data-info="1"><i class="fa-solid fa-circle-info"></i> Info</button>`
+    + (canPinThreat(token) ? `<button type="button" data-threat="1" class="${threatPinned(token.id) ? "qin-on" : ""}" title="Keep this unit's reach on the map: where it can move this turn and, in orange, where it could attack from there. Press again to hide it."><i class="fa-solid fa-bullseye"></i> ${threatPinned(token.id) ? "Hide threat range" : "Threat range"}</button>` : "");
   document.body.append(pickEl);
   const pos = toClient({ x: token.x + token.w, y: token.y });
   pickEl.style.left = `${Math.round(pos.x + 8)}px`;
@@ -481,6 +482,7 @@ export function showUnitBox(token) {
     if (!btn) return;
     hidePick();
     if (btn.dataset.info) return openUnitInfo(token);
+    if (btn.dataset.threat) return toggleThreatRange(token);
     if (!requestFn) return;
     for (const action of buttons[Number(btn.dataset.i)][1]) {
       const res = await requestFn(action);

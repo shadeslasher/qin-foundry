@@ -774,3 +774,14 @@ details.qin-recent[open] > summary { margin-bottom: 4px; }
 .qin-tile-tip ul { margin: 0; padding-left: 12px; }
 .qin-tile-tip li { margin: 0; }
 .qin-tile-tip .qin-muted { opacity: .7; }
+
+/* Hotkey guide (H) */
+.qin-hotkeys .window-content { padding: 8px 10px; }
+.qin-hk { width: 100%; border-collapse: collapse; font-size: .92em; }
+.qin-hk td { padding: 4px 6px; vertical-align: top; border-bottom: 1px solid rgba(160,140,100,.35); }
+.qin-hk td.k { width: 112px; white-space: nowrap; }
+.qin-hk kbd { display: inline-block; min-width: 20px; padding: 1px 6px; border-radius: 4px; border: 1px solid rgba(0,0,0,.45); border-bottom-width: 2px;
+  background: rgba(255,255,255,.75); color: #222; font: bold 11px/1.5 "DejaVu Sans Mono", monospace; text-align: center; }
+.qin-hk-gm { font-size: .72em; padding: 0 4px; border-radius: 3px; background: rgba(140,30,30,.75); color: #fff; vertical-align: middle; }
+.qin-hk-m { font-size: .9em; font-style: italic; opacity: .85; }
+.qin-hk-wrap h4 { margin: 10px 0 2px; }

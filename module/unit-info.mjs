@@ -128,6 +128,41 @@ export function showMovePreview(token) {
   dimDanger(true);
 }
 
+/* ------------------------------------------------------------ threat range: one unit's reach, pinned from its click box */
+
+const pinned = new Map(); // token id -> PIXI.Graphics
+export const threatPinned = (tokenId) => pinned.has(tokenId);
+/** May this user pin a unit's threat range? Players: enemy and neutral units only; the GM: any unit. */
+export function canPinThreat(token, user = game.user) {
+  const side = token?.actor?.system?.side;
+  return !!token?.actor && token.actor.type === "unit" && (user.isGM || side === "enemy" || side === "neutral");
+}
+function unpinThreat(id) { const g = pinned.get(id); if (g && !g.destroyed) g.destroy(); pinned.delete(id); }
+function drawPinnedThreat(id) {
+  unpinThreat(id);
+  const token = canvas?.tokens?.get(id);
+  if (!token || !unitVisible(token)) return;
+  const s = previewState(id), u = s && E.unitById(s, id);
+  if (!u || u.status !== "active") return;
+  const { move, attack } = E.threatArea(s, u);
+  const size = canvas.scene.grid.size, mcol = MOVE_COLORS[token.actor.system.side] ?? MOVE_COLORS.enemy;
+  const g = new PIXI.Graphics(); g.eventMode = "none";
+  const sq = (k, col, a) => { const [x, y] = k.split(",").map(Number); g.lineStyle(2, col, 0.7).beginFill(col, a).drawRect(x * size + 4, y * size + 4, size - 8, size - 8).endFill(); };
+  for (const k of attack) sq(k, ATTACK, 0.16);
+  for (const k of move) sq(k, mcol, 0.2);
+  const layer = canvas.interface ?? canvas.controls ?? canvas.stage;
+  layer.addChildAt?.(g, 0) ?? layer.addChild(g);
+  pinned.set(id, g);
+}
+/** Toggle a unit's pinned threat range (its move squares and, in orange, where it could attack from them). */
+export function toggleThreatRange(token) {
+  if (pinned.has(token.id)) { unpinThreat(token.id); return false; }
+  drawPinnedThreat(token.id);
+  return pinned.has(token.id);
+}
+function redrawPinned() { for (const id of [...pinned.keys()]) drawPinnedThreat(id); }
+function clearPinned() { for (const id of [...pinned.keys()]) unpinThreat(id); }
+
 /* ------------------------------------------------------------ danger zone (Z): every tile the enemy threatens */
 
 let dangerOn = false, danger = null;
@@ -318,7 +353,8 @@ export function registerUnitInfo() {
   for (const h of ["updateToken", "deleteToken", "canvasTearDown"]) Hooks.on(h, () => clearMovePreview());
   // keep the danger zone current as units move, change or the battle advances
   let pending = null;
-  const redraw = () => { if (!dangerOn) return; clearTimeout(pending); pending = setTimeout(drawDangerZone, 60); };
+  const redraw = () => { clearTimeout(pending); pending = setTimeout(() => { if (dangerOn) drawDangerZone(); redrawPinned(); }, 60); };
   for (const h of ["updateToken", "createToken", "deleteToken", "updateActor", "updateSetting", "canvasReady"]) Hooks.on(h, redraw);
-  Hooks.on("canvasTearDown", clearDanger);
+  Hooks.on("deleteToken", (doc) => unpinThreat(doc.id));
+  Hooks.on("canvasTearDown", () => { clearDanger(); clearPinned(); });
 }

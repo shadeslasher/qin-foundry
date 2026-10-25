@@ -45,7 +45,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
   static DEFAULT_OPTIONS = {
     id: "qin-battle-panel",
     classes: ["qin", "qin-battle"],
-    window: { title: "Battle", icon: "fa-solid fa-chess-rook", resizable: true },
+    window: { title: "Battle", icon: "fa-solid fa-chess-rook", resizable: true, controls: [{ icon: "fa-solid fa-keyboard", label: "Hotkeys", action: "hotkeys" }] },
     position: { width: 400, height: 640, top: 80, left: 120 },
     actions: {
       do: BattlePanel.#do,
@@ -67,6 +67,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
       objPick: (ev, el) => startPick(el.dataset.id, el.dataset.kind),
       objRemove: (ev, el) => removeCondition(el.dataset.id),
       objExtract: (ev, el) => startExtractionBrush(el.dataset.mode),
+      hotkeys: async () => (await import("../hotkeys.mjs")).HotkeyGuide.toggle(),
       rzNew: function () { newZone(this.element.querySelector("[name=rzRounds]")?.value ?? 2); },
       rzPaint: (ev, el) => startReinforceBrush(el.dataset.id, "paint"),
       rzErase: (ev, el) => startReinforceBrush(el.dataset.id, "erase"),

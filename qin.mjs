@@ -21,6 +21,7 @@ import { registerDeployZones, drawDeployZones, setDeployChangeHandler } from "./
 import { registerPreBattleCover } from "./module/battle/cover.mjs";
 import { registerReinforcements, drawReinforceZones, setReinforceChangeHandler } from "./module/battle/reinforce.mjs";
 import { registerTileTip, toggleTileTip } from "./module/battle/tile-tip.mjs";
+import { HotkeyGuide } from "./module/hotkeys.mjs";
 import { registerTurnBanner, renderTurnBanner } from "./module/battle/turn-banner.mjs";
 import { registerObjectives, refreshObjectives, setObjectivesChangeHandler } from "./module/battle/objectives-ui.mjs";
 import { NEW_UNIT_TOOL, newUnitDialog } from "./module/new-unit.mjs";
@@ -181,6 +182,11 @@ Hooks.once("init", () => {
     onDown: () => { toggleTileTip(); return true; },
   });
   registerTileTip();
+  game.keybindings.register(SYSTEM_ID, "hotkeys", {
+    name: "Hotkey guide", hint: "Opens a window listing these shortcuts; press again to close it.",
+    editable: [{ key: "KeyH" }], precedence: CONST.KEYBINDING_PRECEDENCE?.NORMAL,
+    onDown: () => { HotkeyGuide.toggle(); return true; },
+  });
   game.keybindings.register(SYSTEM_ID, "newUnit", {
     name: "New unit (GM)", hint: "Opens the New unit window (or brings it to the front).",
     editable: [{ key: "KeyN" }], restricted: true, precedence: CONST.KEYBINDING_PRECEDENCE?.NORMAL,
