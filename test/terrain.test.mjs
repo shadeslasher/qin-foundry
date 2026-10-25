@@ -135,3 +135,17 @@ test('a hidden unit that ends its turn out of cover is seen', () => {
   must(R.act(s, P1, { type: 'endTurn', unitId: u }));
   assert.strictEqual(R.unitById(s, u).hidden, false);
 });
+
+test('tile info: the lines the V tooltip shows for a square', async () => {
+  globalThis.foundry ??= { utils: {} }; globalThis.game ??= { settings: { get: () => ({}) }, user: { isGM: true } }; globalThis.Hooks ??= { on() {}, once() {} };
+  const { tileTipLines } = await import('../module/battle/tile-tip.mjs');
+  const s = R.newState(); s.map.tiles = { '1,1': { terrain: 'forest' }, '2,2': { terrain: 'plains', overlays: ['hill', 'watchtower'] }, '3,3': { terrain: 'river' } };
+  const f = tileTipLines(R.tileRules(s, 1, 1));
+  assert.strictEqual(f.title, 'Forest');
+  assert.deepStrictEqual(f.lines, ['Move +1 to enter', 'Ranged defense +2', 'Hides units', 'Flammable']);
+  const h = tileTipLines(R.tileRules(s, 2, 2));
+  assert.strictEqual(h.title, 'Plains · Hill · Watchtower');
+  assert.ok(h.lines.includes('Range +2') && h.lines.includes('Attack +1') && h.lines.includes('Command +1 against lower units'));
+  assert.deepStrictEqual(tileTipLines(R.tileRules(s, 3, 3)).lines, ['Impassable']);
+  assert.strictEqual(tileTipLines(null), null);
+});
