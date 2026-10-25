@@ -1091,15 +1091,14 @@ function checkEncirclement(s) {
   let changed = false;
   for (const u of liveUnits(s)) {
     if (trait(u, 'stalwart')) { u.surrounded = false; continue; } // Stalwart: can't be surrounded
-    let enemies = 0, open = 0;
+    let enemies = 0;
     for (const [dx, dy] of ORTHO) {
-      const x = u.x + dx, y = u.y + dy;
-      if (!passable(s, x, y)) continue;
-      const o = unitAt(s, x, y);
-      if (o && hostile(o, u)) enemies++; else open++;
+      const o = unitAt(s, u.x + dx, u.y + dy);
+      if (o && hostile(o, u)) enemies++;
     }
-    // surrounded: every side blocked by an enemy or by impassable ground, with at least one enemy
-    const surrounded = enemies >= 1 && open === 0;
+    // surrounded: an enemy unit on all four sides (David, 2026-10-25). Walls, impassable ground, the map edge and
+    // allies don't count toward the ring; it takes four units.
+    const surrounded = enemies === 4;
     if (surrounded && !u.surrounded) {
       u.surrounded = true;
       if (fireTactics(s, 'surrounded', u).length || hasTactic(s, u, 'fear')) {
