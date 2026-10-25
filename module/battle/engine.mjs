@@ -594,6 +594,24 @@ function rangeOk(s, attacker, defender) {
 }
 
 /**
+ * Casualty checkpoints (David, 2026-10-24): every fifth of a unit's full health lost costs 5 morale, once per battle
+ * per checkpoint (80%, 60%, 40%, 20%; a unit wiped out loses nothing more). Call after its health has changed;
+ * returns the morale to take off and remembers the checkpoints passed (fx.checkpoints).
+ */
+const CHECKPOINT_MORALE = 5;
+function checkpointsPassed(u) {
+  const full = u.maxMen || 100, men = Math.max(0, u.men);
+  if (men <= 0) return 4;
+  return [0.8, 0.6, 0.4, 0.2].filter(t => men <= t * full).length;
+}
+function checkpointMorale(u) {
+  const now = Math.min(4, checkpointsPassed(u)), before = fx(u).checkpoints || 0;
+  if (now <= before) return 0;
+  fx(u).checkpoints = now;
+  return u.men > 0 ? (now - before) * CHECKPOINT_MORALE : 0;
+}
+
+/**
  * Casualties from one hit (David, 2026-10-24): armor pen is damage that always goes through. Of a hit's damage,
  * up to `pen` points get through regardless of armor; the rest gets through only where the whole hit beats the armor.
  *   8 dmg, pen 1, armor 11 -> 1;  12 dmg, pen 1, armor 11 -> 1 (over the armor) + 1 (pen) = 2.
@@ -843,15 +861,14 @@ function resolveAttack(s, attacker, defender, opts) {
       const bt = typeOf(s, b);
       const cas = casualtiesOf(Math.floor(dmgToDef / 2), armorOf(bt, b, false), at.armorPen, formationOf(s, b).casReduce);
       b.men = Math.max(0, b.men - cas);
-      b.morale = clamp(b.morale - Math.floor(cas * 50 / (b.maxMen || 100)), 0, 100);
+      b.morale = clamp(b.morale - checkpointMorale(b), 0, 100);
       trample = { unit: b.id, casualties: cas };
       log(s, 'Fierce Charge++: ' + b.name + ', behind ' + defender.name + ', takes half the damage (-' + cas + ').', { type: 'trample', unit: b.id, casualties: cas });
     }
   }
   if (loser) loser.morale = clamp(loser.morale - moraleLoss, 0, 100);
-  // casualties cost morale too: 1 for every 2% of the unit's full health lost
-  const casMorale = (u, cas) => Math.floor(cas * 50 / (u.maxMen || 100));
-  const cmD = casMorale(defender, casDef), cmA = casMorale(attacker, casAtt);
+  // casualties cost morale at checkpoints: -5 the first time each fifth of the unit's health is lost this battle
+  const cmD = checkpointMorale(defender), cmA = checkpointMorale(attacker);
   if (cmD) defender.morale = clamp(defender.morale - cmD, 0, 100);
   if (cmA) attacker.morale = clamp(attacker.morale - cmA, 0, 100);
 
@@ -1416,6 +1433,7 @@ const ACTIONS = {
     for (const u of s.units) u.round = newRoundFlags();
     for (const u of s.units) u.facing = null; // no facing until a unit attacks or is attacked
     log(s, 'Battle begins. Tacticians, choose your tactics.');
+    for (const u of s.units) { if (u.fx) delete u.fx.checkpoints; fx(u).checkpoints = Math.min(4, checkpointsPassed(u)); } // checkpoints already passed before the battle don't cost morale
     s.objState = freshObjState(); s.outcome = null; s.objEval = null;
     s.introAt = Date.now(); // every client plays the tour of the conditions once
     checkOutcome(s); // the tracker starts with every condition open
@@ -2053,7 +2071,7 @@ function viewFor(s, viewer) {
   return v;
 }
 
-export { casualtiesOf, overwatchFire as _overwatchFire,
+export { casualtiesOf, checkpointMorale, checkpointsPassed, overwatchFire as _overwatchFire,
   moveOptions, attackTargets, actionMenu, threatArea, TACTIC_SIDES, tileRules, ladderTiles, climbTiles, insideCity, isWallTop, gateAt,
   newState, act, viewFor, prompt, reachable, movementOf, moraleState, visibleTo, rangeOk,
   resolveAttack, buildRoll, setRng, yinYang, typeOf, officerOf, unitById, SIDES, settle, advance,

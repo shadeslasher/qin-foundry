@@ -33,8 +33,8 @@ test('melee: winner deals damage + difference, loser deals base; casualties minu
   const A = R.unitById(s, a), D = R.unitById(s, d);
   assert.strictEqual(D.men, 100 - (6 + 7 - 3));   // 90
   assert.strictEqual(A.men, 100 - (6 - 3));       // 97
-  assert.strictEqual(D.morale, 50 - (7 - 1) - 5, 'loser loses diff - 1, and 10 casualties cost 5 morale');
-  assert.strictEqual(A.morale, 50 - 1, '3 casualties cost 1 morale');
+  assert.strictEqual(D.morale, 50 - (7 - 1), 'loser loses diff - 1; 10 casualties pass no checkpoint (80%)');
+  assert.strictEqual(A.morale, 50, '3 casualties pass no checkpoint');
 });
 
 test('officer-less units count Command as 0; an officer adds its Command (Fire and weapon skill no longer add)', () => {
@@ -118,7 +118,7 @@ test('cavalry charge: 2 tiles = +1, no morale multiplier (rear neither); no stri
   assert.ok(r.attackRoll.parts.some(([l, v]) => /Cavalry charge \(2 tiles/.test(l) && v === 1));
   assert.ok(!r.defendRoll.parts.some(([l]) => /charg/i.test(l)), 'no defender penalty');
   assert.strictEqual(r.diff, 8);
-  assert.strictEqual(R.unitById(s, d).morale, Math.max(0, 50 - (8 - 1) - Math.floor(r.casualtiesDefender * 50 / 100)), 'neither the rear attack nor the charge multiplies morale loss');
+  assert.strictEqual(R.unitById(s, d).morale, Math.max(0, 50 - (8 - 1) - r.casualtyMorale.defender), 'neither the rear attack nor the charge multiplies morale loss');
   assert.strictEqual(r.damageToAttacker, 0, 'a charged unit strikes back only with Anti-Cavalry, and never from the rear');
 });
 
@@ -763,4 +763,15 @@ test('armor pen is damage that always goes through', () => {
   assert.strictEqual(R.casualtiesOf(7, 4, 0), 3, 'no pen: just what beats the armor');
   assert.strictEqual(R.casualtiesOf(0, 4, 2), 0, 'no hit, nothing goes through');
   assert.strictEqual(R.casualtiesOf(1, 9, 3), 1, 'pen never exceeds the damage');
+});
+
+test('casualty checkpoints: -5 morale for each fifth of health lost, once per battle', () => {
+  const u = { men: 100, maxMen: 100, fx: {} };
+  u.men = 85; assert.strictEqual(R.checkpointMorale(u), 0);
+  u.men = 79; assert.strictEqual(R.checkpointMorale(u), 5, 'past 80%');
+  u.men = 39; assert.strictEqual(R.checkpointMorale(u), 10, 'past 60% and 40% in one hit');
+  u.men = 90; assert.strictEqual(R.checkpointMorale(u), 0, 'healed');
+  u.men = 70; assert.strictEqual(R.checkpointMorale(u), 0, 'checkpoints already passed this battle cost nothing again');
+  u.men = 0; assert.strictEqual(R.checkpointMorale(u), 0, 'wiped out: nothing more');
+  const c = { men: 50, maxMen: 50, fx: {} }; c.men = 40; assert.strictEqual(R.checkpointMorale(c), 5, 'same for 50-health units');
 });
