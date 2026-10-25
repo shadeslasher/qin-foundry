@@ -54,7 +54,7 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
     position: { width: 360, height: 620, top: 70, left: 70 },
     actions: {
       heal: PartyPanel.#act, morale: PartyPanel.#act, open: PartyPanel.#open,
-      recruit: PartyPanel.#recruit, armies: PartyPanel.#armies,
+      recruit: PartyPanel.#recruit, armies: PartyPanel.#armies, coin: PartyPanel.#coin,
     },
   };
   static open() { (this.instance ??= new PartyPanel()).render({ force: true }); return this.instance; }
@@ -71,6 +71,24 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
   }
   static #open(event, target) { game.actors.get(target.dataset.id)?.sheet?.render(true); }
   static #recruit(event, target) { RecruitApp.open(target.dataset.id); }
+  /** Add (or take, with a negative number) coin: one player's character, or every player's at once (GM). */
+  static async #coin(event, target) {
+    const all = target.dataset.scope === "all";
+    const users = all ? partyGroups().map(g => g.user) : [game.users.get(target.dataset.id)].filter(Boolean);
+    if (!game.user.isGM && (all || users[0]?.id !== game.user.id)) return;
+    const pcs = users.map(u => u.character).filter(Boolean);
+    if (!pcs.length) return ui.notifications.warn(all ? "No player has a character assigned yet." : "This player has no character assigned (User Configuration).");
+    const who = all ? `everyone in the party (${pcs.map(p => p.name).join(", ")})` : pcs[0].name;
+    const n = await foundry.applications.api.DialogV2.prompt({
+      window: { title: all ? "Coin for the party" : `Coin: ${pcs[0].name}` }, rejectClose: false,
+      content: `<p>How much coin ${all ? "does each character get" : `does ${esc(pcs[0].name)} get`}? A negative number takes coin away.</p>
+        <input type="number" name="coin" value="100" step="25" autofocus style="width:100%">`,
+      ok: { label: "Add", icon: "fa-solid fa-coins", callback: (ev, button) => Number(button.form.elements.coin.value) },
+    });
+    if (!n) return;
+    await Actor.updateDocuments(pcs.map(pc => ({ _id: pc.id, "system.coin": Math.max(0, (pc.system.coin ?? 0) + n) })));
+    ChatMessage.create({ content: `<p><b>${n > 0 ? `+${n}` : n} coin</b> for ${esc(who)}.</p>`, speaker: { alias: game.user.name } });
+  }
   static #armies(event, target) { pickArmies(target.dataset.id); }
 
   async _renderHTML() {
@@ -106,8 +124,9 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
     };
     const upkeep = (units) => units.reduce((n, a) => n + (a.system.upkeep ?? 0), 0);
     const money = (g) => {
-      const coin = g.user.character?.system?.coin;
-      return `<span class="qin-party-money" data-tooltip="Upkeep for these units each month${coin !== undefined ? `; ${esc(g.user.character.name)}'s coin` : ""}"><i class="fa-solid fa-coins"></i> ${upkeep(g.units)}/mo${coin !== undefined ? ` · ${coin} coin` : ""}</span>`;
+      const coin = g.user.character?.system?.coin, mine = g.user.id === game.user.id;
+      const btn = (gm || mine) && g.user.character ? `<button type="button" class="qin-party-coin" data-action="coin" data-id="${g.user.id}" data-tooltip="Add coin to ${esc(g.user.character.name)}"><i class="fa-solid fa-plus"></i></button>` : "";
+      return `<span class="qin-party-money" data-tooltip="Upkeep for these units each month${coin !== undefined ? `; ${esc(g.user.character.name)}'s coin` : ""}"><i class="fa-solid fa-coins"></i> ${upkeep(g.units)}/mo${coin !== undefined ? ` · ${coin} coin` : ""}</span>${btn}`;
     };
     const recruitRow = (g) => {
       if (!gm && g.user.id !== game.user.id) return "";
@@ -124,7 +143,8 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
       : `<p class="qin-muted">There are no player accounts yet.</p>`;
     const top = gm && groups.length ? `<div class="qin-party-all"><b>Whole party <span class="qin-party-money"><i class="fa-solid fa-coins"></i> ${upkeep(groups.flatMap(g => g.units))}/mo</span></b>
         <button type="button" data-action="heal" data-scope="all"><i class="fa-solid fa-heart-pulse"></i> Heal all</button>
-        <button type="button" data-action="morale" data-scope="all"><i class="fa-solid fa-flag"></i> Reset morale</button></div>` : "";
+        <button type="button" data-action="morale" data-scope="all"><i class="fa-solid fa-flag"></i> Reset morale</button>
+        <button type="button" data-action="coin" data-scope="all" data-tooltip="Add the same amount of coin to every player's character"><i class="fa-solid fa-coins"></i> Add coin</button></div>` : "";
     return `<div class="qin-party-wrap">${top}${body}</div>`;
   }
   _replaceHTML(result, content) {

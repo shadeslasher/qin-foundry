@@ -751,3 +751,6 @@ details.qin-recent[open] > summary { margin-bottom: 4px; }
 .qin-breakdown .qin-row { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
 .qin-breakdown .qin-row > span:first-child { min-width: 0; overflow-wrap: anywhere; }
 .qin-breakdown .qin-row > span:last-child { flex: none; white-space: nowrap; text-align: right; }
+/* Party: add-coin button next to a player's money */
+.qin-party-coin { width: 20px; height: 20px; padding: 0; line-height: 1; flex: none; font-size: .7em; margin-left: -2px; }
+.qin-party-coin i { color: #c9a13a; }
