@@ -198,6 +198,13 @@ test('encirclement from a move waits until the move is committed (undo leaves mo
   must(R.act(s, P1, { type: 'holdPosition', unitId: m }));
   assert.ok(R.unitById(s, d).morale <= Math.max(0, start - 50), 'hold commits the move: -50');
   assert.ok(R.unitById(s, d).surrounded);
+  // the ring opens and closes again in the same round: no second -50
+  Object.assign(R.unitById(s, d), { morale: 60, status: 'active' }); // (the -50 made it surrender; bring it back for the check)
+  const ring = s.units.find(u => u.x === 5 && u.y === 4); ring.y = 3; R.settle(s);
+  assert.ok(!R.unitById(s, d).surrounded);
+  ring.y = 4; R.settle(s);
+  assert.ok(R.unitById(s, d).surrounded);
+  assert.strictEqual(R.unitById(s, d).morale, 60, 'surrounded at most once a round');
 });
 
 test('only Player units earn XP', () => {
