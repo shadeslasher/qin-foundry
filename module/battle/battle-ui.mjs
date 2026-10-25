@@ -439,14 +439,19 @@ function hidePick() { pickEl?.remove(); pickEl = null; }
 /** Turn-start choices that apply to this unit right now (empty outside a battle round). */
 function turnButtons(token) {
   const battle = getBattle();
-  if (!battle.active || canvas.scene?.id !== battle.sceneId || battle.turn?.activation) return [];
+  if (!battle.active || canvas.scene?.id !== battle.sceneId) return [];
   const { s } = buildState(battle);
   const u = E.unitById(s, token.id);
   if (!u || u.status !== "active" || u.round.activated) return [];
-  const p = E.prompt(s);
+  const p = E.prompt(s), t = s.turn, a = t.activation;
+  const buttons = [];
+  // A held officer with higher initiative than the unit about to act can interject (until that unit has started)
+  if (t.held?.includes(u.id) && iControl(u) && !(a && a.started) && !(a && a.unitId === u.id) && t.order.indexOf(u.id) < (p.rank ?? Infinity)
+    && ["decide", "final", "claim", "pick", "host-pick", "activation"].includes(p.kind))
+    buttons.push(["Interject", [{ type: "interject", unitId: u.id }]]);
+  if (a) return buttons;
   const me = game.user.isGM ? "host" : game.user.id;
   const mineToMove = u.owner === game.user.id || (game.user.isGM && !u.owner);
-  const buttons = [];
   if (!u.officerId) {
     if (p.kind === "pick" && p.player === me && u.side === "player" && mineToMove) buttons.push(["Take turn", [{ type: "begin", unitId: u.id }]]);
     else if (p.kind === "claim" && u.side === "player" && mineToMove) buttons.push(["Take turn", [{ type: "begin", unitId: u.id }]]);
