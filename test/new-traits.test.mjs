@@ -227,15 +227,10 @@ test('Evasion: melee casualties -1/-2/-3 (EX -4), taken from the total including
   assert.strictEqual(r.casualtiesAttacker, 9);
 });
 
-test('Disciplined: starts the battle with morale +5/+10/+15 and no longer halves morale loss', () => {
-  const { A, D } = duel(unitType('a'), unitType('d'), [3, 0, 0, 0], (a, d) => { a.traitTiers = { disciplined: 2 }; d.traitTiers = { disciplined: 3 }; });
-  assert.strictEqual(A.morale, 60, 'Disciplined+: 50 + 10 (it won, so lost none)');
-  const s = setup(); s.library.unitTypes.push(unitType('a'));
-  const u = R.unitById(s, add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 5, y: 5 }));
-  u.traitTiers = { disciplined: 3 }; u.morale = 90;
-  must(R.act(s, HOST, { type: 'startBattle' }));
-  assert.strictEqual(u.morale, 100, 'capped at 100');
-  assert.ok(D.morale <= 65 && D.morale > 50, 'defender started at 65 and lost a little');
+test('Disciplined: no longer halves morale loss, and the engine adds nothing at battle start (the sheet sets the resting morale)', () => {
+  const { A } = duel(unitType('a'), unitType('d'), [3, 0, 0, 0], (a, d) => { a.traitTiers = { disciplined: 2 }; });
+  assert.strictEqual(A.morale, 50);
+  assert.strictEqual(R.disciplinedBonus(A), 10);
 });
 
 test('Charging Strike: Attack +2/+4/+6 when the unit moved 2 or more tiles before a melee attack', () => {

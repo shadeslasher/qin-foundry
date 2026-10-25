@@ -1,6 +1,6 @@
 import { SKILLS, ASPECTS } from "../config.mjs";
 import * as Q from "../rules/qin-rules.mjs";
-import { parseTraitText, traitTextOf } from "../battle/traits.mjs";
+import { parseTraitText, traitTextOf, traitTiersOf } from "../battle/traits.mjs";
 
 const fields = foundry.data.fields;
 const int = (initial = 0, opts = {}) => new fields.NumberField({ required: true, nullable: false, integer: true, initial, ...opts });
@@ -119,6 +119,12 @@ export class HenchmanData extends QinBaseActor {
 }
 
 /** A battlefield unit: one formation of soldiers, optionally led by an officer (Fire Emblem-style battles). */
+/** A unit's resting morale: 50, +5/+10/+15 for Disciplined/+/++ (David, 2026-10-25). */
+export function defaultMoraleFor(traits) {
+  const d = traitTiersOf(traits).disciplined || 0;
+  return 50 + [0, 5, 10, 15][Math.min(3, d)];
+}
+
 export class UnitData extends foundry.abstract.TypeDataModel {
   static defineSchema() {
     return {
@@ -183,5 +189,6 @@ export class UnitData extends foundry.abstract.TypeDataModel {
     this.upkeep = Math.round((this.cost || 0) / 4);
     // everything reads `traits`: make it the traits unlocked at the unit's current level
     if (this.traitList?.length) this.traits = traitTextOf(this.traitList, this.level);
+    this.defaultMorale = defaultMoraleFor(this.traits);
   }
 }

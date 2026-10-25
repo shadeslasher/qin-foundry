@@ -626,7 +626,7 @@ function casualtiesOf(dmg, armor, pen, reduce, evade) {
 }
 /** Evasion: melee casualties -1/-2/-3, Evasion EX -4. */
 function evasionOf(u) { return trait(u, 'evasion ex') ? 4 : tierVal(trait(u, 'evasion'), [1, 2, 3]); }
-/** Disciplined: start the battle with morale +5/+10/+15. */
+/** Disciplined: the unit's resting morale is 50 + 5/10/15 (set on the sheet; the engine doesn't add it). */
 function disciplinedBonus(u) { return tierVal(trait(u, 'disciplined'), [5, 10, 15]); }
 
 // Build one side's roll. role: 'attacker' | 'defender'.
@@ -1446,10 +1446,6 @@ const ACTIONS = {
     for (const u of s.units) u.facing = null; // no facing until a unit attacks or is attacked
     log(s, 'Battle begins. Tacticians, choose your tactics.');
     for (const u of s.units) { if (u.fx) delete u.fx.checkpoints; fx(u).checkpoints = Math.min(4, checkpointsPassed(u)); } // checkpoints already passed before the battle don't cost morale
-    for (const u of s.units) { // Disciplined: start the battle with morale +5/+10/+15
-      const b = disciplinedBonus(u); if (!b || !alive(u)) continue;
-      u.morale = clamp(u.morale + b, 0, 100); log(s, u.name + ' is Disciplined: morale +' + b + ' (' + u.morale + ').');
-    }
     s.objState = freshObjState(); s.outcome = null; s.objEval = null;
     s.introAt = Date.now(); // every client plays the tour of the conditions once
     checkOutcome(s); // the tracker starts with every condition open

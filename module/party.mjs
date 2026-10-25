@@ -6,8 +6,9 @@ import { officerEligibility } from "./officer-rules.mjs";
 import { RecruitApp, pickArmies, armiesFor } from "./recruit.mjs";
 
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
-/** A unit's starting morale (the data model's default). */
+/** A unit's resting morale when nothing says otherwise (Disciplined units rest higher: system.defaultMorale). */
 export const DEFAULT_MORALE = 50;
+export const restMorale = (actor) => actor.system.defaultMorale ?? DEFAULT_MORALE;
 
 /** The player who owns a unit actor (the first non-GM user with Owner permission), or null. */
 function ownerOf(actor) {
@@ -33,14 +34,14 @@ export function partyGroups() {
 export function restoreUpdate(actor, what) {
   const s = actor.system;
   if (what === "heal") return s.men.value < s.men.max ? { "system.men.value": s.men.max } : null;
-  if (what === "morale") return s.morale !== DEFAULT_MORALE ? { "system.morale": DEFAULT_MORALE } : null;
+  if (what === "morale") { const m = restMorale(actor); return s.morale !== m ? { "system.morale": m } : null; }
   return null;
 }
 
 async function restore(actors, what) {
   if (!game.user.isGM) return;
   const updates = actors.map(a => { const u = restoreUpdate(a, what); return u ? { _id: a.id, ...u } : null; }).filter(Boolean);
-  if (!updates.length) return ui.notifications.info(what === "heal" ? "Already at full health." : `Morale is already ${DEFAULT_MORALE}.`);
+  if (!updates.length) return ui.notifications.info(what === "heal" ? "Already at full health." : `Morale is already at its default.`);
   await Actor.updateDocuments(updates);
   ui.notifications.info(`${what === "heal" ? "Healed" : "Reset the morale of"} ${updates.length} unit${updates.length === 1 ? "" : "s"}.`);
 }
@@ -77,7 +78,7 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
     const pct = (v, m) => Math.max(0, Math.min(100, m ? (100 * v) / m : 0));
     const btns = (scope, id = "") => gm ? `<span class="qin-party-btns">
         <button type="button" data-action="heal" data-scope="${scope}" data-id="${id}" data-tooltip="Heal to full"><i class="fa-solid fa-heart-pulse"></i></button>
-        <button type="button" data-action="morale" data-scope="${scope}" data-id="${id}" data-tooltip="Set morale to ${DEFAULT_MORALE}"><i class="fa-solid fa-flag"></i></button></span>` : "";
+        <button type="button" data-action="morale" data-scope="${scope}" data-id="${id}" data-tooltip="Set morale to its default (${DEFAULT_MORALE}, more for Disciplined units)"><i class="fa-solid fa-flag"></i></button></span>` : "";
     // officer: the owning player's characters (eligible ones only), editable by whoever owns the unit
     const officerPicker = (a, g) => {
       const s = a.system, chars = (game.actors?.contents ?? []).filter(c => c.type === "character" && c.testUserPermission(g.user, "OWNER"));
@@ -123,7 +124,7 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
       : `<p class="qin-muted">There are no player accounts yet.</p>`;
     const top = gm && groups.length ? `<div class="qin-party-all"><b>Whole party <span class="qin-party-money"><i class="fa-solid fa-coins"></i> ${upkeep(groups.flatMap(g => g.units))}/mo</span></b>
         <button type="button" data-action="heal" data-scope="all"><i class="fa-solid fa-heart-pulse"></i> Heal all</button>
-        <button type="button" data-action="morale" data-scope="all"><i class="fa-solid fa-flag"></i> Morale to ${DEFAULT_MORALE}</button></div>` : "";
+        <button type="button" data-action="morale" data-scope="all"><i class="fa-solid fa-flag"></i> Reset morale</button></div>` : "";
     return `<div class="qin-party-wrap">${top}${body}</div>`;
   }
   _replaceHTML(result, content) {

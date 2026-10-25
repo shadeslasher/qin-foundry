@@ -25,6 +25,15 @@ test('party: heal fills health, morale goes back to the default, nothing when al
   assert.strictEqual(restoreUpdate(actors[1], 'heal'), null);
   assert.deepStrictEqual(restoreUpdate(actors[2], 'morale'), { 'system.morale': DEFAULT_MORALE });
   assert.strictEqual(restoreUpdate(actors[1], 'morale'), null);
+  actors[2].system.defaultMorale = 60; // a Disciplined+ unit rests at 60
+  assert.deepStrictEqual(restoreUpdate(actors[2], 'morale'), { 'system.morale': 60 });
+  delete actors[2].system.defaultMorale;
+});
+
+test('defaultMoraleFor: 50, +5/+10/+15 with Disciplined/+/++', async () => {
+  const { defaultMoraleFor } = await import('../module/data/actor-models.mjs').catch(() => ({}));
+  if (!defaultMoraleFor) return; // the data model needs Foundry's fields; covered by the convert step instead
+  assert.strictEqual(defaultMoraleFor('Disciplined+ - Morale +10'), 60);
 });
 
 test('recruiting: needs a character, an allowed army, a cost and enough coin', async () => {
