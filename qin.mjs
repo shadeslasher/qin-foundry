@@ -22,6 +22,7 @@ import { registerPreBattleCover } from "./module/battle/cover.mjs";
 import { registerReinforcements, drawReinforceZones, setReinforceChangeHandler } from "./module/battle/reinforce.mjs";
 import { registerTileTip, toggleTileTip } from "./module/battle/tile-tip.mjs";
 import { HotkeyGuide } from "./module/hotkeys.mjs";
+import { registerNameLabels, toggleNameLabels } from "./module/battle/name-labels.mjs";
 import { registerTurnBanner, renderTurnBanner } from "./module/battle/turn-banner.mjs";
 import { registerObjectives, refreshObjectives, setObjectivesChangeHandler } from "./module/battle/objectives-ui.mjs";
 import { NEW_UNIT_TOOL, newUnitDialog } from "./module/new-unit.mjs";
@@ -182,6 +183,12 @@ Hooks.once("init", () => {
     onDown: () => { toggleTileTip(); return true; },
   });
   registerTileTip();
+  game.keybindings.register(SYSTEM_ID, "nameLabels", {
+    name: "Unit names", hint: "Show every unit's name (and its officer) under its stand. Press again to hide them.",
+    editable: [{ key: "KeyL" }], precedence: CONST.KEYBINDING_PRECEDENCE?.NORMAL,
+    onDown: () => { if (!canvas?.ready) return false; toggleNameLabels(); return true; },
+  });
+  registerNameLabels();
   game.keybindings.register(SYSTEM_ID, "hotkeys", {
     name: "Hotkey guide", hint: "Opens a window listing these shortcuts; press again to close it.",
     editable: [{ key: "KeyH" }], precedence: CONST.KEYBINDING_PRECEDENCE?.NORMAL,

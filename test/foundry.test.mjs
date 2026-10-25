@@ -128,3 +128,11 @@ test("formations on hold (default): the battle ignores them and leaves the sheet
   assert.strictEqual(unit.system.formation, "fsw2", "the sheet keeps its formation");
   M.setSetting("useFormations", true);
 });
+
+test('unit name labels (L): unit name, officer in the second line when there is one', async () => {
+  globalThis.foundry ??= { utils: {} }; globalThis.game ??= { settings: { get: () => ({}) }, user: { isGM: true } }; globalThis.Hooks ??= { on() {}, once() {} };
+  const { labelLines } = await import('../module/battle/name-labels.mjs');
+  assert.deepStrictEqual(labelLines('Ji Infantry', 'Liu Bei'), { main: 'Ji Infantry', sub: 'Liu Bei' });
+  assert.deepStrictEqual(labelLines('Ji Militia', ''), { main: 'Ji Militia', sub: null });
+  assert.deepStrictEqual(labelLines('', undefined), { main: 'Unit', sub: null });
+});
