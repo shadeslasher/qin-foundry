@@ -29,6 +29,7 @@ export function tileTipLines(rules) {
   if (rules.downhill) lines.push(`Command +${rules.downhill} against lower units`);
   if (rules.high && !rules.downhill) lines.push("High ground");
   if (rules.hides) lines.push("Hides units");
+  if (rules.noSurround) lines.push("Can't be surrounded here");
   if (rules.moraleTurn) lines.push(`Morale ${sign(rules.moraleTurn)} per turn here`);
   if (rules.healthTurn) lines.push(`Health ${sign(rules.healthTurn)} per turn here`);
   if (rules.flammable) lines.push("Flammable");

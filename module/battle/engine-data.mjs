@@ -170,7 +170,7 @@ const TACTICS = [
 // A square's effects are its terrain plus every overlay on it, added together.
 //   move: extra movement to enter · pass: 'none' (no one) | 'noCavalry' · meleeDef/rangedDef: defense of a unit here
 //   range: range for a ranged unit here · atk: attacks by a unit here · command: all Command rolls of a unit here
-//   moraleTurn/healthTurn: for ending a turn here · hides: units here can hide · campDef: defense only against
+//   moraleTurn/healthTurn: for ending a turn here · hides: units here can hide · noSurround: units here can't be surrounded (forts, command tents, town halls) · campDef: defense only against
 //   attacks from outside the camp · wall: walls, gates, towers (units can stand there, but don't walk on for now)
 // Fire, destructible objects and gates are listed for later (flammable, fireRes, burnTime, burnsInto, hp).
 const MAP_TERRAIN = {
@@ -202,14 +202,14 @@ const MAP_OVERLAYS = {
   'camp-wall': { name: 'Camp timber wall', pass: 'none', campDef: 3, hp: 60, flammable: true, fireRes: 2, burnTime: 3, burnsInto: null },
   'camp-gate': { name: 'Camp gate', flammable: true, fireRes: 1, burnTime: 2, burnsInto: null }, // a palisade or wall square with a road through it
   camp: { name: 'Camp', flammable: true, fireRes: 0, burnTime: 2, burnsInto: 'scorched' },
-  'command-tent': { name: 'Command tent', moraleTurn: 3, high: true, hp: 25, flammable: true, fireRes: 0, burnTime: 2, burnsInto: 'scorched' },
+  'command-tent': { name: 'Command tent', moraleTurn: 3, high: true, noSurround: true, hp: 25, flammable: true, fireRes: 0, burnTime: 2, burnsInto: 'scorched' },
   'city-wall': { name: 'City wall', meleeDef: 2, rangedDef: 2, range: 1, wall: true, high: true, hp: 100 },
   // units in a gateway are under the gate (ground level): its defense, no range; locked gates can't be entered
   'city-gate': { name: 'City gate', meleeDef: 2, rangedDef: 2, gate: true, hp: 80, flammable: true, fireRes: 4, burnTime: 2, burnsInto: 'ruins' },
   'fortress-tower': { name: 'Fortress tower', meleeDef: 3, rangedDef: 3, range: 1, wall: true, high: true, hp: 120 },
-  'small-fort': { name: 'Small fort', meleeDef: 1, rangedDef: 1, command: 1, high: true, hp: 60, flammable: true, fireRes: 2, burnTime: 3, burnsInto: 'ruins' },
-  fort: { name: 'Fort', meleeDef: 1, rangedDef: 1, command: 1, high: true },
-  'town-hall': { name: 'Town hall', meleeDef: 1, rangedDef: 1, command: 1 },
+  'small-fort': { name: 'Small fort', meleeDef: 1, rangedDef: 1, command: 1, high: true, noSurround: true, hp: 60, flammable: true, fireRes: 2, burnTime: 3, burnsInto: 'ruins' },
+  fort: { name: 'Fort', meleeDef: 1, rangedDef: 1, command: 1, high: true, noSurround: true },
+  'town-hall': { name: 'Town hall', meleeDef: 1, rangedDef: 1, command: 1, noSurround: true },
   watchtower: { name: 'Watchtower', range: 1, atk: 1, hp: 30, flammable: true, fireRes: 1, burnTime: 2, burnsInto: 'ruins' },
   'supply-depot': { name: 'Supply depot', moraleTurn: 5, hp: 40, flammable: true, fireRes: 1, burnTime: 3, burnsInto: 'ruins' },
   fire: { name: 'Fire', moraleTurn: -5, healthTurn: -10 },

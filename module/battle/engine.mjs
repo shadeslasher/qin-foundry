@@ -82,7 +82,7 @@ function tileRules(s, x, y) {
   if (campGate) overlays = overlays.map(o => (o === 'camp-palisade' || o === 'camp-wall' ? 'camp-gate' : o));
   const parts = [data.MAP_TERRAIN[tile.terrain] || { name: tile.terrain }, ...overlays.map(o => data.MAP_OVERLAYS[o] || { name: o })];
   const r = { move: 0, meleeDef: 0, rangedDef: 0, range: 0, atk: 0, downhill: 0, high: false, command: 0, moraleTurn: 0, healthTurn: 0, campDef: 0,
-    hides: false, wall: false, water: false, flammable: false, names: [], camp: overlays.some(o => o === 'camp' || o.startsWith('camp-')),
+    hides: false, noSurround: false, wall: false, water: false, flammable: false, names: [], camp: overlays.some(o => o === 'camp' || o.startsWith('camp-')),
     campEdge: overlays.some(o => o === 'camp-palisade' || o === 'camp-wall') }; // a rampart square: entered from inside the camp only
   let none = false, noCav = false, bridge = false;
   for (const p of parts) {
@@ -93,6 +93,7 @@ function tileRules(s, x, y) {
     if (p.pass === 'noCavalry') noCav = true;
     if (p.bridge) bridge = true;
     if (p.hides) r.hides = true;
+    if (p.noSurround) r.noSurround = true;
     if (p.flammable) { r.flammable = true; r.fireRes = Math.min(r.fireRes ?? 99, p.fireRes || 0); }
     if (p.wall) r.wall = true;
     if (p.water) r.water = true;
@@ -1120,6 +1121,8 @@ function checkEncirclement(s) {
   let changed = false;
   for (const u of liveUnits(s)) {
     if (trait(u, 'stalwart')) { u.surrounded = false; continue; } // Stalwart: can't be surrounded
+    const tr = tileRules(s, u.x, u.y);
+    if (tr && tr.noSurround) { u.surrounded = false; continue; } // forts, command tents, town halls: no surrounding (David, 2026-10-25)
     let enemies = 0;
     for (const [dx, dy] of ORTHO) {
       const o = unitAt(s, u.x + dx, u.y + dy);

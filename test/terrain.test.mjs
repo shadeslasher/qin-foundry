@@ -185,3 +185,16 @@ test('camps: a unit inside walks onto the palisade squares, no one enters them f
   assert.strictEqual(R.tileRules(s, 4, 5).pass, 'all');
   assert.strictEqual(R.tileRules(s, 4, 5).campDef, 0, 'the gate gives no wall defense');
 });
+
+test('forts, small forts, command tents and town halls: a unit there cannot be surrounded', () => {
+  const s = field({ '5,5': { terrain: 'plains', overlays: ['small-fort'] } });
+  s.library.unitTypes.push(unitType('inf'));
+  const p = add(s, { typeId: 'inf', side: 'player', owner: 'p1', x: 5, y: 5 });
+  for (const [x, y] of [[4, 5], [6, 5], [5, 4], [5, 6]]) add(s, { typeId: 'inf', side: 'enemy', x, y });
+  R.settle(s);
+  assert.ok(!R.unitById(s, p).surrounded);
+  assert.strictEqual(R.unitById(s, p).morale, 50);
+  s.map.tiles['5,5'] = { terrain: 'plains' }; R.settle(s);
+  assert.ok(R.unitById(s, p).surrounded, 'on open ground the same ring surrounds it');
+  assert.ok(R.tileRules(field({ '1,1': { terrain: 'plains', overlays: ['command-tent', 'camp'] } }), 1, 1).noSurround);
+});
