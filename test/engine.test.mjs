@@ -649,7 +649,7 @@ test('action menu: attack only with an enemy in range', () => {
   assert.ok(menu.attack && menu.move && !menu.ability && !menu.heroic, JSON.stringify(menu));
 });
 
-test('four sides: different sides are hostile (allies included), the same side never is', () => {
+test('four sides: enemies and neutrals are hostile to the players; allies fight on their side (David, 2026-10-25)', () => {
   const s = setup();
   s.library.unitTypes.push(unitType('pl'), unitType('al'), unitType('ne'), unitType('pl2'));
   const p = add(s, { typeId: 'pl', side: 'player', owner: 'p1', x: 5, y: 5 });
@@ -661,7 +661,7 @@ test('four sides: different sides are hostile (allies included), the same side n
   must(R.act(s, P1, { type: 'claim' }));
   must(R.act(s, P1, { type: 'begin', unitId: p }));
   const names = R.attackTargets(s, R.unitById(s, p)).map(u => u.typeId).sort();
-  assert.deepStrictEqual(names, ['al', 'ne'], 'player can hit the ally and the neutral, not its own side');
+  assert.deepStrictEqual(names, ['ne'], 'player can hit the neutral, not the ally and not its own side');
 });
 
 test('holding gives +2 melee defense', () => {

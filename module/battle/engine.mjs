@@ -57,7 +57,7 @@ const formationOf = (s, u) => s.library.formations.find(f => f.id === u.formatio
 const unitById = (s, id) => s.units.find(u => u.id === id) || null;
 const alive = u => u.status === 'active';
 const liveUnits = s => s.units.filter(alive);
-const alliance = side => side || 'player';
+const alliance = side => (side === 'ally' ? 'player' : side) || 'player'; // Ally units fight on the players' side: never enemies, never targets (fixed 2026-10-25)
 const hostile = (a, b) => alliance(a.side) !== alliance(b.side);
 const friendly = (a, b) => !hostile(a, b);
 const passive = (s, u) => { const o = officerOf(s, u); return (o && o.passive && o.passive.effects) || {}; };
