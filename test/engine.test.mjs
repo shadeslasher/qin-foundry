@@ -196,10 +196,10 @@ test('encirclement from a move waits until the move is committed (undo leaves mo
   assert.strictEqual(R.unitById(s, d).morale, start, 'undo: nothing to give back');
   must(R.act(s, P1, { type: 'moveTo', unitId: m, x: 5, y: 6 }));
   must(R.act(s, P1, { type: 'holdPosition', unitId: m }));
-  assert.ok(R.unitById(s, d).morale <= Math.max(0, start - 50), 'hold commits the move: -50');
+  assert.strictEqual(R.unitById(s, d).morale, Math.max(0, start - 25), 'hold commits the move: -25');
   assert.ok(R.unitById(s, d).surrounded);
-  // the ring opens and closes again in the same round: no second -50
-  Object.assign(R.unitById(s, d), { morale: 60, status: 'active' }); // (the -50 made it surrender; bring it back for the check)
+  // the ring opens and closes again in the same round: no second -25
+  Object.assign(R.unitById(s, d), { morale: 60, status: 'active' }); // (a known morale for the check)
   const ring = s.units.find(u => u.x === 5 && u.y === 4); ring.y = 3; R.settle(s);
   assert.ok(!R.unitById(s, d).surrounded);
   ring.y = 4; R.settle(s);
@@ -405,7 +405,7 @@ test('demoralized penalty, Han Dang ignores it; a surrender at 0 morale costs on
   assert.strictEqual(C.morale, 15, 'Levy: -5');
 });
 
-test('full encirclement: -50 morale once', () => {
+test('full encirclement: -25 morale once', () => {
   const s = setup();
   const u = add(s, { typeId: 'han_ji_inf', side: 'player', owner: 'p1', x: 5, y: 5, morale: 70 });
   add(s, { typeId: 'yt_warriors', side: 'enemy', x: 4, y: 5 });
@@ -413,9 +413,9 @@ test('full encirclement: -50 morale once', () => {
   add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 4 });
   const last = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 9, y: 9 });
   must(R.act(s, HOST, { type: 'place', unitId: last, x: 5, y: 6 }));
-  assert.strictEqual(R.unitById(s, u).morale, 20);
+  assert.strictEqual(R.unitById(s, u).morale, 45);
   must(R.act(s, HOST, { type: 'adjust', unitId: u, men: -1 }));
-  assert.strictEqual(R.unitById(s, u).morale, 20, 'not applied twice');
+  assert.strictEqual(R.unitById(s, u).morale, 45, 'not applied twice');
 });
 
 test('stealth: forests hide; hidden units stay unseen by other sides until revealed', () => {

@@ -600,6 +600,8 @@ function rangeOk(s, attacker, defender) {
  * returns the morale to take off and remembers the checkpoints passed (fx.checkpoints).
  */
 const CHECKPOINT_MORALE = 5;
+/** Morale lost when a unit becomes fully surrounded (once per round). 50 until v0.53.0 (David, 2026-10-25). */
+const SURROUND_MORALE = 25;
 function checkpointsPassed(u) {
   const full = u.maxMen || 100, men = Math.max(0, u.men);
   if (men <= 0) return 4;
@@ -1105,7 +1107,7 @@ function checkEncirclement(s) {
         (s._fearQueue = s._fearQueue || []).push(u.id);
       } else if (passive(s, u).ignoreEncirclement) log(s, u.name + ' is surrounded but its officer ignores the morale loss.');
       else if (u.round.surroundedHit) log(s, u.name + ' is surrounded again (no further morale loss this round).');
-      else { u.morale = clamp(u.morale - 50, 0, 100); u.round.surroundedHit = true; log(s, u.name + ' is fully surrounded: -50 morale.', { type: 'surrounded', unit: u.id }); changed = true; }
+      else { u.morale = clamp(u.morale - SURROUND_MORALE, 0, 100); u.round.surroundedHit = true; log(s, u.name + ' is fully surrounded: -' + SURROUND_MORALE + ' morale.', { type: 'surrounded', unit: u.id }); changed = true; }
     } else if (!surrounded && u.surrounded) u.surrounded = false;
   }
   return changed;

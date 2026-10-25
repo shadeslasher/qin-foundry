@@ -208,7 +208,7 @@ test('Surrounded by Fear: no surrender or morale loss; free attacks until an att
   R.unitById(s, last.id).y = 7; R.settle(s);
   const P = R.unitById(s, p);
   assert.strictEqual(P.status, 'active');
-  assert.ok(P.morale >= 50, 'no -50 for being surrounded');
+  assert.ok(P.morale >= 50, 'no -25 for being surrounded');
   assert.strictEqual(R.unitById(s, ring[0].id).status, 'defeated', 'it struck until one attacker fell');
 });
 
@@ -222,7 +222,7 @@ test('surrounded: impassable tiles count toward the ring, but at least one enemy
   add(s, { typeId: 'e', side: 'enemy', x: 5, y: 6 });
   R.settle(s);
   assert.ok(R.unitById(s, p).surrounded, '3 impassable + 1 enemy');
-  assert.strictEqual(R.unitById(s, p).morale, 0);
+  assert.strictEqual(R.unitById(s, p).morale, 25);
 });
 
 test('Cavalry Charge: only cavalry charges in the area gain Attack +4', () => {
