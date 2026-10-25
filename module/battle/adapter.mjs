@@ -4,6 +4,7 @@ import { broadcastBattleAnim } from "../attack-fx.mjs";
 // engine. Runs only on the active GM's client; players reach it through queries.
 import * as E from "./engine.mjs";
 import { traitTiersOf, shieldArmorOf } from "./traits.mjs";
+import { REINFORCE_FLAG, REINFORCE_TOKEN_FLAG, zonesOf as reinforceZonesOf, isWaiting as isWaitingReinforcement } from "./reinforce-rules.mjs";
 import { officerEligibility } from "../officer-rules.mjs";
 export { traitTiersOf, shieldArmorOf };
 import { FORMATIONS, HEROIC_ACTIONS } from "./engine-data.mjs";
@@ -159,7 +160,9 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
     if (gates.length) s.siege = { ladders: [], dropped: [], ...(s.siege ?? {}), gates };
   }
   const officers = new Map();
+  const rzones = reinforceZonesOf(scene.getFlag?.(SYSTEM_ID, REINFORCE_FLAG));
   for (const tok of unitTokens(scene)) {
+    if (isWaitingReinforcement(tok.getFlag?.(SYSTEM_ID, REINFORCE_TOKEN_FLAG), rzones)) continue; // reinforcements not yet arrived: not in the battle
     const a = tok.actor, sys = a.system;
     const gx = Math.round(tok.x / size), gy = Math.round(tok.y / size);
     // This unit's formations (embedded items) become engine formations "<token>.<item>"
@@ -418,6 +421,7 @@ async function runActionNow(userId, action) {
         if (tok.hidden) await tok.update({ hidden: false }, { qinBattle: true });
       }
     } catch (e) { console.warn("Qin | restoring escaped units", e); }
+    try { (await import("./reinforce.mjs")).clearReinforcements(game.scenes.get(battle.sceneId)); } catch (e) { console.warn("Qin | clearing reinforcements", e); }
     await game.settings.set(SYSTEM_ID, SETTING, emptyBattle());
     return { ok: true };
   } else if (!battle.active) {
@@ -437,6 +441,9 @@ async function runActionNow(userId, action) {
     const sc = game.scenes.get(battle.sceneId);
     action = { ...action, highGround: !!sc && isHighGround(sc, action.x, action.y) };
   }
+  // Reinforcements due this round arrive first, so the round starts with them on the field
+  if (action.type === "startRound") { try { await (await import("./reinforce.mjs")).arriveDue(game.scenes.get(battle.sceneId), battle.turn?.round ?? 0); } catch (e) { console.warn("Qin | reinforcements", e); } }
+  if (action.type === "resetBattle") { try { await (await import("./reinforce.mjs")).clearReinforcements(game.scenes.get(battle.sceneId)); } catch (e) { console.warn("Qin | reinforcements", e); } }
   const moving = ["move", "forcedMarch"].includes(action.type) ? action.unitId : null;
   const { s, scene } = buildState(battle, { useLastPosition: moving, terrainFor: action.type === "moveTo" ? action.unitId : null });
   if (action.type === "moveTo") s.freeMovement = false;

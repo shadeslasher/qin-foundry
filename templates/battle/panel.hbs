@@ -160,6 +160,23 @@
       {{/each}}
     </div>
     {{/if}}
+    {{#if reinforce}}<div class="qin-card qin-rz"><h4>Reinforcements</h4>
+      {{#each reinforce.zones}}
+      <div class="qin-rz-row {{#if arrived}}arrived{{/if}}">
+        <span class="qin-rz-dot"></span>
+        <div class="qin-rz-main"><b>{{name}}</b> <span class="qin-muted">{{squares}} square{{#unless (eq squares 1)}}s{{/unless}} · {{waiting}} unit{{#unless (eq waiting 1)}}s{{/unless}} waiting</span>
+          <div class="qin-muted">{{#if arrived}}Arrived.{{else}}Arrives at the start of round <input type="number" min="1" value="{{round}}" data-rz-round="{{id}}" style="width:44px">{{/if}}</div></div>
+        {{#unless arrived}}<span class="qin-rz-btns">
+          <button type="button" data-action="rzPaint" data-id="{{id}}" class="{{#if painting}}qin-on{{/if}}" title="Paint squares for this zone (click or drag; right-click or Esc stops)"><i class="fa-solid fa-paintbrush"></i></button>
+          <button type="button" data-action="rzErase" data-id="{{id}}" class="{{#if erasing}}qin-on{{/if}}" title="Erase squares"><i class="fa-solid fa-eraser"></i></button>
+          <button type="button" data-action="rzNow" data-id="{{id}}" title="Reveal the waiting units now"><i class="fa-solid fa-person-running"></i></button>
+          <button type="button" data-action="rzRemove" data-id="{{id}}" title="Remove the zone (waiting units become visible)"><i class="fa-solid fa-xmark"></i></button></span>{{/unless}}
+      </div>
+      {{/each}}
+      <div class="qin-btns qin-rz-new"><label>Arrives in <input type="number" name="rzRounds" value="2" min="1" style="width:44px"> round(s)</label>
+        <button type="button" data-action="rzNew"><i class="fa-solid fa-plus"></i> New zone</button></div>
+      <p class="qin-muted">Paint a zone, then drag units onto it: they stay hidden from the players and out of the battle until that round starts.</p>
+    </div>{{/if}}
     <div class="qin-card"><h4>GM controls</h4>
       <div class="qin-btns">
         <button type="button" data-action="setHidden" data-hidden="1" title="Hide the unit tokens you have selected"><i class="fa-solid fa-eye-slash"></i> Hide selected</button>

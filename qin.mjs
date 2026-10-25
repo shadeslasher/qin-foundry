@@ -19,6 +19,7 @@ import { refreshBattleUI, repositionBattleUI, lockUnitTokens, lockUnitMoves, onU
 import { refreshTactics, registerTactics } from "./module/battle/tactics-ui.mjs";
 import { registerDeployZones, drawDeployZones, setDeployChangeHandler } from "./module/battle/deploy.mjs";
 import { registerPreBattleCover } from "./module/battle/cover.mjs";
+import { registerReinforcements, drawReinforceZones, setReinforceChangeHandler } from "./module/battle/reinforce.mjs";
 import { registerTurnBanner, renderTurnBanner } from "./module/battle/turn-banner.mjs";
 import { registerObjectives, refreshObjectives, setObjectivesChangeHandler } from "./module/battle/objectives-ui.mjs";
 import { NEW_UNIT_TOOL, newUnitDialog } from "./module/new-unit.mjs";
@@ -72,6 +73,7 @@ Hooks.once("init", () => {
       redrawAllUnitBars();
       refreshTactics();
       drawDeployZones();
+      drawReinforceZones();
       refreshObjectives();
       renderTurnBanner();
       syncBattleMap();
@@ -200,6 +202,8 @@ registerUnitInfo();
 registerTactics();
 registerDeployZones();
 registerPreBattleCover();
+registerReinforcements();
+setReinforceChangeHandler(() => BattlePanel.refresh());
 registerTurnBanner();
 registerObjectives();
 setObjectivesChangeHandler(() => BattlePanel.refresh());

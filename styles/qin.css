@@ -754,3 +754,14 @@ details.qin-recent[open] > summary { margin-bottom: 4px; }
 /* Party: add-coin button next to a player's money */
 .qin-party-coin { width: 20px; height: 20px; padding: 0; line-height: 1; flex: none; font-size: .7em; margin-left: -2px; }
 .qin-party-coin i { color: #c9a13a; }
+
+/* Reinforcement zones card (battle panel, GM) */
+.qin-rz-row { display: flex; align-items: flex-start; gap: 6px; padding: 4px 0; border-bottom: 1px dashed rgba(160,140,100,.45); }
+.qin-rz-row:last-of-type { border-bottom: 0; }
+.qin-rz-row.arrived { opacity: .6; }
+.qin-rz-dot { width: 10px; height: 10px; margin-top: 4px; border-radius: 2px; background: #ffb020; border: 1px solid #3a2600; flex: none; }
+.qin-rz-main { flex: 1; min-width: 0; font-size: .92em; }
+.qin-rz-main input { height: 20px; padding: 0 3px; font-size: .9em; }
+.qin-rz-btns { display: inline-flex; gap: 3px; flex: none; }
+.qin-rz-btns button { width: 26px; height: 24px; padding: 0; line-height: 1; flex: none; font-size: .8em; }
+.qin-rz-new label { display: inline-flex; align-items: center; gap: 4px; font-size: .9em; }

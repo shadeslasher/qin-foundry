@@ -8,6 +8,7 @@ import { setBattleRequest, highlightUnit } from "./battle-ui.mjs";
 import { TacticsApp } from "./tactics-ui.mjs";
 import { importBattleMap } from "./battlemap.mjs";
 import { deployCardState, startZoneBrush, clearZones, confirmZones, discardZones, savedZones } from "./deploy.mjs";
+import { reinforceCardState, newZone, removeZone, startReinforceBrush, arriveNow, setZoneRound } from "./reinforce.mjs";
 import { objectivesCardState, addCondition, removeCondition, setRounds, startPick, startExtractionBrush } from "./objectives-ui.mjs";
 
 const QUERY = `${SYSTEM_ID}.battle`;
@@ -66,6 +67,11 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
       objPick: (ev, el) => startPick(el.dataset.id, el.dataset.kind),
       objRemove: (ev, el) => removeCondition(el.dataset.id),
       objExtract: (ev, el) => startExtractionBrush(el.dataset.mode),
+      rzNew: function () { newZone(this.element.querySelector("[name=rzRounds]")?.value ?? 2); },
+      rzPaint: (ev, el) => startReinforceBrush(el.dataset.id, "paint"),
+      rzErase: (ev, el) => startReinforceBrush(el.dataset.id, "erase"),
+      rzNow: (ev, el) => arriveNow(el.dataset.id),
+      rzRemove: (ev, el) => removeZone(el.dataset.id),
     },
   };
   static PARTS = { body: { template: systemPath("templates/battle/panel.hbs"), scrollable: [".qin-battle-scroll"] } };
@@ -105,6 +111,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
     const { s, scene } = buildState(battle);
     const t = s.turn;
     const p = E.prompt(s);
+    ctx.reinforce = reinforceCardState(); // GM, mid-battle: zones where reinforcements wait
     const useForms = formationsEnabled();
     const me = { id: game.user.isGM ? "host" : game.user.id, host: game.user.isGM };
     const mine = (u) => u && (u.owner === game.user.id || (game.user.isGM && !u.owner));
@@ -251,6 +258,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
       if (sel.value) addCondition(sel.dataset.objAdd, sel.value);
     }));
     this.element.querySelectorAll("input[data-obj-rounds]").forEach(inp => inp.addEventListener("change", () => setRounds(inp.dataset.objRounds, inp.value)));
+    this.element.querySelectorAll("input[data-rz-round]").forEach(inp => inp.addEventListener("change", () => setZoneRound(inp.dataset.rzRound, inp.value)));
     this.element.querySelectorAll("select[data-gate]").forEach(sel => sel.addEventListener("change", () => {
       battleRequest({ type: "setGate", gateId: sel.dataset.gate, [sel.dataset.field]: sel.value });
     }));
