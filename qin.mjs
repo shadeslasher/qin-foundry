@@ -22,7 +22,7 @@ import { registerPreBattleCover } from "./module/battle/cover.mjs";
 import { registerReinforcements, drawReinforceZones, setReinforceChangeHandler } from "./module/battle/reinforce.mjs";
 import { registerTileTip, toggleTileTip } from "./module/battle/tile-tip.mjs";
 import { HotkeyGuide } from "./module/hotkeys.mjs";
-import { registerSounds, registerSoundPack, onBattleSetting, primeBattleSounds, onUnitTokenMoved, SoundPanel, playMoment } from "./module/sound.mjs";
+import { registerSounds, registerSoundPack, onBattleSetting, primeBattleSounds, primeTokenPositions, onUnitTokenMoved, SoundPanel, playMoment } from "./module/sound.mjs";
 import { registerNameLabels, toggleNameLabels } from "./module/battle/name-labels.mjs";
 import { registerEquipment } from "./module/equipment.mjs";
 import { registerTurnBanner, renderTurnBanner } from "./module/battle/turn-banner.mjs";
@@ -244,7 +244,7 @@ Hooks.on("updateToken", (doc, change, options) => {
   }
 });
 Hooks.on("updateActor", () => { BattlePanel.refresh(); refreshBattleUI(); });
-Hooks.on("canvasReady", () => { refreshBattleUI(); try { primeBattleSounds(getBattle(), (id) => canvas?.scene?.tokens.get(id)?.actor?.system?.side ?? null); } catch { /* fine */ } });
+Hooks.on("canvasReady", () => { refreshBattleUI(); try { primeTokenPositions(canvas.scene); primeBattleSounds(getBattle(), (id) => canvas?.scene?.tokens.get(id)?.actor?.system?.side ?? null); } catch { /* fine */ } });
 Hooks.on("canvasPan", () => repositionBattleUI());
 // Foundry 13+ moves tokens through its movement API: refuse a move there (preMoveToken). Older versions: preUpdateToken.
 Hooks.once("init", () => {

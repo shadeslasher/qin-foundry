@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { MOMENTS, LOCAL_MOMENTS, ALIASES, registerSoundPack, soundPack, soundsFor, pickSound, stepSounds, attackSounds, logSoundSteps, turnSounds } from "../module/sound.mjs";
+import { MOMENTS, LOCAL_MOMENTS, ALIASES, moveSoundTimes, registerSoundPack, soundPack, soundsFor, pickSound, stepSounds, attackSounds, logSoundSteps, turnSounds } from "../module/sound.mjs";
 
 test("sounds: every moment in the picker page's list is known, and the menu ones are local", () => {
   for (const m of ["Cursor move", "Select / confirm", "Menu opens", "Tactic triggered", "Fire catches / burning", "Gate destroyed",
@@ -54,8 +54,8 @@ test("sounds: battle start, round start, and whose turn", () => {
   assert.deepEqual(turnSounds(off, { active: true, round: 0, unit: null, phase: "tactics" }), ["Battle start"]);
   assert.deepEqual(turnSounds(off, { active: true, round: 0, unit: null, phase: "setup" }), []);
   assert.deepEqual(turnSounds({ active: true, round: 0, phase: "setup" }, { active: true, round: 0, phase: "tactics" }), ["Battle start"]);
-  assert.deepEqual(turnSounds({ active: true, round: 1, unit: "a", phase: "rounds" }, { active: true, round: 1, unit: "b", side: "enemy", phase: "rounds" }), ["Enemy turn"]);
-  assert.deepEqual(turnSounds({ active: true, round: 1, unit: "a", phase: "rounds" }, { active: true, round: 2, unit: "c", side: "player", phase: "rounds" }), ["Round start", "Player turn"]);
+  assert.deepEqual(turnSounds({ active: true, round: 1, unit: "a", phase: "rounds" }, { active: true, round: 1, unit: "b", side: "enemy", phase: "rounds" }), ["Turn start"]);
+  assert.deepEqual(turnSounds({ active: true, round: 1, unit: "a", phase: "rounds" }, { active: true, round: 2, unit: "c", side: "player", phase: "rounds" }), ["Round start", "Turn start"]);
   assert.deepEqual(turnSounds({ active: true, round: 1, unit: "a", phase: "rounds" }, { active: true, round: 1, unit: "a", side: "player", phase: "rounds" }), []);
   assert.deepEqual(turnSounds({ active: true, round: 1, unit: "a" }, { active: false }), []);
 });
@@ -65,4 +65,14 @@ test("sounds: victory and defeat condition shown are one moment (old names still
   registerSoundPack({ "Victory condition shown": ["v.ogg"], "Defeat condition shown": ["d.ogg"] });
   assert.deepEqual(soundPack()["Condition shown"], ["v.ogg", "d.ogg"]);
   assert.equal(ALIASES["Defeat condition shown"], "Condition shown");
+});
+
+test("sounds: player and enemy turns share Turn start; move sounds repeat once per square", () => {
+  assert.ok(MOMENTS.includes("Turn start") && !MOMENTS.includes("Player turn") && !MOMENTS.includes("Enemy turn"));
+  registerSoundPack({ "Player turn": ["p.ogg"], "Enemy turn": ["e.ogg"] });
+  assert.deepEqual(soundPack()["Turn start"], ["p.ogg", "e.ogg"]);
+  assert.deepEqual(moveSoundTimes(1), [0, 167]);
+  assert.deepEqual(moveSoundTimes(4), [0, 167, 333, 500].map(Math.round).map((v, i) => i * 167));
+  assert.equal(moveSoundTimes(40).length, 12);
+  assert.deepEqual(moveSoundTimes(3, 10), [0, 160, 320]);
 });

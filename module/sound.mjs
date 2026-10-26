@@ -10,7 +10,7 @@ import { SYSTEM_ID } from "./config.mjs";
 export const MOMENT_GROUPS = [
   ["Combat", ["Melee hit", "Miss or blocked", "Bow shot", "Crossbow shot", "Arrow hit", "Cavalry charge", "Overwatch shot",
     "Counter-attack", "Unit destroyed", "Unit surrenders", "Morale drop", "Morale up / rally", "Level up", "XP gained", "Fire catches / burning"]],
-  ["Turn and actions", ["Battle start", "Condition shown", "Round start", "Player turn", "Enemy turn",
+  ["Turn and actions", ["Battle start", "Condition shown", "Round start", "Turn start",
     "Unit selected", "Infantry moves", "Cavalry moves", "Hold", "Overwatch set", "Reload", "Tactic placed", "Tactic triggered",
     "Officer skill", "Gate opens", "Gate destroyed", "Ladder placed", "Victory", "Defeat"]],
   ["Menus", ["Menu opens", "Select / confirm", "Cancel / back", "Cursor move", "Error / not allowed"]],
@@ -26,7 +26,8 @@ export const FALLBACKS = {
 
 let pack = {};
 /** Old moment names that now share one (David, 2026-10-25: one sound for every condition the tour shows). */
-export const ALIASES = { "Victory condition shown": "Condition shown", "Defeat condition shown": "Condition shown" };
+export const ALIASES = { "Victory condition shown": "Condition shown", "Defeat condition shown": "Condition shown",
+  "Player turn": "Turn start", "Enemy turn": "Turn start" }; // one sound whoever's turn it is (2026-10-25)
 
 /** Moment → list of files, from a module's pack (later packs add to earlier ones). Unknown moment names are kept. */
 export function registerSoundPack(map) {
@@ -141,7 +142,7 @@ export function turnSounds(prev, next) {
   if (!next.active) return out;
   if (!prev.active || (prev.phase === "setup" && next.phase && next.phase !== "setup")) { if (next.phase && next.phase !== "setup") out.push("Battle start"); return out; }
   if (next.round > prev.round && next.round >= 1) out.push("Round start");
-  if (next.unit && next.unit !== prev.unit) out.push(next.side === "enemy" ? "Enemy turn" : "Player turn");
+  if (next.unit && next.unit !== prev.unit) out.push("Turn start");
   return out;
 }
 function turnState(b, sideOf) {
@@ -159,12 +160,35 @@ export function onBattleSetting(b, sideOf = () => null) {
   list.forEach((m, i) => (i ? setTimeout(() => playMoment(m), i * 700) : playMoment(m)));
 }
 
-/** A unit token sliding to a new square during a battle: footsteps or hooves, for whoever can see it. */
+/** When a move sound plays, in ms from the start (pure; exported for tests): once per square the unit travels (at
+ *  least twice, so a one-square step still reads as walking), spaced to match the token's slide (speed: squares/s). */
+export function moveSoundTimes(squares, speed = 6, max = 12) {
+  const n = Math.max(2, Math.min(max, Math.round(squares) || 0));
+  const gap = Math.max(160, Math.round(1000 / (speed || 6)));
+  return Array.from({ length: n }, (_, i) => i * gap);
+}
+const lastPos = new Map(); // token id -> {x, y}: where it stood before this move (every client keeps its own)
+/** Remember where the unit tokens stand (scene load), so the next move knows how far it went. */
+export function primeTokenPositions(scene) {
+  lastPos.clear();
+  for (const t of scene?.tokens ?? []) lastPos.set(t.id, { x: t.x, y: t.y });
+}
+let moving = new Map(); // token id -> timers of the move sound still to play
+/** A unit token sliding to a new square during a battle: footsteps or hooves for each square, for whoever can see it. */
 export function onUnitTokenMoved(doc, change, battle) {
-  if (!("x" in change || "y" in change) || doc.actor?.type !== "unit") return;
+  if (!("x" in change || "y" in change)) return;
+  const from = lastPos.get(doc.id);
+  lastPos.set(doc.id, { x: doc.x, y: doc.y });
+  if (doc.actor?.type !== "unit") return;
   if (!battle?.active || battle.sceneId !== doc.parent?.id || canvas?.scene?.id !== doc.parent?.id) return;
   if (doc.hidden && !game.user.isGM) return;
-  playMoment(doc.actor.system.category === "cavalry" ? "Cavalry moves" : "Infantry moves", { minGap: 400 });
+  const size = doc.parent?.grid?.size ?? 100;
+  const squares = from ? Math.max(Math.abs(doc.x - from.x), Math.abs(doc.y - from.y)) / size : 1;
+  if (!(squares > 0)) return;
+  const moment = doc.actor.system.category === "cavalry" ? "Cavalry moves" : "Infantry moves";
+  let speed = 6; try { speed = Number(CONFIG.Token?.movement?.defaultSpeed) || 6; } catch { /* default */ }
+  for (const t of moving.get(doc.id) ?? []) clearTimeout(t);
+  moving.set(doc.id, moveSoundTimes(squares, speed).map(ms => setTimeout(() => playMoment(moment, { minGap: 0 }), ms)));
 }
 
 /* ---------------------------------------- the panel */
