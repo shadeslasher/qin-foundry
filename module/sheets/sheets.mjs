@@ -1,3 +1,4 @@
+import { sourceUuid, syncFromCompendium } from "../compendium-sync.mjs";
 import { ASPECTS, SKILLS, DOMAINS, SKILL_LEVELS, BOL_LEVELS, MAGIC_WAYS, OFFICER_ABILITY_KINDS, OFFICER_EFFECTS, UNIT_CATEGORIES, SIDES, SIGNATURE_SLOTS, extraActivesForTier, isActiveSlot, rechargeStatus, rechargeLabel, systemPath } from "../config.mjs";
 import { factionOf, openFactionPicker } from "../factions.mjs";
 import { actionsPerRound } from "../rules/qin-rules.mjs";
@@ -196,8 +197,21 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
       officeAdd: QinActorSheetBase.#officeAdd,
       officeRemove: QinActorSheetBase.#officeRemove,
       addFromLibrary: QinActorSheetBase.#addFromLibrary,
+      syncCompendium: QinActorSheetBase.#syncCompendium,
     },
   };
+
+  /** GM: an "Update from compendium" control for actors that came from one. */
+  _getHeaderControls() {
+    const controls = super._getHeaderControls();
+    if (game.user.isGM && sourceUuid(this.actor)) controls.push({ icon: "fa-solid fa-cloud-arrow-down", label: "Update from compendium", action: "syncCompendium" });
+    return controls;
+  }
+  static async #syncCompendium() {
+    const ok = await (api.DialogV2 ?? api.Dialog).confirm({ window: { title: "Update from compendium" },
+      content: `<p>Replace ${esc(this.actor.name)}'s build with the latest version in the compendium?</p><p>Damage, Chi, experience, renown, coin and equipment are kept.</p>` });
+    if (ok) await syncFromCompendium(this.actor);
+  }
 
   get actor() { return this.document; }
 

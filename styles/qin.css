@@ -955,3 +955,5 @@ details.qin-recent[open] > summary { margin-bottom: 4px; }
 .qin-offices { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
 .qin-office-card { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1.2fr) 20px; gap: 6px; align-items: center; padding: 4px 6px; border: 1px solid var(--qin-border, rgba(128,128,128,.4)); border-left: 3px solid var(--qin-accent, #b8862b); border-radius: 4px; }
 .qin-office-add { font-size: .8em; margin-left: 6px; cursor: pointer; }
+
+.qin-sync-all { flex: 1 1 100%; margin-top: 4px; }

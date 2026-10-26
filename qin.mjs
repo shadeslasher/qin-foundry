@@ -42,6 +42,8 @@ function applyTextScale() {
   document.documentElement.style.setProperty("--qin-scale", String(pct / 100));
 }
 
+import { registerCompendiumSync } from "./module/compendium-sync.mjs";
+registerCompendiumSync();
 Hooks.once("init", () => {
   console.log("Qin | Initializing Qin: The Warring States");
   CONFIG.QIN = CFG;
