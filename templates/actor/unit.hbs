@@ -144,7 +144,7 @@
             <div class="qin-trait-ups">
               {{#each options}}
               <div class="qin-trait-up" data-opt="{{@index}}">
-                <label>Option {{inc @index}} <input type="text" data-field="name" value="{{name}}" list="qin-trait-catalog-{{@root.actor.id}}"></label>
+                <label>Option {{inc @index}} <input type="text" data-field="name" value="{{name}}"></label>
                 <a data-trait-act="removeOption" title="Remove this option"><i class="fa-solid fa-xmark"></i></a>
                 <label class="qin-trait-updesc">Description <textarea rows="2" data-field="desc">{{desc}}</textarea></label>
               </div>
@@ -171,7 +171,7 @@
           {{#if editing}}
           <div class="qin-trait-edit">
             <div class="qin-trait-row">
-              <label>Name <input type="text" data-field="name" value="{{name}}" list="qin-trait-catalog-{{@root.actor.id}}"></label>
+              <label>Name <input type="text" data-field="name" value="{{name}}"></label>
               <label class="qin-trait-lv">Unlocks at level <input type="number" min="1" data-field="level" value="{{level}}"></label>
             </div>
             <label>Description <textarea rows="2" data-field="desc">{{desc}}</textarea></label>
@@ -179,7 +179,7 @@
               {{#each upgrades}}
               <div class="qin-trait-up" data-up="{{@index}}">
                 <label class="qin-trait-lv">At level <input type="number" min="1" data-field="level" value="{{level}}"></label>
-                <label>Becomes <input type="text" data-field="name" value="{{name}}" list="qin-trait-catalog-{{@root.actor.id}}"></label>
+                <label>Becomes <input type="text" data-field="name" value="{{name}}"></label>
                 <a data-trait-act="removeUpgrade" title="Remove this upgrade"><i class="fa-solid fa-xmark"></i></a>
                 <label class="qin-trait-updesc">Description <textarea rows="2" data-field="desc">{{desc}}</textarea></label>
               </div>
@@ -195,10 +195,9 @@
       </div>
       {{#if isGM}}
       <div class="qin-trait-add">
-        <input type="text" data-trait-new list="qin-trait-catalog-{{actor.id}}" placeholder="Trait name (pick one or type a new one)">
+        <input type="text" data-trait-new placeholder="Trait name (pick one or type a new one)">
         <button type="button" data-trait-act="add"><i class="fa-solid fa-plus"></i> Add trait</button>
         <button type="button" data-trait-act="addChoice" title="At a level, the unit picks one of several traits"><i class="fa-solid fa-code-branch"></i> Add choice</button>
-        <datalist id="qin-trait-catalog-{{actor.id}}">{{#each traitCatalog}}<option value="{{name}}">{{desc}}</option>{{/each}}</datalist>
       </div>
       {{/if}}
     </section>

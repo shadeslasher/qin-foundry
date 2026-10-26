@@ -60,6 +60,46 @@ export function wirePickers(app, el, entries) {
   }
 }
 
+/**
+ * Trait name picker: a clean drop-down of names under the input (filtered as you type), with the description
+ * in a side card on hover. Replaces the browser's datalist, which showed every description in the list.
+ */
+export function attachTraitPicker(input, catalog) {
+  if (!input || input.dataset.qinTp) return;
+  input.dataset.qinTp = "1";
+  input.removeAttribute("list");
+  input.setAttribute("autocomplete", "off");
+  let box = null, infoEl = null, items = [];
+  const close = () => { box?.remove(); box = null; infoEl = null; items = []; };
+  const place = () => { if (!box) return; const r = input.getBoundingClientRect(); box.style.left = `${r.left}px`; box.style.top = `${r.bottom + 2}px`; box.style.width = `${Math.max(360, r.width)}px`; };
+  const open = () => {
+    const q = input.value.trim().toLowerCase();
+    const list = catalog.filter(t => !q || t.name.toLowerCase().includes(q));
+    if (!list.length) return close();
+    if (!box) {
+      box = document.createElement("div"); box.className = "qin qin-tp";
+      box.innerHTML = `<ul class="qin-tp-list"></ul><div class="qin-tp-info"></div>`;
+      document.body.appendChild(box);
+      infoEl = box.querySelector(".qin-tp-info");
+      box.addEventListener("mousedown", ev => ev.preventDefault()); // keep the input focused
+    }
+    const ul = box.querySelector(".qin-tp-list");
+    ul.innerHTML = list.map(t => `<li data-name="${esc(t.name)}">${esc(t.name)}</li>`).join("");
+    items = [...ul.children];
+    items.forEach(li => {
+      li.addEventListener("mouseenter", () => { const t = catalog.find(x => x.name === li.dataset.name); infoEl.innerHTML = `<h4>${esc(t?.name ?? "")}</h4><p>${esc(t?.desc || "No description yet.")}</p>`; box.classList.add("show-info"); });
+      li.addEventListener("click", () => { input.value = li.dataset.name; input.dispatchEvent(new Event("change", { bubbles: true })); close(); });
+    });
+    box.classList.remove("show-info");
+    place();
+  };
+  input.addEventListener("focus", open);
+  input.addEventListener("input", open);
+  input.addEventListener("blur", () => setTimeout(close, 120));
+  input.addEventListener("keydown", ev => { if (ev.key === "Escape") { close(); ev.stopPropagation(); } });
+  window.addEventListener("scroll", place, true);
+}
+
 function libraryDetails(doc) {
   const s = doc.system;
   let html = `<h4>${esc(doc.name)}</h4>`;
@@ -510,6 +550,7 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
       return;
     }
     const catalog = new Map((context.traitCatalog ?? []).map(t => [t.name, t.desc]));
+    for (const inp of this.element.querySelectorAll("input[data-trait-new], .qin-trait-edit input[data-field=name]")) attachTraitPicker(inp, context.traitCatalog ?? []);
     const nextName = (n) => /\+\+$/.test(n) ? n : `${n}+`;
     root.addEventListener("change", (ev) => {
       const card = ev.target.closest("[data-trait]"), field = ev.target.dataset.field;
