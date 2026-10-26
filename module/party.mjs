@@ -103,10 +103,12 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
   async _renderHTML() {
     const gm = game.user.isGM, groups = partyGroups();
     const pct = (v, m) => Math.max(0, Math.min(100, m ? (100 * v) / m : 0));
-    const btns = (scope, id = "") => gm ? `<span class="qin-party-btns">
-        ${scope === "unit" ? `<button type="button" data-action="equip" data-id="${id}" data-tooltip="Equip this unit"><i class="fa-solid fa-shield-halved"></i></button>` : ""}
+    const equipBtn = (a) => `<button type="button" data-action="equip" data-id="${a.id}" data-tooltip="Equip this unit"><i class="fa-solid fa-shield-halved"></i></button>`;
+    const btns = (scope, id = "", a = null) => gm ? `<span class="qin-party-btns">
+        ${scope === "unit" ? equipBtn(a) : ""}
         <button type="button" data-action="heal" data-scope="${scope}" data-id="${id}" data-tooltip="Heal to full"><i class="fa-solid fa-heart-pulse"></i></button>
-        <button type="button" data-action="morale" data-scope="${scope}" data-id="${id}" data-tooltip="Set morale to its default (${DEFAULT_MORALE}, more for Disciplined units)"><i class="fa-solid fa-flag"></i></button></span>` : "";
+        <button type="button" data-action="morale" data-scope="${scope}" data-id="${id}" data-tooltip="Set morale to its default (${DEFAULT_MORALE}, more for Disciplined units)"><i class="fa-solid fa-flag"></i></button></span>`
+      : scope === "unit" && a?.isOwner ? `<span class="qin-party-btns">${equipBtn(a)}</span>` : ""; // a player equips their own units
     // officer: the owning player's characters (eligible ones only), editable by whoever owns the unit
     const officerPicker = (a, g) => {
       const s = a.system, chars = (game.actors?.contents ?? []).filter(c => c.type === "character" && c.testUserPermission(g.user, "OWNER"));
@@ -122,7 +124,7 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
       return `<li class="qin-party-unit">
         <img src="${esc(a.img)}" alt="" data-action="open" data-id="${a.id}">
         <div class="qin-party-main">
-          <div class="qin-party-name"><a data-action="open" data-id="${a.id}">${esc(a.name)}</a> ${status}${btns("unit", a.id)}</div>
+          <div class="qin-party-name"><a data-action="open" data-id="${a.id}">${esc(a.name)}</a> ${status}${btns("unit", a.id, a)}</div>
           <div class="qin-party-sub"><span class="qin-party-tag tier t${Math.min(4, s.tier)}">T${s.tier}</span><span class="qin-party-tag">Lv ${s.level ?? 1}</span>${s.unitType ? `<span class="qin-party-tag">${esc(s.unitType)}</span>` : ""}${s.cost ? `<span class="qin-party-tag coin" data-tooltip="Recruitment cost ${s.cost} · upkeep ${s.upkeep} a month"><i class="fa-solid fa-coins"></i> ${s.upkeep}/mo</span>` : ""}${equipmentOf(a).map(e => `<span class="qin-party-tag equip" data-tooltip="${esc(e.desc)}"><i class="fa-solid fa-shield-halved"></i> ${esc(e.name)}</span>`).join("")}</div>
           ${officerPicker(a, g)}
           <div class="qin-party-bars">

@@ -1,6 +1,6 @@
 // Equipment on units: pieces from the Equipment catalogue stored as trait-list entries flagged `equip`, shown on the
 // unit sheet's Equipment tab and in the Info window, read by the engine like traits. The GM equips from a picker
-// window (the sheet's + button, or the Party panel's Equip button). One piece per family; a higher tier replaces.
+// window (the sheet's + button, or the Party panel's Equip button); the GM or the unit's owner may equip.
 import { EQUIPMENT, KIND_LABEL, equipmentByName, equipmentFamily, equipmentKind } from "./battle/equipment-data.mjs";
 
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
@@ -30,8 +30,10 @@ async function saveList(actor, list) {
   await actor.update({ "system.traitList": list, "system.traits": "" });
   try { (await import("./sheets/sheets.mjs")).resetTraitCatalog(); } catch { /* fine */ }
 }
+/** Who may equip a unit: the GM, or the unit's owner (David, 2026-10-25). */
+export const canEquip = (actor) => !!actor && (game.user.isGM || actor.isOwner);
 export async function equipUnit(actor, name) {
-  if (!game.user.isGM || !actor) return;
+  if (!canEquip(actor)) return;
   const src = foundry.utils.deepClone(actor._source.system.traitList ?? []);
   if (siegeClash(src, name)) return ui.notifications.warn(`${actor.name} already carries siege equipment: drop it first (a unit carries ladders or an engine, never both).`);
   const swapped = gearReplaced(src, name);
@@ -40,7 +42,7 @@ export async function equipUnit(actor, name) {
   ui.notifications.info(`${actor.name} now carries ${name}${swapped ? ` (put down ${swapped})` : ""}.`);
 }
 export async function unequipUnit(actor, name) {
-  if (!game.user.isGM || !actor) return;
+  if (!canEquip(actor)) return;
   await saveList(actor, unequipList(foundry.utils.deepClone(actor._source.system.traitList ?? []), name));
 }
 
@@ -53,7 +55,7 @@ export class EquipmentPicker extends foundry.applications.api.ApplicationV2 {
     actions: { equip: EquipmentPicker.#equip, unequip: EquipmentPicker.#unequip },
   };
   static open(actor) {
-    if (!game.user.isGM || !actor) return;
+    if (!canEquip(actor)) return;
     const id = `qin-equip-${actor.id}`;
     const open = foundry.applications.instances?.get(id);
     if (open) return open.render({ force: true });
