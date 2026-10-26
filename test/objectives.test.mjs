@@ -187,3 +187,14 @@ test('conditions name a unit by its officer when it has one', async () => {
   assert.strictEqual(conditionUnitName({ name: 'Sabre Infantry', actor: { system: { officerActor: { name: 'Guan Yu' } } } }), 'Guan Yu');
   assert.strictEqual(conditionUnitName({ name: 'Sabre Infantry', actor: { system: { officerActor: null } } }), 'Sabre Infantry');
 });
+
+test('fire: the GM can set a flammable square alight from the test controls (not players, not bare ground)', () => {
+  const { s } = setup({}, { '6,6': { terrain: 'plains', overlays: ['watchtower'] } });
+  const p = R.act(s, { id: 'p1', host: false }, { type: 'gmSetFire', x: 6, y: 6 });
+  assert.ok(!p.ok, 'players cannot');
+  must(R.act(s, HOST, { type: 'gmSetFire', x: 6, y: 6 }));
+  assert.ok(s.siege.fires['6,6'], 'burning');
+  assert.ok(R.tileRules(s, 6, 6).names.includes('Fire'));
+  assert.ok(!R.act(s, HOST, { type: 'gmSetFire', x: 6, y: 6 }).ok, 'already burning');
+  assert.ok(!R.act(s, HOST, { type: 'gmSetFire', x: 99, y: 99 }).ok, 'off the map');
+});

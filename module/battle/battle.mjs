@@ -21,6 +21,37 @@ export function registerBattleQuery() {
 setTimeout(() => setBattleRequest(battleRequest), 0);
 
 /** Send an action to the battle (runs on the active GM's client). */
+/** GM test control: while on, clicking a map square sets it alight; right-click or Esc stops. */
+let gmFire = null;
+function toggleGmFire() {
+  const stop = () => {
+    if (!gmFire) return;
+    document.removeEventListener("pointerdown", gmFire.down, true);
+    document.removeEventListener("keydown", gmFire.key, true);
+    canvas.app?.view?.removeEventListener("contextmenu", gmFire.block, true);
+    gmFire = null; BattlePanel.refresh();
+  };
+  if (gmFire) return stop();
+  const view = canvas.app?.view; if (!view) return;
+  const toWorld = (cx, cy) => canvas.canvasCoordinatesFromClient?.({ x: cx, y: cy })
+    ?? canvas.stage.worldTransform.applyInverse({ x: cx - view.getBoundingClientRect().left, y: cy - view.getBoundingClientRect().top });
+  const down = (ev) => {
+    if (ev.target !== view) return;
+    ev.stopPropagation(); ev.stopImmediatePropagation(); ev.preventDefault();
+    if (ev.button === 2) return stop();
+    if (ev.button !== 0) return;
+    const p = toWorld(ev.clientX, ev.clientY), size = canvas.scene?.grid?.size ?? 100;
+    battleRequest({ type: "gmSetFire", x: Math.floor(p.x / size), y: Math.floor(p.y / size) });
+  };
+  const key = (ev) => { if (ev.key === "Escape") { ev.preventDefault(); stop(); } };
+  const block = (ev) => { ev.preventDefault(); ev.stopPropagation(); };
+  gmFire = { down, key, block };
+  document.addEventListener("pointerdown", down, true);
+  document.addEventListener("keydown", key, true);
+  view.addEventListener("contextmenu", block, true);
+  BattlePanel.refresh();
+}
+
 export async function battleRequest(action) {
   let res;
   if (game.user.isGM) res = await runAction(game.user.id, action);
@@ -57,6 +88,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
       setHidden: BattlePanel.#setHidden,
       importMap: () => importBattleMap(SYSTEM_ID),
       redrawMap: () => redrawScene(canvas.scene),
+      gmFire: () => toggleGmFire(),
       toggleCompact: async () => { await game.settings.set(SYSTEM_ID, "compactUnits", !game.settings.get(SYSTEM_ID, "compactUnits")); BattlePanel.refresh(); },
       paintMap: () => MapEditorApp.open(canvas.scene),
       zonePaint: () => startZoneBrush("paint"),
@@ -229,6 +261,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
       log: (s.log || []).slice(-12).reverse().map(e => e.text), recentClosed: recentClosed(),
       wrongScene: canvas.scene?.id !== battle.sceneId, battleScene: scene?.name,
       showSkip: game.user.isGM && !["setup", "formations", "tactics", "over"].includes(p.kind),
+      gmFireOn: !!gmFire,
       canDeclare: game.user.isGM && !s.outcome && !["setup", "over"].includes(t.phase),
       tacticsWaiting: game.user.isGM && s.tactics?.phase === "battle" ? s.tactics.placed.filter(t => t.state === "hidden" && !["raiseFlag", "setAflame"].includes(t.key)).length : 0,
       gates: game.user.isGM ? (s.siege?.gates ?? []).map(g => ({ id: g.id, where: g.squares.map(([x, y]) => `${x},${y}`).join(" + "),

@@ -1564,6 +1564,12 @@ const ACTIONS = {
     s.turn.phase = 'officer'; s.turn.decided = []; s.turn.held = [];
     rollInitiative(s); advance(s);
   },
+  gmSetFire(s, actor, a) { // GM test control: set any flammable square alight
+    if (!actor.host) return err('Only the GM can start a fire');
+    if (!inBounds(s, a.x, a.y)) return err('Off the map');
+    if (!igniteTile(s, a.x, a.y, 'GM')) return err("That square can't burn, or is already burning");
+    settle(s);
+  },
   declareOutcome(s, actor, a) { // the GM ends the battle at once with a victory or a defeat
     if (!['victory', 'defeat', 'stalemate'].includes(a.result)) return err('Victory, defeat or stalemate?');
     if (s.outcome) return err('The battle is already over');
