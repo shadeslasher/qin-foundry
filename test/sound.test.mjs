@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { MOMENTS, LOCAL_MOMENTS, soundsFor, pickSound, stepSounds, attackSounds, logSoundSteps, turnSounds } from "../module/sound.mjs";
+import { MOMENTS, LOCAL_MOMENTS, ALIASES, registerSoundPack, soundPack, soundsFor, pickSound, stepSounds, attackSounds, logSoundSteps, turnSounds } from "../module/sound.mjs";
 
 test("sounds: every moment in the picker page's list is known, and the menu ones are local", () => {
   for (const m of ["Cursor move", "Select / confirm", "Menu opens", "Tactic triggered", "Fire catches / burning", "Gate destroyed",
-    "Tactic placed", "Unit selected", "Error / not allowed", "Cancel / back", "Victory condition shown", "Defeat condition shown"]) assert.ok(MOMENTS.includes(m), m);
+    "Tactic placed", "Unit selected", "Error / not allowed", "Cancel / back", "Condition shown"]) assert.ok(MOMENTS.includes(m), m);
   for (const m of ["Cursor move", "Select / confirm", "Menu opens", "Unit selected", "Error / not allowed", "Cancel / back", "Tactic placed"]) assert.ok(LOCAL_MOMENTS.has(m), m);
   assert.ok(!LOCAL_MOMENTS.has("Tactic triggered") && !LOCAL_MOMENTS.has("Melee hit"));
 });
@@ -58,4 +58,11 @@ test("sounds: battle start, round start, and whose turn", () => {
   assert.deepEqual(turnSounds({ active: true, round: 1, unit: "a", phase: "rounds" }, { active: true, round: 2, unit: "c", side: "player", phase: "rounds" }), ["Round start", "Player turn"]);
   assert.deepEqual(turnSounds({ active: true, round: 1, unit: "a", phase: "rounds" }, { active: true, round: 1, unit: "a", side: "player", phase: "rounds" }), []);
   assert.deepEqual(turnSounds({ active: true, round: 1, unit: "a" }, { active: false }), []);
+});
+
+test("sounds: victory and defeat condition shown are one moment (old names still load)", () => {
+  assert.ok(!MOMENTS.includes("Victory condition shown") && MOMENTS.includes("Condition shown"));
+  registerSoundPack({ "Victory condition shown": ["v.ogg"], "Defeat condition shown": ["d.ogg"] });
+  assert.deepEqual(soundPack()["Condition shown"], ["v.ogg", "d.ogg"]);
+  assert.equal(ALIASES["Defeat condition shown"], "Condition shown");
 });

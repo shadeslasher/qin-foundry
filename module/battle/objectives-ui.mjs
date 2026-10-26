@@ -548,7 +548,7 @@ export async function playTour() {
     const card = makeCard([{ side: s.side, verb: VERB[s.c.type], what: tourWords(s.c, scene), color: s.tg.color }], "qin-tour-big");
     t.els.push(card);
     placeCard(card, s.tg);
-    playMoment(s.side === "v" ? "Victory condition shown" : "Defeat condition shown", { minGap: 0 });
+    playMoment("Condition shown", { minGap: 0 });
     await sleep(1500, t);
     card.remove();
   }
@@ -560,7 +560,7 @@ export async function playTour() {
     strip.className = `qin-tour-strip ${s.side === "v" ? "v" : "d"}`;
     strip.innerHTML = `<b>${VERB[s.c.type]}</b><span>${esc(tourWords(s.c, scene))}</span>`;
     document.body.appendChild(strip); t.els.push(strip);
-    playMoment(s.side === "v" ? "Victory condition shown" : "Defeat condition shown", { minGap: 0 });
+    playMoment("Condition shown", { minGap: 0 });
     await sleep(2100, t);
     strip.remove();
     await sleep(100, t);

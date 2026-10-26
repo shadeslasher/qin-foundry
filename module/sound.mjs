@@ -10,13 +10,13 @@ import { SYSTEM_ID } from "./config.mjs";
 export const MOMENT_GROUPS = [
   ["Combat", ["Melee hit", "Miss or blocked", "Bow shot", "Crossbow shot", "Arrow hit", "Cavalry charge", "Overwatch shot",
     "Counter-attack", "Unit destroyed", "Unit surrenders", "Morale drop", "Morale up / rally", "Level up", "XP gained", "Fire catches / burning"]],
-  ["Turn and actions", ["Battle start", "Victory condition shown", "Defeat condition shown", "Round start", "Player turn", "Enemy turn",
+  ["Turn and actions", ["Battle start", "Condition shown", "Round start", "Player turn", "Enemy turn",
     "Unit selected", "Infantry moves", "Cavalry moves", "Hold", "Overwatch set", "Reload", "Tactic placed", "Tactic triggered",
     "Officer skill", "Gate opens", "Gate destroyed", "Ladder placed", "Victory", "Defeat"]],
   ["Menus", ["Menu opens", "Select / confirm", "Cancel / back", "Cursor move", "Error / not allowed"]],
 ];
 export const MOMENTS = MOMENT_GROUPS.flatMap(([, list]) => list);
-export const LOCAL_MOMENTS = new Set(["Unit selected", "Tactic placed", "Victory condition shown", "Defeat condition shown",
+export const LOCAL_MOMENTS = new Set(["Unit selected", "Tactic placed", "Condition shown",
   "Menu opens", "Select / confirm", "Cancel / back", "Cursor move", "Error / not allowed"]);
 /** A moment with no sounds of its own borrows these (in order). */
 export const FALLBACKS = {
@@ -25,10 +25,13 @@ export const FALLBACKS = {
 };
 
 let pack = {};
+/** Old moment names that now share one (David, 2026-10-25: one sound for every condition the tour shows). */
+export const ALIASES = { "Victory condition shown": "Condition shown", "Defeat condition shown": "Condition shown" };
 
 /** Moment → list of files, from a module's pack (later packs add to earlier ones). Unknown moment names are kept. */
 export function registerSoundPack(map) {
-  for (const [m, list] of Object.entries(map ?? {})) {
+  for (const [name, list] of Object.entries(map ?? {})) {
+    const m = ALIASES[name] ?? name;
     const files = (Array.isArray(list) ? list : [list]).filter(f => typeof f === "string" && f);
     if (files.length) pack[m] = [...new Set([...(pack[m] ?? []), ...files])];
   }
