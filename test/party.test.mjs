@@ -70,9 +70,15 @@ test('equipment: one piece per family, a better tier replaces, remove by name', 
   assert.deepStrictEqual(list.map(e => e.name), ['Precision', 'War Drums++'], 'replaces the lower tier');
   list = equipList(list, 'Saddle');
   assert.deepStrictEqual(list.map(e => e.name), ['Precision', 'War Drums++', 'Saddle']);
+  list = equipList(list, 'War Horn');
+  assert.deepStrictEqual(list.map(e => e.name), ['Precision', 'Saddle', 'War Horn'], 'one piece of gear in all: the horn replaces the drums');
+  list = equipList(list, 'Reinforced Armor');
+  assert.deepStrictEqual(list.map(e => e.name), ['Precision', 'Saddle', 'War Horn', 'Reinforced Armor'], 'upgrades stack with each other');
+  list = equipList(list, 'War Drums++');
+  assert.deepStrictEqual(list.map(e => e.name), ['Precision', 'Saddle', 'Reinforced Armor', 'War Drums++'], 'the drums push the horn out again');
   assert.strictEqual(equipList(list, 'Not a thing'), null);
   list = unequipList(list, 'War Drums++');
-  assert.deepStrictEqual(list.map(e => e.name), ['Precision', 'Saddle']);
+  assert.deepStrictEqual(list.map(e => e.name), ['Precision', 'Saddle', 'Reinforced Armor']);
 });
 
 test('equipment: siege ladders and a siege engine never together', async () => {

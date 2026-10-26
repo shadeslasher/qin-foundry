@@ -307,12 +307,20 @@ test('Sharpened Weapons, Saddle, Reinforced Armor and War Drums in the rolls and
   assert.strictEqual(r.casualtiesDefender, 12);
 });
 
-test('Rallying Banner: an ally within reach cannot drop below 1 morale from one attack', () => {
-  // defender at 5 morale loses the roll by a lot
-  const { D } = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], (a, d, s) => { d.morale = 5; d.traitTiers = { 'rallying banner': 1 }; });
-  assert.strictEqual(D.morale, 1, 'the carrier itself holds at 1');
-  const { D: D2 } = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], (a, d) => { d.morale = 5; });
-  assert.strictEqual(D2.morale, 0, 'without a banner it breaks');
+test('Rallying Banner: adjacent allies gain 1/2/3 morale when the carrier ends its turn', () => {
+  const s = setup(); plains(s); s.library.unitTypes.push(unitType('a'), unitType('d'));
+  const c = add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 5, y: 5 });
+  const b = add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 6, y: 5 });
+  const far = add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 8, y: 5 });
+  const e = add(s, { typeId: 'd', side: 'enemy', x: 5, y: 4 });
+  R.unitById(s, c).traitTiers = { 'rallying banner': 2 };
+  must(R.act(s, HOST, { type: 'startBattle' })); dice([0, 0]); must(R.act(s, HOST, { type: 'startRound' }));
+  must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: c }));
+  must(R.act(s, P1, { type: 'endTurn', unitId: c }));
+  assert.strictEqual(R.unitById(s, b).morale, 52, 'adjacent ally +2');
+  assert.strictEqual(R.unitById(s, far).morale, 50, 'not adjacent');
+  assert.strictEqual(R.unitById(s, e).morale, 50, 'enemy next to it gets nothing');
+  assert.strictEqual(R.unitById(s, c).morale, 50, 'not the carrier itself');
 });
 
 test('War Horn: Reinvigorate gives an adjacent ally that has acted a fresh turn at once, then recharges a round', () => {

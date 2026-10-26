@@ -669,9 +669,13 @@ function warDrumsBonus(s, u) {
   }
   return best;
 }
-/** Rallying Banner: is `u` within reach (1 / 2 / 3 tiles) of an allied banner (the carrier included)? Then one attack can't take it below 1 morale. */
-function underBanner(s, u) {
-  return liveUnits(s).some(o => { const b = trait(o, 'rallying banner'); return b && friendly(o, u) && manhattan(o, u) <= b; });
+/** Rallying Banner: at the end of the carrier's turn, adjacent allies gain 1 / 2 / 3 morale (David, 2026-10-25). */
+function rallyingBanner(s, u) {
+  const b = trait(u, 'rallying banner'); if (!b || !alive(u)) return;
+  for (const o of liveUnits(s)) if (o !== u && friendly(o, u) && manhattan(o, u) === 1 && o.morale < 100) {
+    o.morale = Math.min(100, o.morale + b);
+    log(s, o.name + ' gains ' + b + ' morale (Rallying Banner of ' + u.name + ').');
+  }
 }
 /** Saddle: Attack +1; Saddle+ also melee defense +1; Saddle++ also movement +1. */
 const saddleOf = (u) => trait(u, 'saddle');
@@ -943,15 +947,11 @@ function resolveAttack(s, attacker, defender, opts) {
       log(s, 'Fierce Charge++: ' + b.name + ', behind ' + defender.name + ', takes half the damage (-' + cas + ').', { type: 'trample', unit: b.id, casualties: cas });
     }
   }
-  // Rallying Banner: a unit within reach of an allied banner can't drop below 1 morale from a single attack
-  const floorD = defender.morale >= 1 && underBanner(s, defender) ? 1 : 0, floorA = attacker.morale >= 1 && underBanner(s, attacker) ? 1 : 0;
   if (loser) loser.morale = clamp(loser.morale - moraleLoss, 0, 100);
   // casualties cost morale at checkpoints: -5 the first time each fifth of the unit's health is lost this battle
   const cmD = checkpointMorale(defender), cmA = checkpointMorale(attacker);
   if (cmD) defender.morale = clamp(defender.morale - cmD, 0, 100);
   if (cmA) attacker.morale = clamp(attacker.morale - cmA, 0, 100);
-  if (floorD && defender.morale < 1) { defender.morale = 1; log(s, defender.name + ' holds at 1 morale under the Rallying Banner.'); }
-  if (floorA && attacker.morale < 1) { attacker.morale = 1; log(s, attacker.name + ' holds at 1 morale under the Rallying Banner.'); }
 
   // Lasting effects of a successful attack (the attacker won the roll)
   if (winner === 'attacker') {
@@ -1328,6 +1328,7 @@ function finishActivation(s, u, opts) {
     log(s, u.name + ' ends its turn on ' + tr.names.join(', ') + ':' + (tr.moraleTurn ? ' ' + (tr.moraleTurn > 0 ? '+' : '') + tr.moraleTurn + ' morale' : '') +
       (tr.healthTurn ? ' ' + tr.healthTurn + ' troops' : '') + '.');
   }
+  rallyingBanner(s, u);
   if (alive(u)) {
     const f = fx(u);
     f.stillLast = !u.round.moved;                       // Shield Battery, Range Up: "ended its last turn without moving"
@@ -2172,7 +2173,7 @@ function viewFor(s, viewer) {
   return v;
 }
 
-export { casualtiesOf, evasionOf, evadeCasualties, disciplinedBonus, warDrumsBonus, underBanner, hornReady, hornTargets, checkpointMorale, checkpointsPassed, overwatchFire as _overwatchFire,
+export { casualtiesOf, evasionOf, evadeCasualties, disciplinedBonus, warDrumsBonus, hornReady, hornTargets, checkpointMorale, checkpointsPassed, overwatchFire as _overwatchFire,
   moveOptions, attackTargets, actionMenu, threatArea, TACTIC_SIDES, tileRules, ladderTiles, climbTiles, insideCity, isWallTop, gateAt,
   newState, act, viewFor, prompt, reachable, movementOf, moraleState, visibleTo, rangeOk,
   resolveAttack, buildRoll, setRng, yinYang, typeOf, officerOf, unitById, SIDES, settle, advance,
