@@ -15,7 +15,6 @@ test("sounds: the GM's own files replace the pack's; empty moments borrow a fall
   assert.deepEqual(soundsFor("Melee hit", pack, { "Melee hit": ["mine.ogg"] }), ["mine.ogg"]);
   assert.deepEqual(soundsFor("Melee hit", pack, { "Melee hit": [] }), ["a.ogg", "b.ogg"]);
   assert.deepEqual(soundsFor("Crossbow shot", pack, {}), ["bow.ogg"]);
-  assert.deepEqual(soundsFor("Cavalry charge", pack, {}), ["a.ogg", "b.ogg"]);
   assert.deepEqual(soundsFor("Gate opens", pack, {}), []);
   assert.equal(pickSound(["a", "b", "c"], 0), "a");
   assert.equal(pickSound(["a", "b", "c"], 0.5), "b");
@@ -26,9 +25,10 @@ test("sounds: the GM's own files replace the pack's; empty moments borrow a fall
 test("sounds: an attack's sounds as it starts, lands and is struck back", () => {
   const dmg = [["unitDamage", "-3"]];
   assert.deepEqual(attackSounds({ ranged: false, toDefender: dmg }), { start: null, hit: "Melee hit", back: null });
-  assert.deepEqual(attackSounds({ ranged: false, toDefender: dmg, charge: true, returnStrike: true }), { start: null, hit: "Cavalry charge", back: "Counter-attack" });
+  assert.deepEqual(attackSounds({ ranged: false, toDefender: dmg, toAttacker: dmg, charge: true, returnStrike: true }), { start: null, hit: "Melee hit", back: "Melee hit" });
+  assert.equal(attackSounds({ ranged: false, toDefender: dmg, toAttacker: [], returnStrike: true }).back, "Miss or blocked");
   assert.deepEqual(attackSounds({ ranged: false, toDefender: [] }).hit, "Miss or blocked");
-  assert.deepEqual(attackSounds({ ranged: true, toDefender: dmg }), { start: "Bow shot", hit: "Arrow hit", back: null });
+  assert.deepEqual(attackSounds({ ranged: true, toDefender: dmg }), { start: "Bow shot", hit: "Melee hit", back: null });
   assert.equal(attackSounds({ ranged: true, crossbow: true, toDefender: dmg }).start, "Crossbow shot");
   assert.equal(attackSounds({ ranged: true, crossbow: true, overwatch: true, toDefender: dmg }).start, "Overwatch shot");
   assert.equal(attackSounds({ ranged: true, toDefender: [["moraleDown", "-5 morale"]] }).hit, "Miss or blocked");
@@ -38,7 +38,7 @@ test("sounds: animation steps and log entries", () => {
   assert.deepEqual(stepSounds({ kind: "tactic" }), [[0, "Tactic triggered"]]);
   assert.deepEqual(stepSounds({ kind: "setFire" }), [[0, "Fire catches / burning"]]);
   assert.deepEqual(stepSounds({ kind: "floats", items: [["u", "moraleDown", "-5"], ["v", "xp", "+1 XP"]] }), [[0, "Morale drop"], [150, "XP gained"]]);
-  assert.deepEqual(stepSounds({ kind: "fallen", units: [["a", "skull"], ["b", "flag"]] }), [[0, "Unit destroyed"], [250, "Unit surrenders"]]);
+  assert.deepEqual(stepSounds({ kind: "fallen", units: [["a", "skull"], ["b", "flag"]] }), [[0, "Unit destroyed"]]);
   assert.deepEqual(stepSounds({ kind: "attack" }), []);
   const steps = logSoundSteps([
     { detail: { type: "overwatch", on: true } }, { detail: { type: "gate", state: "open", by: "u1" } },
@@ -75,4 +75,12 @@ test("sounds: player and enemy turns share Turn start; move sounds repeat once p
   assert.deepEqual(moveSoundTimes(4), [0, 167, 333, 500].map(Math.round).map((v, i) => i * 167));
   assert.equal(moveSoundTimes(40).length, 12);
   assert.deepEqual(moveSoundTimes(3, 10), [0, 160, 320]);
+});
+
+test("sounds: every hit shares Melee hit, and a surrender plays Unit destroyed", () => {
+  for (const m of ["Arrow hit", "Cavalry charge", "Counter-attack", "Unit surrenders"]) assert.ok(!MOMENTS.includes(m), m);
+  registerSoundPack({ "Arrow hit": ["arrow.ogg"], "Unit surrenders": ["flag.ogg"] });
+  assert.ok(soundPack()["Melee hit"].includes("arrow.ogg"));
+  assert.ok(soundPack()["Unit destroyed"].includes("flag.ogg"));
+  assert.deepEqual(stepSounds({ kind: "fallen", units: [["b", "flag"]] }), [[0, "Unit destroyed"]]);
 });

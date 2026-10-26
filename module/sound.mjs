@@ -8,8 +8,8 @@ import { SYSTEM_ID } from "./config.mjs";
 
 /** Every moment the battle can play a sound for, grouped as in the panel. `local`: only the person acting hears it. */
 export const MOMENT_GROUPS = [
-  ["Combat", ["Melee hit", "Miss or blocked", "Bow shot", "Crossbow shot", "Arrow hit", "Cavalry charge", "Overwatch shot",
-    "Counter-attack", "Unit destroyed", "Unit surrenders", "Morale drop", "Morale up / rally", "Level up", "XP gained", "Fire catches / burning"]],
+  ["Combat", ["Melee hit", "Miss or blocked", "Bow shot", "Crossbow shot", "Overwatch shot",
+    "Unit destroyed", "Morale drop", "Morale up / rally", "Level up", "XP gained", "Fire catches / burning"]],
   ["Turn and actions", ["Battle start", "Condition shown", "Round start", "Turn start",
     "Unit selected", "Infantry moves", "Cavalry moves", "Hold", "Overwatch set", "Reload", "Tactic placed", "Tactic triggered",
     "Officer skill", "Gate opens", "Gate destroyed", "Ladder placed", "Victory", "Defeat"]],
@@ -20,14 +20,16 @@ export const LOCAL_MOMENTS = new Set(["Unit selected", "Tactic placed", "Conditi
   "Menu opens", "Select / confirm", "Cancel / back", "Cursor move", "Error / not allowed"]);
 /** A moment with no sounds of its own borrows these (in order). */
 export const FALLBACKS = {
-  "Crossbow shot": ["Bow shot"], "Overwatch shot": ["Bow shot"], "Cavalry charge": ["Melee hit"],
-  "Cavalry moves": ["Infantry moves"], "Unit surrenders": ["Unit destroyed"],
+  "Crossbow shot": ["Bow shot"], "Overwatch shot": ["Bow shot"],
+  "Cavalry moves": ["Infantry moves"],
 };
 
 let pack = {};
 /** Old moment names that now share one (David, 2026-10-25: one sound for every condition the tour shows). */
 export const ALIASES = { "Victory condition shown": "Condition shown", "Defeat condition shown": "Condition shown",
-  "Player turn": "Turn start", "Enemy turn": "Turn start" }; // one sound whoever's turn it is (2026-10-25)
+  "Player turn": "Turn start", "Enemy turn": "Turn start",
+  // every hit (melee, arrows landing, a cavalry charge, a strike back) plays Melee hit; a surrender plays Unit destroyed
+  "Arrow hit": "Melee hit", "Cavalry charge": "Melee hit", "Counter-attack": "Melee hit", "Unit surrenders": "Unit destroyed" }; // one sound whoever's turn it is (2026-10-25)
 
 /** Moment → list of files, from a module's pack (later packs add to earlier ones). Unknown moment names are kept. */
 export function registerSoundPack(map) {
@@ -92,7 +94,7 @@ export function stepSounds(st) {
     case "setFire": return [[0, "Fire catches / burning"]];
     case "fallen": {
       const how = new Set((st.units ?? []).map(u => u[1]));
-      return [...(how.has("skull") ? [[0, "Unit destroyed"]] : []), ...(how.has("flag") ? [[how.has("skull") ? 250 : 0, "Unit surrenders"]] : [])];
+      return how.size ? [[0, "Unit destroyed"]] : []; // destroyed or surrendered: the same sound, once
     }
     case "sound": return [[0, st.moment]];
   }
@@ -104,8 +106,8 @@ export function attackSounds(st) {
   const shot = st.overwatch ? "Overwatch shot" : st.crossbow ? "Crossbow shot" : "Bow shot";
   return {
     start: st.ranged ? shot : null,
-    hit: !hurt ? "Miss or blocked" : st.ranged ? "Arrow hit" : st.charge ? "Cavalry charge" : "Melee hit",
-    back: st.returnStrike ? "Counter-attack" : null,
+    hit: hurt ? "Melee hit" : "Miss or blocked",
+    back: !st.returnStrike ? null : (st.toAttacker ?? []).some(([style]) => style === "unitDamage") ? "Melee hit" : "Miss or blocked",
   };
 }
 /** Play a step's sounds (called by every client as it plays the battle animation). */
