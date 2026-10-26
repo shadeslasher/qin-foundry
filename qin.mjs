@@ -235,6 +235,10 @@ setObjectivesChangeHandler(() => BattlePanel.refresh());
 setDeployChangeHandler(() => BattlePanel.refresh());
 registerUnitClicks();
 Hooks.on("renderCombatTracker", onRenderCombatTracker);
+// Recharging unique skills: character sheets update as the fight's rounds pass, and clear when it ends
+const rerenderCharacterSheets = () => { for (const a of game.actors ?? []) if (a.type === "character" && a.sheet?.rendered) a.sheet.render(); };
+Hooks.on("updateCombat", (c, change) => { if ("round" in change || "started" in change) rerenderCharacterSheets(); });
+Hooks.on("deleteCombat", rerenderCharacterSheets);
 Hooks.on("updateToken", (doc, change) => { try { onUnitTokenMoved(doc, change, getBattle()); } catch (e) { console.warn("Qin | move sound", e); } });
 Hooks.on("updateToken", (doc, change, options) => {
   onTokenMoved(doc, change, options);

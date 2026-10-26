@@ -1,4 +1,4 @@
-import { ASPECTS, SKILLS, DOMAINS, SKILL_LEVELS, BOL_LEVELS, MAGIC_WAYS, OFFICER_ABILITY_KINDS, OFFICER_EFFECTS, UNIT_CATEGORIES, SIDES, SIGNATURE_SLOTS, extraActivesForTier, systemPath } from "../config.mjs";
+import { ASPECTS, SKILLS, DOMAINS, SKILL_LEVELS, BOL_LEVELS, MAGIC_WAYS, OFFICER_ABILITY_KINDS, OFFICER_EFFECTS, UNIT_CATEGORIES, SIDES, SIGNATURE_SLOTS, extraActivesForTier, isActiveSlot, rechargeStatus, rechargeLabel, systemPath } from "../config.mjs";
 import { factionOf, openFactionPicker } from "../factions.mjs";
 import { actionsPerRound } from "../rules/qin-rules.mjs";
 import { traitAtLevel, parseTraitText, pendingTraitChoices, replacedTraits } from "../battle/traits.mjs";
@@ -19,6 +19,25 @@ const ITEM_GROUPS = {
 };
 const TAO_LEVELS = { 0: "0", 1: "1", 2: "2", 3: "3", 4: "4" };
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
+
+/** The fight running on the combat tracker ({ id, round }), or null when none has started. */
+function runningFight() {
+  const c = game.combat;
+  return c?.started && c.round > 0 ? { id: c.id, round: c.round } : null;
+}
+
+/** Use an in-person active: refuse while it recharges, spend its Chi, post it, and note the round it was used in. */
+async function useSignature(actor, item) {
+  const fight = runningFight(), status = rechargeStatus(item.system, fight);
+  if (!status.ready) return ui.notifications.warn(`${item.name}: ${status.text}.`);
+  if (item.system.chiCost) await actor.spendChi(item.system.chiCost, item.name);
+  if (fight) await item.update({ "system.lastUse": { combat: fight.id, round: fight.round } });
+  const rl = rechargeLabel(item.system);
+  await ChatMessage.implementation.create({
+    speaker: ChatMessage.implementation.getSpeaker({ actor }),
+    content: `<div class="qin-chat"><h3>${esc(item.name)}</h3><p class="qin-sig-meta">Used${item.system.chiCost ? ` · ${item.system.chiCost} Chi` : ""}${rl ? ` · ${esc(rl)}` : ""}</p>${item.system.description || ""}</div>`,
+  });
+}
 
 /** Compendium entries with pre-built hover details, cached per pack (the system packs don't change in play). */
 const libraryCache = new Map();
@@ -208,7 +227,7 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
       weapons: (items.weapon || []).map(w => ({ item: w, skill: actor.getSkill(w.system.skill), ranged: w.system.isRanged })),
       magicWays: MAGIC_WAYS, officerKinds: OFFICER_ABILITY_KINDS, taoLevels: TAO_LEVELS,
       // extra in-person actives show when the tier allows them, or when one is already filled
-      signature: Object.entries(SIGNATURE_SLOTS).map(([key, s]) => ({ key, label: s.label, extra: s.extra ?? 0, item: (items.signature || []).find(i => i.system.slot === key) ?? null }))
+      signature: Object.entries(SIGNATURE_SLOTS).map(([key, s]) => { const item = (items.signature || []).find(i => i.system.slot === key) ?? null; return { key, label: s.label, extra: s.extra ?? 0, item, cooldown: item && isActiveSlot(key) ? rechargeStatus(item.system, runningFight()).text : "" }; })
         .filter(s => !s.extra || s.item || s.extra <= extraActivesForTier(system.details?.tier)),
       taoLibrary: await QinActorSheetBase.#library(actor, "taos", "tao"),
       techniqueLibrary: await QinActorSheetBase.#library(actor, "techniques", "technique"),
@@ -304,17 +323,24 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
     const meta = [label];
     if (item.system.chiCost) meta.push(`${item.system.chiCost} Chi`);
     if (item.system.moraleCost) meta.push(`${item.system.moraleCost} morale`);
-    const buttons = [{ action: "close", label: "Close", default: true }, { action: "chat", label: "Post to chat", icon: "fa-solid fa-comment" }];
+    const active = isActiveSlot(slot), rl = active ? rechargeLabel(item.system) : "";
+    if (rl) meta.push(rl);
+    const status = active ? rechargeStatus(item.system, runningFight()) : { ready: true, text: "" };
+    const buttons = [{ action: "close", label: "Close", default: true }];
+    if (active && this.isEditable && status.ready) buttons.unshift({ action: "use", label: item.system.chiCost ? `Use (${item.system.chiCost} Chi)` : "Use", icon: "fa-solid fa-bolt" });
+    buttons.push({ action: "chat", label: "Post to chat", icon: "fa-solid fa-comment" });
     if (this.isEditable) buttons.push({ action: "edit", label: "Change", icon: "fa-solid fa-pen" }, { action: "remove", label: "Remove", icon: "fa-solid fa-trash" });
+    const cd = status.text ? `<div class="qin-sig-cooldown"><i class="fa-solid fa-hourglass-half"></i> ${esc(status.text)}</div>` : "";
     const choice = await (api.Dialog ?? api.DialogV2).wait({
       window: { title: item.name },
       classes: ["qin", "qin-sig-popup"],
       position: { width: 420 },
-      content: `<div class="qin-sig-meta">${esc(meta.join(" · "))}</div>${item.system.description || "<p><i>No description yet.</i></p>"}`,
+      content: `<div class="qin-sig-meta">${esc(meta.join(" · "))}</div>${cd}${item.system.description || "<p><i>No description yet.</i></p>"}`,
       buttons,
       rejectClose: false,
     });
-    if (choice === "edit") item.sheet.render(true);
+    if (choice === "use") await useSignature(this.actor, item);
+    else if (choice === "edit") item.sheet.render(true);
     else if (choice === "chat") item.toChat();
     else if (choice === "remove") item.delete();
   }
@@ -752,6 +778,7 @@ export class QinItemSheet extends api.HandlebarsApplicationMixin(ItemSheetBase) 
       domains: DOMAINS, magicWays: MAGIC_WAYS, officerKinds: OFFICER_ABILITY_KINDS, skillLevels: SKILL_LEVELS,
       officerEffects: Object.entries(OFFICER_EFFECTS).map(([k, e]) => ({ key: k, ...e, value: item.system.effects?.[k] })),
       signatureSlots: Object.fromEntries(Object.entries(SIGNATURE_SLOTS).map(([k, s]) => [k, s.label])),
+      isActive: item.type === "signature" && isActiveSlot(item.system.slot),
       showEffects: item.type === "officerAbility" || (item.type === "signature" && item.system.slot === "battlePassive"),
     });
     return context;

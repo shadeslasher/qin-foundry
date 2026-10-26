@@ -40,6 +40,7 @@
     <div class="qin-sig-slot {{#unless item}}empty{{/unless}}">
       <span class="qin-sig-label">{{label}}</span>
       <a class="qin-sig-name" data-action="signatureOpen" data-slot="{{key}}" title="{{#if item}}Show description{{else}}Add a {{label}} skill{{/if}}">{{#if item}}{{item.name}}{{else}}— empty —{{/if}}</a>
+      {{#if cooldown}}<span class="qin-sig-cd" title="Can't be used until it recharges"><i class="fa-solid fa-hourglass-half"></i> {{cooldown}}</span>{{/if}}
     </div>
     {{/each}}
   </section>

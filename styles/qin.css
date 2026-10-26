@@ -153,6 +153,9 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin-sig-slot.empty { border-style: dashed; border-color: var(--qin-line); }
 .qin-sig-label { display: block; font-size: calc(11px * var(--qin-scale, 1.15)); color: var(--qin-muted); }
 .qin-sig-name { font-weight: bold; color: var(--qin-red); }
+.qin-sig-cd, .qin-sig-cooldown { display: block; font-size: calc(11px * var(--qin-scale, 1.15)); color: var(--qin-red); font-style: italic; }
+.qin-sig-slot:has(.qin-sig-cd) { opacity: 0.75; border-style: dashed; }
+.qin-sig-cooldown { margin: 2px 0 6px; }
 .qin-sig-slot.empty .qin-sig-name { font-weight: normal; color: var(--qin-muted); font-style: italic; }
 .qin-sig-popup .qin-sig-meta { color: #6f6250; font-size: calc(12px * var(--qin-scale, 1.15)); margin-bottom: 6px; }
 .qin-library { display: flex; gap: 6px; margin-bottom: 6px; }

@@ -106,6 +106,10 @@ export class OfficerAbilityData extends foundry.abstract.TypeDataModel {
     return {
       kind: new fields.StringField({ initial: "passive", choices: ["passive", "skill", "heroic", "battleArt"] }),
       moraleCost: int(0, { min: 0 }),
+      // In-person actives: rounds to wait after a use (0 none, 1 once per round), or once per fight; the last use
+      recharge: int(0, { min: 0 }),
+      perScene: new fields.BooleanField({ initial: false }),
+      lastUse: new fields.SchemaField({ combat: new fields.StringField({ initial: "" }), round: int(0) }),
       effects: new fields.SchemaField({
         ignoreMoralePenalty: new fields.BooleanField({ initial: false }),
         noRearAgainst: new fields.BooleanField({ initial: false }),

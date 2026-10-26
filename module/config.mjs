@@ -135,5 +135,28 @@ export function extraActivesForTier(tier) {
   return 0;
 }
 
+/** In-person active slots (they cost Chi and can have a recharge). */
+export const isActiveSlot = (slot) => /^active\d?$/.test(String(slot ?? ""));
+
+/**
+ * Whether an in-person active can be used now (David, 2026-10-26). `sys` = the signature's system data, `combat` =
+ * { id, round } of the running fight on the combat tracker, or null. Used in round R with a recharge of N rounds it is
+ * ready again in round R+N; "once per fight" waits for that fight to end. Outside a fight it is always ready.
+ */
+export function rechargeStatus(sys, combat) {
+  const use = sys?.lastUse, n = Math.max(0, Number(sys?.recharge) || 0);
+  if (!combat?.id || !use?.combat || use.combat !== combat.id) return { ready: true, left: 0, text: "" };
+  if (sys.perScene) return { ready: false, left: Infinity, text: "Used this fight" };
+  const left = (Number(use.round) || 0) + n - (Number(combat.round) || 0);
+  return left > 0 ? { ready: false, left, text: `Recharging: ${left} round${left === 1 ? "" : "s"}` } : { ready: true, left: 0, text: "" };
+}
+
+/** How a recharge reads: "Once per fight", "Once per round", "2-round recharge", or "". */
+export function rechargeLabel(sys) {
+  if (sys?.perScene) return "Once per fight";
+  const n = Number(sys?.recharge) || 0;
+  return n === 1 ? "Once per round" : n > 1 ? `${n}-round recharge` : "";
+}
+
 export const UNIT_CATEGORIES = { infantry: "Infantry", cavalry: "Cavalry", ranged: "Ranged" };
 export const SIDES = { player: "Player", enemy: "Enemy", ally: "Ally", neutral: "Neutral" };

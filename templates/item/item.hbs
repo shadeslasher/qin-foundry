@@ -74,7 +74,9 @@
     <label class="qin-inline"><input type="checkbox" name="system.noAttackerBonus" {{checked system.noAttackerBonus}}> Loses the +2 attacker bonus</label>
   {{else if (eq type "signature")}}
     <label>Slot <select name="system.slot">{{selectOptions signatureSlots selected=system.slot}}</select></label>
-    {{#if (eq system.slot "active")}}<label>Chi cost <input type="number" name="system.chiCost" value="{{system.chiCost}}"></label>{{/if}}
+    {{#if isActive}}<label>Chi cost <input type="number" name="system.chiCost" value="{{system.chiCost}}"></label>
+    <label>Recharge (rounds) <input type="number" name="system.recharge" value="{{system.recharge}}" min="0" title="Rounds to wait after a use in a fight: 1 = once per round, 0 = none"></label>
+    <label class="qin-inline"><input type="checkbox" name="system.perScene" {{checked system.perScene}}> Once per fight</label>{{/if}}
     {{#if (eq system.slot "battleActive")}}<label>Morale cost <input type="number" name="system.moraleCost" value="{{system.moraleCost}}"></label>{{/if}}
   {{/if}}
   </div>
