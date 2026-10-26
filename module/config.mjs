@@ -119,9 +119,21 @@ export const OFFICER_EFFECTS = {
 export const SIGNATURE_SLOTS = {
   passive: { label: "Passive", battle: false },
   active: { label: "Active", battle: false },
+  active2: { label: "Active II", battle: false, extra: 1 },
+  active3: { label: "Active III", battle: false, extra: 2 },
+  active4: { label: "Active IV", battle: false, extra: 3 },
   battlePassive: { label: "Battle Passive", battle: true },
   battleActive: { label: "Battle Active", battle: true },
 };
+
+/** Extra in-person actives a character's tier allows (David, 2026-10-26): Tier 2 one, Tier 1 two, Tier 0 three. */
+export function extraActivesForTier(tier) {
+  const t = String(tier ?? "").trim();
+  if (/^0/.test(t)) return 3;
+  if (/^1/.test(t)) return 2;
+  if (/^2/.test(t)) return 1;
+  return 0;
+}
 
 export const UNIT_CATEGORIES = { infantry: "Infantry", cavalry: "Cavalry", ranged: "Ranged" };
 export const SIDES = { player: "Player", enemy: "Enemy", ally: "Ally", neutral: "Neutral" };

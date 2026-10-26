@@ -123,7 +123,7 @@ export class OfficerAbilityData extends foundry.abstract.TypeDataModel {
 export class SignatureData extends foundry.abstract.TypeDataModel {
   static defineSchema() {
     return {
-      slot: new fields.StringField({ initial: "passive", choices: ["passive", "active", "battlePassive", "battleActive"] }),
+      slot: new fields.StringField({ initial: "passive", choices: ["passive", "active", "active2", "active3", "active4", "battlePassive", "battleActive"] }),
       chiCost: int(0, { min: 0 }),
       moraleCost: int(0, { min: 0 }),
       effects: new fields.SchemaField({

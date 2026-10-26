@@ -1,4 +1,4 @@
-import { ASPECTS, SKILLS, DOMAINS, SKILL_LEVELS, BOL_LEVELS, MAGIC_WAYS, OFFICER_ABILITY_KINDS, OFFICER_EFFECTS, UNIT_CATEGORIES, SIDES, SIGNATURE_SLOTS, systemPath } from "../config.mjs";
+import { ASPECTS, SKILLS, DOMAINS, SKILL_LEVELS, BOL_LEVELS, MAGIC_WAYS, OFFICER_ABILITY_KINDS, OFFICER_EFFECTS, UNIT_CATEGORIES, SIDES, SIGNATURE_SLOTS, extraActivesForTier, systemPath } from "../config.mjs";
 import { factionOf, openFactionPicker } from "../factions.mjs";
 import { actionsPerRound } from "../rules/qin-rules.mjs";
 import { traitAtLevel, parseTraitText, pendingTraitChoices, replacedTraits } from "../battle/traits.mjs";
@@ -205,7 +205,9 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
       skillsByDomain, skillLevels: SKILL_LEVELS, bolLabels: BOL_LEVELS,
       weapons: (items.weapon || []).map(w => ({ item: w, skill: actor.getSkill(w.system.skill), ranged: w.system.isRanged })),
       magicWays: MAGIC_WAYS, officerKinds: OFFICER_ABILITY_KINDS, taoLevels: TAO_LEVELS,
-      signature: Object.entries(SIGNATURE_SLOTS).map(([key, s]) => ({ key, label: s.label, item: (items.signature || []).find(i => i.system.slot === key) ?? null })),
+      // extra in-person actives show when the tier allows them, or when one is already filled
+      signature: Object.entries(SIGNATURE_SLOTS).map(([key, s]) => ({ key, label: s.label, extra: s.extra ?? 0, item: (items.signature || []).find(i => i.system.slot === key) ?? null }))
+        .filter(s => !s.extra || s.item || s.extra <= extraActivesForTier(system.details?.tier)),
       taoLibrary: await QinActorSheetBase.#library(actor, "taos", "tao"),
       techniqueLibrary: await QinActorSheetBase.#library(actor, "techniques", "technique"),
     });
