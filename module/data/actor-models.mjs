@@ -156,6 +156,7 @@ export class UnitData extends foundry.abstract.TypeDataModel {
         name: new fields.StringField({ initial: "" }),
         desc: new fields.StringField({ initial: "" }),
         level: int(1, { min: 1 }),                                   // the trait is locked until this level
+        equip: new fields.BooleanField({ initial: false }),           // a piece of equipment (Equipment tab), not a trait
         upgrades: new fields.ArrayField(new fields.SchemaField({     // e.g. at level 5 it becomes "Anti-Infantry+"
           level: int(5, { min: 1 }), name: new fields.StringField({ initial: "" }), desc: new fields.StringField({ initial: "" }),
         })),

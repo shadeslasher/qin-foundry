@@ -7,6 +7,7 @@ import { factionOf } from "./factions.mjs";
 import { SKILLS } from "./config.mjs";
 import { healthColor, moraleColor } from "./unit-bars.mjs";
 import { TT_ICONS } from "./icons.mjs";
+import { equipmentOf } from "./equipment.mjs";
 
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
 
@@ -240,10 +241,10 @@ export async function openOfficerView(uuidOrActor) {
 
 /* ------------------------------------------------------------ the Info window */
 
-function traitsHTML(raw) {
+function traitsHTML(raw, skip = new Set()) {
   const d = document.createElement("div");
   d.innerHTML = String(raw ?? "").replace(/<\/(p|div|li)>|<br\s*\/?>/gi, "\n");
-  const lines = d.textContent.split(/\n+/).map(l => l.trim()).filter(Boolean);
+  const lines = d.textContent.split(/\n+/).map(l => l.trim()).filter(Boolean).filter(l => !skip.has((l.match(/^(.+?)\s+[-–]\s+/) || [, l])[1]));
   if (!lines.length) return `<p class="qin-muted">No traits.</p>`;
   return `<div class="qin-ui-traits">${lines.map(l => {
     const m = l.match(/^(.+?)\s+[-–]\s+(.+)$/);
@@ -309,7 +310,8 @@ export class UnitInfoApp extends Base {
         const active = sys.formation === f.id;
         return `<li class="${active ? "active" : ""}"><div><b>${esc(f.name)}</b>${active ? ` <span class="qin-tag">in use</span>` : ""}</div>${sum ? `<div class="qin-ui-fx">${esc(sum)}</div>` : ""}</li>`;
       }).join("")}</ul>` : `<p class="qin-muted">No formations known.</p>`}</section>`}
-      <section class="qin-ui-sec"><div class="qin-ui-sech">Traits</div>${traitsHTML(sys.traits)}</section>
+      ${(() => { const eq = equipmentOf(actor); return eq.length ? `<section class="qin-ui-sec"><div class="qin-ui-sech">Equipment</div><div class="qin-ui-traits">${eq.map(e => `<div class="qin-ui-trait equip"><b><i class="fa-solid fa-shield-halved"></i> ${esc(e.name)}</b>${e.desc ? `<span>${esc(e.desc)}</span>` : ""}</div>`).join("")}</div></section>` : ""; })()}
+      <section class="qin-ui-sec"><div class="qin-ui-sech">Traits</div>${traitsHTML(sys.traits, new Set(equipmentOf(actor).map(e => e.name)))}</section>
     </div>`;
   }
 

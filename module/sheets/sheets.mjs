@@ -4,6 +4,7 @@ import { actionsPerRound } from "../rules/qin-rules.mjs";
 import { traitAtLevel, parseTraitText, pendingTraitChoices, replacedTraits } from "../battle/traits.mjs";
 import { officerEligibility } from "../officer-rules.mjs";
 import { TT_ICONS } from "../icons.mjs";
+import { EquipmentPicker, unequipUnit, equipmentOf } from "../equipment.mjs";
 import { healthColor, moraleColor } from "../unit-bars.mjs";
 const hex = (n) => "#" + Number(n).toString(16).padStart(6, "0");
 
@@ -452,6 +453,8 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
     window: { resizable: true },
     form: { submitOnChange: true, closeOnSubmit: false },
     actions: {
+      equipPick: function () { EquipmentPicker.open(this.document); },
+      unequip: function (ev, el) { unequipUnit(this.document, el.dataset.name); },
       openOfficer: UnitSheet.#openOfficer,
       clearOfficer: UnitSheet.#clearOfficer,
       itemEdit: UnitSheet.#itemEdit,
@@ -498,7 +501,8 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
       tierN: Math.max(1, Math.min(4, Number(system.tier) || 1)), icons: TT_ICONS,
       xpPct: Math.min(100, Math.round(100 * (system.xp?.value ?? 0) / (system.xp?.max || 100))),
       traitCards: (() => { const lv = system.level ?? 1, gone = replacedTraits(system.traitList, lv);
-        return (system.traitList ?? []).map((e, i) => ({ ...traitCard(e, i, lv, this.#traitEditing.has(i)), replacedBy: gone.get(i) ?? null })); })(),
+        return (system.traitList ?? []).map((e, i) => e.equip ? null : ({ ...traitCard(e, i, lv, this.#traitEditing.has(i)), replacedBy: gone.get(i) ?? null })).filter(Boolean); })(),
+      equipment: equipmentOf(this.document).map(e => ({ name: e.name, desc: e.desc })),
       traitCatalog: game.user.isGM ? await traitCatalog() : [],
       traitChoices: pendingTraitChoices(system.traitList, system.level ?? 1),
     });

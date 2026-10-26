@@ -904,3 +904,26 @@ details.qin-recent[open] > summary { margin-bottom: 4px; }
 .qin-tp.show-info .qin-tp-info { display: block; }
 .qin-tp-info h4 { margin: 0 0 4px; color: #f0c24a; border: none; font-size: 1.05em; }
 .qin-tp-info p { margin: 0; }
+
+/* Equipment: sheet tab, picker window, party tags */
+.qin-ud-sech .qin-eq-add { margin-left: auto; width: 26px; height: 24px; padding: 0; line-height: 1; flex: none; font-size: .95em; letter-spacing: 0; }
+.qin-ud-sech:has(.qin-eq-add)::after { display: none; }
+.qin-unit-dark .qin-trait.equip { border-left-color: #8fb4c9; }
+.qin-unit-dark .qin-trait.equip .qin-trait-name { color: #bcd7e8; }
+.qin-trait-badge.gold { background: #8fb4c9; color: #10202a; }
+.qin-ui-trait.equip { border-left-color: #8fb4c9; }
+.qin-ui-trait.equip b { color: #bcd7e8; }
+.qin-party-tag.equip { background: rgba(143,180,201,.18); color: #bcd7e8; }
+.qin-equip .window-content { padding: 0; background: linear-gradient(rgba(33, 26, 19, 0.98), rgba(23, 18, 13, 0.98)); color: #f3ead8; }
+.qin-eq-wrap { padding: 10px 14px 14px; font-size: calc(13px * var(--qin-scale, 1.15)); }
+.qin-eq-intro { margin: 0 0 8px; color: #b9ad95; }
+.qin-eq-fam { padding: 8px 10px; margin-bottom: 6px; border: 1px solid rgba(184,134,43,.25); border-radius: 8px; background: rgba(255,255,255,.04); }
+.qin-eq-fam.has { border-color: rgba(143,180,201,.5); background: rgba(143,180,201,.07); }
+.qin-eq-fam h4 { margin: 0 0 6px; border: none; font-family: "Qin Cinzel", Georgia, serif; font-size: 1.05em; color: #f0c24a; display: flex; align-items: baseline; gap: 8px; }
+.qin-eq-cur { font-family: Signika, sans-serif; font-size: .78em; font-weight: 400; color: #bcd7e8; letter-spacing: .04em; }
+.qin-eq-tiers { display: flex; gap: 6px; flex-wrap: wrap; }
+.qin-eq-tier { flex: 1 1 0; min-width: 0; min-height: calc(28px * var(--qin-scale, 1.15)); padding: 3px 6px; border-radius: 6px; background: rgba(0,0,0,.35); border: 1px solid rgba(184,134,43,.35); color: #f3ead8; font-size: .92em; line-height: 1.15; white-space: normal; }
+.qin-equip .window-content { overflow-y: auto; }
+.qin-eq-tier:hover { background: rgba(184,134,43,.2); border-color: #c9a24a; }
+.qin-eq-tier.on { background: rgba(143,180,201,.3); border-color: #8fb4c9; color: #fff; }
+.qin-eq-desc { margin-top: 6px; color: #d9c9a6; font-size: .9em; line-height: 1.3; }

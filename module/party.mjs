@@ -4,6 +4,7 @@
 
 import { officerEligibility } from "./officer-rules.mjs";
 import { RecruitApp, pickArmies, armiesFor } from "./recruit.mjs";
+import { EquipmentPicker, equipmentOf } from "./equipment.mjs";
 
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
 /** A unit's resting morale when nothing says otherwise (Disciplined units rest higher: system.defaultMorale). */
@@ -62,6 +63,7 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
     actions: {
       heal: PartyPanel.#act, morale: PartyPanel.#act, open: PartyPanel.#open,
       recruit: PartyPanel.#recruit, armies: PartyPanel.#armies, coin: PartyPanel.#coin,
+      equip: (ev, el) => EquipmentPicker.open(game.actors.get(el.dataset.id)),
     },
   };
   static open() { (this.instance ??= new PartyPanel()).render({ force: true }); return this.instance; }
@@ -102,6 +104,7 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
     const gm = game.user.isGM, groups = partyGroups();
     const pct = (v, m) => Math.max(0, Math.min(100, m ? (100 * v) / m : 0));
     const btns = (scope, id = "") => gm ? `<span class="qin-party-btns">
+        ${scope === "unit" ? `<button type="button" data-action="equip" data-id="${id}" data-tooltip="Equip this unit"><i class="fa-solid fa-shield-halved"></i></button>` : ""}
         <button type="button" data-action="heal" data-scope="${scope}" data-id="${id}" data-tooltip="Heal to full"><i class="fa-solid fa-heart-pulse"></i></button>
         <button type="button" data-action="morale" data-scope="${scope}" data-id="${id}" data-tooltip="Set morale to its default (${DEFAULT_MORALE}, more for Disciplined units)"><i class="fa-solid fa-flag"></i></button></span>` : "";
     // officer: the owning player's characters (eligible ones only), editable by whoever owns the unit
@@ -120,7 +123,7 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
         <img src="${esc(a.img)}" alt="" data-action="open" data-id="${a.id}">
         <div class="qin-party-main">
           <div class="qin-party-name"><a data-action="open" data-id="${a.id}">${esc(a.name)}</a> ${status}${btns("unit", a.id)}</div>
-          <div class="qin-party-sub"><span class="qin-party-tag tier t${Math.min(4, s.tier)}">T${s.tier}</span><span class="qin-party-tag">Lv ${s.level ?? 1}</span>${s.unitType ? `<span class="qin-party-tag">${esc(s.unitType)}</span>` : ""}${s.cost ? `<span class="qin-party-tag coin" data-tooltip="Recruitment cost ${s.cost} · upkeep ${s.upkeep} a month"><i class="fa-solid fa-coins"></i> ${s.upkeep}/mo</span>` : ""}</div>
+          <div class="qin-party-sub"><span class="qin-party-tag tier t${Math.min(4, s.tier)}">T${s.tier}</span><span class="qin-party-tag">Lv ${s.level ?? 1}</span>${s.unitType ? `<span class="qin-party-tag">${esc(s.unitType)}</span>` : ""}${s.cost ? `<span class="qin-party-tag coin" data-tooltip="Recruitment cost ${s.cost} · upkeep ${s.upkeep} a month"><i class="fa-solid fa-coins"></i> ${s.upkeep}/mo</span>` : ""}${equipmentOf(a).map(e => `<span class="qin-party-tag equip" data-tooltip="${esc(e.desc)}"><i class="fa-solid fa-shield-halved"></i> ${esc(e.name)}</span>`).join("")}</div>
           ${officerPicker(a, g)}
           <div class="qin-party-bars">
             <span>Health</span><div class="qin-bar"><i style="width:${pct(s.men.value, s.men.max)}%"></i></div><b>${s.men.value}/${s.men.max}</b>

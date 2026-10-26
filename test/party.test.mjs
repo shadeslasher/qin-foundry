@@ -59,3 +59,18 @@ test('recruiting: needs a character, an allowed army, a cost and enough coin', a
   assert.ok(!recruitCheck({ ...base, hasCharacter: false }).ok, 'no character');
   assert.ok(!recruitCheck({ ...base, cost: 0 }).ok, 'no cost set');
 });
+
+test('equipment: one piece per family, a better tier replaces, remove by name', async () => {
+  const { equipList, unequipList } = await import('../module/equipment.mjs');
+  let list = [{ name: 'Precision', desc: '', level: 1, upgrades: [], options: [], chosen: -1 }];
+  list = equipList(list, 'War Drums');
+  assert.deepStrictEqual(list.map(e => e.name), ['Precision', 'War Drums']);
+  assert.ok(list[1].equip && list[1].desc.includes('within 2 tiles'));
+  list = equipList(list, 'War Drums++');
+  assert.deepStrictEqual(list.map(e => e.name), ['Precision', 'War Drums++'], 'replaces the lower tier');
+  list = equipList(list, 'Saddle');
+  assert.deepStrictEqual(list.map(e => e.name), ['Precision', 'War Drums++', 'Saddle']);
+  assert.strictEqual(equipList(list, 'Not a thing'), null);
+  list = unequipList(list, 'War Drums++');
+  assert.deepStrictEqual(list.map(e => e.name), ['Precision', 'Saddle']);
+});

@@ -23,6 +23,7 @@ import { registerReinforcements, drawReinforceZones, setReinforceChangeHandler }
 import { registerTileTip, toggleTileTip } from "./module/battle/tile-tip.mjs";
 import { HotkeyGuide } from "./module/hotkeys.mjs";
 import { registerNameLabels, toggleNameLabels } from "./module/battle/name-labels.mjs";
+import { registerEquipment } from "./module/equipment.mjs";
 import { registerTurnBanner, renderTurnBanner } from "./module/battle/turn-banner.mjs";
 import { registerObjectives, refreshObjectives, setObjectivesChangeHandler } from "./module/battle/objectives-ui.mjs";
 import { NEW_UNIT_TOOL, newUnitDialog } from "./module/new-unit.mjs";
@@ -223,6 +224,7 @@ registerTactics();
 registerDeployZones();
 registerPreBattleCover();
 registerReinforcements();
+registerEquipment();
 setReinforceChangeHandler(() => BattlePanel.refresh());
 registerTurnBanner();
 registerObjectives();

@@ -22,7 +22,7 @@
     <span class="qin-ud-lv">Level <input type="number" name="system.level" value="{{system.level}}" min="1"></span><div class="qin-ud-bar"><i style="width:{{xpPct}}%;background:#c9a24a"></i></div><b><input type="number" name="system.xp.value" value="{{system.xp.value}}" min="0"> / {{system.xp.max}} XP</b>
   </section>
 
-  <nav class="qin-tabs qin-ud-tabs"><a data-tab="stats">Unit</a><a data-tab="formations">Formations</a><a data-tab="officer">Officer</a><a data-tab="notes">Traits{{#if traitChoices}} <span class="qin-trait-badge">{{traitChoices}}</span>{{/if}}</a></nav>
+  <nav class="qin-tabs qin-ud-tabs"><a data-tab="stats">Unit</a><a data-tab="formations">Formations</a><a data-tab="officer">Officer</a><a data-tab="equipment">Equipment{{#if equipment.length}} <span class="qin-trait-badge gold">{{equipment.length}}</span>{{/if}}</a><a data-tab="notes">Traits{{#if traitChoices}} <span class="qin-trait-badge">{{traitChoices}}</span>{{/if}}</a></nav>
   <div class="qin-body">
     <section class="qin-tab" data-tab="stats">
       <div class="qin-ud-sech">Battle</div>
@@ -104,6 +104,20 @@
         <select data-officer-pick><option value="">No officer</option>{{#each officerChoices}}<option value="{{uuid}}" {{#if selected}}selected{{/if}} {{#if disabled}}disabled{{/if}}>{{name}}{{#if disabled}} ({{reason}}){{/if}}</option>{{/each}}</select>
       </div>
       {{else}}<p class="qin-muted">Only this unit's owner or the GM can change its officer.</p>{{/if}}
+    </section>
+
+    <section class="qin-tab" data-tab="equipment">
+      <div class="qin-ud-sech">Equipment{{#if isGM}}<button type="button" class="qin-eq-add" data-action="equipPick" title="Equip this unit from the whole range of equipment"><i class="fa-solid fa-plus"></i></button>{{/if}}</div>
+      <div class="qin-traits qin-eq-list">
+        {{#each equipment}}
+        <article class="qin-trait equip">
+          <header class="qin-trait-head"><span class="qin-trait-name"><i class="fa-solid fa-shield-halved"></i> {{name}}</span>
+            {{#if @root.isGM}}<span class="qin-controls"><a data-action="unequip" data-name="{{name}}" title="Remove"><i class="fa-solid fa-trash"></i></a></span>{{/if}}</header>
+          {{#if desc}}<p class="qin-trait-desc">{{desc}}</p>{{/if}}
+        </article>
+        {{else}}<p class="qin-muted">Nothing equipped.{{#if isGM}} Press + to equip this unit.{{/if}}</p>
+        {{/each}}
+      </div>
     </section>
 
     <section class="qin-tab" data-tab="notes">
