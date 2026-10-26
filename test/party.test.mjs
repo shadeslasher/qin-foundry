@@ -25,6 +25,12 @@ test('party: heal fills health, morale goes back to the default, nothing when al
   assert.strictEqual(restoreUpdate(actors[1], 'heal'), null);
   assert.deepStrictEqual(restoreUpdate(actors[2], 'morale'), { 'system.morale': DEFAULT_MORALE });
   assert.strictEqual(restoreUpdate(actors[1], 'morale'), null);
+  actors[0].system.status = 'defeated'; actors[0].system.men.value = 0;
+  assert.deepStrictEqual(restoreUpdate(actors[0], 'heal'), { 'system.men.value': 100, 'system.status': 'active' }, 'healing revives a defeated unit');
+  actors[0].system.status = 'active'; actors[0].system.men.value = 40;
+  actors[2].system.status = 'surrendered';
+  assert.deepStrictEqual(restoreUpdate(actors[2], 'morale'), { 'system.morale': DEFAULT_MORALE, 'system.status': 'active' }, 'morale reset brings a surrendered unit back');
+  actors[2].system.status = 'active';
   actors[2].system.defaultMorale = 60; // a Disciplined+ unit rests at 60
   assert.deepStrictEqual(restoreUpdate(actors[2], 'morale'), { 'system.morale': 60 });
   delete actors[2].system.defaultMorale;
