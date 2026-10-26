@@ -3,6 +3,9 @@ import { factionOf, openFactionPicker } from "../factions.mjs";
 import { actionsPerRound } from "../rules/qin-rules.mjs";
 import { traitAtLevel, parseTraitText, pendingTraitChoices, replacedTraits } from "../battle/traits.mjs";
 import { officerEligibility } from "../officer-rules.mjs";
+import { TT_ICONS } from "../icons.mjs";
+import { healthColor, moraleColor } from "../unit-bars.mjs";
+const hex = (n) => "#" + Number(n).toString(16).padStart(6, "0");
 
 const { api, sheets } = foundry.applications;
 // v14 renamed ActorSheetV2/ItemSheetV2 to ActorSheet/ItemSheet; fall back to the v13 names.
@@ -451,6 +454,8 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
           return { uuid: a.uuid, name: a.name, selected: a.uuid === system.officer, disabled: !e.ok && a.uuid !== system.officer, reason: e.reason }; }) : [],
       officerProblem: officer ? (officerEligibility(officer, system).ok ? "" : officerEligibility(officer, system).reason) : "",
       menPct: Math.min(100, Math.round(100 * system.men.value / (system.men.max || 100))),
+      healthColor: hex(healthColor(system.men.value / (system.men.max || 100))), moraleColor: hex(moraleColor(system.morale ?? 0)),
+      tierN: Math.max(1, Math.min(4, Number(system.tier) || 1)), icons: TT_ICONS,
       xpPct: Math.min(100, Math.round(100 * (system.xp?.value ?? 0) / (system.xp?.max || 100))),
       traitCards: (() => { const lv = system.level ?? 1, gone = replacedTraits(system.traitList, lv);
         return (system.traitList ?? []).map((e, i) => ({ ...traitCard(e, i, lv, this.#traitEditing.has(i)), replacedBy: gone.get(i) ?? null })); })(),

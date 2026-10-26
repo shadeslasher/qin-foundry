@@ -808,3 +808,87 @@ details.qin-recent[open] > summary { margin-bottom: 4px; }
 .qin-hk-gm { font-size: .72em; padding: 0 4px; border-radius: 3px; background: rgba(140,30,30,.75); color: #fff; vertical-align: middle; }
 .qin-hk-m { font-size: .9em; font-style: italic; opacity: .85; }
 .qin-hk-wrap h4 { margin: 10px 0 2px; }
+
+/* ===================== Unit sheet: dark skin matching the Info window (v0.65.0) ===================== */
+.qin.qin-sheet.unit { --qin-paper: #1d1813; --qin-ink: #f3ead8; --qin-line: rgba(184,134,43,.35); --qin-muted: #b9ad95; --qin-red: #c0503a; }
+.qin.qin-sheet.unit .window-content { background: linear-gradient(rgba(33, 26, 19, 0.98), rgba(23, 18, 13, 0.98)); color: #f3ead8; }
+.qin-unit-dark input, .qin-unit-dark select, .qin-unit-dark textarea, .qin-unit-dark .qin-faction-btn, .qin-unit-dark .qin-picker-toggle, .qin-unit-dark button {
+  background: rgba(0,0,0,.35); border: 1px solid rgba(184,134,43,.35); border-radius: 5px; color: #f3ead8; }
+.qin-unit-dark select option { background: #221b14; color: #f3ead8; }
+.qin-unit-dark input:focus, .qin-unit-dark select:focus, .qin-unit-dark textarea:focus { outline: none; border-color: #c9a24a; box-shadow: 0 0 0 2px rgba(201,162,74,.25); }
+.qin-unit-dark button:hover, .qin-unit-dark .qin-faction-btn:hover { background: rgba(184,134,43,.18); }
+.qin-unit-dark ::placeholder { color: rgba(243,234,216,.4); }
+.qin-unit-dark .qin-muted { color: #b9ad95; }
+.qin-unit-dark h3 { color: #f0c24a; border-color: rgba(184,134,43,.35); }
+/* header */
+.qin-ud-hd { position: relative; display: flex; gap: 14px; align-items: center; padding: 14px 3.6em 12px 14px;
+  background: linear-gradient(90deg, rgba(176,40,30,.32), transparent 75%); border-bottom: 1px solid rgba(184,134,43,.4); }
+.qin-ud-portrait { width: calc(84px * var(--qin-scale, 1.15)); height: calc(84px * var(--qin-scale, 1.15)); border-radius: 50%; object-fit: cover; border: 3px solid #c9a24a; box-shadow: 0 0 0 2px #3a2a08, 0 4px 10px rgba(0,0,0,.6); flex: none; cursor: pointer; }
+.qin-ud-id { flex: 1; min-width: 0; }
+.qin-ud-ti { color: #f0c24a; font-size: .78em; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+.qin-ud-ti img { width: 18px; height: 18px; object-fit: contain; border: none; }
+.qin-unit-dark .qin-ud-name { font-family: "Qin Cinzel", Georgia, serif; font-size: 1.7em; font-weight: 700; background: transparent; border: 0; border-bottom: 1px dashed rgba(201,162,74,.35); border-radius: 0; padding: 0 2px; height: auto; width: 100%; color: #f3ead8; text-shadow: 0 2px 4px rgba(0,0,0,.6); }
+.qin-unit-dark .qin-ud-name:focus { box-shadow: none; border-bottom-color: #c9a24a; }
+.qin-ud-row { display: grid; grid-template-columns: 1.2fr 1fr 1.3fr 1fr; gap: 8px; margin-top: 8px; }
+.qin-ud-row label, .qin-ud-fields label, .qin-ud-cost label { display: flex; flex-direction: column; gap: 3px; color: #d9c9a6; font-size: .74em; letter-spacing: .08em; text-transform: uppercase; }
+.qin-ud-row label > *, .qin-ud-fields label > input, .qin-ud-fields label > select { font-size: 1.3em; letter-spacing: 0; text-transform: none; height: calc(26px * var(--qin-scale, 1.15)); }
+.qin-ud-row .qin-faction-btn { display: flex; align-items: center; gap: 6px; padding: 0 8px; text-align: left; font-size: 1.3em; letter-spacing: 0; text-transform: none; height: calc(26px * var(--qin-scale, 1.15)); min-width: 0; overflow: hidden; }
+.qin-ud-row .qin-faction-btn span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qin-ud-row label { min-width: 0; }
+.qin-ud-row .qin-faction-btn img { width: 18px; height: 18px; border: none; }
+.qin-ud-hd .qin-tt-tier { right: 14px; font-size: 1.05em; }
+/* bars */
+.qin-ud-bars { padding: 10px 14px 4px; display: grid; grid-template-columns: 5.2em 1fr auto; gap: 7px 10px; align-items: center; }
+.qin-ud-bars > span { color: #d9c9a6; }
+.qin-ud-bars b { display: flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.qin-ud-bars input { width: calc(52px * var(--qin-scale, 1.15)); height: calc(24px * var(--qin-scale, 1.15)); padding: 2px 6px; text-align: right; }
+.qin-ud-bars small { opacity: .75; font-weight: 400; }
+.qin-ud-lv { display: flex; align-items: center; gap: 5px; }
+.qin-ud-lv input { width: calc(40px * var(--qin-scale, 1.15)); text-align: center; }
+.qin-ud-bar { height: 11px; border-radius: 6px; background: rgba(0,0,0,.45); border: 1px solid rgba(0,0,0,.6); overflow: hidden; }
+.qin-ud-bar i { display: block; height: 100%; border-radius: 6px; box-shadow: inset 0 1px 0 rgba(255,255,255,.25); }
+/* tabs */
+.qin-unit-dark nav.qin-ud-tabs { padding: 8px 14px 0; border-bottom: 1px solid rgba(184,134,43,.35); gap: 4px; }
+.qin-unit-dark nav.qin-ud-tabs a { padding: 6px 14px; color: #d9c9a6; font-size: .8em; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; background: rgba(255,255,255,.04); border: 1px solid transparent; }
+.qin-unit-dark nav.qin-ud-tabs a.active { background: rgba(176,40,30,.45); color: #fff; border-color: rgba(184,134,43,.4); border-bottom-color: transparent; }
+.qin-unit-dark .qin-body { padding: 6px 14px 14px; }
+/* sections and tiles */
+.qin-ud-sech { display: flex; align-items: center; gap: 10px; margin: 8px 0 8px; color: #f0c24a; font-size: .78em; letter-spacing: .14em; text-transform: uppercase; font-weight: 700; }
+.qin-ud-sech::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(184,134,43,.55), transparent); }
+.qin-ud-tiles { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.qin-ud-tile { display: block; background: rgba(255,255,255,.06); border: 1px solid rgba(184,134,43,.25); border-radius: 7px; padding: 7px 4px 5px; text-align: center; min-width: 0; }
+.qin-ud-tile > i { display: block; height: 1.3em; color: #e6dcc6; font-style: normal; }
+.qin-ud-tile svg { width: 1.4em; height: 1.3em; display: block; margin: 0 auto; }
+.qin-ud-tile .qin-ud-fa { font-size: 1.05em; line-height: 1.3em; }
+.qin-unit-dark .qin-ud-tile input { width: 100%; height: calc(28px * var(--qin-scale, 1.15)); text-align: center; font-size: 1.25em; font-weight: 700; background: rgba(0,0,0,.3); border-color: transparent; padding: 0; margin-top: 2px; -moz-appearance: textfield; }
+.qin-unit-dark .qin-ud-tile input::-webkit-outer-spin-button, .qin-unit-dark .qin-ud-tile input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.qin-unit-dark .qin-ud-tile input:hover { border-color: rgba(201,162,74,.5); }
+.qin-ud-tile small { display: block; font-size: .68em; letter-spacing: .08em; text-transform: uppercase; color: #d9c9a6; margin-top: 3px; }
+.qin-unit-dark .qin-ud-fields { padding: 0; }
+.qin-ud-cost { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: center; background: rgba(184,134,43,.07); border: 1px solid rgba(184,134,43,.3); border-radius: 8px; padding: 10px 12px; }
+.qin-ud-cost .qin-cost-row { display: flex; align-items: center; gap: 6px; font-size: 1.3em; letter-spacing: 0; text-transform: none; }
+.qin-ud-cost input { width: calc(80px * var(--qin-scale, 1.15)); }
+.qin-ud-cost b { font-size: 1.2em; }
+.qin-ud-chk { display: flex; align-items: center; gap: 8px; color: #d9c9a6; margin-top: 10px; }
+.qin-ud-note { font-size: .86em; line-height: 1.35; margin-top: 8px; }
+/* officer tab */
+.qin-unit-dark .qin-officer-drop { border: 1px solid rgba(184,134,43,.35); border-radius: 8px; background: rgba(184,134,43,.07); }
+.qin-unit-dark .qin-officer-img { width: calc(64px * var(--qin-scale, 1.15)); height: calc(64px * var(--qin-scale, 1.15)); border-radius: 50%; object-fit: cover; border: 2px solid #c9a24a; }
+.qin-ud-otitle { color: #f0c24a; font-size: .8em; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; }
+.qin-unit-dark .qin-officer-drop h3 { margin: 0 0 2px; border: none; font-family: "Qin Cinzel", Georgia, serif; font-size: 1.3em; }
+.qin-unit-dark .qin-officer-drop h3 a { color: #f3ead8; margin: 0; font-size: 1em; }
+.qin-unit-dark .qin-officer-warn { color: #ff9a8a; }
+/* formations tab */
+.qin-unit-dark .qin-formations li { background: rgba(255,255,255,.045); border-left-color: rgba(201,162,74,.6); }
+.qin-unit-dark .qin-formations li.active { border-left-color: #c0503a; background: rgba(176,40,30,.12); }
+/* trait cards */
+.qin-unit-dark .qin-trait { border: 0; border-left: 3px solid #c9a24a; border-radius: 0 6px 6px 0; background: rgba(255,255,255,.045); box-shadow: none; }
+.qin-unit-dark .qin-trait.editing { border-left-color: #f0c24a; background: rgba(184,134,43,.1); }
+.qin-unit-dark .qin-trait.locked { border-left-color: rgba(185,173,149,.5); background: rgba(255,255,255,.02); border-style: solid; }
+.qin-unit-dark .qin-trait-name { color: #f0c24a; }
+.qin-unit-dark .qin-trait-desc { color: #e7dcc3; }
+.qin-unit-dark .qin-trait-lock, .qin-unit-dark .qin-trait-chain li { color: #b9ad95; }
+.qin-unit-dark .qin-trait-chain li.current { color: #f3ead8; }
+.qin-unit-dark .qin-controls a { color: #d9c9a6; }
+.qin-unit-dark .qin-trait-badge { background: #c0503a; color: #fff; }
+.qin-unit-dark .qin-trait-add input { flex: 1; }

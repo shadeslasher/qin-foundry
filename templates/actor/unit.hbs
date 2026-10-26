@@ -1,9 +1,10 @@
-<div class="qin-wrap">
-  <header class="qin-header">
-    <img class="qin-portrait" src="{{actor.img}}" data-action="editImage" data-edit="img" title="{{actor.name}}">
-    <div class="qin-head-main">
-      <input class="qin-name" name="name" type="text" value="{{actor.name}}" placeholder="Unit name">
-      <div class="qin-details">
+<div class="qin-wrap qin-unit-dark">
+  <header class="qin-ud-hd">
+    <img class="qin-ud-portrait" src="{{actor.img}}" data-action="editImage" data-edit="img" title="{{actor.name}}">
+    <div class="qin-ud-id">
+      {{#if faction}}<div class="qin-ud-ti">{{#if faction.img}}<img src="{{faction.img}}" alt="">{{/if}}{{faction.name}}</div>{{/if}}
+      <input class="qin-ud-name" name="name" type="text" value="{{actor.name}}" placeholder="Unit name">
+      <div class="qin-ud-row">
         <label>Unit type <input type="text" name="system.unitType" value="{{system.unitType}}" placeholder="e.g. Spear and Shield"></label>
         <label>Side <select name="system.side">{{selectOptions sides selected=system.side}}</select></label>
         <label>Faction <button type="button" class="qin-faction-btn" {{#if editable}}data-action="pickFaction"{{else}}disabled{{/if}} title="{{#if editable}}Choose a faction{{/if}}">
@@ -12,44 +13,47 @@
         <label>Status <select name="system.status">{{selectOptions (qinObj active="Active" defeated="Defeated" surrendered="Surrendered" escaped="Escaped") selected=system.status}}</select></label>
       </div>
     </div>
+    <span class="qin-tt-tier t{{tierN}}">T{{system.tier}}</span>
   </header>
 
-  <section class="qin-unit-bars">
-    <div><b>Health</b> <input type="number" name="system.men.value" value="{{system.men.value}}" min="0"> / {{system.men.max}}
-      <div class="qin-bar"><i style="width:{{menPct}}%"></i></div></div>
-    <div><b>Morale</b> <input type="number" name="system.morale" value="{{system.morale}}" min="0" max="100"> <span class="qin-tag qin-{{system.moraleState}}">{{system.moraleState}}</span>
-      <div class="qin-bar morale"><i style="width:{{system.morale}}%"></i></div></div>
-    <div><b>Level</b> <input type="number" name="system.level" value="{{system.level}}" min="1" class="qin-short">
-      <b>XP</b> <input type="number" name="system.xp.value" value="{{system.xp.value}}" min="0"> / {{system.xp.max}}
-      <div class="qin-bar xp"><i style="width:{{xpPct}}%"></i></div></div>
+  <section class="qin-ud-bars">
+    <span>Health</span><div class="qin-ud-bar"><i style="width:{{menPct}}%;background:{{healthColor}}"></i></div><b><input type="number" name="system.men.value" value="{{system.men.value}}" min="0"> / {{system.men.max}}</b>
+    <span>Morale</span><div class="qin-ud-bar"><i style="width:{{system.morale}}%;background:{{moraleColor}}"></i></div><b><input type="number" name="system.morale" value="{{system.morale}}" min="0" max="100"><small>{{system.moraleState}}</small></b>
+    <span class="qin-ud-lv">Level <input type="number" name="system.level" value="{{system.level}}" min="1"></span><div class="qin-ud-bar"><i style="width:{{xpPct}}%;background:#c9a24a"></i></div><b><input type="number" name="system.xp.value" value="{{system.xp.value}}" min="0"> / {{system.xp.max}} XP</b>
   </section>
 
-  <nav class="qin-tabs"><a data-tab="stats">Unit</a><a data-tab="formations">Formations</a><a data-tab="officer">Officer</a><a data-tab="notes">Traits{{#if traitChoices}} <span class="qin-trait-badge">{{traitChoices}}</span>{{/if}}</a></nav>
+  <nav class="qin-tabs qin-ud-tabs"><a data-tab="stats">Unit</a><a data-tab="formations">Formations</a><a data-tab="officer">Officer</a><a data-tab="notes">Traits{{#if traitChoices}} <span class="qin-trait-badge">{{traitChoices}}</span>{{/if}}</a></nav>
   <div class="qin-body">
     <section class="qin-tab" data-tab="stats">
-      <div class="qin-grid3">
+      <div class="qin-ud-sech">Battle</div>
+      <div class="qin-ud-tiles">
+        <label class="qin-ud-tile"><i>{{{icons.dmg}}}</i><input type="number" name="system.damage" value="{{system.damage}}" min="0"><small>Damage</small></label>
+        <label class="qin-ud-tile"><i>{{{icons.pen}}}</i><input type="number" name="system.armorPen" value="{{system.armorPen}}" min="0"><small>Pierce</small></label>
+        <label class="qin-ud-tile"><i>{{{icons.armor}}}</i><input type="number" name="system.armor" value="{{system.armor}}" min="0"><small>Armor</small></label>
+        <label class="qin-ud-tile"><i>{{{icons.move}}}</i><input type="number" name="system.move" value="{{system.move}}" min="0"><small>Move</small></label>
+        <label class="qin-ud-tile" data-tooltip="1 = melee"><i><i class="fa-solid fa-bullseye qin-ud-fa"></i></i><input type="number" name="system.range" value="{{system.range}}" min="1"><small>Range</small></label>
+        <label class="qin-ud-tile"><i><i class="fa-solid fa-coins qin-ud-fa"></i></i><input type="number" name="system.unitValue" value="{{system.unitValue}}" min="0"><small>Value</small></label>
+      </div>
+      <div class="qin-ud-sech">Profile</div>
+      <div class="qin-grid3 qin-ud-fields">
         <label>Tier <input type="number" name="system.tier" value="{{system.tier}}" min="1" max="6"></label>
         <label>Category <select name="system.category">{{selectOptions categories selected=system.category}}</select></label>
         <label>Officer weapon skill <select name="system.weaponSkill">{{selectOptions weaponSkills selected=system.weaponSkill}}</select></label>
         <label>Max health <input type="number" name="system.men.max" value="{{system.men.max}}" min="1"></label>
-        <label>Armor <input type="number" name="system.armor" value="{{system.armor}}" min="0"></label>
         <label>Armor breakdown <input type="text" name="system.armorNote" value="{{system.armorNote}}" placeholder="e.g. 2 + 2 (Shield)"></label>
-        <label>Damage <input type="number" name="system.damage" value="{{system.damage}}" min="0"></label>
-        <label>Pierce <input type="number" name="system.armorPen" value="{{system.armorPen}}" min="0"></label>
-        <label>Movement <input type="number" name="system.move" value="{{system.move}}" min="0"></label>
-        <label>Range (1 = melee) <input type="number" name="system.range" value="{{system.range}}" min="1"></label>
         {{#if system.isRanged}}<label>Minimum range <input type="number" name="system.rangeMin" value="{{system.rangeMin}}" min="1"></label>{{/if}}
-        <label>Unit Value <input type="number" name="system.unitValue" value="{{system.unitValue}}" min="0"></label>
       </div>
-      <div class="qin-costs"><h4><i class="fa-solid fa-coins"></i> Cost</h4>
+      <div class="qin-ud-sech">Cost</div>
+      <div class="qin-ud-cost">
         <label>Recruitment cost <span class="qin-cost-row"><input type="number" name="system.cost" value="{{system.cost}}" min="0"> coins</span></label>
         <label data-tooltip="A quarter of the recruitment cost, every month">Upkeep <span class="qin-cost-row"><b>{{system.upkeep}}</b> coins per month</span></label>
       </div>
-      <label class="qin-inline"><input type="checkbox" name="system.hidden" {{checked system.hidden}}> Hidden (attacks from hiding are ambushes)</label>
-      <p class="qin-muted">XP: casualties dealt × (enemy tier ÷ this unit's tier), rounded down; a kill adds 25 × the same ratio. Every 100 XP the unit gains a level (tier stays the same; levels are for the promotion tree).</p>
+      <label class="qin-inline qin-ud-chk"><input type="checkbox" name="system.hidden" {{checked system.hidden}}> Hidden (attacks from hiding are ambushes)</label>
+      <p class="qin-muted qin-ud-note">XP: casualties dealt × (enemy tier ÷ this unit's tier), rounded down; a kill adds 25 × the same ratio. Every 100 XP the unit gains a level (tier stays the same; levels are for the promotion tree).</p>
     </section>
 
     <section class="qin-tab" data-tab="formations">
+      <div class="qin-ud-sech">Formations</div>
       <label>Current formation <select name="system.formation">{{selectOptions formationChoices selected=system.formation}}</select></label>
       <ul class="qin-formations">
         {{#each formations}}
@@ -79,10 +83,12 @@
     </section>
 
     <section class="qin-tab" data-tab="officer">
+      <div class="qin-ud-sech">Officer</div>
       <div class="qin-officer-drop">
         {{#if officer}}
           <img src="{{officer.img}}" class="qin-officer-img">
           <div>
+            {{#if officer.system.details.title}}<div class="qin-ud-otitle">{{officer.system.details.title}}</div>{{/if}}
             <h3><a data-action="openOfficer">{{officer.name}}</a></h3>
             <p>Fire {{officerStats.fire}} · Command {{officerStats.command}} · {{officerStats.skillLabel}} {{officerStats.skill}}</p>
             <p class="qin-muted">Command {{officerStats.command}} is added to the unit's rolls; Fire + Command restores morale on turns it doesn't fight.</p>
@@ -101,6 +107,7 @@
     </section>
 
     <section class="qin-tab" data-tab="notes">
+      <div class="qin-ud-sech">Traits</div>
       <div class="qin-traits" data-traits>
         {{#each traitCards}}
         {{#if isChoice}}
