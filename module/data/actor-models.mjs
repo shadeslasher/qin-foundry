@@ -81,7 +81,7 @@ export class CharacterData extends QinBaseActor {
       deeds: new fields.HTMLField({ initial: "" }),
       // offices and ranks the character has held, one card each in Bio and notes (David, 2026-10-26)
       offices: new fields.ArrayField(new fields.SchemaField({
-        title: new fields.StringField({ initial: "" }), when: new fields.StringField({ initial: "" }),
+        title: new fields.StringField({ initial: "" }), when: new fields.StringField({ initial: "" }), grantedBy: new fields.StringField({ initial: "" }),
       }), { initial: [] }),
     };
   }

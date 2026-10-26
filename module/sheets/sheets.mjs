@@ -348,7 +348,7 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
   static async #itemChat(event, target) { QinActorSheetBase.#itemOf.call(this, target)?.toChat(); }
   static async #officeAdd() {
     const list = foundry.utils.deepClone(this.actor.system.offices ?? []);
-    list.push({ title: "", when: "" });
+    list.push({ title: "", when: "", grantedBy: "" });
     await this.actor.update({ "system.offices": list });
   }
   static async #officeRemove(event, target) {

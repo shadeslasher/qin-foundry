@@ -188,7 +188,8 @@
         {{#each system.offices}}
         <div class="qin-office-card" data-office="{{@index}}">
           <input type="text" data-office-field="title" value="{{title}}" placeholder="Office or rank" {{#unless ../editable}}disabled{{/unless}}>
-          <input type="text" data-office-field="when" value="{{when}}" placeholder="When / granted by" {{#unless ../editable}}disabled{{/unless}}>
+          <input type="text" data-office-field="when" value="{{when}}" placeholder="When" {{#unless ../editable}}disabled{{/unless}}>
+          <input type="text" data-office-field="grantedBy" value="{{grantedBy}}" placeholder="Granted by" {{#unless ../editable}}disabled{{/unless}}>
           {{#if ../editable}}<a data-action="officeRemove" data-office="{{@index}}" title="Remove"><i class="fa-solid fa-xmark"></i></a>{{/if}}
         </div>
         {{else}}<p class="qin-muted">None recorded.</p>{{/each}}
