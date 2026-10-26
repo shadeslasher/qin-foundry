@@ -342,7 +342,7 @@ function renderMenu(sub = null) {
     for (const t of E.hornTargets(current.s, u)) html += b("hornPick", esc(t.name), true, "", `data-target="${esc(t.id)}"`);
     html += b("back", "Back", true);
   } else if (sub === "ability") {
-    if (officer?.skill) html += b("skill", `${esc(officer.skill.name)}${officer.skill.moraleCost ? ` (${officer.skill.moraleCost} morale)` : ""}`, flags.skill, officer.skill.text || "");
+    if (officer?.skill) { const why = flags.skill ? "" : E.skillCheck(current.s, u, officer).reason; html += b("skill", `${esc(officer.skill.name)}${officer.skill.moraleCost ? ` (${officer.skill.moraleCost} morale)` : ""}${why ? ` · ${esc(why)}` : ""}`, flags.skill, officer.skill.text || ""); }
     if (officer?.battleArt) html += b("art", `Battle art: ${esc(officer.battleArt.name)}`, flags.art, officer.battleArt.text || "");
     html += b("back", "Back", true);
   } else {

@@ -108,11 +108,13 @@ export class OfficerAbilityData extends foundry.abstract.TypeDataModel {
       moraleCost: int(0, { min: 0 }),
       // In-person actives: rounds to wait after a use (0 none, 1 once per round), or once per fight; the last use
       recharge: int(0, { min: 0 }),
-      perScene: new fields.BooleanField({ initial: false }),
+      perScene: new fields.BooleanField({ initial: false }), // once per fight / once per battle
+      lastStand: new fields.BooleanField({ initial: false }), // battlefield active: only at 25 morale or less
       lastUse: new fields.SchemaField({ combat: new fields.StringField({ initial: "" }), round: int(0) }),
       effects: new fields.SchemaField({
         ignoreMoralePenalty: new fields.BooleanField({ initial: false }),
         noRearAgainst: new fields.BooleanField({ initial: false }),
+        noRearNearby: new fields.BooleanField({ initial: false }),
         ignoreEncirclement: new fields.BooleanField({ initial: false }),
         moveBonus: int(0),
         chargeAttackBonus: int(0),
@@ -133,6 +135,7 @@ export class SignatureData extends foundry.abstract.TypeDataModel {
       effects: new fields.SchemaField({
         ignoreMoralePenalty: new fields.BooleanField({ initial: false }),
         noRearAgainst: new fields.BooleanField({ initial: false }),
+        noRearNearby: new fields.BooleanField({ initial: false }),
         ignoreEncirclement: new fields.BooleanField({ initial: false }),
         moveBonus: int(0),
         chargeAttackBonus: int(0),

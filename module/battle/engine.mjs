@@ -296,6 +296,34 @@ function log(s, text, detail) {
   if (s.log.length > MAX_LOG) s.log.splice(0, s.log.length - MAX_LOG);
 }
 
+/**
+ * Can this unit use its officer's battlefield active now? (David, 2026-10-26)
+ * - one officer skill per turn; the unit must have MORE morale than the cost (paying can't take it to 0)
+ * - recharge: turns (battle rounds) to wait after a use, so used in round R with recharge N it is ready in R+N;
+ *   perBattle: once per battle
+ * - lastStand: only usable at 25 morale or less (no other morale requirement)
+ */
+function skillCheck(s, u, o) {
+  const sk = o && o.skill;
+  if (!sk) return { ok: false, reason: 'No officer skill' };
+  if (u.round && u.round.skillUsed) return { ok: false, reason: 'Officer skill already used this turn' };
+  const cost = Number(sk.moraleCost) || 0, round = (s.turn && s.turn.round) || 0;
+  if (sk.perBattle && u.skillLastRound != null) return { ok: false, reason: 'Already used this battle' };
+  const n = Number(sk.recharge) || 0;
+  if (n && u.skillLastRound != null && round < u.skillLastRound + n) {
+    const left = u.skillLastRound + n - round;
+    return { ok: false, reason: 'Recharging: ' + left + ' turn' + (left === 1 ? '' : 's'), left };
+  }
+  if (sk.lastStand && u.morale > 25) return { ok: false, reason: 'Last stand: only at 25 morale or less' };
+  if (cost && u.morale <= cost) return { ok: false, reason: 'Needs more than ' + cost + ' morale' };
+  return { ok: true, reason: '' };
+}
+
+/** An enemy officer's passive "no rear attacks near me": attackers within 2 tiles of that unit get no rear bonus. */
+function rearDenied(s, attacker) {
+  return liveUnits(s).some(o => hostile(o, attacker) && passive(s, o).noRearNearby && manhattan(o, attacker) <= 2);
+}
+
 function moraleState(m) {
   if (m <= 0) return 'Surrendered';
   if (m <= 25) return 'Demoralized';
@@ -498,7 +526,7 @@ function actionMenu(s, u) {
   const opts = moveOptions(s, u);
   const canStillAct = !u.round.attacked && !ac.forcedMarched;
   const reloading = !!fx(u).reload;
-  const skillOk = !!(o && o.skill && !u.round.skillUsed && u.morale >= (Number(o.skill.moraleCost) || 0));
+  const skillOk = !!(o && o.skill && skillCheck(s, u, o).ok);
   const artOk = !!(o && o.battleArt && !u.round.skillUsed && moraleState(u.morale) === 'Encouraged');
   return {
     move: opts.blue.size + opts.red.size > 0,
@@ -843,7 +871,7 @@ function resolveAttack(s, attacker, defender, opts) {
   const chargeBonus = chargeCancelled ? 0 : rawCharge;
   const charge = chargeBonus > 0;
   const df = formationOf(s, defender);
-  let rear = isRear(s, attacker, defender) && !df.noRear && !passive(s, defender).noRearAgainst;
+  let rear = isRear(s, attacker, defender) && !df.noRear && !passive(s, defender).noRearAgainst && !rearDenied(s, attacker);
   const ambush = !!opts.ambush;
   const free = !!opts.free; // a tactic's free attack: no strike back, doesn't use the unit's action
   const ctx = { attacker, defender, ranged, charge, chargeBonus, chargeBase, fierceBonus, chargeCancelled, tilesMoved, fierce, rear, ambush, hybridMelee, second: !!opts.second, phoenixWon: !!opts.phoenixWon };
@@ -1989,10 +2017,9 @@ const ACTIONS = {
   useSkill(s, actor, a) {
     const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
     const o = officerOf(s, r.u); if (!o || !o.skill) return err('No officer skill');
-    if (r.u.round.skillUsed) return err('Officer skill already used this turn');
+    const chk = skillCheck(s, r.u, o); if (!chk.ok) return err(chk.reason);
     const cost = Number(o.skill.moraleCost) || 0;
-    if (r.u.morale < cost) return err('Not enough morale (needs ' + cost + ')');
-    r.u.morale -= cost; r.u.round.skillUsed = true; r.act.started = true;
+    r.u.morale -= cost; r.u.round.skillUsed = true; r.u.skillLastRound = (s.turn && s.turn.round) || 0; r.act.started = true;
     log(s, r.u.name + ' uses ' + o.skill.name + (cost ? ' (-' + cost + ' morale)' : '') + ': ' + o.skill.text, { type: 'skill' });
     settle(s);
   },
@@ -2177,5 +2204,5 @@ function viewFor(s, viewer) {
 export { casualtiesOf, evasionOf, evadeCasualties, disciplinedBonus, warDrumsBonus, hornReady, hornTargets, checkpointMorale, checkpointsPassed, overwatchFire as _overwatchFire,
   moveOptions, attackTargets, actionMenu, threatArea, TACTIC_SIDES, tileRules, ladderTiles, climbTiles, insideCity, isWallTop, gateAt,
   newState, act, viewFor, prompt, reachable, movementOf, moraleState, visibleTo, rangeOk,
-  resolveAttack, buildRoll, setRng, yinYang, typeOf, officerOf, unitById, SIDES, settle, advance,
+  resolveAttack, buildRoll, skillCheck, setRng, yinYang, typeOf, officerOf, unitById, SIDES, settle, advance,
 };

@@ -108,6 +108,7 @@ export const OFFICER_ABILITY_KINDS = {
 export const OFFICER_EFFECTS = {
   ignoreMoralePenalty: { label: "Ignores roll penalties from morale", type: "boolean" },
   noRearAgainst: { label: "Enemies get no rear-attack bonus", type: "boolean" },
+  noRearNearby: { label: "Enemies within 2 tiles get no rear-attack bonus", type: "boolean" },
   ignoreEncirclement: { label: "Ignores encirclement morale loss", type: "boolean" },
   moveBonus: { label: "Movement bonus", type: "number" },
   chargeAttackBonus: { label: "Bonus to roll when charging", type: "number" },

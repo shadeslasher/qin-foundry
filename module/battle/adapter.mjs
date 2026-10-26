@@ -69,7 +69,8 @@ function officerLibraryEntry(officer) {
     id: officer.uuid, name: officer.name,
     fire: officer.system.aspects.fire, command: officer.system.skills.command?.value ?? 0, skills,
     passive: { name: abilities.filter(a => a.system.kind === "passive").map(a => a.name).join(", "), text: "", effects },
-    skill: skill ? { name: skill.name, text: stripHtml(skill.system.description), moraleCost: skill.system.moraleCost } : null,
+    skill: skill ? { name: skill.name, text: stripHtml(skill.system.description), moraleCost: skill.system.moraleCost,
+      recharge: skill.system.recharge ?? 0, perBattle: !!skill.system.perScene, lastStand: !!skill.system.lastStand } : null,
     heroicActions: HEROIC_ACTIONS.map(h => ({ name: h.name, text: h.text })), // every officer may use the heroic action list
     battleArt: art ? { name: art.name, text: stripHtml(art.system.description) } : null,
   };

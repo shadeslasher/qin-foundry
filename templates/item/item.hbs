@@ -77,7 +77,10 @@
     {{#if isActive}}<label>Chi cost <input type="number" name="system.chiCost" value="{{system.chiCost}}"></label>
     <label>Recharge (rounds) <input type="number" name="system.recharge" value="{{system.recharge}}" min="0" title="Rounds to wait after a use in a fight: 1 = once per round, 0 = none"></label>
     <label class="qin-inline"><input type="checkbox" name="system.perScene" {{checked system.perScene}}> Once per fight</label>{{/if}}
-    {{#if (eq system.slot "battleActive")}}<label>Morale cost <input type="number" name="system.moraleCost" value="{{system.moraleCost}}"></label>{{/if}}
+    {{#if (eq system.slot "battleActive")}}<label>Morale cost <input type="number" name="system.moraleCost" value="{{system.moraleCost}}"></label>
+    <label>Cooldown (turns) <input type="number" name="system.recharge" value="{{system.recharge}}" min="0" title="Battle turns to wait after a use: 1 = once per turn, 0 = none"></label>
+    <label class="qin-inline"><input type="checkbox" name="system.perScene" {{checked system.perScene}}> Once per battle</label>
+    <label class="qin-inline"><input type="checkbox" name="system.lastStand" {{checked system.lastStand}}> Last stand (only at 25 morale or less)</label>{{/if}}
   {{/if}}
   </div>
 

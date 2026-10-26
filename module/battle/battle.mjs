@@ -199,7 +199,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
         id: au.id, name: au.name, step: a.step, armed: !!a.armedMarch,
         canMoveStep: a.step === "move", canAct: a.step === "act" && !a.forcedMarched && !au.round.attacked,
         movement: E.movementOf(s, au),
-        skill: o?.skill ? { name: o.skill.name, cost: o.skill.moraleCost, disabled: au.round.skillUsed || au.morale < (o.skill.moraleCost || 0) } : null,
+        skill: o?.skill ? (() => { const c = E.skillCheck(s, au, o); return { name: o.skill.name, cost: o.skill.moraleCost, disabled: !c.ok, reason: c.reason }; })() : null,
         art: o?.battleArt ? { name: o.battleArt.name, disabled: au.round.skillUsed || ms !== "Encouraged" } : null,
         heroics: (o?.heroicActions ?? []).map((h, i) => ({ index: i, name: h.name, disabled: au.round.heroicUsed || au.heroicUsed >= o.fire || au.lastHeroic === h.name })),
         heroicLeft: o ? `${o.fire - au.heroicUsed}/${o.fire}` : null,
