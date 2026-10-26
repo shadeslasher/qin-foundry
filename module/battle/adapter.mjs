@@ -413,13 +413,15 @@ async function runActionNow(userId, action) {
   } else if (action.type === "endBattle") {
     if (!actor.host) return { ok: false, error: "Only the GM can end the battle" };
     // (Units no longer lose XP for their casualties when the battle ends: David, 2026-10-24.)
-    // units that escaped come back: active again and visible
+    // units that escaped come back: active again and visible (tokens on the scene, and any unit actor left Escaped)
     try {
       const sc = game.scenes.get(battle.sceneId);
       for (const tok of unitTokens(sc)) if (tok.actor?.system?.status === "escaped") {
         await tok.actor.update({ "system.status": "active" }, { qinBattle: true });
         if (tok.hidden) await tok.update({ hidden: false }, { qinBattle: true });
       }
+      const left = (game.actors?.contents ?? []).filter(a => a.type === "unit" && a.system.status === "escaped");
+      if (left.length) await Actor.updateDocuments(left.map(a => ({ _id: a.id, "system.status": "active" })), { qinBattle: true });
     } catch (e) { console.warn("Qin | restoring escaped units", e); }
     try { (await import("./reinforce.mjs")).clearReinforcements(game.scenes.get(battle.sceneId)); } catch (e) { console.warn("Qin | clearing reinforcements", e); }
     await game.settings.set(SYSTEM_ID, SETTING, emptyBattle());

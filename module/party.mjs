@@ -30,12 +30,19 @@ export function partyGroups() {
   return groups;
 }
 
-/** What "heal" and "reset morale" change on one unit (nothing when it's already there). */
+/** What "heal" and "reset morale" change on one unit (nothing when it's already there).
+ *  Healing also brings a Defeated unit back to Active; resetting morale brings a Surrendered one back (David, 2026-10-25). */
 export function restoreUpdate(actor, what) {
-  const s = actor.system;
-  if (what === "heal") return s.men.value < s.men.max ? { "system.men.value": s.men.max } : null;
-  if (what === "morale") { const m = restMorale(actor); return s.morale !== m ? { "system.morale": m } : null; }
-  return null;
+  const s = actor.system, u = {};
+  if (what === "heal") {
+    if (s.men.value < s.men.max) u["system.men.value"] = s.men.max;
+    if (s.status === "defeated") u["system.status"] = "active";
+  } else if (what === "morale") {
+    const m = restMorale(actor);
+    if (s.morale !== m) u["system.morale"] = m;
+    if (s.status === "surrendered") u["system.status"] = "active";
+  }
+  return Object.keys(u).length ? u : null;
 }
 
 async function restore(actors, what) {
