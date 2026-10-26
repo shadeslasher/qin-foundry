@@ -5,6 +5,7 @@ import { broadcastBattleAnim } from "../attack-fx.mjs";
 import * as E from "./engine.mjs";
 import { traitTiersOf, shieldArmorOf } from "./traits.mjs";
 import { REINFORCE_FLAG, REINFORCE_TOKEN_FLAG, zonesOf as reinforceZonesOf, isWaiting as isWaitingReinforcement } from "./reinforce-rules.mjs";
+import { equipmentByName } from "./equipment-data.mjs";
 import { officerEligibility } from "../officer-rules.mjs";
 export { traitTiersOf, shieldArmorOf };
 import { FORMATIONS, HEROIC_ACTIONS } from "./engine-data.mjs";
@@ -248,6 +249,16 @@ async function writeBack(battle, s, scene) {
     if (battle.startMen[u.id] === undefined) battle.startMen[u.id] = sys.men.value;
     if (sys.status !== u.status) upd["system.status"] = u.status;
     if (sys.hidden !== !!u.hidden) upd["system.hidden"] = !!u.hidden;
+    // siege equipment dropped or picked up in battle: the sheet's Equipment follows (ladders / engine entries)
+    const carried = u.carry === "ladders" ? "Siege Ladders" : u.carry === "engine" ? "Siege Engine" : null;
+    const list = tok.actor._source?.system?.traitList ?? sys.traitList ?? [];
+    const has = list.filter(e => e.equip && (e.name === "Siege Ladders" || e.name === "Siege Engine")).map(e => e.name);
+    if (!(has.length === (carried ? 1 : 0) && (!carried || has[0] === carried))) {
+      const kept = list.filter(e => !(e.equip && (e.name === "Siege Ladders" || e.name === "Siege Engine")));
+      const piece = carried ? equipmentByName(carried) : null;
+      upd["system.traitList"] = piece ? [...kept, { name: piece.name, desc: piece.desc, level: 1, upgrades: [], options: [], chosen: -1, equip: true }] : kept;
+      if (sys.traits) upd["system.traits"] = "";
+    }
     if (Object.keys(upd).length) actorUpdates.push(tok.actor.update(upd, { qinBattle: true }));
     const t = { _id: u.id };
     // Only the engine moving a unit (a swap) needs the token moved; dragged tokens are already there.
