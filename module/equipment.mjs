@@ -12,8 +12,11 @@ export function equipmentOf(actor) {
 }
 
 /** A new trait list with `name` equipped (replacing anything of the same family). Pure; exported for tests. */
+const SIEGE = new Set(["Siege Ladders", "Siege Engine"]); // a unit carries one or the other, never both
+export const siegeClash = (list, name) => SIEGE.has(equipmentFamily(name)) && (list ?? []).some(e => e.equip && SIEGE.has(equipmentFamily(e.name)) && equipmentFamily(e.name) !== equipmentFamily(name));
 export function equipList(list, name) {
   const piece = equipmentByName(name); if (!piece) return null;
+  if (siegeClash(list, name)) return null;
   const kept = (list ?? []).filter(e => !(e.equip && equipmentFamily(e.name) === piece.family));
   return [...kept, { name: piece.name, desc: piece.desc, level: 1, upgrades: [], options: [], chosen: -1, equip: true }];
 }
@@ -26,7 +29,9 @@ async function saveList(actor, list) {
 }
 export async function equipUnit(actor, name) {
   if (!game.user.isGM || !actor) return;
-  const list = equipList(foundry.utils.deepClone(actor._source.system.traitList ?? []), name); if (!list) return;
+  const src = foundry.utils.deepClone(actor._source.system.traitList ?? []);
+  if (siegeClash(src, name)) return ui.notifications.warn(`${actor.name} already carries siege equipment: drop it first (a unit carries ladders or an engine, never both).`);
+  const list = equipList(src, name); if (!list) return;
   await saveList(actor, list);
   ui.notifications.info(`${actor.name} now carries ${name}.`);
 }
@@ -60,8 +65,9 @@ export class EquipmentPicker extends foundry.applications.api.ApplicationV2 {
       <p class="qin-eq-intro">${esc(this.actor.name)} carries one piece per kind; a better piece replaces the one it has.</p>
       ${EQUIPMENT.map(f => {
         const cur = have.get(f.family);
-        return `<section class="qin-eq-fam ${cur ? "has" : ""}"><h4>${esc(f.family)}${cur ? ` <span class="qin-eq-cur">carrying ${esc(cur)}</span>` : ""}</h4>
-          <div class="qin-eq-tiers">${f.tiers.map(t => `<button type="button" class="qin-eq-tier ${cur === t.name ? "on" : ""}" data-action="${cur === t.name ? "unequip" : "equip"}" data-name="${esc(t.name)}" data-tooltip="${esc(t.desc)}">
+        const blocked = !cur && SIEGE.has(f.family) && [...have.keys()].some(k => SIEGE.has(k));
+        return `<section class="qin-eq-fam ${cur ? "has" : ""} ${blocked ? "blocked" : ""}"><h4>${esc(f.family)}${cur ? ` <span class="qin-eq-cur">carrying ${esc(cur)}</span>` : ""}</h4>
+          <div class="qin-eq-tiers">${f.tiers.map(t => `<button type="button" class="qin-eq-tier ${cur === t.name ? "on" : ""}" ${blocked ? "disabled" : ""} data-action="${cur === t.name ? "unequip" : "equip"}" data-name="${esc(t.name)}" data-tooltip="${esc(blocked ? "Already carrying other siege equipment — a unit carries ladders or an engine, never both." : t.desc)}">
             ${cur === t.name ? `<i class="fa-solid fa-check"></i> ` : ""}${esc(t.name)}</button>`).join("")}</div>
           <div class="qin-eq-desc" data-desc>${esc((f.tiers.find(t => t.name === cur) ?? f.tiers[0]).desc)}</div>
         </section>`; }).join("")}

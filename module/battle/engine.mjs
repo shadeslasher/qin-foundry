@@ -362,7 +362,8 @@ function movementOf(s, u) {
   if (f.immobile) return 0;
   const slowed = fx(u).slow ? 1 : 0; // Barbed Arrows
   const load = carrying(u) === 'ladders' ? 1 : carrying(u) === 'engine' ? 2 : 0; // siege equipment is heavy
-  return Math.max(0, (t ? t.move : 4) + (f.moveMod || 0) + (passive(s, u).moveBonus || 0) - slowed - load);
+  const saddle = saddleOf(u) >= 3 ? 1 : 0; // Saddle++: movement +1
+  return Math.max(0, (t ? t.move : 4) + (f.moveMod || 0) + (passive(s, u).moveBonus || 0) - slowed - load + saddle);
 }
 
 /** Heroic actions in battles are off for now (David, 2026-10-25); the code stays for later. */
@@ -505,6 +506,7 @@ function actionMenu(s, u) {
     raiseFlag: canStillAct && pendingTactic(s, u, 'raiseFlag'),
     placeLadder: canStillAct && ladderTiles(s, u).length > 0,
     drop: !!carrying(u),
+    reinvigorate: canStillAct && hornReady(s, u) && hornTargets(s, u).length > 0,
     pickUp: canStillAct && !carrying(u) && !!(s.siege && s.siege.dropped.some(d => d.x === u.x && d.y === u.y)),
     openGate: canStillAct && gatesNear(s, u).some(g => g.state === 'locked' && gateKeyHolder(s, u, g)),
     closeGate: canStillAct && gatesNear(s, u).some(g => g.state === 'open' && gateKeyHolder(s, u, g) && !g.squares.some(([x, y]) => unitAt(s, x, y))),
@@ -656,6 +658,34 @@ function evasionOf(u) { return EVASION_PCT[trait(u, 'evasion ex') ? 4 : Math.min
 /** What is left of a hit after Evasion ignores `pct` percent of it; the damage taken rounds up. */
 function evadeCasualties(cas, pct) { return pct > 0 && cas > 0 ? Math.ceil(cas * (100 - pct) / 100 - 1e-9) : cas; }
 
+// ---- Equipment (David, 2026-10-25): carried pieces are read like traits
+/** War Drums: the best Command bonus from allied drummers within reach (2 tiles, 3 for +/++; +1, ++ gives +2), the carrier included. */
+function warDrumsBonus(s, u) {
+  let best = 0;
+  for (const o of liveUnits(s)) {
+    const d = trait(o, 'war drums'); if (!d || !friendly(o, u)) continue;
+    const reach = d >= 2 ? 3 : 2, bonus = d >= 3 ? 2 : 1;
+    if (manhattan(o, u) <= reach) best = Math.max(best, bonus);
+  }
+  return best;
+}
+/** Rallying Banner: is `u` within reach (1 / 2 / 3 tiles) of an allied banner (the carrier included)? Then one attack can't take it below 1 morale. */
+function underBanner(s, u) {
+  return liveUnits(s).some(o => { const b = trait(o, 'rallying banner'); return b && friendly(o, u) && manhattan(o, u) <= b; });
+}
+/** Saddle: Attack +1; Saddle+ also melee defense +1; Saddle++ also movement +1. */
+const saddleOf = (u) => trait(u, 'saddle');
+/** War Horn: may this unit sound it now? (one use, then a round to recharge) */
+function hornReady(s, u) {
+  if (!trait(u, 'war horn')) return false;
+  const used = fx(u).hornRound;
+  return used === undefined || s.turn.round - used >= 2;
+}
+/** Allies next to `u` that have already taken their turn this round (Reinvigorate targets). */
+function hornTargets(s, u) {
+  return liveUnits(s).filter(o => o !== u && friendly(o, u) && manhattan(o, u) === 1 && o.round.activated && !(s.turn.activation && s.turn.activation.unitId === o.id));
+}
+
 /** Disciplined: the unit's resting morale is 50 + 5/10/15 (set on the sheet; the engine doesn't add it). */
 function disciplinedBonus(u) { return tierVal(trait(u, 'disciplined'), [5, 10, 15]); }
 
@@ -678,6 +708,8 @@ function buildRoll(s, unit, role, ctx) {
     if (ctx.charge && ctx.fierceBonus) parts.push([FIERCE_NAMES[Math.min(3, ctx.fierce)], ctx.fierceBonus]);
     if (ctx.charge && f.chargeBonus) parts.push(['Formation charge bonus (' + f.name + ')', f.chargeBonus]);
     if (ctx.charge && p.chargeAttackBonus) parts.push(['Officer passive: charge', p.chargeAttackBonus]);
+    if (trait(unit, 'sharpened weapons')) parts.push(['Sharpened Weapons', tierVal(trait(unit, 'sharpened weapons'), [1, 2, 3])]);
+    if (saddleOf(unit)) parts.push(['Saddle', 1]);
     if (!ctx.ranged && ctx.tilesMoved >= 2 && trait(unit, 'charging strike')) parts.push(['Charging Strike (moved ' + ctx.tilesMoved + ' tiles)', tierVal(trait(unit, 'charging strike'), [2, 4, 6])]);
     if (f.atkMod) parts.push(['Attack (' + f.name + ')', f.atkMod]); // attack modifiers only count when attacking
     if (ctx.hybridMelee) parts.push(['Hybrid: melee attack', -2]);
@@ -712,6 +744,7 @@ function buildRoll(s, unit, role, ctx) {
     if (trait(unit, 'shielded') && trait(ctx.attacker, 'shield breaker')) parts.push(['Shielded (ignored: Shield Breaker)', 0]);
     else if (trait(unit, 'shielded')) parts.push(ctx.ranged ? ['Shielded: ranged defense', tierVal(trait(unit, 'shielded'), [2, 4, 6])] : ['Shielded: melee defense', tierVal(trait(unit, 'shielded'), [1, 2, 3])]);
     if (ctx.ranged && trait(unit, 'shield battery') && fx(unit).stillLast) parts.push(['Shield Battery: ranged defense', 2]);
+    if (!ctx.ranged && saddleOf(unit) >= 2) parts.push(['Saddle+: melee defense', 1]);
     // Deflect: defense +2 (+3 against ranged) against the first attack each round; Deflect+ against the first two
     if (trait(unit, 'deflect') && (unit.round.attacksTaken || 0) < tierVal(trait(unit, 'deflect'), [1, 2]))
       parts.push([(trait(unit, 'deflect') > 1 ? 'Deflect+' : 'Deflect') + ': ' + (ctx.ranged ? 'ranged' : 'melee') + ' defense', ctx.ranged ? 3 : 2]);
@@ -727,6 +760,7 @@ function buildRoll(s, unit, role, ctx) {
       tc.anchor && (tc.anchor === unit.id || (unitById(s, tc.anchor) && manhattan(unitById(s, tc.anchor), unit) === 1))))
       parts.push(['Tactic: Hold the Line (' + (ctx.ranged ? 'ranged' : 'melee') + ' defense)', ctx.ranged ? 2 : 3]);
   }
+  { const wd = warDrumsBonus(s, unit); if (wd) parts.push(['War Drums', wd]); }
   if (hasTactic(s, unit, 'heroNeeded')) parts.push(['Tactic: A Hero is Needed', 4]);
   if (hasTactic(s, unit, 'warrior1000')) parts.push(['Tactic: A Warrior Worth 1000', 5]);
   if (hasTactic(s, unit, 'fear')) parts.push(['Tactic: Surrounded by Fear', 4]);
@@ -858,7 +892,7 @@ function resolveAttack(s, attacker, defender, opts) {
   // Casualties = armor pen + what the damage leaves after armor and formation reduction, less Evasion in melee.
   // Armor is lowered by Sunder, and Shield Breaker ignores the armor a unit gets from shields.
   const af = formationOf(s, attacker);
-  const armorOf = (t, u, breaker) => Math.max(0, (t.armor ?? t.defense ?? 0) - (fx(u).sunder || 0) - (breaker ? (t.shieldArmor || 0) : 0));
+  const armorOf = (t, u, breaker) => Math.max(0, (t.armor ?? t.defense ?? 0) + tierVal(trait(u, 'reinforced armor'), [1, 2, 3]) - (fx(u).sunder || 0) - (breaker ? (t.shieldArmor || 0) : 0));
   const evDef = ranged ? 0 : evasionOf(defender);
   const returnRanged = dt.weapon === 'ranged' && !(!ranged && trait(defender, 'hybrid')); // a ranged unit's strike back is a shot, unless it's a Hybrid in melee
   const evAtt = returnRanged ? 0 : evasionOf(attacker);
@@ -909,11 +943,15 @@ function resolveAttack(s, attacker, defender, opts) {
       log(s, 'Fierce Charge++: ' + b.name + ', behind ' + defender.name + ', takes half the damage (-' + cas + ').', { type: 'trample', unit: b.id, casualties: cas });
     }
   }
+  // Rallying Banner: a unit within reach of an allied banner can't drop below 1 morale from a single attack
+  const floorD = defender.morale >= 1 && underBanner(s, defender) ? 1 : 0, floorA = attacker.morale >= 1 && underBanner(s, attacker) ? 1 : 0;
   if (loser) loser.morale = clamp(loser.morale - moraleLoss, 0, 100);
   // casualties cost morale at checkpoints: -5 the first time each fifth of the unit's health is lost this battle
   const cmD = checkpointMorale(defender), cmA = checkpointMorale(attacker);
   if (cmD) defender.morale = clamp(defender.morale - cmD, 0, 100);
   if (cmA) attacker.morale = clamp(attacker.morale - cmA, 0, 100);
+  if (floorD && defender.morale < 1) { defender.morale = 1; log(s, defender.name + ' holds at 1 morale under the Rallying Banner.'); }
+  if (floorA && attacker.morale < 1) { attacker.morale = 1; log(s, attacker.name + ' holds at 1 morale under the Rallying Banner.'); }
 
   // Lasting effects of a successful attack (the attacker won the roll)
   if (winner === 'attacker') {
@@ -1273,7 +1311,7 @@ function chargeTiles(ac, target) {
   return ac.tilesMoved || 0;
 }
 
-function finishActivation(s, u) {
+function finishActivation(s, u, opts) {
   const t = s.turn;
   // End-of-turn morale regen for units with an officer (up to 75), only on a turn the unit didn't fight
   const o = officerOf(s, u);
@@ -1316,7 +1354,7 @@ function finishActivation(s, u) {
   if (alive(u)) log(s, u.name + ' ends its turn.');
   trackEndOfTurn(s, u); // seizing squares, escaping
   settle(s);
-  advance(s);
+  if (!(opts && opts.noAdvance)) advance(s);
 }
 
 // Mark a unit's turn as used and move the rotation on.
@@ -1895,6 +1933,23 @@ const ACTIONS = {
     log(s, 'GM: gate ' + g.id + ' is ' + g.state + ' (' + g.owner + ').', { type: 'gate', gate: g.id });
     settle(s);
   },
+  reinvigorate(s, actor, a) { // War Horn: an adjacent ally that has acted takes another turn at once; this unit's turn ends
+    const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
+    const { u, act: ac } = r;
+    if (u.round.attacked || ac.forcedMarched) return err('Sounding the horn replaces the attack');
+    if (!hornReady(s, u)) return err('The war horn is still recharging');
+    const targets = hornTargets(s, u);
+    const target = targets.find(o => o.id === a.targetId) || (targets.length === 1 ? targets[0] : null);
+    if (!target) return err(targets.length ? 'Pick which adjacent ally to reinvigorate' : 'No adjacent ally has taken its turn yet');
+    fx(u).hornRound = s.turn.round;
+    log(s, u.name + ' sounds the war horn: ' + target.name + ' is reinvigorated and acts again!', { type: 'reinvigorate', unit: u.id, target: target.id });
+    u.round.attacked = true;
+    finishActivation(s, u, { noAdvance: true }); // the round must not roll over before the ally's extra turn
+    if (s.turn.phase === 'over' || !alive(target)) { advance(s); return; }
+    // a fresh turn for the ally, right now
+    target.round = Object.assign(newRoundFlags(), { wasAttacked: target.round.wasAttacked });
+    startActivation(s, target, { interject: true });
+  },
   dropEquipment(s, actor, a) { // free: put down siege ladders or a siege engine on the unit's square
     const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
     if (!carrying(r.u)) return err('Nothing to drop');
@@ -2117,7 +2172,7 @@ function viewFor(s, viewer) {
   return v;
 }
 
-export { casualtiesOf, evasionOf, evadeCasualties, disciplinedBonus, checkpointMorale, checkpointsPassed, overwatchFire as _overwatchFire,
+export { casualtiesOf, evasionOf, evadeCasualties, disciplinedBonus, warDrumsBonus, underBanner, hornReady, hornTargets, checkpointMorale, checkpointsPassed, overwatchFire as _overwatchFire,
   moveOptions, attackTargets, actionMenu, threatArea, TACTIC_SIDES, tileRules, ladderTiles, climbTiles, insideCity, isWallTop, gateAt,
   newState, act, viewFor, prompt, reachable, movementOf, moraleState, visibleTo, rangeOk,
   resolveAttack, buildRoll, setRng, yinYang, typeOf, officerOf, unitById, SIDES, settle, advance,

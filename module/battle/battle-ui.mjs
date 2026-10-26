@@ -323,6 +323,10 @@ function renderMenu(sub = null) {
       html += b("heroicPick", esc(h.name), u.lastHeroic !== h.name, h.text, `data-index="${i}"`);
     });
     html += b("back", "Back", true);
+  } else if (sub === "horn") {
+    html += `<div class="qin-fe-hint">War Horn: which adjacent ally acts again? Ends this unit's turn.</div>`;
+    for (const t of E.hornTargets(current.s, u)) html += b("hornPick", esc(t.name), true, "", `data-target="${esc(t.id)}"`);
+    html += b("back", "Back", true);
   } else if (sub === "ability") {
     if (officer?.skill) html += b("skill", `${esc(officer.skill.name)}${officer.skill.moraleCost ? ` (${officer.skill.moraleCost} morale)` : ""}`, flags.skill, officer.skill.text || "");
     if (officer?.battleArt) html += b("art", `Battle art: ${esc(officer.battleArt.name)}`, flags.art, officer.battleArt.text || "");
@@ -337,6 +341,7 @@ function renderMenu(sub = null) {
     if (flags.pickUp) html += b("pickUp", "Pick up", true, "Take up the siege equipment lying here. Ends the turn.");
     if (flags.placeLadder) html += b("placeLadder", "Place Ladder", true, "Set siege ladders against a city wall square next to this unit. Ends the turn.");
     if (flags.drop) html += b("drop", "Drop equipment", true, "Put down the siege equipment this unit carries (free). Another unit can pick it up.");
+    if (flags.reinvigorate) html += b("horn", "Reinvigorate", true, "War Horn: an adjacent ally that has already acted takes another turn at once. Ends this unit's turn; the horn needs a round to recharge.");
     if (flags.raiseFlag) html += b("raiseFlag", "Raise Flag", true, "Raise Flag tactic: instead of attacking, units in the area below 50 morale rally to 50. Ends the turn.");
     if (flags.setFire) html += b("setFire", "Set Fire", true, "Set Aflame tactic: instead of attacking, set an adjacent flammable tile on fire. Ends the turn.");
     if (flags.reloading) html += b("reload", "Reload", flags.reload, "Reload the weapon (needed before it can attack again). Can follow a move; ends the turn.");
@@ -390,6 +395,8 @@ function onMenuClick(ev) {
     case "end": return send({ type: "endTurn", unitId: id });
     case "undo": return send({ type: "undoMove", unitId: id });
     case "takeBack": return send({ type: "takeBack", unitId: id });
+    case "horn": { const ts = E.hornTargets(current.s, current.u); return ts.length === 1 ? send({ type: "reinvigorate", unitId: id, targetId: ts[0].id }) : renderMenu("horn"); }
+    case "hornPick": return send({ type: "reinvigorate", unitId: id, targetId: btn.dataset.target });
     case "heroic": return renderMenu("heroic");
     case "heroicPick": return send({ type: "heroic", unitId: id, index: Number(btn.dataset.index) });
     case "ability": {

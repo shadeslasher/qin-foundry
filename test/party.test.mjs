@@ -74,3 +74,12 @@ test('equipment: one piece per family, a better tier replaces, remove by name', 
   list = unequipList(list, 'War Drums++');
   assert.deepStrictEqual(list.map(e => e.name), ['Precision', 'Saddle']);
 });
+
+test('equipment: siege ladders and a siege engine never together', async () => {
+  const { equipList, siegeClash } = await import('../module/equipment.mjs');
+  let list = equipList([], 'Siege Ladders');
+  assert.ok(siegeClash(list, 'Siege Engine'));
+  assert.strictEqual(equipList(list, 'Siege Engine'), null, 'refused while carrying ladders');
+  assert.ok(!siegeClash(list, 'Siege Ladders'), 'the same kind is fine (no-op replace)');
+  assert.ok(!siegeClash(list, 'War Drums'));
+});

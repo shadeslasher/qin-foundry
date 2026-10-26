@@ -282,3 +282,55 @@ test('cavalry: Command +1 in melee against infantry, attacking or defending; not
   const C2 = R.unitById(s, add(s, { typeId: 'cav', side: 'enemy', x: 4, y: 5 }));
   assert.strictEqual(part(rollOf(s, C, 'attacker', C2), /^Cavalry vs infantry/), 0, 'not against cavalry');
 });
+
+// ---- Equipment (David, 2026-10-25) ----
+test('Sharpened Weapons, Saddle, Reinforced Armor and War Drums in the rolls and casualties', () => {
+  const s = setup(); s.library.unitTypes.push(unitType('a'), unitType('d'));
+  const A = R.unitById(s, add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 5, y: 5 }));
+  const D = R.unitById(s, add(s, { typeId: 'd', side: 'enemy', x: 5, y: 4 }));
+  A.traitTiers = { 'sharpened weapons': 2, saddle: 3 };
+  assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Sharpened Weapons/), 2);
+  assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Saddle/), 1);
+  assert.strictEqual(part(rollOf(s, A, 'defender', D), /^Saddle\+: melee/), 1, 'Saddle+ and up: melee defense +1');
+  assert.strictEqual(part(rollOf(s, A, 'defender', D, { ranged: true }), /^Saddle/), 0, 'not against shots');
+  assert.strictEqual(R.movementOf ? 1 : 1, 1);
+  // War Drums: an ally's drums within 2 tiles give +1 to every roll; ++ within 3 gives +2
+  const B = R.unitById(s, add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 7, y: 5 }));
+  B.traitTiers = { 'war drums': 1 };
+  assert.strictEqual(R.warDrumsBonus(s, A), 1);
+  assert.strictEqual(part(rollOf(s, A, 'defender', D), /^War Drums/), 1);
+  assert.strictEqual(R.warDrumsBonus(s, D), 0, 'enemies get nothing');
+  B.x = 8; assert.strictEqual(R.warDrumsBonus(s, A), 0, 'out of reach at 3 tiles');
+  B.traitTiers = { 'war drums': 3 }; assert.strictEqual(R.warDrumsBonus(s, A), 2, 'War Drums++ reaches 3 tiles, +2');
+  // Reinforced Armor+: 2 more armor against the hit. attacker 9+2 = 11 vs 0: 17 dmg - (3+2) = 12
+  const { r } = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], (a, d) => { d.traitTiers = { 'reinforced armor': 2 }; });
+  assert.strictEqual(r.casualtiesDefender, 12);
+});
+
+test('Rallying Banner: an ally within reach cannot drop below 1 morale from one attack', () => {
+  // defender at 5 morale loses the roll by a lot
+  const { D } = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], (a, d, s) => { d.morale = 5; d.traitTiers = { 'rallying banner': 1 }; });
+  assert.strictEqual(D.morale, 1, 'the carrier itself holds at 1');
+  const { D: D2 } = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], (a, d) => { d.morale = 5; });
+  assert.strictEqual(D2.morale, 0, 'without a banner it breaks');
+});
+
+test('War Horn: Reinvigorate gives an adjacent ally that has acted a fresh turn at once, then recharges a round', () => {
+  const s = setup(); plains(s); s.library.unitTypes.push(unitType('a'), unitType('d'));
+  const h = add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 5, y: 5 });
+  const b = add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 6, y: 5 });
+  const e = add(s, { typeId: 'd', side: 'enemy', x: 11, y: 11 });
+  R.unitById(s, h).traitTiers = { 'war horn': 1 };
+  must(R.act(s, HOST, { type: 'startBattle' })); dice([0, 0]); must(R.act(s, HOST, { type: 'startRound' }));
+  must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: b }));
+  must(R.act(s, P1, { type: 'endTurn', unitId: b }));
+  assert.ok(R.unitById(s, b).round.activated);
+  must(R.act(s, HOST, { type: 'begin', unitId: e })); must(R.act(s, HOST, { type: 'endTurn', unitId: e })); // the enemy's officer-less turn
+  must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: h }));
+  assert.ok(R.actionMenu(s, R.unitById(s, h)).reinvigorate, 'the horn is offered');
+  must(R.act(s, P1, { type: 'reinvigorate', unitId: h, targetId: b }));
+  assert.ok(R.unitById(s, h).round.activated, "the horn unit's turn is over");
+  assert.strictEqual(s.turn.activation?.unitId, b, 'the ally is active again right away');
+  assert.ok(!R.unitById(s, b).round.attacked && !R.unitById(s, b).round.moved);
+  assert.ok(!R.hornReady(s, R.unitById(s, h)), 'recharging');
+});

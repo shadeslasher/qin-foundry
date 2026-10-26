@@ -448,7 +448,7 @@ export async function drawUnitBars(token) {
   // a player's own units get bright corner brackets (only that player sees them; the GM never does)
   const mine = !game.user?.isGM && !!actor.isOwner;
   const facing = facingOf(token);
-  const key = JSON.stringify([men, max, morale, w, h, s.side, acted, active, holding, watching, st, mine, n, art, off, fac?.img ?? null, facing, battleRecord(token)?.meta?.[token.id]?.carry ?? null]);
+  const key = JSON.stringify([men, max, morale, w, h, s.side, acted, active, holding, watching, st, mine, n, art, off, fac?.img ?? null, facing, battleRecord(token)?.meta?.[token.id]?.carry ?? null, s.traits]); // traits: equipment icons (ladders, engine)
   let c = token[KEY];
   if (c && !c.destroyed && c.parent === token && c.qinKey === key) return;
   const my = (gen.get(token) ?? 0) + 1;
