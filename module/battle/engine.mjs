@@ -204,7 +204,7 @@ function burnRound(s) {
     if (f.left > 0) continue;
     const [x, y] = k.split(',').map(Number), info = burnInfo(s, x, y);
     delete sg.fires[k]; sg.burnt = sg.burnt || {}; sg.burnt[k] = true;
-    log(s, 'The ' + (info ? info.name.toLowerCase() : 'square') + ' at ' + k + ' burns down.', { type: 'burntDown', x, y });
+    log(s, 'The ' + (info ? info.name.toLowerCase() : 'square') + ' at ' + k + ' burns down.', { type: 'burntDown', x, y, gate: !!gateAt(s, x, y) });
   }
 }
 /** City gates: { id, squares: [[x, y]...], owner: 'friendly' | 'enemy', state: 'locked' | 'open' | 'broken' | 'burned' }. */
@@ -1932,7 +1932,7 @@ const ACTIONS = {
     const g = s.siege && s.siege.gates.find(x => x.id === a.gateId); if (!g) return err('No such gate');
     if (a.owner) { if (!['friendly', 'enemy'].includes(a.owner)) return err('Bad owner'); g.owner = a.owner; }
     if (a.state) { if (!['locked', 'open', 'broken', 'burned'].includes(a.state)) return err('Bad state'); g.state = a.state; }
-    log(s, 'GM: gate ' + g.id + ' is ' + g.state + ' (' + g.owner + ').', { type: 'gate', gate: g.id });
+    log(s, 'GM: gate ' + g.id + ' is ' + g.state + ' (' + g.owner + ').', { type: 'gate', gate: g.id, state: g.state });
     settle(s);
   },
   reinvigorate(s, actor, a) { // War Horn: an adjacent ally that has acted takes another turn at once; this unit's turn ends
@@ -2104,7 +2104,7 @@ function gateAction(s, actor, a, to) {
     if (g.squares.some(([x, y]) => unitAt(s, x, y))) return err('Units are in the gateway');
   }
   g.state = to;
-  log(s, u.name + (to === 'open' ? ' opens the gate.' : ' shuts the gate.'), { type: 'gate', gate: g.id });
+  log(s, u.name + (to === 'open' ? ' opens the gate.' : ' shuts the gate.'), { type: 'gate', gate: g.id, state: to, by: u.id });
   u.round.attacked = true;
   finishActivation(s, u);
 }

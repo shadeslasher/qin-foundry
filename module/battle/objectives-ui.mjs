@@ -1,6 +1,7 @@
 // Victory and defeat conditions in Foundry: the GM's setup (battle panel card, picking units and tiles, the
 // extraction brush), the markers on the map (labels on hover), the tracker at the top right of the screen,
 // and the Victory / Defeat banner everyone sees when the battle is decided. Rules: objectives.mjs + engine.mjs.
+import { playMoment } from "../sound.mjs";
 import { SYSTEM_ID } from "../config.mjs";
 import { getBattle } from "./adapter.mjs";
 import { decodeTiles, FLAG as MAP_FLAG } from "./battlemap.mjs";
@@ -547,6 +548,7 @@ export async function playTour() {
     const card = makeCard([{ side: s.side, verb: VERB[s.c.type], what: tourWords(s.c, scene), color: s.tg.color }], "qin-tour-big");
     t.els.push(card);
     placeCard(card, s.tg);
+    playMoment(s.side === "v" ? "Victory condition shown" : "Defeat condition shown", { minGap: 0 });
     await sleep(1500, t);
     card.remove();
   }
@@ -558,6 +560,7 @@ export async function playTour() {
     strip.className = `qin-tour-strip ${s.side === "v" ? "v" : "d"}`;
     strip.innerHTML = `<b>${VERB[s.c.type]}</b><span>${esc(tourWords(s.c, scene))}</span>`;
     document.body.appendChild(strip); t.els.push(strip);
+    playMoment(s.side === "v" ? "Victory condition shown" : "Defeat condition shown", { minGap: 0 });
     await sleep(2100, t);
     strip.remove();
     await sleep(100, t);

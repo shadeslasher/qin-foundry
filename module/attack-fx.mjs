@@ -3,6 +3,7 @@
 // that are broadcast to every client over the system socket.
 import { playTacticTrigger, playSetFire } from "./battle/tactics-ui.mjs";
 import { SYSTEM_ID } from "./config.mjs";
+import { playStepSounds, attackSounds, playMoment } from "./sound.mjs";
 import { drawUnitBars } from "./unit-bars.mjs";
 
 const SOCKET = `system.${SYSTEM_ID}`;
@@ -948,6 +949,7 @@ export async function playBattleAnim({ sceneId, steps }) {
   const tok = (id) => canvas.tokens?.get(id);
   const showAll = (id, list) => { const t = tok(id); if (t) list.forEach(([style, text], i) => setTimeout(() => floatLocal(t.center, style, text), i * 180)); };
   for (const st of steps) {
+    try { playStepSounds(st); } catch (e) { console.warn("Qin | battle sound", e); }
     try {
       if (st.kind === "attack") {
         const A = tok(st.attacker), D = tok(st.defender);
@@ -958,8 +960,11 @@ export async function playBattleAnim({ sceneId, steps }) {
           // ranged attacks loose a volley of arrows; melee attacks lunge at the target
           const strike = (from, to, isRanged) => isRanged ? volley(from, to) : lunge(from, to.center).then(() => 0);
           const hitAt = (isRanged) => (isRanged ? 620 : 240);
+          const snd = attackSounds(st);
+          if (snd.start) playMoment(snd.start, { minGap: 0 });
           const goA = strike(A, D, st.ranged);
           await wait(hitAt(st.ranged));
+          playMoment(snd.hit, { minGap: 0 });
           showAll(st.defender, st.toDefender);
           await goA;
           await wait(180);
@@ -967,6 +972,7 @@ export async function playBattleAnim({ sceneId, steps }) {
             const backRanged = !!st.returnRanged;
             const goD = strike(D, A, backRanged);
             await wait(hitAt(backRanged));
+            playMoment(snd.back, { minGap: 0 });
             showAll(st.attacker, st.toAttacker);
             await goD;
           } else showAll(st.attacker, st.toAttacker);

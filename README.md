@@ -87,6 +87,15 @@ npm run build:packs  # rebuild compendiums from tools/content.mjs
 npm run package      # rebuild dist/qin.zip (commit it; Foundry downloads it from the repo)
 ```
 
+## Battle sounds
+
+The system ships no audio. A module can hand it sounds in `setup` with
+`game.qin.registerSoundPack({ "Melee hit": ["modules/<id>/sounds/a.ogg", ...], ... })`, keyed by moment name
+(the list is in `module/sound.mjs`). A moment with several files plays one at random. The GM can also pick files
+for any moment in the Sounds window (M, or the speaker button on the Battle window); each player sets their own
+volume and mute there, separate from Foundry's sliders. Battle sounds play for everyone; menu sounds only for the
+person clicking.
+
 ## Credits
 
 - The boot icon on the unit hover card is traced from a [game-icons.net](https://game-icons.net) icon (CC BY 3.0).

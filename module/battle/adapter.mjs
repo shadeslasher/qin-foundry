@@ -1,5 +1,6 @@
 import { Chat } from "../dice.mjs";
 import { broadcastBattleAnim } from "../attack-fx.mjs";
+import { logSoundSteps } from "../sound.mjs";
 // Bridges Foundry (scene tokens, unit actors, officer characters) and the pure battle
 // engine. Runs only on the active GM's client; players reach it through queries.
 import * as E from "./engine.mjs";
@@ -337,15 +338,17 @@ async function postLog(entries, s) {
  * over the defender), then the defender strikes back (numbers over the attacker), then both gain XP;
  * level-ups glow; any other changes (e.g. end-of-turn morale) float last.
  */
-function animateChanges(scene, before, s, entries) {
+function animateChanges(scene, before, s, entries, actionType = null) {
   if (!scene) return null;
   const steps = [];
+  let overwatchShot = false; // the next attack is an overwatch shot
   const covered = {}; // what the attack steps already showed, per unit
   const add = (id, k, n) => { (covered[id] ??= { men: 0, morale: 0, xp: 0 })[k] += n; };
   for (const e of entries) {
     // a tactic plays where it fired: before the attack that set it off
     if (e.detail?.type === "tactic") { steps.push({ kind: "tactic", tactic: e.detail.tactic }); continue; }
     if (e.detail?.type === "setFire") { steps.push({ kind: "setFire", x: e.detail.x, y: e.detail.y }); continue; }
+    if (e.detail?.type === "overwatch" && e.detail.fired) { overwatchShot = true; continue; }
     const r = e.detail?.type === "attack" ? e.detail.result : null;
     if (!r) continue;
     const toD = [], toA = [];
@@ -359,7 +362,10 @@ function animateChanges(scene, before, s, entries) {
       base.test(label) || (!r.ranged && /^Attacker bonus/.test(label)) ? t : t + (Number(v) || 0), 0);
     const dUnit = E.unitById(s, r.defender);
     const returnRanged = !!dUnit && E.typeOf(s, dUnit)?.weapon === "ranged";
-    steps.push({ kind: "attack", attacker: r.attacker, defender: r.defender, toDefender: toD, toAttacker: toA, returnStrike: r.damageToAttacker > 0, attackBonus, ranged: !!r.ranged, returnRanged });
+    const aType = E.unitById(s, r.attacker) ? E.typeOf(s, E.unitById(s, r.attacker)) : null;
+    steps.push({ kind: "attack", attacker: r.attacker, defender: r.defender, toDefender: toD, toAttacker: toA, returnStrike: r.damageToAttacker > 0, attackBonus, ranged: !!r.ranged, returnRanged,
+      crossbow: /nushu/i.test(aType?.skill ?? ""), charge: !!r.charge && aType?.category === "cavalry", overwatch: overwatchShot });
+    overwatchShot = false;
     const gains = [];
     if (r.xpAttacker) { gains.push([r.attacker, "xp", `+${r.xpAttacker} XP`]); add(r.attacker, "xp", r.xpAttacker); }
     if (r.xpDefender) { gains.push([r.defender, "xp", `+${r.xpDefender} XP`]); add(r.defender, "xp", r.xpDefender); }
@@ -392,6 +398,7 @@ function animateChanges(scene, before, s, entries) {
   const fallen = s.units.filter(u => before[u.id]?.status === "active" && u.status !== "active")
     .map(u => [u.id, u.status === "surrendered" ? "flag" : "skull"]);
   if (fallen.length) steps.push({ kind: "fallen", units: fallen });
+  steps.push(...logSoundSteps(entries, actionType));
   return broadcastBattleAnim(scene.id, steps);
 }
 
@@ -468,7 +475,7 @@ async function runActionNow(userId, action) {
   await writeBack(battle, s, scene);
   await postLog(s.log.slice(logLen), s);
   if (res.ok) {
-    const shown = animateChanges(scene, before, s, s.log.slice(logLen));
+    const shown = animateChanges(scene, before, s, s.log.slice(logLen), action.type);
     // Units destroyed or surrendered this action: remove their tokens once the skull/flag and fade have played.
     // The unit itself stays in the Actors directory; linked units are remembered for the XP count at the end.
     const fallen = s.units.filter(u => before[u.id]?.status === "active" && u.status !== "active" && scene?.tokens.get(u.id));

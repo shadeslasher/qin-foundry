@@ -933,3 +933,19 @@ details.qin-recent[open] > summary { margin-bottom: 4px; }
 .qin-eq-kind::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(184,134,43,.55), transparent); }
 .qin-eq-kind:first-child { margin-top: 0; }
 .qin-eq-cur.swap { color: #e0b068; }
+
+/* Sounds window: your volume, and (GM) which files each moment plays */
+.qin-sounds .window-content { padding: 8px 10px; }
+.qin-snd-top { display: flex; align-items: center; gap: 8px; }
+.qin-snd-top .qin-snd-vol { flex: 1; }
+.qin-snd-pct { width: 3em; text-align: right; font-variant-numeric: tabular-nums; }
+.qin-snd-mute { width: 32px; height: 28px; flex: none; }
+.qin-snd-mute.on { color: #c8443a; }
+.qin-sounds h4 { margin: 12px 0 2px; border-bottom: 1px solid rgba(128,128,128,.35); }
+.qin-snd-list { list-style: none; margin: 0; padding: 0; }
+.qin-snd-list li { display: grid; grid-template-columns: 28px minmax(0, 1fr) 28px 28px; gap: 6px; align-items: center; padding: 3px 0; }
+.qin-snd-list li.off b { opacity: .6; }
+.qin-snd-list li .qin-muted { font-size: .85em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qin-snd-list button { width: 28px; height: 24px; padding: 0; line-height: 1; }
+.qin-snd-tag { font-size: .75em; padding: 0 4px; border-radius: 3px; background: rgba(128,128,128,.25); }
+.qin-sounds .window-content { overflow-y: auto; }

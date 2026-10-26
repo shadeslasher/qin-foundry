@@ -1,5 +1,6 @@
 // Battle tactics: the tactics screen (before initiative), placing tactic squares on the map, the squares
 // themselves on the map, and the animation when one fires.
+import { playMoment } from "../sound.mjs";
 import { TACTICS } from "./engine-data.mjs";
 import { getBattle } from "./adapter.mjs";
 import { drawLadder, drawSiegeEngine } from "../unit-bars.mjs";
@@ -244,7 +245,8 @@ export function startPlacement(side, key, id = null) {
     if (ev.button !== 0) return;
     const [x, y] = tile(ev);
     stopPlacement();
-    await battleRequest({ type: "placeTactic", side, key, x, y, id: id || undefined });
+    const res = await battleRequest({ type: "placeTactic", side, key, x, y, id: id || undefined });
+    playMoment(res && res.ok === false ? "Error / not allowed" : "Tactic placed", { minGap: 0 });
   };
   const key2 = (ev) => { if (ev.key === "Escape") { ev.stopPropagation(); ev.preventDefault(); stopPlacement(); } };
   const block = (ev) => { ev.preventDefault(); ev.stopPropagation(); };

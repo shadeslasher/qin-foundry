@@ -22,6 +22,7 @@ import { registerPreBattleCover } from "./module/battle/cover.mjs";
 import { registerReinforcements, drawReinforceZones, setReinforceChangeHandler } from "./module/battle/reinforce.mjs";
 import { registerTileTip, toggleTileTip } from "./module/battle/tile-tip.mjs";
 import { HotkeyGuide } from "./module/hotkeys.mjs";
+import { registerSounds, registerSoundPack, onBattleSetting, primeBattleSounds, onUnitTokenMoved, SoundPanel, playMoment } from "./module/sound.mjs";
 import { registerNameLabels, toggleNameLabels } from "./module/battle/name-labels.mjs";
 import { registerEquipment } from "./module/equipment.mjs";
 import { registerTurnBanner, renderTurnBanner } from "./module/battle/turn-banner.mjs";
@@ -46,7 +47,7 @@ Hooks.once("init", () => {
   CONFIG.QIN = CFG;
   CONFIG.qinFactions ??= {};
   globalThis.qin = game.qin = { config: CFG, rules: QinRules, openBattle: () => BattlePanel.open(), battleRequest, registerFactions, factionList, openUnitInfo, openOfficerView, importBattleMap: () => importBattleMap(SYSTEM_ID),
-    registerMapRenderer, redrawMap: (scene = canvas.scene) => redrawScene(scene), paintMap: (scene = canvas.scene) => MapEditorApp.open(scene), refreshBattlePanel: () => BattlePanel.refresh(), newUnit: () => newUnitDialog(), unitEditor: () => UnitEditorApp.open() };
+    registerMapRenderer, redrawMap: (scene = canvas.scene) => redrawScene(scene), paintMap: (scene = canvas.scene) => MapEditorApp.open(scene), refreshBattlePanel: () => BattlePanel.refresh(), newUnit: () => newUnitDialog(), unitEditor: () => UnitEditorApp.open(), registerSoundPack, playSound: (m) => playMoment(m, { minGap: 0 }), openSounds: () => SoundPanel.toggle() };
 
   CONFIG.Actor.documentClass = QinActor;
   CONFIG.Item.documentClass = QinItem;
@@ -80,6 +81,7 @@ Hooks.once("init", () => {
       drawReinforceZones();
       refreshObjectives();
       renderTurnBanner();
+      try { onBattleSetting(getBattle(), (id) => canvas?.scene?.tokens.get(id)?.actor?.system?.side ?? null); } catch (e) { console.warn("Qin | turn sounds", e); }
       syncBattleMap();
       if (getBattle().active && !BattlePanel.instance?.rendered && game.settings.get(SYSTEM_ID, "autoOpenBattle")) BattlePanel.open();
     },
@@ -184,6 +186,7 @@ Hooks.once("init", () => {
     onDown: () => { toggleTileTip(); return true; },
   });
   registerTileTip();
+  registerSounds();
   game.keybindings.register(SYSTEM_ID, "nameLabels", {
     name: "Unit names", hint: "Show every unit's name (and its officer) under its stand. Press again to hide them.",
     editable: [{ key: "KeyL" }], precedence: CONST.KEYBINDING_PRECEDENCE?.NORMAL,
@@ -232,6 +235,7 @@ setObjectivesChangeHandler(() => BattlePanel.refresh());
 setDeployChangeHandler(() => BattlePanel.refresh());
 registerUnitClicks();
 Hooks.on("renderCombatTracker", onRenderCombatTracker);
+Hooks.on("updateToken", (doc, change) => { try { onUnitTokenMoved(doc, change, getBattle()); } catch (e) { console.warn("Qin | move sound", e); } });
 Hooks.on("updateToken", (doc, change, options) => {
   onTokenMoved(doc, change, options);
   // Wipe the hover movement trail after each move unless the GM wants it
@@ -240,7 +244,7 @@ Hooks.on("updateToken", (doc, change, options) => {
   }
 });
 Hooks.on("updateActor", () => { BattlePanel.refresh(); refreshBattleUI(); });
-Hooks.on("canvasReady", () => refreshBattleUI());
+Hooks.on("canvasReady", () => { refreshBattleUI(); try { primeBattleSounds(getBattle(), (id) => canvas?.scene?.tokens.get(id)?.actor?.system?.side ?? null); } catch { /* fine */ } });
 Hooks.on("canvasPan", () => repositionBattleUI());
 // Foundry 13+ moves tokens through its movement API: refuse a move there (preMoveToken). Older versions: preUpdateToken.
 Hooks.once("init", () => {

@@ -3,6 +3,7 @@
 import * as E from "./engine.mjs";
 import { getBattle, buildState, isWritingBack } from "./adapter.mjs";
 import { SYSTEM_ID } from "../config.mjs";
+import { playMoment } from "../sound.mjs";
 import { openUnitInfo, unitVisible, setPickingCheck, canPinThreat, threatPinned, toggleThreatRange } from "../unit-info.mjs";
 import { deployMoveCheck, zoneSet, DEPLOY_FLAG } from "./deploy-rules.mjs";
 
@@ -83,6 +84,7 @@ function clearSquares() {
     document.removeEventListener("pointerdown", listeners.down, true);
     document.removeEventListener("keydown", listeners.key, true);
     canvas.app?.view?.removeEventListener("contextmenu", listeners.block, true);
+    canvas.app?.view?.removeEventListener("pointermove", listeners.move);
     listeners = null;
   }
 }
@@ -104,13 +106,21 @@ function startPicking(onTile) {
   };
   const key = (ev) => { if (ev.key === "Escape") { ev.stopPropagation(); ev.preventDefault(); cancelMode(); } };
   const block = (ev) => { ev.preventDefault(); ev.stopPropagation(); };
-  listeners = { down, key, block };
+  let over = null; // the square under the cursor: a tick each time it moves to another one
+  const move = (ev) => {
+    const p = toWorld(ev.clientX, ev.clientY), size = gridSize(), k = `${Math.floor(p.x / size)},${Math.floor(p.y / size)}`;
+    if (over !== null && k !== over) playMoment("Cursor move", { minGap: 40 });
+    over = k;
+  };
+  view.addEventListener("pointermove", move);
+  listeners = { down, key, block, move };
   document.addEventListener("pointerdown", down, true);
   document.addEventListener("keydown", key, true);
   view.addEventListener("contextmenu", block, true);
 }
 
 function cancelMode() {
+  playMoment("Cancel / back");
   if (mode === "reposition" && current) return send({ type: "reposition", unitId: current.u.id });
   if (mode === "second" && current) return send({ type: "secondAttack", unitId: current.u.id });
   mode = null;
@@ -147,6 +157,7 @@ function enterMove() {
     if (ally) return send({ type: "swap", unitId: u.id, targetId: ally.id });
     if (blue.has(k)) return send({ type: "moveTo", unitId: u.id, x, y });
     if (red.has(k)) return send({ type: "moveTo", unitId: u.id, x, y });
+    playMoment("Error / not allowed");
     ui.notifications.warn("Pick a blue square (move), a red square (forced march) or a green ally (swap).");
   });
 }
@@ -180,7 +191,7 @@ function enterReposition() {
   for (const [x, y] of tiles) drawSquare(overlay, x, y, 0x3fbf5f, 0.3, 1);
   renderMenu();
   startPicking((x, y) => {
-    if (!tiles.some(([tx, ty]) => tx === x && ty === y)) return ui.notifications.warn(ac?.reposition?.skirmish ? "Click a green tile, or press Stay here." : "Click a green tile next to the enemy, or press Stay here.");
+    if (!tiles.some(([tx, ty]) => tx === x && ty === y)) return playMoment("Error / not allowed"), ui.notifications.warn(ac?.reposition?.skirmish ? "Click a green tile, or press Stay here." : "Click a green tile next to the enemy, or press Stay here.");
     send({ type: "reposition", unitId: current.u.id, x, y });
   });
 }
@@ -244,7 +255,8 @@ async function send(action) {
   mode = null;
   clearSquares();
   renderMenu();
-  try { await requestFn(action); } finally { busy = false; refreshBattleUI(); }
+  playMoment("Select / confirm");
+  try { const res = await requestFn(action); if (res && res.ok === false) playMoment("Error / not allowed", { minGap: 0 }); } finally { busy = false; refreshBattleUI(); }
 }
 
 /* ------------------------------------------------------------ the menu */
@@ -275,6 +287,7 @@ let lastPickWarn = 0;
 function pickWarn(msg) {
   if (Date.now() - lastPickWarn < 4000) return;
   lastPickWarn = Date.now();
+  playMoment("Error / not allowed");
   ui.notifications.warn(msg);
 }
 
@@ -293,7 +306,8 @@ function renderMenu(sub = null) {
     menuEl.className = "qin qin-fe-menu";
     document.body.append(menuEl);
     menuEl.addEventListener("click", onMenuClick);
-  }
+    playMoment("Menu opens");
+  } else if (sub) playMoment("Menu opens");
   // Picking a square (move, attack, ladders, fire): no box beside the unit, just a hint along the bottom of the screen
   const PICK_HINT = {
     move: "Blue: move · Purple: climb the ladder (all movement) · Red: forced march (officer units, ends turn) · Green: swap",
@@ -374,6 +388,7 @@ function onMenuClick(ev) {
   const btn = ev.target.closest("button[data-fe]");
   if (!btn || btn.disabled || !current) return;
   const id = current.u.id;
+  playMoment(["cancel", "back"].includes(btn.dataset.fe) ? "Cancel / back" : "Select / confirm");
   switch (btn.dataset.fe) {
     case "move": return enterMove();
     case "attack": return enterAttack();
@@ -486,6 +501,7 @@ export function showUnitBox(token) {
     + `<button type="button" data-info="1"><i class="fa-solid fa-circle-info"></i> Info</button>`
     + (canPinThreat(token) ? `<button type="button" data-threat="1" class="${threatPinned(token.id) ? "qin-on" : ""}" title="Keep this unit's reach on the map: where it can move this turn and, in orange, where it could attack from there. Press again to hide it."><i class="fa-solid fa-bullseye"></i> ${threatPinned(token.id) ? "Hide threat range" : "Threat range"}</button>` : "");
   document.body.append(pickEl);
+  playMoment("Unit selected");
   const pos = toClient({ x: token.x + token.w, y: token.y });
   pickEl.style.left = `${Math.round(pos.x + 8)}px`;
   pickEl.style.top = `${Math.round(pos.y)}px`;
@@ -493,6 +509,7 @@ export function showUnitBox(token) {
     const btn = ev.target.closest("button");
     if (!btn) return;
     hidePick();
+    playMoment("Select / confirm");
     if (btn.dataset.info) return openUnitInfo(token);
     if (btn.dataset.threat) return toggleThreatRange(token);
     if (!requestFn) return;
@@ -560,6 +577,7 @@ function checkUnitMove(tokenDoc, px, py) {
   const occupied = (scene?.tokens ?? []).some(t => t.id !== tokenDoc.id && t.actor?.type === "unit" && Math.round(t.x / size) === x && Math.round(t.y / size) === y);
   const chk = deployMoveCheck({ phase, isGM: game.user.isGM, zones: zoneSet(scene?.getFlag?.(SYSTEM_ID, DEPLOY_FLAG)), occupied }, x, y);
   if (chk.ok) return;
+  playMoment("Error / not allowed");
   ui.notifications.warn(chk.reason);
   return false;
 }
