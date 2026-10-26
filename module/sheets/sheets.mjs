@@ -174,6 +174,8 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
       restChi: QinActorSheetBase.#restChi,
       toggleEquip: QinActorSheetBase.#toggleEquip,
       signatureOpen: QinActorSheetBase.#signatureOpen,
+      officeAdd: QinActorSheetBase.#officeAdd,
+      officeRemove: QinActorSheetBase.#officeRemove,
       addFromLibrary: QinActorSheetBase.#addFromLibrary,
     },
   };
@@ -231,6 +233,15 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
   _onRender(context, options) {
     super._onRender(context, options);
     const el = this.element;
+    // Office cards save the whole list when one of their fields changes (the inputs carry no form name)
+    el.querySelectorAll(".qin-office-card input[data-office-field]").forEach(inp => inp.addEventListener("change", (ev) => {
+      ev.stopPropagation();
+      const list = foundry.utils.deepClone(this.actor.system.offices ?? []);
+      const i = Number(inp.closest(".qin-office-card").dataset.office);
+      if (!list[i]) return;
+      list[i][inp.dataset.officeField] = inp.value;
+      this.actor.update({ "system.offices": list });
+    }));
     // Weapons, Taos, techniques etc. can be dragged to the macro bar (or onto other sheets)
     el.querySelectorAll("[data-item-id]").forEach(li => {
       const item = this.actor.items.get(li.dataset.itemId);
@@ -335,6 +346,16 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
   }
   static async #itemUse(event, target) { QinActorSheetBase.#itemOf.call(this, target)?.use(); }
   static async #itemChat(event, target) { QinActorSheetBase.#itemOf.call(this, target)?.toChat(); }
+  static async #officeAdd() {
+    const list = foundry.utils.deepClone(this.actor.system.offices ?? []);
+    list.push({ title: "", when: "" });
+    await this.actor.update({ "system.offices": list });
+  }
+  static async #officeRemove(event, target) {
+    const list = foundry.utils.deepClone(this.actor.system.offices ?? []);
+    list.splice(Number(target.dataset.office), 1);
+    await this.actor.update({ "system.offices": list });
+  }
   static async #toggleEquip(event, target) {
     const item = QinActorSheetBase.#itemOf.call(this, target);
     if (item) item.update({ "system.equipped": !item.system.equipped });

@@ -9,7 +9,6 @@
         <label>Tier <input name="system.details.tier" type="text" value="{{system.details.tier}}" placeholder="e.g. 2 Mid"></label>
         <label>Type <input name="system.details.characterType" type="text" value="{{system.details.characterType}}" placeholder="Commander, Vanguard…"></label>
       </div>
-      <label class="qin-office">Office <input name="system.details.office" type="text" value="{{system.details.office}}" placeholder="Offices and ranks held"></label>
     </div>
   </header>
 
@@ -184,6 +183,16 @@
     </section>
 
     <section class="qin-tab" data-tab="bio">
+      <h3>Offices held {{#if editable}}<a class="qin-office-add" data-action="officeAdd" title="Add an office"><i class="fa-solid fa-plus"></i></a>{{/if}}</h3>
+      <div class="qin-offices">
+        {{#each system.offices}}
+        <div class="qin-office-card" data-office="{{@index}}">
+          <input type="text" data-office-field="title" value="{{title}}" placeholder="Office or rank" {{#unless ../editable}}disabled{{/unless}}>
+          <input type="text" data-office-field="when" value="{{when}}" placeholder="When / granted by" {{#unless ../editable}}disabled{{/unless}}>
+          {{#if ../editable}}<a data-action="officeRemove" data-office="{{@index}}" title="Remove"><i class="fa-solid fa-xmark"></i></a>{{/if}}
+        </div>
+        {{else}}<p class="qin-muted">None recorded.</p>{{/each}}
+      </div>
       <h3>Defining deeds</h3>
       <textarea name="system.deeds" rows="5">{{system.deeds}}</textarea>
       <h3>Biography</h3>

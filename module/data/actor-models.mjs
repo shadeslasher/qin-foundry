@@ -69,7 +69,6 @@ export class CharacterData extends QinBaseActor {
         characterType: new fields.StringField({ initial: "" }),
         tier: new fields.StringField({ initial: "" }),
         title: new fields.StringField({ initial: "" }),
-        office: new fields.StringField({ initial: "" }), // offices and ranks held (David, 2026-10-26)
       }),
       chi: new fields.SchemaField({ value: int(0), bonus: int(0) }),
       bol: new fields.SchemaField({
@@ -80,6 +79,10 @@ export class CharacterData extends QinBaseActor {
       coin: int(0, { min: 0 }),
       experience: new fields.SchemaField({ value: int(0), total: int(0) }),
       deeds: new fields.HTMLField({ initial: "" }),
+      // offices and ranks the character has held, one card each in Bio and notes (David, 2026-10-26)
+      offices: new fields.ArrayField(new fields.SchemaField({
+        title: new fields.StringField({ initial: "" }), when: new fields.StringField({ initial: "" }),
+      }), { initial: [] }),
     };
   }
 
