@@ -363,7 +363,8 @@ function movementOf(s, u) {
   const slowed = fx(u).slow ? 1 : 0; // Barbed Arrows
   const load = carrying(u) === 'ladders' ? 1 : carrying(u) === 'engine' ? 2 : 0; // siege equipment is heavy
   const saddle = saddleOf(u) >= 3 ? 1 : 0; // Saddle++: movement +1
-  return Math.max(0, (t ? t.move : 4) + (f.moveMod || 0) + (passive(s, u).moveBonus || 0) - slowed - load + saddle);
+  // whatever slows it, a unit can always move at least 1 tile (David, 2026-10-25); only an immobile formation stops it
+  return Math.max(1, (t ? t.move : 4) + (f.moveMod || 0) + (passive(s, u).moveBonus || 0) - slowed - load + saddle);
 }
 
 /** Heroic actions in battles are off for now (David, 2026-10-25); the code stays for later. */

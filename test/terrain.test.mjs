@@ -198,3 +198,10 @@ test('forts, small forts, command tents and town halls: a unit there cannot be s
   assert.ok(R.unitById(s, p).surrounded, 'on open ground the same ring surrounds it');
   assert.ok(R.tileRules(field({ '1,1': { terrain: 'plains', overlays: ['command-tent', 'camp'] } }), 1, 1).noSurround);
 });
+
+test('movement never drops below 1 whatever slows the unit (siege engine, Barbed Arrows...)', () => {
+  const s = field(); s.library.unitTypes.push(unitType('slow', { move: 1 }));
+  const u = R.unitById(s, add(s, { typeId: 'slow', side: 'player', owner: 'p1', x: 5, y: 5 }));
+  u.carry = 'engine'; u.fx = { slow: true };
+  assert.strictEqual(R.movementOf(s, u), 1);
+});
