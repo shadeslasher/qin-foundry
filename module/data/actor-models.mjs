@@ -69,6 +69,7 @@ export class CharacterData extends QinBaseActor {
         characterType: new fields.StringField({ initial: "" }),
         tier: new fields.StringField({ initial: "" }),
         title: new fields.StringField({ initial: "" }),
+        office: new fields.StringField({ initial: "" }), // offices and ranks held (David, 2026-10-26)
       }),
       chi: new fields.SchemaField({ value: int(0), bonus: int(0) }),
       bol: new fields.SchemaField({
