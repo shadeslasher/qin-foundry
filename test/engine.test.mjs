@@ -629,6 +629,21 @@ test('click-to-move: blue tiles keep the action, red tiles force march and end t
   assert.ok(u.round.holding && u.round.activated, 'hold after moving ends the turn');
 });
 
+test('Hold lasts until the unit\'s next activation, across the round change', () => {
+  const s = setup();
+  const [a, e] = turnFor(s, unitType('holder'), [{ type: unitType('far2'), x: 20, y: 12 }]);
+  const u = R.unitById(s, a);
+  must(R.act(s, P1, { type: 'holdPosition', unitId: a }));
+  must(R.act(s, HOST, { type: 'begin', unitId: e }));
+  must(R.act(s, HOST, { type: 'endTurn', unitId: e }));
+  assert.strictEqual(s.turn.round, 2);
+  assert.ok(u.round.holding, 'still holding at the start of round 2');
+  dice([0, 0]); must(R.act(s, HOST, { type: 'startRound' }));
+  assert.ok(u.round.holding, 'still holding until it acts');
+  must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: a }));
+  assert.ok(!u.round.holding, 'Hold ends when it starts its next turn');
+});
+
 test('forced march costs 5 morale per extra tile, ends the turn, and cannot drop morale to 0', () => {
   const s = setup();
   const [a] = turnFor(s, unitType('marcher', { move: 3 }), [{ type: unitType('far2'), x: 20, y: 12 }]);

@@ -1345,12 +1345,14 @@ function endRound(s) {
   log(s, 'Round ' + s.turn.round + ' ends.');
   for (const tc of s.tactics ? s.tactics.placed : []) if (tc.state === 'active' && tc.untilRound !== undefined && tc.untilRound < next) tc.state = 'spent';
   s.turn = freshTurn('formations', next);
-  for (const u of s.units) u.round = newRoundFlags();
+  // Hold lasts until the unit's next activation (David, 2026-10-27), so it carries over the round change
+  for (const u of s.units) u.round = Object.assign(newRoundFlags(), { holding: !!(u.round && u.round.holding) });
   log(s, 'Round ' + next + ' begins.');
   checkOutcome(s); // rounds survived / time limits / holds
 }
 
 function startActivation(s, u, extra) {
+  if (u.round && u.round.holding) u.round.holding = false; // Hold ends when the unit acts again
   if (u.overwatch) { delete u.overwatch; log(s, u.name + ' stands down from overwatch.', { type: 'overwatch', unit: u.id, on: false }); }
   s.turn.activation = Object.assign({ unitId: u.id, step: 'move', started: false, startedHidden: !!u.hidden,
     movedThisActivation: false, tilesMoved: 0, roughPath: false, forcedMarched: false, interject: false, from: { x: u.x, y: u.y } }, extra || {});
@@ -1881,7 +1883,7 @@ const ACTIONS = {
     const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
     if (r.u.round.attacked || r.act.forcedMarched) return err('Too late to hold this turn');
     r.u.round.holding = true;
-    log(s, r.u.name + ' holds position (+2 melee defense this round).');
+    log(s, r.u.name + ' holds position (+2 melee defense until its next turn).');
     for (const tc of fireTactics(s, 'hold', r.u)) tc.anchor = r.u.id; // Hold the Line: this unit and adjacent holders
     finishActivation(s, r.u);
   },

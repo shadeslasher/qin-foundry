@@ -36,7 +36,7 @@ function hasActed(token) {
   return !!battle.meta?.[token.id]?.round?.activated;
 }
 
-/** Did this unit Hold this round (+2 melee defense until the round ends)? */
+/** Is this unit holding (+2 melee defense until its next activation)? */
 function isHolding(token) {
   let battle;
   try { battle = game.settings.get("qin", "battle"); } catch { return false; }
