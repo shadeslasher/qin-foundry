@@ -205,3 +205,10 @@ test('movement never drops below 1 whatever slows the unit (siege engine, Barbed
   u.carry = 'engine'; u.fx = { slow: true };
   assert.strictEqual(R.movementOf(s, u), 1);
 });
+
+test('Trees overlay plays like forest over any ground (e.g. rocky ground)', () => {
+  const s = field({ '2,2': { terrain: 'rocky', overlays: ['trees'] } });
+  const r = R.tileRules(s, 2, 2);
+  assert.deepStrictEqual([r.move, r.meleeDef, r.rangedDef, r.hides, r.flammable], [1, 0, 2, true, true]);
+  assert.ok(r.names.includes('Rocky ground') && r.names.includes('Trees'));
+});

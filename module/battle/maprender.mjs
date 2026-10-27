@@ -186,7 +186,7 @@ const Base = foundry.applications?.api?.ApplicationV2 ?? class {};
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
 // overlays the generator draws per square (forts, town halls and camps are placed in the generator itself)
 const PAINT_OVERLAYS = ["road", "hill", "city-wall", "city-gate", "fortress-tower", "watchtower", "small-fort", "command-tent",
-  "trench", "abatis", "supply-depot", "farmhouse", "ruins", "fire", "bridge", "dock", "boat", "catapult"];
+  "trench", "abatis", "supply-depot", "farmhouse", "ruins", "fire", "bridge", "dock", "boat", "catapult", "trees"];
 const TERRAIN_COLORS = { plains: 0x8fae5a, steppe: 0xc2b56e, sand: 0xd9c38c, paving: 0xa8a29a, city: 0x8a7d6a, farmland: 0xb3a04e,
   "tall-grass": 0x6f9a3c, forest: 0x2f5a2a, marsh: 0x5d7a5a, mountain: 0x7a7266, cliffs: 0x5e554a, river: 0x3b6ea8, lake: 0x2f5f95,
   ford: 0x6f97b8, scorched: 0x3a3028, rocky: 0x8e8778 };

@@ -218,6 +218,8 @@ const MAP_OVERLAYS = {
   dock: { name: 'Dock', hp: 30, flammable: true, fireRes: 1, burnTime: 2, burnsInto: null },
   boat: { name: 'Boat', pass: 'none', flammable: true, fireRes: 1, burnTime: 2, burnsInto: null },
   catapult: { name: 'Catapult', range: 10, atk: 2, hp: 30, flammable: true, fireRes: 1, burnTime: 2, burnsInto: null },
+  // Trees over any ground (David, 2026-10-27): plays like forest; burning removes the trees and leaves the ground
+  trees: { name: 'Trees', move: 1, rangedDef: 2, hides: true, flammable: true, fireRes: 1, burnTime: 3, burnsInto: null },
 };
 
 export { TERRAIN, FORMATIONS, UNIT_TYPES, OFFICERS, HEROIC_ACTIONS, TACTICS, MAP_TERRAIN, MAP_OVERLAYS };

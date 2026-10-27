@@ -140,7 +140,10 @@ function enterCost(s, x, y, u) {
   let move = r.move;
   // Woodsmen: forests cost this unit no extra movement
   const tile = s.map.tiles && s.map.tiles[x + ',' + y];
-  if (u && tile && tile.terrain === 'forest' && trait(u, 'woodsmen')) move -= (data.MAP_TERRAIN.forest.move || 0);
+  if (u && tile && trait(u, 'woodsmen')) {
+    if (tile.terrain === 'forest') move -= (data.MAP_TERRAIN.forest.move || 0);
+    if (tile.overlays?.includes('trees')) move -= (data.MAP_OVERLAYS.trees.move || 0);
+  }
   return Math.max(1, 1 + move);
 }
 
