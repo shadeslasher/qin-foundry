@@ -212,3 +212,58 @@ test('Trees overlay plays like forest over any ground (e.g. rocky ground)', () =
   assert.deepStrictEqual([r.move, r.meleeDef, r.rangedDef, r.hides, r.flammable], [1, 0, 2, true, true]);
   assert.ok(r.names.includes('Rocky ground') && r.names.includes('Trees'));
 });
+
+test('pay-once movement: squares walked + the biggest surcharge on the path, paid once', () => {
+  const s = field({ '1,0': { terrain: 'forest' }, '2,0': { terrain: 'forest' }, '3,0': { terrain: 'forest' },
+    '1,2': { terrain: 'marsh' }, '2,2': { terrain: 'forest' }, '1,4': { terrain: 'plains', overlays: ['road'] } });
+  s.library.unitTypes.push(unitType('inf'));
+  const u = R.unitById(s, add(s, { typeId: 'inf', side: 'player', owner: 'p1', x: 0, y: 0 }));
+  const reach = R.reachable(s, u, 4);
+  assert.strictEqual(reach.get('1,0'), 2, 'one forest square: 1 + 1');
+  assert.strictEqual(reach.get('2,0'), 3, 'two forest squares: 2 + 1, not 4');
+  assert.strictEqual(reach.get('3,0'), 4, 'three: 3 + 1');
+  assert.strictEqual(R.reachable(s, u, 3).get('2,0'), 3, 'movement 3 still goes 2 squares into the trees');
+  u.x = 0; u.y = 2;
+  const r2 = R.reachable(s, u, 5);
+  assert.strictEqual(r2.get('2,2'), 4, 'marsh then forest: 2 squares + the marsh\'s 2 (biggest), not 3 + 2');
+  assert.strictEqual(r2.get('0,1'), 1, 'open ground costs 1');
+});
+
+test('cavalry on rough ground: +1 surcharge, and no charge across or onto it', () => {
+  const s = field({ '5,3': { terrain: 'forest' }, '6,3': { terrain: 'rocky' }, '7,3': { terrain: 'forest', overlays: ['road'] },
+    '3,3': { terrain: 'farmland' } });
+  s.library.unitTypes.push(unitType('inf'), unitType('cav', { category: 'cavalry', move: 5 }), unitType('ha', { category: 'cavalry', weapon: 'ranged', move: 5 }));
+  const c = R.unitById(s, add(s, { typeId: 'cav', side: 'player', owner: 'p1', x: 5, y: 5 }));
+  const inf = R.unitById(s, add(s, { typeId: 'inf', side: 'player', owner: 'p1', x: 9, y: 9 }));
+  let r = R.reachable(s, c, 6);
+  assert.strictEqual(r.get('5,3'), 4, 'cavalry into forest: 2 squares + (1 + 1)');
+  assert.ok(r.rough.has('5,3'), 'ending on forest is rough');
+  assert.strictEqual(r.get('6,3'), 4, 'rocky ground: 3 squares + 1 for horse');
+  assert.strictEqual(r.get('5,4'), 1); assert.ok(!r.rough.has('5,4'));
+  assert.strictEqual(r.get('7,3'), 4, 'road through forest is clear for cavalry');
+  assert.ok(!r.rough.has('7,3'));
+  assert.strictEqual(R.tileRules(s, 3, 3).rough, undefined, 'farmland is not rough');
+  inf.x = 6; inf.y = 5;
+  assert.strictEqual(R.reachable(s, inf, 6).get('6,3'), 2, 'infantry: rocky ground costs nothing extra');
+  const ha = R.unitById(s, add(s, { typeId: 'ha', side: 'player', owner: 'p1', x: 4, y: 3 }));
+  assert.strictEqual(R.reachable(s, ha, 6).get('5,3'), 3, 'mounted archers count as cavalry');
+});
+
+test('a cavalry charge through trees gets no charge bonus; around them it does', () => {
+  function run(tiles) {
+    const s = field(tiles);
+    const a = add(s, { typeId: 'han_lancer_cav', side: 'player', owner: 'p1', x: 5, y: 1 });
+    const d = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 5 });
+    must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'startRound' }));
+    must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: a }));
+    s.freeMovement = false;
+    must(R.act(s, P1, { type: 'moveTo', unitId: a, x: 5, y: 4 }));
+    dice([3, 0, 0, 0]);
+    must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
+    return s.log.filter(e => e.detail && e.detail.type === 'attack').pop().detail.result;
+  }
+  assert.ok(run({}).charge, 'open ground: charge');
+  const r = run({ '5,4': { terrain: 'plains', overlays: ['trees'] } });
+  assert.strictEqual(r.charge, false, 'ending in the trees: no charge');
+  assert.ok(!r.attackRoll.parts.some(([l]) => /Cavalry charge|Charging Strike/.test(l)));
+});

@@ -93,6 +93,7 @@ function tileRules(s, x, y) {
     if (p.pass === 'noCavalry') noCav = true;
     if (p.bridge) bridge = true;
     if (p.hides) r.hides = true;
+    if (p.rough) r.rough = true;
     if (p.noSurround) r.noSurround = true;
     if (p.flammable) { r.flammable = true; r.fireRes = Math.min(r.fireRes ?? 99, p.fireRes || 0); }
     if (p.wall) r.wall = true;
@@ -102,6 +103,8 @@ function tileRules(s, x, y) {
   // cover only counts on open ground: a road, watchtower or any other overlay in a forest leaves the unit in view
   // (a hill keeps its trees)
   if (r.hides && overlays.some(o => o !== 'hill' && !(data.MAP_OVERLAYS[o] || {}).hides)) r.hides = false;
+  // a road or bridge through rough ground lets cavalry ride it normally
+  if (r.rough && overlays.some(o => o === 'road' || o === 'bridge')) r.rough = false;
   // walls, gates and towers hold units, but units don't walk onto them (until ladders and gates are in)
   r.pass = (none && !bridge) || r.wall ? 'none' : noCav ? 'noCavalry' : 'all';
   return r;
@@ -133,19 +136,22 @@ function campEdgeStep(s, x, y, nx, ny) {
   const from = tileRules(s, x, y);
   return !!(from && from.camp);
 }
-/** Movement it costs to enter a square: 1 + its Move modifier, never less than 1 (roads and paving cost the normal 1). */
-function enterCost(s, x, y, u) {
+/** Extra movement a square adds (its Move modifier, never below 0; Woodsmen ignore forest and trees).
+ * Cavalry pay +1 more on rough ground (forest, trees, marsh, rocky, sand, ford, tall grass). */
+function surcharge(s, x, y, u) {
   const r = tileRules(s, x, y);
-  if (!r) return 1;
+  if (!r) return 0;
   let move = r.move;
-  // Woodsmen: forests cost this unit no extra movement
   const tile = s.map.tiles && s.map.tiles[x + ',' + y];
   if (u && tile && trait(u, 'woodsmen')) {
     if (tile.terrain === 'forest') move -= (data.MAP_TERRAIN.forest.move || 0);
     if (tile.overlays?.includes('trees')) move -= (data.MAP_OVERLAYS.trees.move || 0);
   }
-  return Math.max(1, 1 + move);
+  return Math.max(0, move) + (r.rough && isCavalry(s, u) ? 1 : 0);
 }
+const isCavalry = (s, u) => !!u && (typeOf(s, u) || {}).category === 'cavalry';
+/** Rough ground for this unit: cavalry can't charge across or onto it (a road through it is clear). */
+const roughFor = (s, x, y, u) => isCavalry(s, u) && !!(tileRules(s, x, y) || {}).rough;
 
 // ---------------------------------------------------------------- walls and siege
 // Wall level: city walls and fortress towers (units stand on top). Gates are ground level and can't be entered.
@@ -419,37 +425,50 @@ function yinYang() { const yin = d10(), yang = d10(); return { yin, yang, value:
 // ---------------------------------------------------------------- movement
 
 // Tiles reachable by `u` with `budget` movement. Units block movement.
+// Campaign rule (David, 2026-10-27): a move costs 1 per square walked plus the single biggest surcharge
+// on the path, paid once (three forest squares cost 3 + 1 = 4, not 6).
 function reachable(s, u, budget) {
   // Units may move through friendly units (not stop on them); Heavy units, and all enemies, block.
-  // Squares cost 1 + their Move modifier (cheapest path wins); `out.steps` holds the squares walked on that path.
-  const out = new Map(), best = new Map(), steps = new Map(); const key = (x, y) => x + ',' + y;
+  // The cheapest path wins; on a tie, one clear of rough ground, then the longer walk (for a charge).
+  // out: "x,y" -> movement spent (empty squares only); out.steps: squares walked; out.rough: keys whose path crossed or ended on rough ground.
+  const out = new Map(), steps = new Map(), rough = new Set(); const key = (x, y) => x + ',' + y;
   const start = key(u.x, u.y);
-  best.set(start, 0); steps.set(start, 0);
-  const q = [[u.x, u.y, 0, 0]];
+  const seen = new Map(); // "x,y,m,r" -> fewest squares walked to reach that square with max surcharge m and rough flag r
+  const bestAt = new Map(); // "x,y" -> [cost, rough, steps] of the best path so far
+  const better = (a, b) => !b || a[0] < b[0] || (a[0] === b[0] && (a[1] < b[1] || (a[1] === b[1] && a[2] > b[2])));
+  bestAt.set(start, [0, 0, 0]); steps.set(start, 0);
+  const q = [[u.x, u.y, 0, 0, 0]]; // x, y, squares walked, max surcharge, rough
+  seen.set(start + ',0,0', 0);
   while (q.length) {
     let bi = 0;
-    for (let i = 1; i < q.length; i++) if (q[i][2] < q[bi][2]) bi = i;
-    const [x, y, d, n] = q.splice(bi, 1)[0];
-    if (d > best.get(key(x, y))) continue;
+    for (let i = 1; i < q.length; i++) if (q[i][2] + q[i][3] < q[bi][2] + q[bi][3]) bi = i;
+    const [x, y, n, m, rf] = q.splice(bi, 1)[0];
+    if (seen.get(key(x, y) + ',' + m + ',' + rf) < n) continue;
     for (const [dx, dy] of ORTHO) {
       const nx = x + dx, ny = y + dy, k = key(nx, ny);
-      // along the wall top: wall to wall is open ground for units already up there
+      if (k === start) continue;
       // wall tops: along the wall, and to and from the city inside (not down to the outside)
       const fromWall = isWallTop(s, x, y), toWall = isWallTop(s, nx, ny);
       const stepOk = fromWall && toWall ? true : fromWall ? insideCity(s, nx, ny) && passable(s, nx, ny, u)
         : toWall ? insideCity(s, x, y) : passable(s, nx, ny, u) || campEdgeStep(s, x, y, nx, ny);
       if (!stepOk || campEdgeDrop(s, x, y, nx, ny)) continue;
-      const nd = d + enterCost(s, nx, ny, u);
-      if (nd > budget || (best.has(k) && best.get(k) <= nd)) continue;
+      const nn = n + 1, nm = Math.max(m, surcharge(s, nx, ny, u)), nr = rf || (roughFor(s, nx, ny, u) ? 1 : 0);
+      if (nn + nm > budget) continue;
+      const sk = k + ',' + nm + ',' + nr;
+      if (seen.has(sk) && seen.get(sk) <= nn) continue;
       const o = unitAt(s, nx, ny);
       if (o && (trait(o, 'heavy') || !stealthFriends(alliance(o.side), alliance(u.side)))) continue;
-      best.set(k, nd); steps.set(k, n + 1); q.push([nx, ny, nd, n + 1]);
-      if (!o) out.set(k, nd); else out.delete(k);
+      seen.set(sk, nn); q.push([nx, ny, nn, nm, nr]);
+      if (o) continue; // pass through friends, never stop on them
+      const cand = [nn + nm, nr, nn];
+      if (better(cand, bestAt.get(k))) {
+        bestAt.set(k, cand); out.set(k, cand[0]); steps.set(k, nn);
+        if (nr) rough.add(k); else rough.delete(k);
+      }
     }
   }
-  out.delete(start);
-  out.steps = steps;
-  return out; // "x,y" -> movement spent (empty squares only); out.steps: "x,y" -> squares walked
+  out.steps = steps; out.rough = rough;
+  return out;
 }
 
 /**
@@ -484,24 +503,24 @@ function threatArea(s, u) {
  * (another move's worth, 5 morale per extra tile, never down to 0 morale; ends the turn).
  */
 function moveOptions(s, u) {
-  const blue = new Map(), red = new Map(), climb = new Set();
+  const blue = new Map(), red = new Map(), climb = new Set(), rough = new Set();
   const ac = s.turn.activation;
-  if (!u || !ac || ac.unitId !== u.id || ac.step !== 'move' || u.round.cannotMove) return { blue, red, climb };
+  if (!u || !ac || ac.unitId !== u.id || ac.step !== 'move' || u.round.cannotMove) return { blue, red, climb, rough };
   const move = movementOf(s, u);
-  if (!move) return { blue, red, climb };
+  if (!move) return { blue, red, climb, rough };
   // up a ladder onto an empty wall square: takes all its movement
   for (const [x, y] of climbTiles(s, u)) { blue.set(x + ',' + y, 1); climb.add(x + ',' + y); }
   const canForce = !!officerOf(s, u); // only units led by an officer can force-march
   const reach = reachable(s, u, canForce ? move * 2 : move);
   for (const [k, d] of reach) {
     const n = reach.steps.get(k);
-    if (d <= move) blue.set(k, n);
+    if (d <= move) { blue.set(k, n); if (reach.rough.has(k)) rough.add(k); }
     else if (canForce) {
       const cost = forcedMarchCost(s, u) * Math.ceil(d - move);
       if (u.morale - cost > 0) red.set(k, { dist: n, cost });
     }
   }
-  return { blue, red, climb };
+  return { blue, red, climb, rough }; // rough: blue squares whose path crosses or ends on rough ground (no charge)
 }
 
 /** Morale per extra tile of forced march: 5, or 2 under Rapid Advance, Swift Retreat (active, or about to fire). */
@@ -1334,11 +1353,12 @@ function endRound(s) {
 function startActivation(s, u, extra) {
   if (u.overwatch) { delete u.overwatch; log(s, u.name + ' stands down from overwatch.', { type: 'overwatch', unit: u.id, on: false }); }
   s.turn.activation = Object.assign({ unitId: u.id, step: 'move', started: false, startedHidden: !!u.hidden,
-    movedThisActivation: false, tilesMoved: 0, forcedMarched: false, interject: false, from: { x: u.x, y: u.y } }, extra || {});
+    movedThisActivation: false, tilesMoved: 0, roughPath: false, forcedMarched: false, interject: false, from: { x: u.x, y: u.y } }, extra || {});
 }
 
 /** Tiles that count for a charge against `target`: none if the unit started its turn next to it (no stepping out and back in). */
 function chargeTiles(ac, target) {
+  if (ac.roughPath) return 0; // cavalry that rode across or onto rough ground get no charge
   if (ac.from && Math.abs(ac.from.x - target.x) + Math.abs(ac.from.y - target.y) <= 1) return 0;
   return ac.tilesMoved || 0;
 }
@@ -1769,7 +1789,7 @@ const ACTIONS = {
     const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
     const { u, act: ac } = r;
     const k = a.x + ',' + a.y;
-    const { blue, red, climb } = moveOptions(s, u);
+    const { blue, red, climb, rough } = moveOptions(s, u);
     const forced = !blue.has(k) && red.has(k);
     if (!blue.has(k) && !forced) return err("Can't move there");
     const from = { x: u.x, y: u.y };
@@ -1791,7 +1811,7 @@ const ACTIONS = {
       if (alive(u)) finishActivation(s, u);
       return;
     }
-    ac.tilesMoved = blue.get(k);
+    ac.tilesMoved = blue.get(k); ac.roughPath = rough.has(k);
     if (climb && climb.has(k)) {
       ac.tilesMoved = 0; // climbing is no charge, and can't be taken back
       log(s, u.name + ' climbs the ladder onto the wall.', { type: 'climb', unit: u.id });
@@ -1809,7 +1829,7 @@ const ACTIONS = {
     if (!ac.undo) return err('Nothing to undo');
     if (unitAt(s, ac.undo.from.x, ac.undo.from.y) && unitAt(s, ac.undo.from.x, ac.undo.from.y) !== u) return err('Its old tile is taken');
     u.x = ac.undo.from.x; u.y = ac.undo.from.y; u.facing = ac.undo.facing; u.hidden = ac.undo.hidden;
-    u.round.moved = false; ac.step = 'move'; ac.movedThisActivation = false; ac.tilesMoved = 0; ac.started = ac.undo.started;
+    u.round.moved = false; ac.step = 'move'; ac.movedThisActivation = false; ac.tilesMoved = 0; ac.roughPath = false; ac.started = ac.undo.started;
     delete ac.undo;
     log(s, u.name + ' takes back its move.');
   },
@@ -1887,7 +1907,7 @@ const ACTIONS = {
     // Clear a Path: destroying an enemy after moving lets the unit move and attack again
     if (res && res.killedBy === u.id && ac.movedThisActivation && hasTactic(s, u, 'clearPath')) {
       u.round.attacked = false; u.round.moved = false;
-      Object.assign(ac, { step: 'move', movedThisActivation: false, tilesMoved: 0, forcedMarched: false, from: { x: u.x, y: u.y } }); // a fresh move: it may charge again
+      Object.assign(ac, { step: 'move', movedThisActivation: false, tilesMoved: 0, roughPath: false, forcedMarched: false, from: { x: u.x, y: u.y } }); // a fresh move: it may charge again
       log(s, u.name + ' clears a path: it may move and attack again.');
       return;
     }
@@ -2177,11 +2197,13 @@ function doMove(s, actor, a, forced) {
   if (!alive(u)) return ok();
   if (forced) fireTactics(s, 'forcedMarch', u);
   const from = { x: u.x, y: u.y };
-  const tiles = s.freeMovement ? Math.abs(a.x - u.x) + Math.abs(a.y - u.y) : (reachable(s, u, budget).steps.get(a.x + ',' + a.y) ?? 0);
+  const path = s.freeMovement ? null : reachable(s, u, budget), pk = a.x + ',' + a.y;
+  const tiles = path ? (path.steps.get(pk) ?? 0) : Math.abs(a.x - u.x) + Math.abs(a.y - u.y);
+  const roughPath = path ? path.rough.has(pk) : roughFor(s, a.x, a.y, u); // dragged token: only the end square is known
   u.x = a.x; u.y = a.y; u.round.moved = true;
   ac.started = true; ac.movedThisActivation = true;
   revealAround(s, u);
-  if (!forced) ac.tilesMoved = tiles;
+  if (!forced) { ac.tilesMoved = tiles; ac.roughPath = roughPath; }
   if (forced) {
     ac.forcedMarched = true;
     const fc = forcedMarchCost(s, u);

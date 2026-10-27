@@ -168,7 +168,7 @@ const TACTICS = [
 
 // Battlefield terrain from the battle map file (map generator export, Battlefield Terrain Rules sheet, 2026-10-22).
 // A square's effects are its terrain plus every overlay on it, added together.
-//   move: extra movement to enter · pass: 'none' (no one) | 'noCavalry' · meleeDef/rangedDef: defense of a unit here
+//   move: extra movement to enter · rough: cavalry pay +1 more here and can't charge across it · pass: 'none' (no one) | 'noCavalry' · meleeDef/rangedDef: defense of a unit here
 //   range: range for a ranged unit here · atk: attacks by a unit here · command: all Command rolls of a unit here
 //   moraleTurn/healthTurn: for ending a turn here · hides: units here can hide · noSurround: units here can't be surrounded (forts, command tents, town halls) · campDef: defense only against
 //   attacks from outside the camp · wall: walls, gates, towers (units can stand there, but don't walk on for now)
@@ -176,20 +176,20 @@ const TACTICS = [
 const MAP_TERRAIN = {
   plains: { name: 'Plains' },
   steppe: { name: 'Steppe' },
-  sand: { name: 'Sand', move: 1 },
+  sand: { name: 'Sand', move: 1, rough: true },
   paving: { name: 'Paving', move: -1 },
   city: { name: 'City', pass: 'none', flammable: true, fireRes: 2, burnTime: 4, burnsInto: 'ruins' },
   farmland: { name: 'Farmland', move: 1, flammable: true, fireRes: 0, burnTime: 2, burnsInto: 'scorched' },
-  'tall-grass': { name: 'Tall grass', move: 1, hides: true, flammable: true, fireRes: 0, burnTime: 2, burnsInto: 'scorched' },
-  forest: { name: 'Forest', move: 1, rangedDef: 2, hides: true, flammable: true, fireRes: 1, burnTime: 3, burnsInto: 'scorched' },
-  marsh: { name: 'Marsh', move: 2 },
+  'tall-grass': { name: 'Tall grass', move: 1, rough: true, hides: true, flammable: true, fireRes: 0, burnTime: 2, burnsInto: 'scorched' },
+  forest: { name: 'Forest', move: 1, rough: true, rangedDef: 2, hides: true, flammable: true, fireRes: 1, burnTime: 3, burnsInto: 'scorched' },
+  marsh: { name: 'Marsh', move: 2, rough: true },
   mountain: { name: 'Mountain', pass: 'none' },
   cliffs: { name: 'Cliffs', pass: 'none' },
   river: { name: 'River', pass: 'none' },
   lake: { name: 'Lake', pass: 'none', water: true },
-  ford: { name: 'Ford', move: 2, meleeDef: -1, rangedDef: -1, water: true },
+  ford: { name: 'Ford', move: 2, rough: true, meleeDef: -1, rangedDef: -1, water: true },
   scorched: { name: 'Scorched' },
-  rocky: { name: 'Rocky ground' },
+  rocky: { name: 'Rocky ground', rough: true },
 };
 const MAP_OVERLAYS = {
   road: { name: 'Road', move: -1 },
@@ -219,7 +219,7 @@ const MAP_OVERLAYS = {
   boat: { name: 'Boat', pass: 'none', flammable: true, fireRes: 1, burnTime: 2, burnsInto: null },
   catapult: { name: 'Catapult', range: 10, atk: 2, hp: 30, flammable: true, fireRes: 1, burnTime: 2, burnsInto: null },
   // Trees over any ground (David, 2026-10-27): plays like forest; burning removes the trees and leaves the ground
-  trees: { name: 'Trees', move: 1, rangedDef: 2, hides: true, flammable: true, fireRes: 1, burnTime: 3, burnsInto: null },
+  trees: { name: 'Trees', move: 1, rough: true, rangedDef: 2, hides: true, flammable: true, fireRes: 1, burnTime: 3, burnsInto: null },
 };
 
 export { TERRAIN, FORMATIONS, UNIT_TYPES, OFFICERS, HEROIC_ACTIONS, TACTICS, MAP_TERRAIN, MAP_OVERLAYS };
