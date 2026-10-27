@@ -43,7 +43,9 @@ function applyTextScale() {
 }
 
 import { registerCompendiumSync } from "./module/compendium-sync.mjs";
+import { registerPlacedTag } from "./module/placed-tag.mjs";
 registerCompendiumSync();
+registerPlacedTag();
 Hooks.once("init", () => {
   console.log("Qin | Initializing Qin: The Warring States");
   CONFIG.QIN = CFG;
