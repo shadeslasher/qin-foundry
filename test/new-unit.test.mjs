@@ -13,7 +13,10 @@ const { createUnit } = await import('../module/new-unit.mjs');
 
 test('blank units go into the right folder for their side or owner', async () => {
   await createUnit({ template: '', name: '', owner: '', side: 'player', officer: '' });
-  assert.strictEqual(actors.at(-1).folder, null, 'a player-side unit with no owner goes at the top');
+  const nf = folders.find(f => f.id === actors.at(-1).folder);
+  assert.strictEqual(nf.name, 'No owner', 'a player-side unit with no owner goes in "No owner"'); assert.strictEqual(nf.folder.name, 'Player Units');
+  await createUnit({ template: '', name: 'Spare', owner: '', side: 'player', officer: '' });
+  assert.strictEqual(folders.filter(f => f.name === 'No owner').length, 1, 'reuses "No owner"');
   await createUnit({ template: '', name: 'Raiders', owner: '', side: 'enemy', officer: '' });
   assert.strictEqual(folders.find(f => f.id === actors.at(-1).folder).name, 'Enemy Units');
   await createUnit({ template: '', name: 'Guard', owner: 'u1', side: 'player', officer: '' });

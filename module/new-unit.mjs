@@ -51,7 +51,7 @@ async function formHTML() {
       <div class="form-group"><label>Owner</label><select name="owner">${ownerOpts}</select></div>
       <div class="form-group"><label>Side</label><select name="side">${sideOpts}</select></div>
       <div class="form-group"><label>Officer</label><select name="officer">${officerOpts}</select></div>
-      <p class="qin-muted">The unit goes in the Actors directory: player units in a folder for their owner under "Player Units"; enemy, ally and neutral units in "Enemy Units", "Ally Units" or "Neutral Units". Drag it onto a scene when it's needed. This window stays open, so you can make several units in a row.</p>
+      <p class="qin-muted">The unit goes in the Actors directory: player units in a folder for their owner under "Player Units" (or "No owner" there if nobody owns them); enemy, ally and neutral units in "Enemy Units", "Ally Units" or "Neutral Units". Drag it onto a scene when it's needed. This window stays open, so you can make several units in a row.</p>
     </div>
     <footer class="form-footer">
       <button type="submit" data-create><i class="fa-solid fa-check"></i> Create unit</button>
@@ -113,11 +113,12 @@ async function sideFolder(side) {
   return findFolder(f.name, null) ?? await Folder.create({ name: f.name, type: "Actor", sorting: "a", color: f.color });
 }
 
-/** The owner's folder: "Player Units" / "<player>'s units" (made when first needed). */
+/** The owner's folder: "Player Units" / "<player>'s units", or "Player Units" / "No owner" for a unit nobody owns yet (made when first needed). */
 async function ownerFolder(userId) {
-  const user = game.users.get(userId); if (!user) return null;
+  const user = userId ? game.users.get(userId) : null;
   const find = findFolder;
   const top = find("Player Units", null) ?? await Folder.create({ name: "Player Units", type: "Actor", sorting: "a" });
+  if (!user) return find("No owner", top) ?? await Folder.create({ name: "No owner", type: "Actor", folder: top.id, sorting: "a", color: "#808080" });
   const name = `${user.name}'s units`;
   return find(name, top) ?? await Folder.create({ name, type: "Actor", folder: top.id, sorting: "a", color: user.color?.css ?? user.color ?? null });
 }
@@ -137,7 +138,7 @@ export async function createUnit({ template, name, owner, side, officer }) {
   data.prototypeToken = { ...(data.prototypeToken ?? {}), name: data.name, actorLink: !!owner || !!data.prototypeToken?.actorLink,
     disposition: side === "enemy" ? CONST.TOKEN_DISPOSITIONS.HOSTILE : side === "neutral" ? CONST.TOKEN_DISPOSITIONS.NEUTRAL : CONST.TOKEN_DISPOSITIONS.FRIENDLY };
   // enemy, ally and neutral units go in their side's folder; player units in their owner's folder
-  const folder = SIDE_FOLDERS[side] ? await sideFolder(side) : owner ? await ownerFolder(owner) : null;
+  const folder = SIDE_FOLDERS[side] ? await sideFolder(side) : await ownerFolder(owner);
   data.folder = folder?.id ?? null;
   // remember the template, so the Unit Editor can update this copy later
   if (template) data.flags = foundry.utils.mergeObject(data.flags ?? {}, { [game.system.id]: { template } });
