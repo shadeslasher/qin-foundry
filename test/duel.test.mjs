@@ -74,8 +74,16 @@ test('a slain officer: his unit loses 50 and its officer, the victor gains 25', 
   assert.strictEqual(a.morale, 85);
 });
 
-test('duel close-up window: the two squares and two squares round them', async () => {
-  const { duelWindow } = await import('../module/battle/duel-rules.mjs');
-  assert.deepStrictEqual(duelWindow({ x: 5, y: 5 }, { x: 6, y: 5 }), { x: 3, y: 3, w: 6, h: 5 });
-  assert.deepStrictEqual(duelWindow({ x: 2, y: 4 }, { x: 2, y: 3 }), { x: 0, y: 1, w: 5, h: 6 });
+test('duel ground: overlays first (a camp on plains is a camp), then terrain; scene falls back to "anything else"', async () => {
+  const { duelGround, duelSceneFor } = await import('../module/battle/duel-rules.mjs');
+  assert.strictEqual(duelGround({ terrain: 'plains' }), 'plains');
+  assert.strictEqual(duelGround({ terrain: 'farmland' }), 'plains');
+  assert.strictEqual(duelGround({ terrain: 'plains', overlays: ['camp'] }), 'camp');
+  assert.strictEqual(duelGround({ terrain: 'rocky', overlays: ['trees'] }), 'forest');
+  assert.strictEqual(duelGround({ terrain: 'plains', overlays: ['hill'] }), 'hills');
+  assert.strictEqual(duelGround({ terrain: 'ford' }), 'water');
+  assert.strictEqual(duelGround(null), 'default');
+  assert.strictEqual(duelSceneFor({ plains: 'S1', default: 'S9' }, 'plains'), 'S1');
+  assert.strictEqual(duelSceneFor({ plains: 'S1', default: 'S9' }, 'forest'), 'S9');
+  assert.strictEqual(duelSceneFor({}, 'forest'), null);
 });

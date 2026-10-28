@@ -1,83 +1,73 @@
-// Officer duels, step 2 (David, 2026-10-28): when a duel is accepted, the GM's client builds a close-up scene of
-// the two officers' squares, puts their character tokens on it with a combat encounter, and brings everyone there.
-// When the duel ends (or is called off), everyone goes back to the battle and the close-up is removed.
-//
-// The close-up is drawn by the map generator (from the Three Kingdoms module) at a high resolution; without it,
-// the battle map's own image is cropped and enlarged instead.
+// Officer duels, step 2 (David, 2026-10-28): when a duel is accepted, everyone goes to a person-scale scene the GM
+// has set up for the ground the challenged officer stands on (plains, forest, town...). The two officers' tokens
+// are placed there with a combat encounter; when the duel ends (or is called off) everyone comes back to the battle
+// and the duel tokens and encounter are removed. The scenes themselves (hex grids or not) are the GM's own.
 import { SYSTEM_ID } from "../config.mjs";
 import { getBattle } from "./adapter.mjs";
-import { canRedraw, renderWindow, setBackground } from "./maprender.mjs";
-import { duelWindow } from "./duel-rules.mjs";
+import { FLAG as MAP_FLAG, decodeTiles } from "./battlemap.mjs";
+import { DUEL_GROUNDS, duelGround, duelSceneFor } from "./duel-rules.mjs";
 
 const SETTING = "battle";
-const PX = 256;          // pixels a square in the close-up
+export const DUEL_SCENES = "duelScenes"; // { ground: sceneId }
 
-export const duelScenesOn = () => { try { return game.settings.get(SYSTEM_ID, "duelScenes") !== false; } catch { return true; } };
-
-/** Crop and enlarge the battle scene's own background (no map generator). */
-async function cropBackground(scene, win, px) {
-  const src = (scene.levels?.size ? scene.levels.contents[0]?.background?.src : null) ?? scene.background?.src;
-  if (!src) return null;
-  const img = await new Promise((res, rej) => { const i = new Image(); i.crossOrigin = "anonymous"; i.onload = () => res(i); i.onerror = rej; i.src = foundry.utils.getRoute?.(src) ?? src; });
-  const g = scene.grid.size, c = document.createElement("canvas");
-  c.width = win.w * px; c.height = win.h * px;
-  const ctx = c.getContext("2d");
-  ctx.fillStyle = "#6f8f4a"; ctx.fillRect(0, 0, c.width, c.height);
-  ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(img, win.x * g, win.y * g, win.w * g, win.h * g, 0, 0, c.width, c.height);
-  return new Promise((res) => c.toBlob(res, "image/jpeg", 0.9));
-}
-
-async function upload(blob, name) {
-  const FP = foundry.applications?.apps?.FilePicker?.implementation ?? globalThis.FilePicker;
-  const dir = `worlds/${game.world.id}/battlemaps/duels`;
-  for (const d of [`worlds/${game.world.id}/battlemaps`, dir]) { try { await FP.createDirectory("data", d); } catch { /* already there */ } }
-  const file = new File([blob], `${name.replace(/[^\w-]+/g, "-")}-${Date.now()}.jpg`, { type: "image/jpeg" });
-  const res = await FP.upload("data", dir, file, {}, { notify: false });
-  return res?.path ?? `${dir}/${file.name}`;
-}
-
+const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
+const sceneMap = () => { try { return game.settings.get(SYSTEM_ID, DUEL_SCENES) || {}; } catch { return {}; } };
 const officerOf = (scene, unitId) => scene?.tokens.get(unitId)?.actor?.system?.officerActor ?? null;
 
-/** GM: build the close-up for the duel that was just accepted and take everyone there. */
+/** The battle map square under a unit: { terrain, overlays } (scenes from the map generator), else null. */
+function tileUnder(scene, battle, unitId) {
+  const pos = battle.meta?.[unitId]?.pos ?? (() => { const t = scene?.tokens.get(unitId); return t ? { x: Math.round(t.x / scene.grid.size), y: Math.round(t.y / scene.grid.size) } : null; })();
+  const flag = scene?.getFlag?.(SYSTEM_ID, MAP_FLAG);
+  if (!pos || !flag) return null;
+  try { return decodeTiles(flag)?.[pos.x + "," + pos.y] ?? null; } catch { return null; }
+}
+
+/** Two spots near the middle of the duel scene, a couple of cells apart (hex or square grids). */
+function startSpots(scene) {
+  const g = scene.grid, d = scene.dimensions ?? { sceneX: 0, sceneY: 0, sceneWidth: scene.width, sceneHeight: scene.height };
+  const cx = d.sceneX + d.sceneWidth / 2, cy = d.sceneY + d.sceneHeight / 2;
+  try {
+    const o = g.getOffset({ x: cx, y: cy });
+    return [g.getTopLeftPoint({ i: o.i, j: o.j - 1 }), g.getTopLeftPoint({ i: o.i, j: o.j + 2 })];
+  } catch {
+    const s = g.size ?? 100;
+    return [{ x: cx - 2 * s, y: cy - s / 2 }, { x: cx + s, y: cy - s / 2 }];
+  }
+}
+
+/** GM: send everyone to the duel scene for the challenged officer's ground and set the duel up there. */
 export async function openDuelScene() {
-  if (!game.user.isGM || !duelScenesOn()) return;
+  if (!game.user.isGM) return;
   const battle = getBattle(), p = battle.duels?.pending;
   if (!p || p.stage !== "fighting" || p.duelSceneId) return;
   const scene = game.scenes.get(battle.sceneId);
-  const posOf = (id) => battle.meta?.[id]?.pos ?? (() => { const t = scene?.tokens.get(id); return t ? { x: Math.round(t.x / scene.grid.size), y: Math.round(t.y / scene.grid.size) } : null; })();
-  const pa = posOf(p.from), pb = posOf(p.to);
+  const ground = duelGround(tileUnder(scene, battle, p.to));
+  const duel = game.scenes.get(duelSceneFor(sceneMap(), ground) ?? "");
+  if (!duel) {
+    ui.notifications.info(`No duel scene is set for ${(DUEL_GROUNDS.find(([k]) => k === ground) ?? [, ground])[1].toLowerCase()}: fight the duel here (Game Settings > Duel scenes).`);
+    return;
+  }
   const A = officerOf(scene, p.from), B = officerOf(scene, p.to);
-  if (!scene || !pa || !pb || !A || !B) return ui.notifications.warn("The duel scene couldn't be set up; fight the duel here instead.");
-  const note = ui.notifications.info("Setting the scene for the duel…", { permanent: true });
+  if (!A || !B) return ui.notifications.warn("The duelling officers couldn't be found; fight the duel here instead.");
   try {
-    const win = duelWindow(pa, pb);
-    let blob = null;
-    if (canRedraw(scene)) { try { blob = await renderWindow(scene, win, PX); } catch (e) { console.warn("Qin | duel close-up", e); } }
-    if (!blob) { try { blob = await cropBackground(scene, win, PX); } catch (e) { console.warn("Qin | duel crop", e); } }
-    const name = `Duel: ${A.name} vs ${B.name}`;
-    const src = blob ? await upload(blob, `duel-${A.name}-${B.name}`) : null;
-    const duel = await Scene.create({
-      name, width: win.w * PX, height: win.h * PX, padding: 0, backgroundColor: "#4a5a34",
-      grid: { size: PX, type: 1, distance: 5, units: "yd" }, tokenVision: false, fog: { exploration: false },
-      navigation: false, flags: { [SYSTEM_ID]: { duelOf: scene.id } },
-    });
-    if (src) await setBackground(duel, src);
-    const place = (actor, pos) => actor.getTokenDocument({ x: (pos.x - win.x) * PX, y: (pos.y - win.y) * PX, width: 1, height: 1, actorLink: true });
-    const docs = await Promise.all([place(A, pa), place(B, pb)]);
+    const [sa, sb] = startSpots(duel);
+    const docs = await Promise.all([A.getTokenDocument({ x: sa.x, y: sa.y, actorLink: true }), B.getTokenDocument({ x: sb.x, y: sb.y, actorLink: true })]);
     const toks = await duel.createEmbeddedDocuments("Token", docs.map(d => d.toObject()));
     const combat = await Combat.create({ scene: duel.id, active: true });
     await combat.createEmbeddedDocuments("Combatant", toks.map(t => ({ tokenId: t.id, sceneId: duel.id, actorId: t.actorId })));
     const b = getBattle();
-    if (b.duels?.pending) { b.duels.pending.duelSceneId = duel.id; b.duels.pending.duelCombatId = combat.id; await game.settings.set(SYSTEM_ID, SETTING, b); }
+    if (b.duels?.pending) {
+      Object.assign(b.duels.pending, { duelSceneId: duel.id, duelCombatId: combat.id, duelTokenIds: toks.map(t => t.id) });
+      await game.settings.set(SYSTEM_ID, SETTING, b);
+    }
     await duel.activate();
   } catch (e) {
     console.error("Qin | duel scene", e);
     ui.notifications.error(`The duel scene couldn't be set up (${e.message}); fight the duel here instead.`);
-  } finally { note?.remove?.(); }
+  }
 }
 
-/** GM: the duel is over; bring everyone back to the battle and clear the close-up away. */
+/** GM: the duel is over; everyone back to the battle; remove the duel tokens and encounter (the scene stays). */
 export async function closeDuelScene(pending) {
   if (!game.user.isGM || !pending?.duelSceneId) return;
   const battle = getBattle();
@@ -87,6 +77,32 @@ export async function closeDuelScene(pending) {
     const combat = game.combats.get(pending.duelCombatId);
     if (combat) await combat.delete();
     const duel = game.scenes.get(pending.duelSceneId);
-    if (duel) await duel.delete();
-  } catch (e) { console.warn("Qin | closing the duel scene", e); }
+    const ids = (pending.duelTokenIds ?? []).filter(id => duel?.tokens.get(id));
+    if (duel && ids.length) await duel.deleteEmbeddedDocuments("Token", ids);
+  } catch (e) { console.warn("Qin | leaving the duel scene", e); }
+}
+
+/** Game Settings > Duel scenes: pick a person-scale scene for each kind of ground. */
+export class DuelScenesConfig extends foundry.applications.api.ApplicationV2 {
+  static DEFAULT_OPTIONS = {
+    id: "qin-duel-scenes", classes: ["qin", "qin-duel-scenes"], tag: "form",
+    window: { title: "Duel scenes", icon: "fa-solid fa-swords" },
+    position: { width: 460, height: "auto" },
+    form: { handler: DuelScenesConfig.#save, closeOnSubmit: true },
+  };
+  async _renderHTML() {
+    const map = sceneMap();
+    const opts = (sel) => `<option value="">(none)</option>` + game.scenes.contents.slice().sort((a, b) => a.name.localeCompare(b.name))
+      .map(s => `<option value="${s.id}" ${s.id === sel ? "selected" : ""}>${esc(s.name)}</option>`).join("");
+    return `<p class="qin-muted">When a duel is accepted, everyone goes to the scene chosen for the ground the challenged officer stands on, and the two officers are placed there with a combat encounter. "Anything else" covers grounds without their own scene; with nothing chosen, the duel is fought on the battle map.</p>
+      ${DUEL_GROUNDS.map(([k, label]) => `<div class="form-group"><label>${esc(label)}</label><select name="${k}">${opts(map[k])}</select></div>`).join("")}
+      <footer class="form-footer"><button type="submit"><i class="fa-solid fa-floppy-disk"></i> Save</button></footer>`;
+  }
+  _replaceHTML(result, content) { content.innerHTML = result; }
+  static async #save(event, form, formData) {
+    const data = formData.object ?? {};
+    const map = {};
+    for (const [k] of DUEL_GROUNDS) if (data[k]) map[k] = data[k];
+    await game.settings.set(SYSTEM_ID, DUEL_SCENES, map);
+  }
 }

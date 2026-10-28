@@ -79,7 +79,7 @@ const DRAWN = "battlemapDrawn";
 const currentSrc = (scene) => (scene.levels?.size ? scene.levels.contents[0]?.background?.src : null) ?? scene.background?.src ?? null;
 const absUrl = (src) => { try { return new URL(/^[a-z]+:/i.test(src) ? src : (foundry.utils.getRoute?.(src) ?? src), window.location.href).href; } catch { return src; } };
 
-export async function setBackground(scene, src) {
+async function setBackground(scene, src) {
   if (scene.levels?.size) {
     try { await scene.levels.contents[0].update({ background: { src } }); return; } catch (e) { console.warn("Qin | level background", e); }
   }
@@ -155,20 +155,6 @@ export async function redrawScene(scene, { edits = [], look = null, quiet = fals
     busy = null;
     if (again) { const a = again; again = null; redrawScene(a.scene, a); }
   }
-}
-
-/**
- * A close-up of a few squares (x, y, w, h) drawn as their own small map at `px` pixels a square, with the battle's
- * changes (fires, burned gates) shown. Resolves with an image Blob. Needs the map generator.
- */
-export async function renderWindow(scene, win, px = 256) {
-  const flag = mapFlag(scene);
-  if (!renderer || !flag?.layoutCode) throw new Error("No map generator layout for this scene.");
-  const edits = battleEdits(scene).filter(e => e.x >= win.x && e.y >= win.y && e.x < win.x + win.w && e.y < win.y + win.h)
-    .map(e => ({ ...e, x: e.x - win.x, y: e.y - win.y }));
-  // the battle's edits are given in window squares: draw the window first, then apply them
-  const r = await work({ code: flag.layoutCode, window: win, px, blend: flag.blend ?? 50, vignette: true, image: true, type: "image/jpeg", windowEdits: edits });
-  return r.blob;
 }
 
 /* ------------------------------------------------------------ redraw when the battle changes the map */

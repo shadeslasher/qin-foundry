@@ -44,6 +44,7 @@ function applyTextScale() {
 
 import { registerCompendiumSync } from "./module/compendium-sync.mjs";
 import { registerPlacedTag } from "./module/placed-tag.mjs";
+import { DuelScenesConfig } from "./module/battle/duel-scene.mjs";
 registerCompendiumSync();
 registerPlacedTag();
 Hooks.once("init", () => {
@@ -110,9 +111,11 @@ Hooks.once("init", () => {
     name: "Rotate unit tokens to show facing", hint: "Battle units turn toward the unit they attacked, or the first unit that attacked them that round (unless they had already attacked), and turn back when the round ends. Leave off if your token art isn't top-down.",
     scope: "world", config: true, type: Boolean, default: false,
   });
-  game.settings.register(SYSTEM_ID, "duelScenes", {
-    name: "Duels get their own close-up scene", hint: "When an officer accepts a duel in battle, the two officers fight on a close-up of their squares (drawn in high quality when the Three Kingdoms module's map generator is installed), then everyone returns to the battle.",
-    scope: "world", config: true, type: Boolean, default: true,
+  game.settings.register(SYSTEM_ID, "duelScenes", { scope: "world", config: false, type: Object, default: {} });
+  game.settings.registerMenu(SYSTEM_ID, "duelScenesMenu", {
+    name: "Duel scenes", label: "Choose duel scenes", icon: "fa-solid fa-swords", restricted: true,
+    hint: "The person-scale scene a duel moves to, for each kind of ground the challenged officer stands on.",
+    type: DuelScenesConfig,
   });
   game.settings.register(SYSTEM_ID, "manageStealth", {
     name: "Hide stealthy enemy units from players", hint: "Enemy units hidden in grass or trees are hidden from players until spotted.",
