@@ -73,3 +73,9 @@ test('a slain officer: his unit loses 50 and its officer, the victor gains 25', 
   assert.strictEqual(b.morale, 10); assert.strictEqual(b.officerId, null);
   assert.strictEqual(a.morale, 85);
 });
+
+test('duel close-up window: the two squares and two squares round them', async () => {
+  const { duelWindow } = await import('../module/battle/duel-rules.mjs');
+  assert.deepStrictEqual(duelWindow({ x: 5, y: 5 }, { x: 6, y: 5 }), { x: 3, y: 3, w: 6, h: 5 });
+  assert.deepStrictEqual(duelWindow({ x: 2, y: 4 }, { x: 2, y: 3 }), { x: 0, y: 1, w: 5, h: 6 });
+});

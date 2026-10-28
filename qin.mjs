@@ -110,6 +110,10 @@ Hooks.once("init", () => {
     name: "Rotate unit tokens to show facing", hint: "Battle units turn toward the unit they attacked, or the first unit that attacked them that round (unless they had already attacked), and turn back when the round ends. Leave off if your token art isn't top-down.",
     scope: "world", config: true, type: Boolean, default: false,
   });
+  game.settings.register(SYSTEM_ID, "duelScenes", {
+    name: "Duels get their own close-up scene", hint: "When an officer accepts a duel in battle, the two officers fight on a close-up of their squares (drawn in high quality when the Three Kingdoms module's map generator is installed), then everyone returns to the battle.",
+    scope: "world", config: true, type: Boolean, default: true,
+  });
   game.settings.register(SYSTEM_ID, "manageStealth", {
     name: "Hide stealthy enemy units from players", hint: "Enemy units hidden in grass or trees are hidden from players until spotted.",
     scope: "world", config: true, type: Boolean, default: true,

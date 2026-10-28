@@ -511,6 +511,7 @@ async function runActionNow(userId, action) {
   const logLen = s.log.length;
   const before = Object.fromEntries(s.units.map(u => [u.id, { men: u.men, morale: u.morale, xp: u.xp || 0, status: u.status }]));
   E.setRng(() => CONFIG.Dice.randomUniform());
+  const prevDuel = foundry.utils.deepClone(battle.duels?.pending ?? null);
   const res = E.act(s, actor, action.type === "startBattle" ? { type: "startBattle" } : action);
   if (!res.ok && action.type === "startBattle") return res;
   if (res.ok && action.type === "duelAnswer" && s.duels?.pending?.stage === "fighting") {
@@ -520,6 +521,9 @@ async function runActionNow(userId, action) {
   }
   await writeBack(battle, s, scene);
   await postLog(s.log.slice(logLen), s);
+  // officer duels: an accepted duel moves to its close-up scene; a finished or cancelled one comes back
+  if (res.ok && action.type === "duelAnswer" && s.duels?.pending?.stage === "fighting") (await import("./duel-scene.mjs")).openDuelScene();
+  if (res.ok && (action.type === "duelResult" || action.type === "duelCancel") && prevDuel?.duelSceneId) await (await import("./duel-scene.mjs")).closeDuelScene(prevDuel);
   if (res.ok) {
     const shown = animateChanges(scene, before, s, s.log.slice(logLen), action.type);
     // Units destroyed or surrendered this action: remove their tokens once the skull/flag and fade have played.
