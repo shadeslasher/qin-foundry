@@ -251,23 +251,26 @@ test('Charging Strike: Attack +2/+4/+6 when the unit moved 2 or more tiles befor
   assert.strictEqual(part(t.r.attackRoll, /^Charging Strike/), 0);
 });
 
-test('Deflect: defense +2 (+3 vs ranged) against the first attack each round; Deflect+ the first two', () => {
+test('Deflect: ranged defense +3 against the first ranged attack each round; Deflect+ the first two; nothing in melee', () => {
   const s = setup(); s.library.unitTypes.push(unitType('a'), unitType('d'), unitType('b', { weapon: 'ranged', rangeMax: 3 }));
   const A = R.unitById(s, add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 5, y: 5 }));
   const B = R.unitById(s, add(s, { typeId: 'b', side: 'player', owner: 'p1', x: 5, y: 7 }));
   const D = R.unitById(s, add(s, { typeId: 'd', side: 'enemy', x: 5, y: 4 }));
   D.traitTiers = { deflect: 1 };
-  assert.strictEqual(part(rollOf(s, D, 'defender', A), /^Deflect/), 2);
+  assert.strictEqual(part(rollOf(s, D, 'defender', A), /^Deflect/), 0, 'no melee bonus');
   assert.strictEqual(part(rollOf(s, D, 'defender', B, { ranged: true }), /^Deflect/), 3);
-  D.round.attacksTaken = 1;
-  assert.strictEqual(part(rollOf(s, D, 'defender', A), /^Deflect/), 0, 'already attacked once this round');
+  D.round.attacksTaken = 3; // melee attacks don't use it up
+  assert.strictEqual(part(rollOf(s, D, 'defender', B, { ranged: true }), /^Deflect/), 3);
+  D.round.rangedTaken = 1;
+  assert.strictEqual(part(rollOf(s, D, 'defender', B, { ranged: true }), /^Deflect/), 0, 'already shot at once this round');
   D.traitTiers = { deflect: 2 };
-  assert.strictEqual(part(rollOf(s, D, 'defender', A), /^Deflect\+/), 2, 'Deflect+ still works on the second attack');
-  D.round.attacksTaken = 2;
-  assert.strictEqual(part(rollOf(s, D, 'defender', A), /^Deflect/), 0);
-  // the count comes from real attacks and resets each round
+  assert.strictEqual(part(rollOf(s, D, 'defender', B, { ranged: true }), /^Deflect\+/), 3, 'Deflect+ still works on the second shot');
+  D.round.rangedTaken = 2;
+  assert.strictEqual(part(rollOf(s, D, 'defender', B, { ranged: true }), /^Deflect/), 0);
+  // the count comes from real attacks: a melee attack doesn't count as a ranged one
   const { D: D2 } = duel(unitType('a'), unitType('d'), [3, 0, 0, 0]);
   assert.strictEqual(D2.round.attacksTaken, 1);
+  assert.strictEqual(D2.round.rangedTaken || 0, 0);
 });
 
 test('cavalry: Command +1 in melee against infantry, attacking or defending; not for shots', () => {

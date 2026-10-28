@@ -415,7 +415,7 @@ function newRoundFlags() {
   return { activated: false, moved: false, cannotMove: false, holding: false, attacked: false,
     skillUsed: false, heroicUsed: false, meleeTarget: null, meleeAttacker: null,
     madeAttack: false, wasAttacked: false, // for facing: has it attacked / been attacked this round
-    attacksTaken: 0 }; // for Deflect: attacks against it this round
+    attacksTaken: 0, rangedTaken: 0 }; // attacks against it this round; ranged ones for Deflect
 }
 
 // ---------------------------------------------------------------- dice
@@ -826,9 +826,9 @@ function buildRoll(s, unit, role, ctx) {
     else if (trait(unit, 'shielded')) parts.push(ctx.ranged ? ['Shielded: ranged defense', tierVal(trait(unit, 'shielded'), [2, 4, 6])] : ['Shielded: melee defense', tierVal(trait(unit, 'shielded'), [1, 2, 3])]);
     if (ctx.ranged && trait(unit, 'shield battery') && fx(unit).stillLast) parts.push(['Shield Battery: ranged defense', 2]);
     if (!ctx.ranged && saddleOf(unit) >= 2) parts.push(['Saddle+: melee defense', 1]);
-    // Deflect: defense +2 (+3 against ranged) against the first attack each round; Deflect+ against the first two
-    if (trait(unit, 'deflect') && (unit.round.attacksTaken || 0) < tierVal(trait(unit, 'deflect'), [1, 2]))
-      parts.push([(trait(unit, 'deflect') > 1 ? 'Deflect+' : 'Deflect') + ': ' + (ctx.ranged ? 'ranged' : 'melee') + ' defense', ctx.ranged ? 3 : 2]);
+    // Deflect: ranged defense +3 against the first ranged attack each round; Deflect+ against the first two (no melee bonus since v0.83.0, David 2026-10-28)
+    if (ctx.ranged && trait(unit, 'deflect') && (unit.round.rangedTaken || 0) < tierVal(trait(unit, 'deflect'), [1, 2]))
+      parts.push([(trait(unit, 'deflect') > 1 ? 'Deflect+' : 'Deflect') + ': ranged defense', 3]);
     if (fx(unit).poison) parts.push(['Poisoned: melee & ranged defense', -fx(unit).poison]);
     if (f.defAll) parts.push(['Melee & ranged defense (' + f.name + ')', f.defAll]);
     if (ctx.ranged && f.defRanged) parts.push(['Ranged defense (' + f.name + ')', f.defRanged]);
@@ -1065,6 +1065,7 @@ function resolveAttack(s, attacker, defender, opts) {
   attacker.round.madeAttack = true;
   defender.round.wasAttacked = true;
   defender.round.attacksTaken = (defender.round.attacksTaken || 0) + 1;
+  if (ranged) defender.round.rangedTaken = (defender.round.rangedTaken || 0) + 1;
   if (attacker.hidden) attacker.hidden = false;
 
   const result = {
