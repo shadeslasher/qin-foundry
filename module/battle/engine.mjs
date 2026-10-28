@@ -29,8 +29,12 @@ function newState() {
     objState: freshObjState(),     // what the battle has done towards them
     objEval: null,                 // where each condition stands (for the tracker)
     outcome: null,                 // { result: 'victory' | 'defeat', round, at } once the battle is decided
+    duels: freshDuels(),           // officer duels: the one waiting or being fought, and officers who refused
   };
 }
+
+function freshDuels() { return { pending: null, refused: [] }; }
+function duels(s) { if (!s.duels) s.duels = freshDuels(); if (!s.duels.refused) s.duels.refused = []; return s.duels; }
 
 function freshTurn(phase, round) {
   return {
@@ -545,6 +549,20 @@ function outriderTiles(s, u) {
 }
 
 /** What the Fire Emblem-style action menu may offer the active unit. */
+// ---------------------------------------------------------------- officer duels (David, 2026-10-28)
+// An officer unit next to an enemy officer unit can challenge it instead of attacking (it may move first).
+// The challenged side accepts or refuses. Refusing: its unit loses 15 morale and can't be challenged again this
+// battle. Accepting: the two officers fight one round of personal combat, mounted (actions from their weapon
+// skill, whatever their Horsemanship), outside the engine; the result comes back as duelResult.
+const DUEL_REFUSE_MORALE = 15, DUEL_LOSE_MORALE = 25, DUEL_WIN_MORALE = 15, DUEL_DEATH_MORALE = 50, DUEL_KILL_MORALE = 25;
+
+/** Enemy officer units this unit's officer can challenge now. */
+function duelTargets(s, u) {
+  if (!hasOfficer(u)) return [];
+  const D = duels(s);
+  return liveUnits(s).filter(d => hostile(u, d) && hasOfficer(d) && manhattan(u, d) === 1 && visibleTo(s, d, alliance(u.side)) && !D.refused.includes(d.id));
+}
+
 function actionMenu(s, u) {
   const ac = s.turn.activation;
   const none = { move: false, attack: false, hold: false, ability: false, heroic: false, endTurn: false };
@@ -568,6 +586,7 @@ function actionMenu(s, u) {
     closeGate: canStillAct && gatesNear(s, u).some(g => g.state === 'open' && gateKeyHolder(s, u, g) && !g.squares.some(([x, y]) => unitAt(s, x, y))),
     setFire: canStillAct && pendingTactic(s, u, 'setFire'),
     hold: canStillAct,
+    duel: canStillAct && duelTargets(s, u).length > 0,
     outrider: canStillAct && outriderTiles(s, u).length > 0,
     overwatch: canStillAct && !reloading && typeOf(s, u).weapon === 'ranged',
     ability: skillOk || artOk, skill: skillOk, art: artOk,
@@ -1483,6 +1502,7 @@ function act(s, actor, a) {
     if (!fn) return err('Unknown action');
     const hostOnly = HOST_ONLY.has(a.type);
     if (hostOnly && !actor.host) return err('Only the host can do that');
+    if (s.duels && s.duels.pending && !DUEL_ACTIONS.has(a.type) && !actor.host) return err('Waiting for the duel to finish');
     // Take back: starting a unit's turn (Take turn, or Act for an officer) can be taken back until the unit does anything
     const starting = a.type === 'begin' || (a.type === 'decide' && a.choice === 'act');
     const snap = starting ? takeBackSnapshot(s) : null;
@@ -1510,7 +1530,8 @@ function takeBackSnapshot(s) {
   return o;
 }
 
-const HOST_ONLY = new Set(['triggerAllTactics', 'setGate', 'setHidden', 'setMap', 'paintTerrain', 'setLibrary', 'addUnit', 'editUnit', 'removeUnit',
+const DUEL_ACTIONS = new Set(['duelAnswer', 'duelResult', 'duelCancel']);
+const HOST_ONLY = new Set(['duelResult', 'duelCancel', 'triggerAllTactics', 'setGate', 'setHidden', 'setMap', 'paintTerrain', 'setLibrary', 'addUnit', 'editUnit', 'removeUnit',
   'startBattle', 'resetBattle', 'startRound', 'skipPrompt', 'addMod', 'removeMod', 'adjust', 'setFacing',
   'setTactician', 'finishTactics', 'skipTactics', 'declareOutcome']);
 
@@ -1605,6 +1626,7 @@ const ACTIONS = {
   },
   startBattle(s) {
     if (s.turn.phase !== 'setup') return err('Battle already started');
+    s.duels = freshDuels();
     // Tactics come first: before formations, initiative or anything else
     s.turn = freshTurn('tactics', 1);
     s.tactics = { phase: 'setup', sides: { player: null, ally: null, enemy: null }, placed: [], nextId: 1 };
@@ -1618,6 +1640,7 @@ const ACTIONS = {
   },
   resetBattle(s) {
     s.turn = freshTurn('setup', 0);
+    s.duels = freshDuels();
     s.tactics = null;
     s.objState = freshObjState(); s.outcome = null; s.objEval = null;
     for (const u of s.units) u.round = newRoundFlags();
@@ -1823,6 +1846,76 @@ const ACTIONS = {
     t.held = t.held.filter(x => x !== u.id);
     log(s, u.name + ' interjects!');
     startActivation(s, u, { interject: true });
+  },
+
+  // ---------- officer duels
+  duel(s, actor, a) {
+    const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
+    const { u, act: ac } = r;
+    if (u.round.attacked || ac.forcedMarched) return err('Already acted this turn');
+    const d = unitById(s, a.targetId);
+    if (!d || !duelTargets(s, u).includes(d)) return err("Can't challenge that unit");
+    const D = duels(s);
+    if (D.pending) return err('A duel is already under way');
+    u.round.attacked = true; ac.started = true; ac.step = 'duel';
+    D.pending = { from: u.id, to: d.id, stage: 'asked', round: s.turn.round };
+    const on = officerOf(s, u), dn = officerOf(s, d);
+    log(s, (on ? on.name : u.name) + ' challenges ' + (dn ? dn.name : d.name) + ' to a duel!', { type: 'duel', stage: 'asked', from: u.id, to: d.id });
+  },
+  duelAnswer(s, actor, a) {
+    const D = duels(s), p = D.pending;
+    if (!p || p.stage !== 'asked') return err('No duel is waiting for an answer');
+    const u = unitById(s, p.from), d = unitById(s, p.to);
+    if (!controls(s, actor, d)) return err('Only the challenged side can answer');
+    const dn = officerOf(s, d);
+    if (!a.accept) {
+      d.morale = clamp(d.morale - DUEL_REFUSE_MORALE, 0, 100);
+      D.refused.push(d.id);
+      D.pending = null;
+      log(s, (dn ? dn.name : d.name) + ' refuses the duel: ' + d.name + ' loses ' + DUEL_REFUSE_MORALE + ' morale, and no one can challenge it again this battle.', { type: 'duel', stage: 'refused', from: p.from, to: p.to });
+      settle(s);
+      if (alive(u) && s.turn.activation && s.turn.activation.unitId === u.id) finishActivation(s, u);
+      return;
+    }
+    p.stage = 'fighting';
+    log(s, (dn ? dn.name : d.name) + ' accepts the duel!', { type: 'duel', stage: 'accepted', from: p.from, to: p.to });
+  },
+  /** The duel's outcome: Breath of Life levels each officer dropped, and whether either died. */
+  duelResult(s, actor, a) {
+    const D = duels(s), p = D.pending;
+    if (!p || p.stage !== 'fighting') return err('No duel is being fought');
+    const u = unitById(s, p.from), d = unitById(s, p.to);
+    const on = officerOf(s, u), dn = officerOf(s, d);
+    const name = (unit, o) => (o ? o.name : unit.name);
+    const shift = (unit, n, why) => { if (!n || !unit) return; unit.morale = clamp(unit.morale + n, 0, 100); log(s, unit.name + ' ' + (n > 0 ? 'gains ' : 'loses ') + Math.abs(n) + ' morale (' + why + ').', { type: 'duel', stage: 'morale', unit: unit.id, change: n }); };
+    const fromDead = !!a.fromDead, toDead = !!a.toDead;
+    if (fromDead || toDead) {
+      if (fromDead) { shift(u, -DUEL_DEATH_MORALE, name(u, on) + ' fell in the duel'); u.officerId = null; }
+      if (toDead) { shift(d, -DUEL_DEATH_MORALE, name(d, dn) + ' fell in the duel'); d.officerId = null; }
+      if (fromDead && !toDead) shift(d, DUEL_KILL_MORALE, name(d, dn) + ' slew ' + name(u, on));
+      if (toDead && !fromDead) shift(u, DUEL_KILL_MORALE, name(u, on) + ' slew ' + name(d, dn));
+    } else {
+      const f = Math.max(0, a.fromDrop || 0), t = Math.max(0, a.toDrop || 0);
+      if (f === t) log(s, 'The duel ends even: ' + name(u, on) + ' and ' + name(d, dn) + ' part with neither gaining the upper hand.', { type: 'duel', stage: 'even', from: p.from, to: p.to });
+      else {
+        const [win, wo, lose, lo] = f < t ? [u, on, d, dn] : [d, dn, u, on];
+        log(s, name(win, wo) + ' wins the duel against ' + name(lose, lo) + '.', { type: 'duel', stage: 'won', winner: win.id, loser: lose.id });
+        shift(lose, -DUEL_LOSE_MORALE, 'lost the duel');
+        shift(win, DUEL_WIN_MORALE, 'won the duel');
+      }
+    }
+    D.pending = null;
+    settle(s);
+    if (u && alive(u) && s.turn.activation && s.turn.activation.unitId === u.id) finishActivation(s, u);
+  },
+  /** The GM calls the duel off: nobody gains or loses anything; the challenger's turn ends. */
+  duelCancel(s) {
+    const D = duels(s), p = D.pending;
+    if (!p) return err('No duel to cancel');
+    D.pending = null;
+    log(s, 'The duel is called off.', { type: 'duel', stage: 'cancelled' });
+    const u = unitById(s, p.from);
+    if (u && alive(u) && s.turn.activation && s.turn.activation.unitId === u.id) finishActivation(s, u);
   },
 
   // ---------- activation steps
@@ -2276,6 +2369,6 @@ function viewFor(s, viewer) {
 
 export { casualtiesOf, evasionOf, evadeCasualties, disciplinedBonus, warDrumsBonus, hornReady, hornTargets, checkpointMorale, checkpointsPassed, overwatchFire as _overwatchFire, surroundAfterTurn as _surroundAfterTurn,
   moveOptions, attackTargets, actionMenu, threatArea, TACTIC_SIDES, tileRules, ladderTiles, climbTiles, insideCity, isWallTop, gateAt,
-  newState, act, viewFor, prompt, reachable, movementOf, moraleState, visibleTo, rangeOk,
+  newState, act, viewFor, prompt, reachable, duelTargets, movementOf, moraleState, visibleTo, rangeOk,
   resolveAttack, buildRoll, skillCheck, setRng, yinYang, typeOf, officerOf, unitById, SIDES, settle, advance,
 };

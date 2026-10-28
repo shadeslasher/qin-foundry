@@ -14,6 +14,7 @@ import { SYSTEM_ID } from "../config.mjs";
 import { decodeTiles, gatesFromMap, FLAG as MAP_FLAG } from "./battlemap.mjs";
 import { DEPLOY_FLAG } from "./deploy-rules.mjs";
 import { OBJECTIVES_FLAG, emptyObjectives, freshObjState } from "./objectives.mjs";
+import * as Q from "../rules/qin-rules.mjs";
 
 const SETTING = "battle";
 let writing = false;
@@ -145,6 +146,7 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
   s.objEval = battle.objEval ?? null;
   s.outcome = battle.outcome ?? null;
   s.introAt = battle.introAt ?? null;
+  s.duels = foundry.utils.deepClone(battle.duels ?? { pending: null, refused: [] });
   s.library.formations = [{ id: "none", name: "No formation", desc: "No modifiers." }];
   s.library.unitTypes = [];
   s.library.officers = [];
@@ -182,6 +184,7 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
     let officer = sys.officerActor;
     const elig = officer ? officerEligibility(officer, sys) : null;
     if (officer && !elig.ok) { warnOnce(`${a.name}: ${officer.name} can't lead it (${elig.reason}), so it fights without an officer.`); officer = null; }
+    if (officer?.system?.bol?.dead) officer = null; // slain (in a duel or otherwise): the unit fights on without him
     if (officer) {
       if (!officers.has(officer.uuid)) officers.set(officer.uuid, officerLibraryEntry(officer));
       officerId = officer.uuid;
@@ -292,6 +295,7 @@ async function writeBack(battle, s, scene) {
   battle.objEval = s.objEval ?? null;
   battle.outcome = s.outcome ?? null;
   battle.introAt = s.introAt ?? null;
+  battle.duels = s.duels ?? null;
   battle.log = s.log.slice(-60);
   await game.settings.set(SYSTEM_ID, SETTING, battle);
 }
@@ -406,6 +410,20 @@ function animateChanges(scene, before, s, entries, actionType = null) {
   return broadcastBattleAnim(scene.id, steps);
 }
 
+/* ------------------------------------------------------------ officer duels */
+
+/** How far down the Breath of Life track an officer is: 0 Normal ... 4 Fatally injured, 5 coma, 6 dead. */
+export function bolStep(actor, damage = actor?.system?.bol?.damage ?? 0) {
+  const levels = actor?.system?.bol?.levels;
+  if (!levels) return 0;
+  const st = Q.bolState(levels.map(l => l.max), damage);
+  return st.dead ? 6 : st.coma ? 5 : Q.BOL_KEYS.indexOf(st.current);
+}
+/** The officer actor (character) leading a battle unit, by the unit's token id. */
+function duelOfficer(scene, unitId) {
+  return scene?.tokens.get(unitId)?.actor?.system?.officerActor ?? null;
+}
+
 /* ------------------------------------------------------------ run actions (GM only) */
 
 /**
@@ -446,6 +464,14 @@ async function runActionNow(userId, action) {
       if (left.length) await Actor.updateDocuments(left.map(a => ({ _id: a.id, "system.status": "active" })), { qinBattle: true });
     } catch (e) { console.warn("Qin | restoring escaped units", e); }
     try { (await import("./reinforce.mjs")).clearReinforcements(game.scenes.get(battle.sceneId)); } catch (e) { console.warn("Qin | clearing reinforcements", e); }
+    // officers who fought duels: non-player characters are healed when the battle ends (the slain stay dead)
+    try {
+      for (const uuid of battle.duelists ?? []) {
+        const o = fromUuidSync(uuid);
+        if (!o || ownerUserId(o) || o.system?.bol?.dead || !(o.system?.bol?.damage > 0)) continue;
+        await o.update({ "system.bol.damage": 0 }, { qinBattle: true });
+      }
+    } catch (e) { console.warn("Qin | healing duelists", e); }
     await game.settings.set(SYSTEM_ID, SETTING, emptyBattle());
     return { ok: true };
   } else if (!battle.active) {
@@ -461,6 +487,17 @@ async function runActionNow(userId, action) {
     return { ok: true };
   }
 
+  // The GM ends a duel that has been fought: measure how far each officer fell on the Breath of Life track
+  if (action.type === "duelEnd") {
+    if (!actor.host) return { ok: false, error: "Only the GM can end the duel" };
+    const p = battle.duels?.pending;
+    if (!p || p.stage !== "fighting") return { ok: false, error: "No duel is being fought" };
+    const sc = game.scenes.get(battle.sceneId);
+    const A = duelOfficer(sc, p.from), B = duelOfficer(sc, p.to);
+    const fromNow = bolStep(A), toNow = bolStep(B);
+    action = { type: "duelResult", fromDrop: Math.max(0, fromNow - (p.startStep?.from ?? 0)), toDrop: Math.max(0, toNow - (p.startStep?.to ?? 0)),
+      fromDead: !!A?.system?.bol?.dead, toDead: !!B?.system?.bol?.dead };
+  }
   if (action.type === "placeTactic") {
     const sc = game.scenes.get(battle.sceneId);
     action = { ...action, highGround: !!sc && isHighGround(sc, action.x, action.y) };
@@ -476,6 +513,11 @@ async function runActionNow(userId, action) {
   E.setRng(() => CONFIG.Dice.randomUniform());
   const res = E.act(s, actor, action.type === "startBattle" ? { type: "startBattle" } : action);
   if (!res.ok && action.type === "startBattle") return res;
+  if (res.ok && action.type === "duelAnswer" && s.duels?.pending?.stage === "fighting") {
+    const p = s.duels.pending, A = duelOfficer(scene, p.from), B = duelOfficer(scene, p.to);
+    p.startStep = { from: bolStep(A), to: bolStep(B) };
+    battle.duelists = [...new Set([...(battle.duelists ?? []), A?.uuid, B?.uuid].filter(Boolean))];
+  }
   await writeBack(battle, s, scene);
   await postLog(s.log.slice(logLen), s);
   if (res.ok) {

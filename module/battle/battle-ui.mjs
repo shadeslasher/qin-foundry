@@ -179,6 +179,24 @@ function enterAttack() {
   });
 }
 
+/** Duel: enemy officer units next to this one, marked in gold; click one to challenge its officer. */
+function enterDuel() {
+  const { s, u } = current;
+  const targets = E.duelTargets(s, u);
+  mode = "duel";
+  clearSquares();
+  overlay = new PIXI.Graphics();
+  overlay.eventMode = "none";
+  layer().addChild(overlay);
+  for (const d of targets) drawSquare(overlay, d.x, d.y, 0xe0b040, 0.4, 1);
+  renderMenu();
+  startPicking((x, y) => {
+    const d = targets.find(t => t.x === x && t.y === y);
+    if (!d) return pickWarn("Click one of the enemy officer units marked in gold.");
+    send({ type: "duel", unitId: u.id, targetId: d.id });
+  });
+}
+
 /** Wedge follow-up: green tiles next to the beaten enemy; click one to move there, or stay. */
 function enterReposition() {
   const ac = current?.s?.turn?.activation;
@@ -312,6 +330,7 @@ function renderMenu(sub = null) {
   const PICK_HINT = {
     move: "Blue: move · Purple: climb the ladder (all movement) · Red: forced march (officer units, ends turn) · Green: swap",
     attack: "Click an enemy marked in red.",
+    duel: "Click an enemy officer unit marked in gold to challenge its officer to a duel.",
     ladder: "Click a gold wall square next to the unit to set the ladders there.",
     fire: "Click an orange tile next to the unit to set it on fire (forest or tall grass).",
   };
@@ -361,6 +380,7 @@ function renderMenu(sub = null) {
     if (flags.reloading) html += b("reload", "Reload", flags.reload, "Reload the weapon (needed before it can attack again). Can follow a move; ends the turn.");
     else html += b("attack", "Attack", flags.attack, flags.attack ? "" : "No enemy in range");
     if (flags.outrider) html += b("outrider", "Ride on", true, "Outrider: instead of attacking, move a little further. Ends the turn after.");
+    if (flags.duel) html += b("duel", "Duel", true, "Challenge an adjacent enemy officer to single combat (your action for the turn). Refusing costs his unit 15 morale.");
     html += b("hold", "Hold", flags.hold, "No more action this turn; +2 melee defense until this unit's next turn");
     if (flags.overwatch) html += b("overwatch", "Overwatch", true, "End the turn and watch: shoot the first enemy that ends its turn in range before this unit's next turn (one shot)");
     html += b("ability", "Ability", flags.ability, abilityTip);
@@ -392,6 +412,7 @@ function onMenuClick(ev) {
   switch (btn.dataset.fe) {
     case "move": return enterMove();
     case "attack": return enterAttack();
+    case "duel": return enterDuel();
     case "cancel": return cancelMode();
     case "stay": return send({ type: "reposition", unitId: id });
     case "reload": return send({ type: "reload", unitId: id });
@@ -435,7 +456,8 @@ export function resetBattleUI() {
 export function refreshBattleUI() {
   if (!canvas?.ready) return;
   const battle = getBattle();
-  if (!battle.active) return resetBattleUI();
+  if (!battle.active) { hideDuel(); return resetBattleUI(); }
+  renderDuel(battle);
   const ac = battle.active ? battle.turn?.activation : null;
   if (ac) hidePick();
   if (!ac || canvas.scene?.id !== battle.sceneId) { current = null; mode = null; clearSquares(); return hideMenu(); }
@@ -446,12 +468,63 @@ export function refreshBattleUI() {
   const changed = current?.u?.id !== u.id || current?.key !== JSON.stringify([u.x, u.y, ac.step, u.round, u.morale]);
   current = { s, u, token, flags: E.actionMenu(s, u), officer: E.officerOf(s, u), key: JSON.stringify([u.x, u.y, ac.step, u.round, u.morale]) };
   if (changed) { mode = null; clearSquares(); }
+  if (ac.step === "duel") { mode = null; clearSquares(); return hideMenu(); } // waiting on the duel
   if (ac.step === "reposition") { if (mode !== "reposition") enterReposition(); return; }
   if (ac.step === "second") { if (mode !== "second") enterSecond(); return; }
   if (!mode) renderMenu();
 }
 
 export function repositionBattleUI() { placeMenu(); hidePick(); }
+
+/* ------------------------------------------------------------ officer duels */
+
+let duelEl = null;
+function hideDuel() { duelEl?.remove(); duelEl = null; }
+/**
+ * The duel box. Challenged: the challenged unit's owner (a player) and the GM get Accept / Refuse.
+ * Being fought: the GM gets End duel (once the round of personal combat is over) and Call off; everyone else sees who is fighting.
+ */
+function renderDuel(battle) {
+  const p = battle.duels?.pending;
+  if (!p) return hideDuel();
+  const { s } = buildState(battle);
+  const A = E.unitById(s, p.from), B = E.unitById(s, p.to);
+  if (!A || !B) return hideDuel();
+  const nm = (u) => esc(E.officerOf(s, u)?.name ?? u.name);
+  const answerer = game.user.isGM || (B.owner && B.owner === game.user.id);
+  const key = JSON.stringify([p.from, p.to, p.stage, answerer, game.user.isGM]);
+  if (duelEl?.dataset.key === key) return;
+  hideDuel();
+  duelEl = document.createElement("div");
+  duelEl.className = "qin qin-fe-menu qin-duel-box";
+  duelEl.dataset.key = key;
+  let html = `<div class="qin-fe-title"><i class="fa-solid fa-swords"></i> Duel</div>`;
+  if (p.stage === "asked") {
+    html += `<div class="qin-fe-hint"><b>${nm(A)}</b> (${esc(A.name)}) challenges <b>${nm(B)}</b> (${esc(B.name)}) to single combat.</div>`;
+    if (answerer) html += `<div class="qin-fe-hint">Refusing costs ${esc(B.name)} 15 morale, and no one can challenge it again this battle.</div>`
+      + `<button type="button" data-duel="accept">Accept</button><button type="button" data-duel="refuse">Refuse</button>`;
+    else html += `<div class="qin-fe-hint">Waiting for ${nm(B)}'s answer…</div>`;
+  } else {
+    html += `<div class="qin-fe-hint"><b>${nm(A)}</b> and <b>${nm(B)}</b> fight one round, mounted, with the actions their weapon skill gives (Horsemanship doesn't limit them).</div>`;
+    if (game.user.isGM) html += `<div class="qin-fe-hint">When the round is over, End duel compares how far each fell on the Breath of Life track.</div>`
+      + `<button type="button" data-duel="end">End duel</button><button type="button" data-duel="cancel">Call off</button>`;
+  }
+  duelEl.innerHTML = html;
+  Object.assign(duelEl.style, { position: "fixed", top: "90px", left: "50%", transform: "translateX(-50%)", zIndex: 100, maxWidth: "360px" });
+  document.body.append(duelEl);
+  playMoment("Menu opens");
+  duelEl.addEventListener("click", async (ev) => {
+    const btn = ev.target.closest("button[data-duel]");
+    if (!btn || !requestFn) return;
+    playMoment("Select / confirm");
+    const what = btn.dataset.duel;
+    btn.disabled = true;
+    const action = what === "accept" ? { type: "duelAnswer", accept: true } : what === "refuse" ? { type: "duelAnswer", accept: false }
+      : what === "end" ? { type: "duelEnd" } : { type: "duelCancel" };
+    const res = await requestFn(action);
+    if (res && res.ok === false) btn.disabled = false;
+  });
+}
 
 /* ------------------------------------------------------------ click a unit on the map to take its turn */
 
