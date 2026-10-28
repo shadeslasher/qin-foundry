@@ -180,7 +180,7 @@ test('Fierce Charge tiers: +2 / +4 / +4 on a charge attack; ++ also hits the ene
   assert.ok(x.s.log.some(e => e.detail && e.detail.type === 'trample'), 'the enemy behind takes half damage');
 });
 
-test('encirclement from a move waits until the move is committed (undo leaves morale alone)', () => {
+test('surrounding costs morale when an adjacent enemy ends its turn (a move alone, or undone, costs nothing)', () => {
   const s = setup();
   // enemy at (5,5) with a wall of player units on three sides; the fourth side gets closed by the mover
   const d = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 5 });
@@ -196,7 +196,7 @@ test('encirclement from a move waits until the move is committed (undo leaves mo
   assert.strictEqual(R.unitById(s, d).morale, start, 'undo: nothing to give back');
   must(R.act(s, P1, { type: 'moveTo', unitId: m, x: 5, y: 6 }));
   must(R.act(s, P1, { type: 'holdPosition', unitId: m }));
-  assert.strictEqual(R.unitById(s, d).morale, Math.max(0, start - 25), 'hold commits the move: -25');
+  assert.strictEqual(R.unitById(s, d).morale, Math.max(0, start - 40), 'ending the turn next to it: -40 (four enemy units)');
   assert.ok(R.unitById(s, d).surrounded);
   // the ring opens and closes again in the same round: no second -25
   Object.assign(R.unitById(s, d), { morale: 60, status: 'active' }); // (a known morale for the check)
@@ -405,17 +405,23 @@ test('demoralized penalty, Han Dang ignores it; a surrender at 0 morale costs on
   assert.strictEqual(C.morale, 15, 'Levy: -5');
 });
 
-test('full encirclement: -25 morale once', () => {
+test('surrounded by four enemy units: -40 when one of them ends its turn, once per round, again while still surrounded', () => {
   const s = setup();
-  const u = add(s, { typeId: 'han_ji_inf', side: 'player', owner: 'p1', x: 5, y: 5, morale: 70 });
+  const u = add(s, { typeId: 'han_ji_inf', side: 'player', owner: 'p1', x: 5, y: 5, morale: 90 });
   add(s, { typeId: 'yt_warriors', side: 'enemy', x: 4, y: 5 });
   add(s, { typeId: 'yt_warriors', side: 'enemy', x: 6, y: 5 });
   add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 4 });
   const last = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 9, y: 9 });
   must(R.act(s, HOST, { type: 'place', unitId: last, x: 5, y: 6 }));
-  assert.strictEqual(R.unitById(s, u).morale, 45);
-  must(R.act(s, HOST, { type: 'adjust', unitId: u, men: -1 }));
-  assert.strictEqual(R.unitById(s, u).morale, 45, 'not applied twice');
+  const U = R.unitById(s, u);
+  assert.ok(U.surrounded); assert.strictEqual(U.morale, 90, 'placing the ring costs nothing by itself');
+  R._surroundAfterTurn(s, R.unitById(s, last));
+  assert.strictEqual(U.morale, 50);
+  R._surroundAfterTurn(s, R.unitById(s, last));
+  assert.strictEqual(U.morale, 50, 'once per round');
+  U.round.surroundedHit = false; // a new round
+  R._surroundAfterTurn(s, R.unitById(s, last));
+  assert.strictEqual(U.morale, 10, 'still surrounded next round: again');
 });
 
 test('stealth: forests hide; hidden units stay unseen by other sides until revealed', () => {

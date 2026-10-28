@@ -212,17 +212,34 @@ test('Surrounded by Fear: no surrender or morale loss; free attacks until an att
   assert.strictEqual(R.unitById(s, ring[0].id).status, 'defeated', 'it struck until one attacker fell');
 });
 
-test('surrounded: impassable tiles do not count toward the ring; four enemy units are needed', () => {
+test('surrounded: impassable sides count, 10 less morale each; allies and the map edge break the ring', () => {
   const s = setup();
   s.library.unitTypes.push(unitType('p'), unitType('e'));
-  const p = add(s, { typeId: 'p', side: 'player', owner: 'p1', x: 5, y: 5 });
+  const p = add(s, { typeId: 'p', side: 'player', owner: 'p1', x: 5, y: 5, morale: 100 });
+  const P = R.unitById(s, p);
   for (const k of ['4,5', '6,5', '5,4']) s.map.terrain[k] = 'impassable';
   R.settle(s);
-  assert.ok(!R.unitById(s, p).surrounded, 'walls alone do not surround');
-  add(s, { typeId: 'e', side: 'enemy', x: 5, y: 6 });
+  assert.ok(!P.surrounded, 'walls alone do not surround: it takes at least one enemy unit');
+  const e1 = add(s, { typeId: 'e', side: 'enemy', x: 5, y: 6 });
   R.settle(s);
-  assert.ok(!R.unitById(s, p).surrounded, '3 impassable + 1 enemy is not a ring: it takes four enemy units (David, 2026-10-25)');
-  assert.strictEqual(R.unitById(s, p).morale, 50);
+  assert.ok(P.surrounded, 'a dead end: 3 impassable sides + 1 enemy unit');
+  R._surroundAfterTurn(s, R.unitById(s, e1));
+  assert.strictEqual(P.morale, 90, '40 - 3 x 10');
+  // two impassable sides, two enemies: -20
+  delete s.map.terrain['5,4']; P.round.surroundedHit = false; P.morale = 100;
+  const e2 = add(s, { typeId: 'e', side: 'enemy', x: 5, y: 4 });
+  R._surroundAfterTurn(s, R.unitById(s, e2));
+  assert.strictEqual(P.morale, 80);
+  // an ally on one side keeps the ring open
+  delete s.map.terrain['4,5']; P.round.surroundedHit = false;
+  add(s, { typeId: 'p', side: 'player', owner: 'p1', x: 4, y: 5 });
+  R.settle(s);
+  assert.ok(!P.surrounded, 'an allied unit next to it breaks the ring');
+  // the map edge never closes a ring
+  const q = add(s, { typeId: 'p', side: 'player', owner: 'p1', x: 0, y: 8 });
+  for (const [x, y] of [[1, 8], [0, 7], [0, 9]]) add(s, { typeId: 'e', side: 'enemy', x, y });
+  R.settle(s);
+  assert.ok(!R.unitById(s, q).surrounded, 'the map edge is not impassable ground');
 });
 
 test('Cavalry Charge: only cavalry charges in the area gain Attack +4', () => {

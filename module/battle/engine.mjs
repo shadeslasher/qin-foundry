@@ -424,6 +424,15 @@ function yinYang() { const yin = d10(), yang = d10(); return { yin, yang, value:
 
 // ---------------------------------------------------------------- movement
 
+/** Could `u` step from (x,y) to (nx,ny) as far as the ground goes (other units ignored)? Wall tops: along the wall,
+ * and to and from the city inside (not down to the outside); camp ramparts only from inside the camp. */
+function terrainStep(s, u, x, y, nx, ny) {
+  const fromWall = isWallTop(s, x, y), toWall = isWallTop(s, nx, ny);
+  const ok = fromWall && toWall ? true : fromWall ? insideCity(s, nx, ny) && passable(s, nx, ny, u)
+    : toWall ? insideCity(s, x, y) : passable(s, nx, ny, u) || campEdgeStep(s, x, y, nx, ny);
+  return ok && !campEdgeDrop(s, x, y, nx, ny);
+}
+
 // Tiles reachable by `u` with `budget` movement. Units block movement.
 // Campaign rule (David, 2026-10-27): a move costs 1 per square walked plus the single biggest surcharge
 // on the path, paid once (three forest squares cost 3 + 1 = 4, not 6).
@@ -447,11 +456,7 @@ function reachable(s, u, budget) {
     for (const [dx, dy] of ORTHO) {
       const nx = x + dx, ny = y + dy, k = key(nx, ny);
       if (k === start) continue;
-      // wall tops: along the wall, and to and from the city inside (not down to the outside)
-      const fromWall = isWallTop(s, x, y), toWall = isWallTop(s, nx, ny);
-      const stepOk = fromWall && toWall ? true : fromWall ? insideCity(s, nx, ny) && passable(s, nx, ny, u)
-        : toWall ? insideCity(s, x, y) : passable(s, nx, ny, u) || campEdgeStep(s, x, y, nx, ny);
-      if (!stepOk || campEdgeDrop(s, x, y, nx, ny)) continue;
+      if (!terrainStep(s, u, x, y, nx, ny)) continue;
       const nn = n + 1, nm = Math.max(m, surcharge(s, nx, ny, u)), nr = rf || (roughFor(s, nx, ny, u) ? 1 : 0);
       if (nn + nm > budget) continue;
       const sk = k + ',' + nm + ',' + nr;
@@ -677,8 +682,10 @@ function rangeOk(s, attacker, defender) {
  * returns the morale to take off and remembers the checkpoints passed (fx.checkpoints).
  */
 const CHECKPOINT_MORALE = 5;
-/** Morale lost when a unit becomes fully surrounded (once per round). 50 until v0.53.0 (David, 2026-10-25). */
-const SURROUND_MORALE = 25;
+/** Morale lost when surrounded by four enemy units; 10 less for each side closed by impassable ground instead
+ * (David, 2026-10-27; 50 until v0.53.0, 25 with four enemy units only until v0.79.0). */
+const SURROUND_MORALE = 40;
+const SURROUND_PER_BLOCK = 10;
 function checkpointsPassed(u) {
   const full = u.maxMen || 100, men = Math.max(0, u.men);
   if (men <= 0) return 4;
@@ -1206,31 +1213,63 @@ function processFear(s) {
   }
 }
 
+/**
+ * Surrounding (David, 2026-10-27): every side of the unit is an enemy unit or ground it couldn't step onto
+ * (river, cliffs, walls from the ground, a locked gate...), with at least one enemy unit. Allied units and the
+ * map edge break the ring. Stalwart units and units on forts, command tents or town halls can't be surrounded.
+ * Returns { surrounded, enemies, blocked }.
+ */
+function surroundInfo(s, u) {
+  const none = { surrounded: false, enemies: 0, blocked: 0 };
+  if (trait(u, 'stalwart')) return none;
+  const tr = tileRules(s, u.x, u.y);
+  if (tr && tr.noSurround) return none;
+  let enemies = 0, blocked = 0;
+  for (const [dx, dy] of ORTHO) {
+    const nx = u.x + dx, ny = u.y + dy;
+    if (!inBounds(s, nx, ny)) return none;                 // the map edge never closes a ring
+    const o = unitAt(s, nx, ny);
+    if (o) { if (hostile(o, u)) { enemies++; continue; } return none; } // an ally next to it keeps the ring open
+    if (terrainStep(s, u, u.x, u.y, nx, ny)) return none;  // open ground
+    blocked++;
+  }
+  return { surrounded: enemies >= 1, enemies, blocked };
+}
+
+/** Keeps each unit's surrounded status up to date (the icon, and Surrounded by Fear). Morale is lost in surroundAfterTurn. */
 function checkEncirclement(s) {
-  let changed = false;
   for (const u of liveUnits(s)) {
-    if (trait(u, 'stalwart')) { u.surrounded = false; continue; } // Stalwart: can't be surrounded
-    const tr = tileRules(s, u.x, u.y);
-    if (tr && tr.noSurround) { u.surrounded = false; continue; } // forts, command tents, town halls: no surrounding (David, 2026-10-25)
-    let enemies = 0;
-    for (const [dx, dy] of ORTHO) {
-      const o = unitAt(s, u.x + dx, u.y + dy);
-      if (o && hostile(o, u)) enemies++;
-    }
-    // surrounded: an enemy unit on all four sides (David, 2026-10-25). Walls, impassable ground, the map edge and
-    // allies don't count toward the ring; it takes four units.
-    const surrounded = enemies === 4;
-    if (surrounded && !u.surrounded) {
+    const now = surroundInfo(s, u).surrounded;
+    if (now && !u.surrounded) {
       u.surrounded = true;
-      if (fireTactics(s, 'surrounded', u).length || hasTactic(s, u, 'fear')) {
+      if (fireTactics(s, 'surrounded', u).length) {
         log(s, u.name + ' is surrounded but will not surrender!');
         (s._fearQueue = s._fearQueue || []).push(u.id);
-      } else if (passive(s, u).ignoreEncirclement) log(s, u.name + ' is surrounded but its officer ignores the morale loss.');
-      else if (u.round.surroundedHit) log(s, u.name + ' is surrounded again (no further morale loss this round).');
-      else { u.morale = clamp(u.morale - SURROUND_MORALE, 0, 100); u.round.surroundedHit = true; log(s, u.name + ' is fully surrounded: -' + SURROUND_MORALE + ' morale.', { type: 'surrounded', unit: u.id }); changed = true; }
-    } else if (!surrounded && u.surrounded) u.surrounded = false;
+      }
+    } else if (!now && u.surrounded) u.surrounded = false;
   }
-  return changed;
+  return false;
+}
+
+/**
+ * When a unit ends its turn, each enemy unit next to it that is surrounded (or still surrounded) loses
+ * 40 morale, 10 less per side closed by impassable ground. At most once per round per unit.
+ */
+function surroundAfterTurn(s, actor) {
+  if (!actor) return;
+  let hit = false;
+  for (const v of liveUnits(s)) {
+    if (!hostile(v, actor) || manhattan(v, actor) !== 1 || v.round.surroundedHit) continue;
+    const info = surroundInfo(s, v);
+    if (!info.surrounded) continue;
+    v.round.surroundedHit = true;
+    if (hasTactic(s, v, 'fear')) { log(s, v.name + ' is surrounded but will not surrender!'); continue; }
+    if (passive(s, v).ignoreEncirclement) { log(s, v.name + ' is surrounded but its officer ignores the morale loss.'); continue; }
+    const loss = Math.max(0, SURROUND_MORALE - SURROUND_PER_BLOCK * info.blocked);
+    v.morale = clamp(v.morale - loss, 0, 100); hit = true;
+    log(s, v.name + ' is surrounded' + (info.blocked ? ' (' + info.enemies + ' enemy unit' + (info.enemies === 1 ? '' : 's') + ', ' + info.blocked + ' side' + (info.blocked === 1 ? '' : 's') + ' blocked)' : ' on all four sides') + ': -' + loss + ' morale.', { type: 'surrounded', unit: v.id, loss });
+  }
+  if (hit) settle(s);
 }
 
 function removeFromTurn(s, id) {
@@ -1409,6 +1448,7 @@ function finishActivation(s, u, opts) {
   if (alive(u)) log(s, u.name + ' ends its turn.');
   trackEndOfTurn(s, u); // seizing squares, escaping
   settle(s);
+  if (alive(u)) surroundAfterTurn(s, u); // enemies it leaves surrounded lose morale
   if (!(opts && opts.noAdvance)) advance(s);
 }
 
@@ -2234,7 +2274,7 @@ function viewFor(s, viewer) {
   return v;
 }
 
-export { casualtiesOf, evasionOf, evadeCasualties, disciplinedBonus, warDrumsBonus, hornReady, hornTargets, checkpointMorale, checkpointsPassed, overwatchFire as _overwatchFire,
+export { casualtiesOf, evasionOf, evadeCasualties, disciplinedBonus, warDrumsBonus, hornReady, hornTargets, checkpointMorale, checkpointsPassed, overwatchFire as _overwatchFire, surroundAfterTurn as _surroundAfterTurn,
   moveOptions, attackTargets, actionMenu, threatArea, TACTIC_SIDES, tileRules, ladderTiles, climbTiles, insideCity, isWallTop, gateAt,
   newState, act, viewFor, prompt, reachable, movementOf, moraleState, visibleTo, rangeOk,
   resolveAttack, buildRoll, skillCheck, setRng, yinYang, typeOf, officerOf, unitById, SIDES, settle, advance,

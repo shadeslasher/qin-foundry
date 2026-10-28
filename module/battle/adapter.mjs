@@ -374,15 +374,18 @@ function animateChanges(scene, before, s, entries, actionType = null) {
     if (gains.length) steps.push({ kind: "floats", items: gains });
   }
   for (const e of entries) if (e.detail?.type === "levelUp") steps.push({ kind: "levelUp", unit: e.detail.unit, level: e.detail.level });
-  // units that were just fully surrounded: white flash + "Surrounded!" before their -25 morale shows
-  // (an encirclement applied as an attack commits the move happens before that attack, so it plays first)
+  // units left surrounded at the end of a turn: white flash + "Surrounded!" before their morale loss shows
   const firstAttack = entries.findIndex(e => e.detail?.type === "attack");
-  const preAttack = [], postAttack = [];
-  entries.forEach((e, i) => { if (e.detail?.type === "surrounded") (firstAttack >= 0 && i < firstAttack ? preAttack : postAttack).push(e.detail.unit); });
+  const preAttack = [], postAttack = [], lossOf = {};
+  entries.forEach((e, i) => {
+    if (e.detail?.type !== "surrounded") return;
+    lossOf[e.detail.unit] = e.detail.loss ?? 40;
+    (firstAttack >= 0 && i < firstAttack ? preAttack : postAttack).push(e.detail.unit);
+  });
   const surroundSteps = (ids) => {
     ids = [...new Set(ids)];
-    for (const id of ids) add(id, "morale", -50);
-    return [{ kind: "surrounded", units: ids }, { kind: "floats", items: ids.map(id => [id, "moraleDown", "\u221225 morale"]) }];
+    for (const id of ids) add(id, "morale", -lossOf[id]);
+    return [{ kind: "surrounded", units: ids }, { kind: "floats", items: ids.filter(id => lossOf[id]).map(id => [id, "moraleDown", `\u2212${lossOf[id]} morale`]) }];
   };
   if (preAttack.length) steps.unshift(...surroundSteps(preAttack));
   if (postAttack.length) steps.push(...surroundSteps(postAttack));
