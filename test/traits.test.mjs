@@ -44,10 +44,12 @@ test('Anti-Cavalry: Defense +2/+4/+6 when cavalry attack it in melee; nothing on
   assert.strictEqual(part(inf.r.defendRoll, /^Anti-Cavalry/), 0, 'not against infantry');
 });
 test('Precision: Attack +2/+4 if the unit has not moved before attacking; Hefty Weapon -2 after moving', () => {
-  const p = duel(unitType('a'), unitType('d'), [3, 0, 0, 0], traits({ precision: 2 }));
+  const p = duel(unitType('a', { weapon: 'ranged', rangeMax: 3 }), unitType('d'), [3, 0, 0, 0], traits({ precision: 2 }));
   assert.strictEqual(part(p.r.attackRoll, /^Precision/), 4);
+  // ranged attacks only (David, 2026-10-29): a Hybrid's melee attack and any melee attack get nothing
+  assert.strictEqual(part(R.buildRoll(p.s, p.A, 'attacker', { attacker: p.A, defender: p.D, ranged: false, hybridMelee: true }), /^Precision/), 0, 'melee: no Precision');
   p.A.round.moved = true;
-  assert.strictEqual(part(R.buildRoll(p.s, p.A, 'attacker', { attacker: p.A, defender: p.D, ranged: false }), /^Precision/), 0, 'moved first');
+  assert.strictEqual(part(R.buildRoll(p.s, p.A, 'attacker', { attacker: p.A, defender: p.D, ranged: true }), /^Precision/), 0, 'moved first');
   const h = duel(unitType('a'), unitType('d'), [3, 0, 0, 0], traits({ 'hefty weapon': 1 }));
   assert.strictEqual(part(h.r.attackRoll, /^Hefty/), 0, 'did not move');
   h.A.round.moved = true;
@@ -352,4 +354,17 @@ test('Inspiration+: allies next to it gain 4 morale at the end of the round', ()
     R.act(s, R.unitById(s, ac).side === 'player' ? P1 : HOST, { type: 'endTurn', unitId: ac });
   }
   assert.strictEqual(R.unitById(s, al).morale, 54);
+});
+
+test('Hybrid (2026-10-29): an adjacent attack is a melee attack: full Attacker bonus after moving, Hybrid -2, no Precision', () => {
+  const bow = unitType('a', { weapon: 'ranged', rangeMax: 3 });
+  const { s, A, D, r } = duel(bow, unitType('d'), [3, 0, 0, 0], traits({ hybrid: 1, precision: 1 }));
+  assert.strictEqual(r.ranged, false, 'adjacent: melee (the UI lunges instead of loosing arrows)');
+  assert.strictEqual(part(r.attackRoll, /^Hybrid: melee attack/), -2);
+  assert.strictEqual(part(r.attackRoll, /^Precision/), 0);
+  A.round.moved = true;
+  const moved = R.buildRoll(s, A, 'attacker', { attacker: A, defender: D, ranged: false, hybridMelee: true });
+  assert.strictEqual(part(moved, /^Attacker bonus$/), 2, 'moved, still the full +2 in melee');
+  const shot = R.buildRoll(s, A, 'attacker', { attacker: A, defender: D, ranged: true });
+  assert.strictEqual(part(shot, /^Attacker bonus/), 0, 'a shot after moving loses it');
 });

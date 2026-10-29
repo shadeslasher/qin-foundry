@@ -809,7 +809,8 @@ function buildRoll(s, unit, role, ctx) {
     if (ctx.hybridMelee) parts.push(['Hybrid: melee attack', -2]);
     if (ctx.second) parts.push(['Second attack (Dual Weapons)', -2]);
     if (trait(unit, 'hefty weapon') && unit.round.moved) parts.push(['Hefty Weapon (moved)', -2]);
-    if (!unit.round.moved && trait(unit, 'precision')) parts.push(['Precision', tierVal(trait(unit, 'precision'), [2, 4, 6])]); // Precision++ +6 (David, 2026-10-28)
+    // Precision: ranged attacks only (not a Hybrid's melee attack), when the unit hasn't moved; Precision++ +6 (David, 2026-10-28/29)
+    if (ctx.ranged && !unit.round.moved && trait(unit, 'precision')) parts.push(['Precision', tierVal(trait(unit, 'precision'), [2, 4, 6])]);
     if (trait(unit, 'swarm') && liveUnits(s).some(o => o !== unit && friendly(o, unit) && manhattan(o, other) === 1))
       parts.push(['Swarm', tierVal(trait(unit, 'swarm'), [1, 2])]);
     // Volley Fire: +1 against a unit already shot at this round. Volley Fire+ (David, 2026-10-28): its ranged attacks get

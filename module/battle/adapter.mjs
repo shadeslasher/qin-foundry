@@ -366,7 +366,8 @@ function animateChanges(scene, before, s, entries, actionType = null) {
     const attackBonus = (r.attackRoll?.parts ?? []).reduce((t, [label, v]) =>
       base.test(label) || (!r.ranged && /^Attacker bonus/.test(label)) ? t : t + (Number(v) || 0), 0);
     const dUnit = E.unitById(s, r.defender);
-    const returnRanged = !!dUnit && E.typeOf(s, dUnit)?.weapon === "ranged";
+    // a ranged unit strikes back with a volley, except a Hybrid caught in melee: it fights back hand to hand (lunge)
+    const returnRanged = !!dUnit && E.typeOf(s, dUnit)?.weapon === "ranged" && !(!r.ranged && dUnit.traitTiers?.hybrid);
     const aType = E.unitById(s, r.attacker) ? E.typeOf(s, E.unitById(s, r.attacker)) : null;
     steps.push({ kind: "attack", attacker: r.attacker, defender: r.defender, toDefender: toD, toAttacker: toA, returnStrike: r.damageToAttacker > 0, attackBonus, ranged: !!r.ranged, returnRanged,
       crossbow: /nushu/i.test(aType?.skill ?? ""), charge: !!r.charge && aType?.category === "cavalry", overwatch: overwatchShot });

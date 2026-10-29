@@ -163,7 +163,7 @@ export function unitStatus(token) {
   if (figs === 1) rolls -= 2; else if (figs === 2) rolls -= 1;
   // attack: changes that only count when attacking
   attack += Number(f.atkMod) || 0; // the formation's attack modifier always shows (it only counts when attacking)
-  if (!round.moved) attack += tierVal(tr.precision, [2, 4]); // Precision: hasn't moved before attacking
+  if (!round.moved && s.range > 1) attack += tierVal(tr.precision, [2, 4, 6]); // Precision: ranged attacks only, hasn't moved before attacking
   if (round.moved && tr["hefty weapon"]) attack -= 2;
   const ac = battle?.turn?.activation;
   if (ac?.unitId === token.id && !ac.forcedMarched && !round.attacked) {
