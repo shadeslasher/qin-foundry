@@ -324,3 +324,10 @@ test('Volley Fire+: ranged attacks get Attack +1 per ranged attack already made 
   D.round.rangedTaken = 3; assert.strictEqual(roll(true), 3);
   assert.strictEqual(roll(false), 0, 'not on melee attacks');
 });
+
+test('Precision / + / ++: Attack +2 / +4 / +6 when the unit has not moved', () => {
+  for (const [tier, val] of [[1, 2], [2, 4], [3, 6]]) {
+    const { r } = duel(unitType('a', { weapon: 'ranged', rangeMax: 3 }), unitType('d'), [3, 0, 0, 0], traits({ precision: tier }));
+    assert.strictEqual(part(r.attackRoll, /^Precision/), val, 'Precision tier ' + tier);
+  }
+});
