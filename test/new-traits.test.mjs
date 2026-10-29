@@ -365,3 +365,29 @@ test('Splash Attack: other enemies next to the defender take 2 casualties (Splas
   assert.strictEqual(one.Far.men, 100, 'not adjacent: nothing');
   assert.strictEqual(run(2).N.men, 96, 'Splash Attack+: 4');
 });
+
+test('Bloodlust: winning the contested roll, attacking or defending, gains 1 / 2 / 3 morale', async () => {
+  const R = await import('../module/battle/engine.mjs');
+  R.setRng(Math.random); // earlier tests leave the dice fixed
+  const fight = (tier, who, rolls) => {
+    const s = R.newState();
+    s.library.unitTypes = [{ id: 'x', name: 'X', tier: 2, category: 'infantry', weapon: 'melee', skill: 'chuishu', damage: 0, armor: 50, armorPen: 0, move: 3, rangeMin: 1, rangeMax: 1, unitValue: 0, formations: ['none'] }];
+    const mk = (id, side, x) => ({ id, typeId: 'x', officerId: null, name: id, side, x, y: 5, men: 100, maxMen: 100, morale: 50, status: 'active', facing: null, formation: 'none', traitTiers: {}, fx: {}, mods: [], round: { activated: false, moved: false, attacked: false }, xp: 0, level: 1 });
+    const A = mk('a', 'player', 5), D = mk('d', 'enemy', 6); s.units = [A, D];
+    (who === 'a' ? A : D).traitTiers = { bloodlust: tier };
+    R._setDice?.(rolls);
+    const r = R.resolveAttack(s, A, D, { movedThisActivation: false, tilesMoved: 0 });
+    return { A, D, r };
+  };
+  for (const tier of [1, 2, 3]) {
+    let won = false;
+    for (let i = 0; i < 200 && !won; i++) {
+      const { A, r } = fight(tier, 'a');
+      if (r.winner === 'attacker') { assert.strictEqual(A.morale, 50 + tier); won = true; }
+    }
+    assert.ok(won, 'the attacker won at least once in 200 tries');
+  }
+  let ok = false;
+  for (let i = 0; i < 400 && !ok; i++) { const { D, r } = fight(2, 'd'); if (r.winner === 'defender') { assert.ok(D.morale >= 50 + 2 - 0, 'defender gains too'); ok = true; } }
+  assert.ok(ok);
+});

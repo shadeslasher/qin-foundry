@@ -1048,6 +1048,8 @@ function resolveAttack(s, attacker, defender, opts) {
     }
   }
   if (loser) loser.morale = clamp(loser.morale - moraleLoss, 0, 100);
+  // Bloodlust (bandits, David 2026-10-28): the unit that wins the contested roll, attacking or defending, gains 1 / 2 / 3 morale
+  if (winner) { const w = winner === 'attacker' ? attacker : defender, bl = trait(w, 'bloodlust'); if (bl) w.morale = clamp(w.morale + tierVal(bl, [1, 2, 3]), 0, 100); }
   // casualties cost morale at checkpoints: -5 the first time each fifth of the unit's health is lost this battle
   const cmD = checkpointMorale(defender), cmA = checkpointMorale(attacker);
   if (cmD) defender.morale = clamp(defender.morale - cmD, 0, 100);
