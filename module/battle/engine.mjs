@@ -347,7 +347,7 @@ function moraleState(m) {
 // ---------------------------------------------------------------- traits
 // A unit's traits come from its Traits tab as { "base name": tier }, tier 1 = base, 2 = "+", 3 = "++".
 function trait(u, base) { const t = u && u.traitTiers; return (t && t[base]) || 0; }
-/** Suppressing Fire (David, 2026-10-29): a suppressed unit loses Hold, Brace, Anti-Cavalry and Charge Reflection until it wears off. */
+/** Suppressing Fire (David, 2026-10-29): movement -2 (min 1), range 2 at most; a suppressed unit loses Hold, Brace, Anti-Cavalry and Charge Reflection until it wears off. */
 const suppressed = (u) => !!(u && u.fx && u.fx.suppressed);
 const holdingNow = (u) => !!(u && u.round && u.round.holding) && !suppressed(u);
 const tierVal = (tier, vals) => (tier ? vals[Math.min(tier, vals.length) - 1] : 0);
@@ -410,12 +410,12 @@ const heroOfficer = (s, u) => { const o = officerOf(s, u), t = typeOf(s, u); ret
 function movementOf(s, u) {
   const t = typeOf(s, u); const f = formationOf(s, u);
   if (f.immobile) return 0;
-  if (suppressed(u)) return 1; // Suppressing Fire: movement 1 until it wears off
   const slowed = fx(u).slow ? 1 : 0; // Barbed Arrows
   const load = carrying(u) === 'ladders' ? 1 : carrying(u) === 'engine' ? 2 : 0; // siege equipment is heavy
   const saddle = saddleOf(u) >= 3 ? 1 : 0; // Saddle++: movement +1
   // whatever slows it, a unit can always move at least 1 tile (David, 2026-10-25); only an immobile formation stops it
-  return Math.max(1, (t ? t.move : 4) + (f.moveMod || 0) + (passive(s, u).moveBonus || 0) - slowed - load + saddle);
+  const supp = suppressed(u) ? 2 : 0; // Suppressing Fire: movement -2 (still at least 1)
+  return Math.max(1, (t ? t.move : 4) + (f.moveMod || 0) + (passive(s, u).moveBonus || 0) - slowed - load + saddle - supp);
 }
 
 /** Heroic actions in battles are off for now (David, 2026-10-25); the code stays for later. */
@@ -500,6 +500,7 @@ function threatArea(s, u) {
   const moveSet = new Set(move ? reachable(s, u, move).keys() : []);
   const t = typeOf(s, u), ranged = t.weapon === 'ranged';
   const bands = [[t.rangeMin || 1, (t.rangeMax || 1) + (ranged ? rangeBonus(s, u) : 0)]];
+  if (ranged && suppressed(u)) bands[0][1] = Math.min(bands[0][1], 2); // Suppressing Fire: range 2 at most
   if (ranged && trait(u, 'hybrid')) bands.push([1, 1]);
   const attack = new Set();
   const origins = [[u.x, u.y], ...[...moveSet].map(k => k.split(',').map(Number))];
@@ -700,7 +701,9 @@ function rangeOk(s, attacker, defender) {
   const bonus = t.weapon === 'ranged' ? rangeBonus(s, attacker) + (tr ? tr.range : 0) : 0;
   // Hybrid units may fight next to them in melee
   if (d === 1 && t.weapon === 'ranged' && trait(attacker, 'hybrid')) return meleeLevelOk(s, attacker, defender);
-  if (!(d >= (t.rangeMin || 1) && d <= Math.max(1, (t.rangeMax || 1) + bonus))) return false;
+  let max = Math.max(1, (t.rangeMax || 1) + bonus);
+  if (t.weapon === 'ranged' && suppressed(attacker)) max = Math.min(max, 2); // Suppressing Fire: range 2 at most
+  if (!(d >= (t.rangeMin || 1) && d <= max)) return false;
   if (t.weapon !== 'ranged') return meleeLevelOk(s, attacker, defender); // walls: melee needs the same level or a ladder
   return !wallBlocksShot(s, attacker, defender);
 }
@@ -1071,7 +1074,7 @@ function resolveAttack(s, attacker, defender, opts) {
     const pz = trait(attacker, 'poison'), sd = trait(attacker, 'sunder');
     if (pz) fx(defender).poison = Math.max(fx(defender).poison || 0, tierVal(pz, [1, 2]));   // doesn't stack; Poison+ replaces Poison
     if (sd) fx(defender).sunder = Math.max(fx(defender).sunder || 0, tierVal(sd, [2, 4]));   // doesn't stack; Sunder+ replaces Sunder
-    // Suppressing Fire (ranged): Attack -1, melee defense -1, movement 1, no Hold/Brace/Anti-Cavalry/Charge Reflection until the end of its next turn
+    // Suppressing Fire (ranged): Attack -1, melee defense -1, movement -2 (min 1), range 2 at most, no Hold/Brace/Anti-Cavalry/Charge Reflection until the end of its next turn
     if (ranged && trait(attacker, 'suppressing fire')) { fx(defender).suppressed = true; suppressedNow = true; }
   }
   fx(attacker).attackedOnce = true;                                                        // Shock Troop: only the first attack of the battle

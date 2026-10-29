@@ -68,10 +68,10 @@ test('Suppressing Fire: a hit gives the target Attack -1 until the end of its ne
   assert.ok(!m.D.fx.suppressed);
 });
 
-test('Suppressing Fire (2026-10-29): melee defense -1, movement 1, Hold/Brace/Anti-Cavalry/Charge Reflection lost; result flags the animation', () => {
+test('Suppressing Fire (2026-10-29): melee defense -1, movement -2 (min 1), range 2, Hold/Brace/Anti-Cavalry/Charge Reflection lost; result flags the animation', () => {
   const { s, A, D, r } = duel(unitType('a', { weapon: 'ranged', rangeMax: 3 }), unitType('d', { move: 4 }), [9, 0, 0, 0], traits({ 'suppressing fire': 1 }));
   assert.ok(r.suppressed, 'the attack result says it landed (UI plays the Suppressed animation)');
-  assert.strictEqual(R.movementOf(s, D), 1, 'movement 1');
+  assert.strictEqual(R.movementOf(s, D), 2, 'movement 4 - 2');
   assert.strictEqual(part(rollOf(s, D, 'defender', A), /^Suppressed: melee defense/), -1);
   assert.strictEqual(part(rollOf(s, D, 'defender', A, { ranged: true }), /^Suppressed/), 0, 'ranged defense unchanged');
   D.round.holding = true; D.traitTiers = { brace: 1, 'anti-cavalry': 2, 'charge reflection': 1 };
@@ -81,6 +81,14 @@ test('Suppressing Fire (2026-10-29): melee defense -1, movement 1, Hold/Brace/An
   delete D.fx.suppressed;
   assert.strictEqual(R.movementOf(s, D), 4, 'wears off');
   assert.ok(part(rollOf(s, D, 'defender', A), /^Holding/) > 0 && part(rollOf(s, D, 'defender', A), /^Anti-Cavalry/) > 0);
+  // movement never below 1; a suppressed ranged unit reaches 2 tiles at most
+  const slow = duel(unitType('a', { weapon: 'ranged', rangeMax: 3 }), unitType('d', { move: 2 }), [9, 0, 0, 0], traits({ 'suppressing fire': 1 }));
+  assert.strictEqual(R.movementOf(slow.s, slow.D), 1, 'move 2 - 2 stays at 1');
+  const bow = duel(unitType('a', { weapon: 'ranged', rangeMax: 3 }), unitType('d', { weapon: 'ranged', rangeMax: 4 }), [9, 0, 0, 0], traits({ 'suppressing fire': 1 }));
+  bow.A.y = bow.D.y + 3; bow.A.x = bow.D.x;
+  assert.ok(!R.rangeOk(bow.s, bow.D, bow.A), 'range 4 bow cannot reach 3 tiles while suppressed');
+  bow.A.y = bow.D.y + 2;
+  assert.ok(R.rangeOk(bow.s, bow.D, bow.A), 'still reaches 2');
   // only ranged attacks suppress
   const m = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], traits({ 'suppressing fire': 1 }));
   assert.ok(!m.D.fx.suppressed && !m.r.suppressed);

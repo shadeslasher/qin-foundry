@@ -192,6 +192,7 @@ export function unitStatus(token) {
     groundDef = ground.meleeDef; groundRanged = ground.rangedDef;
     if (s.range > 1) range += ground.range;
   }
+  if (supp && s.range > 1 && s.range + range > 2) range = 2 - s.range; // Suppressing Fire: range 2 at most
   return { rolls, attack, defense: defense + groundDef, rangedDefense: rangedDefense + groundRanged, range, holding: !!round.holding, hidden: !!s.hidden,
     reloading: !!fx.reload, suppressed: supp };
 }
