@@ -1,6 +1,6 @@
-// Who may lead a battlefield unit: weapon skill N lets a character lead units up to tier N that use that weapon;
-// leading cavalry also needs Horsemanship N. A unit with two weapons (weaponSkill2, e.g. Azure Dragons' spear and bow)
-// counts the officer's higher of the two skills (David, 2026-10-28).
+// Officers and their units' weapons. Since 2026-10-28 any character can lead any unit (no weapon or Horsemanship minimum);
+// the officer's skill in the unit's weapon gives Attack +1 per level above 2 (engine buildRoll). A unit with two weapons
+// (weaponSkill2, e.g. Azure Dragons' spear and bow) counts the officer's higher of the two skills.
 
 import { SKILLS } from "./config.mjs";
 
@@ -21,12 +21,9 @@ export function officerWeaponSkill(officer, unit) {
   return best;
 }
 
-/** { ok, reason } for `officer` (a character actor) leading a unit with this system data. */
+/** { ok, reason } for `officer` (a character actor) leading a unit with this system data.
+ *  Any character can lead any unit (David, 2026-10-28); his matching weapon skill gives the unit Attack +1 per level above 2 instead. */
 export function officerEligibility(officer, unit) {
   if (!officer || officer.type !== "character") return { ok: false, reason: "not a character" };
-  const tier = Number(unit.tier) || 1, weapons = unitWeaponSkills(unit);
-  const need = [];
-  if (weapons.length && officerWeaponSkill(officer, unit).value < tier) need.push(weapons.map(w => `${SKILLS[w]?.label ?? w} ${tier}`).join(" or "));
-  if (unit.category === "cavalry" && skillOf(officer, "horsemanship") < tier) need.push(`Horsemanship ${tier}`);
-  return need.length ? { ok: false, reason: `needs ${need.join(" and ")}` } : { ok: true, reason: "" };
+  return { ok: true, reason: "" };
 }

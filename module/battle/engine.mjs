@@ -790,8 +790,9 @@ function buildRoll(s, unit, role, ctx) {
     if (f.noAttackerBonus) parts.push(['Attacker bonus (lost: ' + f.name + ')', 0]);
     else if (ctx.ranged && unit.round.moved && !trait(unit, 'moving shot')) parts.push(['Attacker bonus (lost: moved before shooting)', 0]);
     else parts.push(['Attacker bonus', 2]);
-    // Officer leading with his own weapon (undecided proposal, David 2026-10-28; off unless a battle sets s.weaponMatch, used by the balance sims): +1 Expert, +2 Master, +3 Legendary
-    if (s.weaponMatch && o) { const lv = officerWeaponLevel(o, t); const off = s.weaponMatchFrom ?? 2; if (lv > off) parts.push(["Officer's weapon (" + t.skill + ' ' + lv + ')', lv - off]); }
+    // Officer leading with his own weapon (David, 2026-10-28): Attack +1 per level of the unit's weapon skill above Competent (2):
+    // Expert +1, Master +2, Legendary +3, Godlike +4. Two-weapon units use his higher skill. Only on the unit's own attacks.
+    if (o) { const lv = officerWeaponLevel(o, t); if (lv > 2) parts.push(["Officer's weapon (" + (lv === officerWeaponLevel(o, { skill: t.skill }) ? t.skill : t.skill2) + ' ' + lv + ')', lv - 2]); }
     if (!ctx.ranged && f.frontMelee && isFront(s, other, unit)) parts.push(['Formation front (' + f.name + ')', f.frontMelee]);
     if (ctx.charge) parts.push(['Cavalry charge (' + ctx.tilesMoved + ' tiles moved)', ctx.chargeBase]);
     if (ctx.charge && ctx.fierceBonus) parts.push([FIERCE_NAMES[Math.min(3, ctx.fierce)], ctx.fierceBonus]);

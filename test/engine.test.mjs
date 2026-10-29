@@ -37,7 +37,7 @@ test('melee: winner deals damage + difference, loser deals base; casualties minu
   assert.strictEqual(A.morale, 50, '3 casualties pass no checkpoint');
 });
 
-test('officer-less units count Command as 0; an officer adds its Command (Fire and weapon skill no longer add)', () => {
+test('officer-less units count Command as 0; an officer adds its Command and, attacking, his weapon skill above 2', () => {
   const s = setup();
   const a = add(s, { typeId: 'han_ji_inf', officerId: 'wen_ping', side: 'player', owner: 'p1', x: 2, y: 2 });
   const d = add(s, { typeId: 'yt_spearmen', side: 'enemy', x: 3, y: 2 });
@@ -45,7 +45,8 @@ test('officer-less units count Command as 0; an officer adds its Command (Fire a
   dice([0, 0, 0, 0]);
   const rA = R.buildRoll(s, A, 'attacker', { attacker: A, defender: D });
   const rD = R.buildRoll(s, D, 'defender', { attacker: A, defender: D });
-  assert.strictEqual(rA.total, 0 + 4 + 2 + 2);  // yy, Command 4, UV 2, attacker +2
+  assert.strictEqual(rA.total, 0 + 4 + 2 + 2 + 2);  // yy, Command 4, UV 2, attacker +2, Wen Ping's Qiangshu 4 (Master) +2
+  assert.strictEqual(rA.parts.find(p => /^Officer's weapon/.test(p[0]))[1], 2);
   assert.strictEqual(rD.total, 2);                      // UV only
 });
 
