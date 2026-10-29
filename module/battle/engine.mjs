@@ -1419,11 +1419,12 @@ function endRound(s) {
   objState(s).roundsDone = s.turn.round; // rounds survived / held / used up
   burnRound(s); // fires burn down
   for (const u of s.units) u.facing = null; // every unit's facing clears when the round ends
-  // Inspiration: at the end of the round, allied units next to it gain 4 morale
+  // Inspiration: at the end of the round, allied units next to it gain 2 morale; Inspiration+ 4 (David, 2026-10-28)
   for (const u of liveUnits(s)) if (trait(u, 'inspiration')) {
+    const gain = tierVal(trait(u, 'inspiration'), [2, 4]);
     for (const o of liveUnits(s)) if (o !== u && friendly(o, u) && manhattan(o, u) === 1 && o.morale < 100) {
-      o.morale = Math.min(100, o.morale + 4);
-      log(s, o.name + ' gains 4 morale (Inspiration from ' + u.name + ').');
+      o.morale = Math.min(100, o.morale + gain);
+      log(s, o.name + ' gains ' + gain + ' morale (Inspiration' + (gain > 2 ? '+' : '') + ' from ' + u.name + ').');
     }
   }
   // Hiding: a unit in cover (forest, tall grass) at the end of the round hides, unless an enemy is next to it

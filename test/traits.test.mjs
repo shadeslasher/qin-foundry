@@ -188,7 +188,7 @@ test('Charge Reflection: a defender that beats a charge adds the charge bonus to
   assert.ok(r.charge);
 });
 
-test('Inspiration: allies next to it gain 4 morale at the end of the round, not the end of its turn', () => {
+test('Inspiration: allies next to it gain 2 morale at the end of the round, not the end of its turn', () => {
   const s = setup();
   s.library.unitTypes.push(unitType('i'), unitType('al'), unitType('e'));
   const i = add(s, { typeId: 'i', side: 'player', owner: 'p1', x: 5, y: 5 });
@@ -210,7 +210,7 @@ test('Inspiration: allies next to it gain 4 morale at the end of the round, not 
     R.act(s, R.unitById(s, ac).side === 'player' ? P1 : HOST, { type: 'endTurn', unitId: ac });
   }
   assert.strictEqual(s.turn.round, round + 1, 'round ended');
-  assert.strictEqual(R.unitById(s, al).morale, 54);
+  assert.strictEqual(R.unitById(s, al).morale, 52);
 });
 
 test('Wedge + Dual Weapons: moves up after winning, then gets the second attack from the new tile', () => {
@@ -330,4 +330,26 @@ test('Precision / + / ++: Attack +2 / +4 / +6 when the unit has not moved', () =
     const { r } = duel(unitType('a', { weapon: 'ranged', rangeMax: 3 }), unitType('d'), [3, 0, 0, 0], traits({ precision: tier }));
     assert.strictEqual(part(r.attackRoll, /^Precision/), val, 'Precision tier ' + tier);
   }
+});
+
+test('Inspiration+: allies next to it gain 4 morale at the end of the round', () => {
+  const s = setup();
+  s.library.unitTypes.push(unitType('i'), unitType('al'), unitType('e'));
+  const i = add(s, { typeId: 'i', side: 'player', owner: 'p1', x: 5, y: 5 });
+  const al = add(s, { typeId: 'al', side: 'player', owner: 'p1', x: 6, y: 5 });
+  add(s, { typeId: 'e', side: 'enemy', x: 15, y: 15 });
+  R.unitById(s, i).traitTiers = { inspiration: 2 };
+  must(R.act(s, HOST, { type: 'startBattle' })); dice([0, 0]); must(R.act(s, HOST, { type: 'startRound' }));
+  const round = s.turn.round;
+  for (let g = 0; g < 20 && s.turn.round === round; g++) {
+    if (!s.turn.activation) {
+      let ok = false;
+      for (const u of s.units.filter(u => u.status === 'active')) for (const actor of [P1, HOST]) if (!ok && R.act(s, actor, { type: 'begin', unitId: u.id }).ok) ok = true;
+      if (!ok) for (const actor of [P1, HOST]) R.act(s, actor, { type: 'claim' });
+      continue;
+    }
+    const ac = s.turn.activation.unitId;
+    R.act(s, R.unitById(s, ac).side === 'player' ? P1 : HOST, { type: 'endTurn', unitId: ac });
+  }
+  assert.strictEqual(R.unitById(s, al).morale, 54);
 });
