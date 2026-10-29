@@ -808,7 +808,10 @@ function buildRoll(s, unit, role, ctx) {
     if (!unit.round.moved && trait(unit, 'precision')) parts.push(['Precision', tierVal(trait(unit, 'precision'), [2, 4])]);
     if (trait(unit, 'swarm') && liveUnits(s).some(o => o !== unit && friendly(o, unit) && manhattan(o, other) === 1))
       parts.push(['Swarm', tierVal(trait(unit, 'swarm'), [1, 2])]);
-    if (trait(unit, 'volley fire') && other.round && other.round.hitByRanged) parts.push(['Volley Fire', 1]);
+    // Volley Fire: +1 against a unit already shot at this round. Volley Fire+ (David, 2026-10-28): its ranged attacks get
+    // Attack +1 for every ranged attack already made on the defender this round
+    if (trait(unit, 'volley fire') >= 2) { const n = ctx.ranged ? (other.round?.rangedTaken || 0) : 0; if (n) parts.push(['Volley Fire+ (' + n + ' shot' + (n > 1 ? 's' : '') + ' before)', n]); }
+    else if (trait(unit, 'volley fire') && other.round && other.round.hitByRanged) parts.push(['Volley Fire', 1]);
     if (ctx.chargeCancelled) parts.push(['Charge bonus (cancelled: ' + of.name + ')', 0]);
     if (ctx.rear) parts.push(['Rear attack', 2]);
     if (ctx.rear && of.rearAtk) parts.push(['Rear attack vs ' + of.name, of.rearAtk]);

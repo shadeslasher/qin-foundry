@@ -316,3 +316,11 @@ test('Skirmisher: after attacking it may move 1 tile (Skirmisher+ 2), then the t
   assert.deepStrictEqual([A.x, A.y], [x, y]);
   assert.ok(!s.turn.activation || s.turn.activation.unitId !== A.id, 'turn over');
 });
+
+test('Volley Fire+: ranged attacks get Attack +1 per ranged attack already made on the defender this round', () => {
+  const { s, A, D } = duel(unitType('a', { weapon: 'ranged', rangeMax: 3 }), unitType('d'), [3, 0, 0, 0], (a) => { a.traitTiers = { 'volley fire': 2 }; });
+  const roll = (ranged) => part(R.buildRoll(s, A, 'attacker', { attacker: A, defender: D, ranged }), /^Volley Fire/);
+  D.round.rangedTaken = 0; assert.strictEqual(roll(true), 0);
+  D.round.rangedTaken = 3; assert.strictEqual(roll(true), 3);
+  assert.strictEqual(roll(false), 0, 'not on melee attacks');
+});
