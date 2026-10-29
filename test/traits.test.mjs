@@ -32,14 +32,17 @@ function duel(aType, dType, rolls, setupFn, extra = []) {
 const part = (roll, re) => roll.parts.filter(([l]) => re.test(l)).reduce((t, [, v]) => t + v, 0);
 const traits = (o) => (u) => { u.traitTiers = o; };
 
-test('Anti-Cavalry (+0/+2/+4) and Anti-Infantry (+1/+2/+4): only on the unit\'s own attacks', () => {
+test('Anti-Cavalry: Defense +2/+4/+6 when cavalry attack it in melee; nothing on its own attacks. Anti-Infantry only attacking', () => {
+  for (const [tier, val] of [[1, 2], [2, 4], [3, 6]]) {
+    const { r } = duel(unitType('c', { category: 'cavalry' }), unitType('a'), [3, 0, 0, 0], (a, d) => { d.traitTiers = { 'anti-cavalry': tier }; });
+    assert.strictEqual(part(r.defendRoll, /^Anti-Cavalry/), val, 'Anti-Cavalry tier ' + tier);
+  }
   const { r } = duel(unitType('a'), unitType('c', { category: 'cavalry' }), [3, 0, 0, 0], (a, d) => { a.traitTiers = { 'anti-cavalry': 3 }; d.traitTiers = { 'anti-infantry': 2 }; });
-  assert.strictEqual(part(r.attackRoll, /^Anti-Cavalry/), 4);
-  assert.strictEqual(part(r.defendRoll, /^Anti-Infantry/), 0, 'not when defending');
-  const b = duel(unitType('a'), unitType('c', { category: 'cavalry' }), [3, 0, 0, 0], traits({ 'anti-cavalry': 1 }));
-  assert.strictEqual(part(b.r.attackRoll, /^Anti-Cavalry/), 0, 'plain Anti-Cavalry adds nothing to the roll');
+  assert.strictEqual(part(r.attackRoll, /^Anti-Cavalry/), 0, 'no bonus on its own attacks');
+  assert.strictEqual(part(r.defendRoll, /^Anti-Infantry/), 0, 'Anti-Infantry not when defending');
+  const inf = duel(unitType('i'), unitType('a'), [3, 0, 0, 0], (a, d) => { d.traitTiers = { 'anti-cavalry': 3 }; });
+  assert.strictEqual(part(inf.r.defendRoll, /^Anti-Cavalry/), 0, 'not against infantry');
 });
-
 test('Precision: Attack +2/+4 if the unit has not moved before attacking; Hefty Weapon -2 after moving', () => {
   const p = duel(unitType('a'), unitType('d'), [3, 0, 0, 0], traits({ precision: 2 }));
   assert.strictEqual(part(p.r.attackRoll, /^Precision/), 4);
@@ -180,8 +183,8 @@ test('Charge Reflection: a defender that beats a charge adds the charge bonus to
   dice([0, 0, 9, 0]);
   must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
   const r = s.log.filter(e => e.detail && e.detail.type === 'attack').pop().detail.result;
-  // A: 0+2+2+1 (cavalry vs infantry) = 5 (3 tiles: +2), D: 9 -> diff 4. Return: 6 + 4 + 2 (reflected charge) = 12 - 3 = 9.
-  assert.strictEqual(R.unitById(s, a).men, 100 - 9);
+  // A: 0+2+2+1 (cavalry vs infantry) = 5 (3 tiles: +2), D: 9 + 2 (Anti-Cavalry defense) = 11 -> diff 6. Return: 6 + 6 + 2 (reflected charge) = 14 - 3 = 11.
+  assert.strictEqual(R.unitById(s, a).men, 100 - 11);
   assert.ok(r.charge);
 });
 

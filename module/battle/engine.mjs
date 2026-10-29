@@ -858,8 +858,10 @@ function buildRoll(s, unit, role, ctx) {
   const oc = (typeOf(s, other) || {}).category;
   // Cavalry: Command +1 in melee against infantry, attacking or defending (David, 2026-10-25)
   if (!ctx.ranged && t.category === 'cavalry' && oc === 'infantry') parts.push(['Cavalry vs infantry', 1]);
-  // Anti-Cavalry (+0/+2/+4) and Anti-Infantry (+1/+2/+4) only count on the unit's own attacks
-  if (role === 'attacker' && oc === 'cavalry' && trait(unit, 'anti-cavalry') > 1) parts.push(['Anti-Cavalry', tierVal(trait(unit, 'anti-cavalry'), [0, 2, 4])]);
+  // Anti-Cavalry (David, 2026-10-28): Defense +2 / +4 / +6 when cavalry attack it in melee from the front or sides (never the rear);
+  // no bonus on its own attacks. Anti-Infantry (+1/+2/+4) only counts on the unit's own attacks.
+  if (role === 'defender' && oc === 'cavalry' && !ctx.ranged && !ctx.rear && trait(unit, 'anti-cavalry'))
+    parts.push(['Anti-Cavalry: defense against cavalry', tierVal(trait(unit, 'anti-cavalry'), [2, 4, 6])]);
   if (role === 'attacker' && oc === 'infantry' && trait(unit, 'anti-infantry')) parts.push(['Anti-Infantry', tierVal(trait(unit, 'anti-infantry'), [1, 2, 4])]);
   let ms = moraleState(unit.morale);
   if (ms === 'Surrendered' && trait(unit, 'fanatic')) ms = 'Demoralized'; // Fanatic: fights on at 0 morale
