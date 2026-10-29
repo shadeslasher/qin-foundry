@@ -1033,6 +1033,20 @@ function resolveAttack(s, attacker, defender, opts) {
       log(s, 'Fierce Charge++: ' + b.name + ', behind ' + defender.name + ', takes half the damage (-' + cas + ').', { type: 'trample', unit: b.id, casualties: cas });
     }
   }
+  // Splash Attack (David, 2026-10-28): when the attack lands, every other enemy unit next to the defender takes
+  // 2 casualties (Splash Attack) or 4 (Splash Attack+), flat
+  const splash = trait(attacker, 'splash attack');
+  if (splash && casDef > 0) {
+    const n = tierVal(splash, [2, 4]);
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const b = unitAt(s, defender.x + dx, defender.y + dy);
+      if (!b || b === attacker || b === defender || !alive(b) || !hostile(attacker, b)) continue;
+      const cas = Math.min(n, b.men);
+      b.men = Math.max(0, b.men - cas);
+      b.morale = clamp(b.morale - checkpointMorale(b), 0, 100);
+      log(s, (splash > 1 ? 'Splash Attack+: ' : 'Splash Attack: ') + b.name + ', next to ' + defender.name + ', takes ' + cas + ' casualties.', { type: 'splash', unit: b.id, casualties: cas });
+    }
+  }
   if (loser) loser.morale = clamp(loser.morale - moraleLoss, 0, 100);
   // casualties cost morale at checkpoints: -5 the first time each fifth of the unit's health is lost this battle
   const cmD = checkpointMorale(defender), cmA = checkpointMorale(attacker);

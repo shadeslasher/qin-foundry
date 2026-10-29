@@ -345,3 +345,23 @@ test('War Horn: Reinvigorate gives an adjacent ally that has acted a fresh turn 
   assert.ok(!R.unitById(s, b).round.attacked && !R.unitById(s, b).round.moved);
   assert.ok(!R.hornReady(s, R.unitById(s, h)), 'recharging');
 });
+
+test('Splash Attack: other enemies next to the defender take 2 casualties (Splash Attack+ 4) when the attack lands', async () => {
+  const R = await import('../module/battle/engine.mjs');
+  const run = (tier) => {
+    const s = R.newState();
+    s.library.unitTypes = [{ id: 'x', name: 'X', tier: 4, category: 'ranged', weapon: 'ranged', skill: 'gongshu', damage: 30, armor: 0, armorPen: 5, move: 3, rangeMin: 1, rangeMax: 3, unitValue: 0, formations: ['none'] }];
+    const mk = (id, side, x, y) => ({ id, typeId: 'x', officerId: null, name: id, side, x, y, men: 100, maxMen: 100, morale: 60, status: 'active', facing: null, formation: 'none', traitTiers: {}, fx: {}, mods: [], round: { activated: false, moved: false, attacked: false }, xp: 0, level: 1 });
+    const A = mk('a', 'player', 5, 2), D = mk('d', 'enemy', 5, 5), N = mk('n', 'enemy', 6, 5), F = mk('f', 'player', 4, 5), Far = mk('far', 'enemy', 7, 5);
+    A.traitTiers = { 'splash attack': tier };
+    s.units = [A, D, N, F, Far];
+    R.resolveAttack(s, A, D, { movedThisActivation: false, tilesMoved: 0 });
+    return { D, N, F, Far };
+  };
+  const one = run(1);
+  assert.ok(one.D.men < 100, 'the target is hit');
+  assert.strictEqual(one.N.men, 98, 'adjacent enemy: 2');
+  assert.strictEqual(one.F.men, 100, 'allies are spared');
+  assert.strictEqual(one.Far.men, 100, 'not adjacent: nothing');
+  assert.strictEqual(run(2).N.men, 96, 'Splash Attack+: 4');
+});
