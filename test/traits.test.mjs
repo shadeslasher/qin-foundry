@@ -368,3 +368,14 @@ test('Hybrid (2026-10-29): an adjacent attack is a melee attack: full Attacker b
   const shot = R.buildRoll(s, A, 'attacker', { attacker: A, defender: D, ranged: true });
   assert.strictEqual(part(shot, /^Attacker bonus/), 0, 'a shot after moving loses it');
 });
+
+test('Brace+ (2026-10-29): melee defense +4 while holding (Brace +2)', () => {
+  const { s, A, D } = duel(unitType('a'), unitType('d'), [3, 0, 0, 0]);
+  D.round.holding = true;
+  for (const [tier, v] of [[1, 2], [2, 4]]) {
+    D.traitTiers = { brace: tier };
+    assert.strictEqual(part(R.buildRoll(s, D, 'defender', { attacker: A, defender: D, ranged: false }), /^Brace/), v);
+  }
+  D.round.holding = false;
+  assert.strictEqual(part(R.buildRoll(s, D, 'defender', { attacker: A, defender: D, ranged: false }), /^Brace/), 0, 'only while holding');
+});

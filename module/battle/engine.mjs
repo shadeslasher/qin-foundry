@@ -832,7 +832,7 @@ function buildRoll(s, unit, role, ctx) {
   } else {
     // Defense bonuses: everything that makes a unit harder to hit is added to the defender's roll
     if (!ctx.ranged && holdingNow(unit)) parts.push(['Holding: melee defense', 2]); // Hold doesn't help against ranged attacks
-    if (!ctx.ranged && holdingNow(unit) && trait(unit, 'brace')) parts.push(['Brace: melee defense', 2]);
+    if (!ctx.ranged && holdingNow(unit) && trait(unit, 'brace')) parts.push([(trait(unit, 'brace') > 1 ? 'Brace+' : 'Brace') + ': melee defense', tierVal(trait(unit, 'brace'), [2, 4])]); // Brace+ +4 (David, 2026-10-29)
     if (!ctx.ranged && suppressed(unit)) parts.push(['Suppressed: melee defense (Hold, Brace, Anti-Cavalry and Charge Reflection lost)', -1]);
     // Hold the Line (trait): an adjacent allied unit that is holding gives infantry Melee defense +1/+2 (the best one counts)
     if (!ctx.ranged && t.category === 'infantry') {
