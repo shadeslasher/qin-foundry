@@ -7,7 +7,7 @@ const SYS = () => game.system.id;
 const EDITS = "unitTemplateEdits";
 
 /** Stats a copy takes from its template ("Update copies"). Health, morale, XP, level and officer stay the copy's own. */
-const COPY_FIELDS = ["tier", "category", "unitType", "weaponSkill", "armor", "armorNote", "damage", "armorPen", "move", "range", "rangeMin", "unitValue", "faction"];
+const COPY_FIELDS = ["tier", "category", "unitType", "weaponSkill", "weaponSkill2", "armor", "armorNote", "damage", "armorPen", "move", "range", "rangeMin", "unitValue", "faction"];
 
 export function registerUnitEditor() {
   game.settings.register(SYS(), EDITS, { scope: "world", config: false, type: new foundry.data.fields.ObjectField(), default: {} });

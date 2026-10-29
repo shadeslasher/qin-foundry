@@ -275,7 +275,7 @@ export class UnitInfoApp extends Base {
     const forms = actor.items.filter(i => i.type === "formation").sort((a, b) => (a.sort || 0) - (b.sort || 0));
     const menPct = Math.max(0, Math.min(100, Math.round(100 * sys.men.value / (sys.men.max || 100))));
     const sideLabel = { player: "Player", enemy: "Enemy", ally: "Ally", neutral: "Neutral" }[sys.side] ?? sys.side;
-    const skill = SKILLS[sys.weaponSkill]?.label ?? sys.weaponSkill;
+    const skill = [sys.weaponSkill, sys.weaponSkill2].filter((k, i, a) => k && a.indexOf(k) === i).map(k => SKILLS[k]?.label ?? k).join(" or ");
     const tierN = Math.max(1, Math.min(4, Number(sys.tier) || 1));
     const gold = [officer?.system?.details?.title, faction?.name].filter(Boolean).join(" · ");
     const tile = (icon, v, label, note = "") => `<div class="qin-ui-tile"${note ? ` data-tooltip="${esc(note)}"` : ""}><i>${icon}</i><b>${v}</b><small>${label}</small></div>`;

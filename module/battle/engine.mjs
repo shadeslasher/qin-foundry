@@ -396,7 +396,13 @@ function fireTactics(s, event, u) {
   }
   return fired;
 }
-const heroOfficer = (s, u) => { const o = officerOf(s, u), t = typeOf(s, u); return !!(o && t && ((o.skills || {})[t.skill] || 0) >= 5); };
+/** The officer's skill in the unit's weapon; two-weapon units (skill2, e.g. Azure Dragons) use the higher (David, 2026-10-28). */
+function officerWeaponLevel(o, t) {
+  if (!o || !t) return 0;
+  const sk = o.skills || {}, get = (k) => Number(sk[k] ?? sk[String(k || '').toLowerCase()]) || 0;
+  return Math.max(get(t.skill), t.skill2 ? get(t.skill2) : 0);
+}
+const heroOfficer = (s, u) => { const o = officerOf(s, u), t = typeOf(s, u); return !!(o && t && officerWeaponLevel(o, t) >= 5); };
 
 function movementOf(s, u) {
   const t = typeOf(s, u); const f = formationOf(s, u);
@@ -2368,7 +2374,7 @@ function viewFor(s, viewer) {
   return v;
 }
 
-export { casualtiesOf, evasionOf, evadeCasualties, disciplinedBonus, warDrumsBonus, hornReady, hornTargets, checkpointMorale, checkpointsPassed, overwatchFire as _overwatchFire, surroundAfterTurn as _surroundAfterTurn,
+export { officerWeaponLevel, casualtiesOf, evasionOf, evadeCasualties, disciplinedBonus, warDrumsBonus, hornReady, hornTargets, checkpointMorale, checkpointsPassed, overwatchFire as _overwatchFire, surroundAfterTurn as _surroundAfterTurn,
   moveOptions, attackTargets, actionMenu, threatArea, TACTIC_SIDES, tileRules, ladderTiles, climbTiles, insideCity, isWallTop, gateAt,
   newState, act, viewFor, prompt, reachable, duelTargets, movementOf, moraleState, visibleTo, rangeOk,
   resolveAttack, buildRoll, skillCheck, setRng, yinYang, typeOf, officerOf, unitById, SIDES, settle, advance,

@@ -176,7 +176,7 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
     const ranged = sys.range > 1;
     s.library.unitTypes.push({
       id: tok.id, name: a.name, faction: sys.faction, tier: sys.tier, category: sys.category, weapon: ranged ? "ranged" : "melee",
-      skill: sys.weaponSkill, unitValue: sys.unitValue, damage: sys.damage, armor: sys.armor, armorPen: sys.armorPen, move: sys.move,
+      skill: sys.weaponSkill, skill2: sys.weaponSkill2 || "", unitValue: sys.unitValue, damage: sys.damage, armor: sys.armor, armorPen: sys.armorPen, move: sys.move,
       shieldArmor: shieldArmorOf(sys.armorNote), // the part of its armor that comes from shields (Shield Breaker ignores it)
       rangeMin: ranged ? Math.min(sys.rangeMin || 1, sys.range) : 1, rangeMax: ranged ? sys.range : 1, formations: ["none", ...forms.map(f => f.id)],
     });

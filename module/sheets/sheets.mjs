@@ -3,7 +3,7 @@ import { ASPECTS, SKILLS, DOMAINS, SKILL_LEVELS, BOL_LEVELS, MAGIC_WAYS, OFFICER
 import { factionOf, openFactionPicker } from "../factions.mjs";
 import { actionsPerRound } from "../rules/qin-rules.mjs";
 import { traitAtLevel, parseTraitText, pendingTraitChoices, replacedTraits } from "../battle/traits.mjs";
-import { officerEligibility } from "../officer-rules.mjs";
+import { officerEligibility, officerWeaponSkill } from "../officer-rules.mjs";
 import { TT_ICONS } from "../icons.mjs";
 import { EquipmentPicker, unequipUnit, equipmentOf } from "../equipment.mjs";
 import { healthColor, moraleColor } from "../unit-bars.mjs";
@@ -547,12 +547,14 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
       actor, system, editable: this.isEditable, isGM: game.user.isGM,
       categories: UNIT_CATEGORIES, sides: SIDES, faction: factionOf(system.faction),
       weaponSkills: Object.fromEntries(Object.entries(SKILLS).filter(([, s]) => s.martial).map(([k, s]) => [k, s.label])),
+      weaponSkills2: { "": "None", ...Object.fromEntries(Object.entries(SKILLS).filter(([, s]) => s.martial).map(([k, s]) => [k, s.label])) },
       formationChoices: { none: "No formation", ...Object.fromEntries(formations.map(f => [f.id, f.name])) },
       formations: formations.map(f => ({ id: f.id, name: f.name, description: f.system.description, summary: formationSummary(f.system), active: system.formation === f.id })),
       formationLibrary: lib.map(l => ({ ...l, owned: owned.has(l.name) })),
       officer, officerStats: officer ? {
         fire: officer.system.aspects.fire, command: officer.system.skills.command.value,
-        skill: officer.getSkill(system.weaponSkill).value, skillLabel: SKILLS[system.weaponSkill]?.label,
+        // two-weapon units: the officer's higher skill of the two
+        ...(() => { const b = officerWeaponSkill(officer, system); return { skill: b.value, skillLabel: SKILLS[b.key]?.label }; })(),
       } : null,
       // characters that can be picked as officer: any for the GM, a player's own characters for them
       officerChoices: this.isEditable ? (game.actors?.contents ?? []).filter(a => a.type === "character" && (game.user.isGM || a.isOwner))

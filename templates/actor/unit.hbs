@@ -39,6 +39,7 @@
         <label>Tier <input type="number" name="system.tier" value="{{system.tier}}" min="1" max="6"></label>
         <label>Category <select name="system.category">{{selectOptions categories selected=system.category}}</select></label>
         <label>Officer weapon skill <select name="system.weaponSkill">{{selectOptions weaponSkills selected=system.weaponSkill}}</select></label>
+        <label data-tooltip="For units with two weapons: the officer uses whichever of the two skills is higher">Second weapon skill <select name="system.weaponSkill2">{{selectOptions weaponSkills2 selected=system.weaponSkill2}}</select></label>
         <label>Max health <input type="number" name="system.men.max" value="{{system.men.max}}" min="1"></label>
         <label>Armor breakdown <input type="text" name="system.armorNote" value="{{system.armorNote}}" placeholder="e.g. 2 + 2 (Shield)"></label>
         {{#if system.isRanged}}<label>Minimum range <input type="number" name="system.rangeMin" value="{{system.rangeMin}}" min="1"></label>{{/if}}

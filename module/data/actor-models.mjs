@@ -138,6 +138,7 @@ export class UnitData extends foundry.abstract.TypeDataModel {
       tier: int(1, { min: 1, max: 6 }),
       category: new fields.StringField({ initial: "infantry", choices: ["infantry", "cavalry", "ranged"] }),
       weaponSkill: new fields.StringField({ initial: "qiangshu" }), // officer skill used in the combat roll
+      weaponSkill2: new fields.StringField({ initial: "" }),       // a second weapon (e.g. Azure Dragons: spear and bow); the officer uses whichever is higher
       men: new fields.SchemaField({ value: int(100, { min: 0 }), max: int(100, { min: 1 }) }), // shown as Health
       armor: int(0, { min: 0 }),
       armorNote: new fields.StringField({ initial: "" }),          // e.g. "2 + 2 (Shield)"
