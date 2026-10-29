@@ -13,9 +13,12 @@ export function traitLines(text) {
 export function traitTiersOf(text) {
   const out = {};
   for (const line of traitLines(text)) {
-    const m = line.match(/^([A-Za-z][A-Za-z' \-]*?[A-Za-z])(\+{0,2})\s*(?:-\s|–|—|:|$)/);
+    // "Name", "Name+", "Name++"; weaker versions end in "-"/"--" (Fragile-, Fragile--: David, 2026-10-29) and keep the
+    // minus in their key ("fragile-") so they are never mistaken for the full trait
+    const m = line.match(/^([A-Za-z][A-Za-z' \-]*?[A-Za-z])(-{1,2}|\+{0,2})\s*(?:-\s|–|—|:|$)/);
     if (!m) continue;
-    const base = m[1].trim().toLowerCase(), tier = 1 + m[2].length;
+    const minus = m[2].startsWith('-');
+    const base = m[1].trim().toLowerCase() + (minus ? m[2] : ''), tier = minus ? 1 : 1 + m[2].length;
     out[base] = Math.max(out[base] || 0, tier);
   }
   return out;

@@ -1022,7 +1022,8 @@ function resolveAttack(s, attacker, defender, opts) {
     } else {
       moraleLoss = base + (passive(s, defender).extraMoraleLossOnWin || 0);
     }
-    if (trait(loser, 'fragile')) moraleLoss += 5;
+    // Fragile -5 / Fragile- -4 / Fragile-- -3 extra morale on losing a contested roll (the strongest one counts)
+    { const fr = trait(loser, 'fragile') ? 5 : trait(loser, 'fragile-') ? 4 : trait(loser, 'fragile--') ? 3 : 0; moraleLoss += fr; }
   }
 
   // Apply simultaneously

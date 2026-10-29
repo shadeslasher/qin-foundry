@@ -379,3 +379,14 @@ test('Brace+ (2026-10-29): melee defense +4 while holding (Brace +2)', () => {
   D.round.holding = false;
   assert.strictEqual(part(R.buildRoll(s, D, 'defender', { attacker: A, defender: D, ranged: false }), /^Brace/), 0, 'only while holding');
 });
+
+test('Fragile / Fragile- / Fragile-- (2026-10-29): -5 / -4 / -3 extra morale on losing a contested roll; the parser keeps them apart', async () => {
+  const T = await import('../module/battle/traits.mjs');
+  assert.deepStrictEqual(T.traitTiersOf('Fragile- - x\nFragile-- - y'), { 'fragile-': 1, 'fragile--': 1 });
+  assert.deepStrictEqual(T.traitTiersOf('Fragile - z'), { fragile: 1 });
+  const loss = (tiers) => duel(unitType('a', { damage: 9 }), unitType('d'), [9, 0, 0, 0], (a, d) => { d.traitTiers = tiers; }).r.moraleLoss;
+  const plain = loss({});
+  assert.strictEqual(loss({ fragile: 1 }) - plain, 5);
+  assert.strictEqual(loss({ 'fragile-': 1 }) - plain, 4);
+  assert.strictEqual(loss({ 'fragile--': 1 }) - plain, 3);
+});
