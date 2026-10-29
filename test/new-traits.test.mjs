@@ -366,7 +366,7 @@ test('Splash Attack: other enemies next to the defender take 2 casualties (Splas
   assert.strictEqual(run(2).N.men, 96, 'Splash Attack+: 4');
 });
 
-test('Bloodlust: winning the contested roll, attacking or defending, gains 1 / 2 / 3 morale', async () => {
+test('Cutthroat: winning the contested roll, attacking or defending, gains 1 / 2 / 3 morale', async () => {
   const R = await import('../module/battle/engine.mjs');
   R.setRng(Math.random); // earlier tests leave the dice fixed
   const fight = (tier, who, rolls) => {
@@ -374,7 +374,7 @@ test('Bloodlust: winning the contested roll, attacking or defending, gains 1 / 2
     s.library.unitTypes = [{ id: 'x', name: 'X', tier: 2, category: 'infantry', weapon: 'melee', skill: 'chuishu', damage: 0, armor: 50, armorPen: 0, move: 3, rangeMin: 1, rangeMax: 1, unitValue: 0, formations: ['none'] }];
     const mk = (id, side, x) => ({ id, typeId: 'x', officerId: null, name: id, side, x, y: 5, men: 100, maxMen: 100, morale: 50, status: 'active', facing: null, formation: 'none', traitTiers: {}, fx: {}, mods: [], round: { activated: false, moved: false, attacked: false }, xp: 0, level: 1 });
     const A = mk('a', 'player', 5), D = mk('d', 'enemy', 6); s.units = [A, D];
-    (who === 'a' ? A : D).traitTiers = { bloodlust: tier };
+    (who === 'a' ? A : D).traitTiers = { cutthroat: tier };
     R._setDice?.(rolls);
     const r = R.resolveAttack(s, A, D, { movedThisActivation: false, tilesMoved: 0 });
     return { A, D, r };
