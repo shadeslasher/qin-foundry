@@ -347,6 +347,9 @@ function moraleState(m) {
 // ---------------------------------------------------------------- traits
 // A unit's traits come from its Traits tab as { "base name": tier }, tier 1 = base, 2 = "+", 3 = "++".
 function trait(u, base) { const t = u && u.traitTiers; return (t && t[base]) || 0; }
+/** Suppressing Fire (David, 2026-10-29): a suppressed unit loses Hold, Brace, Anti-Cavalry and Charge Reflection until it wears off. */
+const suppressed = (u) => !!(u && u.fx && u.fx.suppressed);
+const holdingNow = (u) => !!(u && u.round && u.round.holding) && !suppressed(u);
 const tierVal = (tier, vals) => (tier ? vals[Math.min(tier, vals.length) - 1] : 0);
 /** Lasting per-unit battle effects (poison, sunder, reload, slowed, stood still last turn). */
 function fx(u) { if (!u.fx) u.fx = {}; return u.fx; }
@@ -407,6 +410,7 @@ const heroOfficer = (s, u) => { const o = officerOf(s, u), t = typeOf(s, u); ret
 function movementOf(s, u) {
   const t = typeOf(s, u); const f = formationOf(s, u);
   if (f.immobile) return 0;
+  if (suppressed(u)) return 1; // Suppressing Fire: movement 1 until it wears off
   const slowed = fx(u).slow ? 1 : 0; // Barbed Arrows
   const load = carrying(u) === 'ladders' ? 1 : carrying(u) === 'engine' ? 2 : 0; // siege equipment is heavy
   const saddle = saddleOf(u) >= 3 ? 1 : 0; // Saddle++: movement +1
@@ -826,11 +830,12 @@ function buildRoll(s, unit, role, ctx) {
     if (ctx.phoenixWon) parts.push(['Tactic: Fury of a Phoenix (won the first attack)', 1]);
   } else {
     // Defense bonuses: everything that makes a unit harder to hit is added to the defender's roll
-    if (!ctx.ranged && unit.round.holding) parts.push(['Holding: melee defense', 2]); // Hold doesn't help against ranged attacks
-    if (!ctx.ranged && unit.round.holding && trait(unit, 'brace')) parts.push(['Brace: melee defense', 2]);
+    if (!ctx.ranged && holdingNow(unit)) parts.push(['Holding: melee defense', 2]); // Hold doesn't help against ranged attacks
+    if (!ctx.ranged && holdingNow(unit) && trait(unit, 'brace')) parts.push(['Brace: melee defense', 2]);
+    if (!ctx.ranged && suppressed(unit)) parts.push(['Suppressed: melee defense (Hold, Brace, Anti-Cavalry and Charge Reflection lost)', -1]);
     // Hold the Line (trait): an adjacent allied unit that is holding gives infantry Melee defense +1/+2 (the best one counts)
     if (!ctx.ranged && t.category === 'infantry') {
-      const htl = Math.max(0, ...liveUnits(s).filter(o => o !== unit && friendly(o, unit) && manhattan(o, unit) === 1 && o.round.holding)
+      const htl = Math.max(0, ...liveUnits(s).filter(o => o !== unit && friendly(o, unit) && manhattan(o, unit) === 1 && holdingNow(o))
         .map(o => tierVal(trait(o, 'hold the line'), [1, 2])));
       if (htl) parts.push(['Hold the Line (holding ally): melee defense', htl]);
     }
@@ -849,7 +854,7 @@ function buildRoll(s, unit, role, ctx) {
     if (!ctx.ranged && f.frontMelee && isFront(s, ctx.attacker, unit)) parts.push(['Formation front vs melee (' + f.name + ')', f.frontMelee]);
     if (hasTactic(s, unit, 'defend')) parts.push(['Tactic: Defend (melee & ranged defense)', 2]);
     if (ctx.ranged && t.weapon === 'ranged' && hasTactic(s, unit, 'divineWinds')) parts.push(['Tactic: Divine Winds (ranged defense)', 2]);
-    if (unit.round.holding && s.tactics && s.tactics.placed.some(tc => tc.key === 'holdTheLine' && tc.side === unit.side && tacticLive(s, tc) &&
+    if (holdingNow(unit) && s.tactics && s.tactics.placed.some(tc => tc.key === 'holdTheLine' && tc.side === unit.side && tacticLive(s, tc) &&
       tc.anchor && (tc.anchor === unit.id || (unitById(s, tc.anchor) && manhattan(unitById(s, tc.anchor), unit) === 1))))
       parts.push(['Tactic: Hold the Line (' + (ctx.ranged ? 'ranged' : 'melee') + ' defense)', ctx.ranged ? 2 : 3]);
   }
@@ -863,7 +868,7 @@ function buildRoll(s, unit, role, ctx) {
   if (!ctx.ranged && t.category === 'cavalry' && oc === 'infantry') parts.push(['Cavalry vs infantry', 1]);
   // Anti-Cavalry (David, 2026-10-28): Defense +2 / +4 / +6 when cavalry attack it in melee from the front or sides (never the rear);
   // no bonus on its own attacks. Anti-Infantry (+1/+2/+4) only counts on the unit's own attacks.
-  if (role === 'defender' && oc === 'cavalry' && !ctx.ranged && !ctx.rear && trait(unit, 'anti-cavalry'))
+  if (role === 'defender' && oc === 'cavalry' && !ctx.ranged && !ctx.rear && trait(unit, 'anti-cavalry') && !suppressed(unit))
     parts.push(['Anti-Cavalry: defense against cavalry', tierVal(trait(unit, 'anti-cavalry'), [2, 4, 6])]);
   if (role === 'attacker' && oc === 'infantry' && trait(unit, 'anti-infantry')) parts.push(['Anti-Infantry', tierVal(trait(unit, 'anti-infantry'), [1, 2, 4])]);
   let ms = moraleState(unit.morale);
@@ -976,11 +981,11 @@ function resolveAttack(s, attacker, defender, opts) {
   }
   if (free) { dmgToAtt = 0; canCounter = false; }
   // A charged unit can't strike back unless it has Anti-Cavalry; never against a charge into its rear
-  if (charge && (rear || !trait(defender, 'anti-cavalry'))) { dmgToAtt = 0; canCounter = false; }
+  if (charge && (rear || !trait(defender, 'anti-cavalry') || suppressed(defender))) { dmgToAtt = 0; canCounter = false; }
   // Winning the exchange while defending: Counter-Attack and Charge Reflection hit back harder
   if (winner === 'defender' && dmgToAtt > 0) {
     dmgToAtt += tierVal(trait(defender, 'counter-attack'), [2, 4]);
-    if (charge && trait(defender, 'charge reflection')) dmgToAtt += chargeBonus;
+    if (charge && trait(defender, 'charge reflection') && !suppressed(defender)) dmgToAtt += chargeBonus;
   }
   if (trait(attacker, 'duelist')) { dmgToAtt = 0; canCounter = false; } // Duelist: ignores counter-strike damage
 
@@ -1060,12 +1065,14 @@ function resolveAttack(s, attacker, defender, opts) {
   if (cmD) defender.morale = clamp(defender.morale - cmD, 0, 100);
   if (cmA) attacker.morale = clamp(attacker.morale - cmA, 0, 100);
 
+  let suppressedNow = false; // Suppressing Fire landed: the UI plays the Suppressed animation
   // Lasting effects of a successful attack (the attacker won the roll)
   if (winner === 'attacker') {
     const pz = trait(attacker, 'poison'), sd = trait(attacker, 'sunder');
     if (pz) fx(defender).poison = Math.max(fx(defender).poison || 0, tierVal(pz, [1, 2]));   // doesn't stack; Poison+ replaces Poison
     if (sd) fx(defender).sunder = Math.max(fx(defender).sunder || 0, tierVal(sd, [2, 4]));   // doesn't stack; Sunder+ replaces Sunder
-    if (trait(attacker, 'suppressing fire')) fx(defender).suppressed = true;                // Attack -1 until the end of its next turn
+    // Suppressing Fire (ranged): Attack -1, melee defense -1, movement 1, no Hold/Brace/Anti-Cavalry/Charge Reflection until the end of its next turn
+    if (ranged && trait(attacker, 'suppressing fire')) { fx(defender).suppressed = true; suppressedNow = true; }
   }
   fx(attacker).attackedOnce = true;                                                        // Shock Troop: only the first attack of the battle
   if (casDef > 0 && trait(attacker, 'barbed arrows')) fx(defender).slow = true;          // -1 movement on its next turn
@@ -1099,7 +1106,7 @@ function resolveAttack(s, attacker, defender, opts) {
   if (attacker.hidden) attacker.hidden = false;
 
   const result = {
-    attacker: attacker.id, defender: defender.id, ranged, charge, rear, ambush,
+    attacker: attacker.id, defender: defender.id, ranged, charge, rear, ambush, suppressed: suppressedNow,
     attackRoll: A, defendRoll: D, diff, winner,
     damageToDefender: dmgToDef, damageToAttacker: dmgToAtt,
     casualtiesDefender: casDef, casualtiesAttacker: casAtt,

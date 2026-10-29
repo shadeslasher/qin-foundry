@@ -177,7 +177,9 @@ export function unitStatus(token) {
   }
   if (token.qinAttackBonus !== undefined && token.qinAttackBonus !== null) attack = token.qinAttackBonus;
   const both = (Number(f.defAll) || 0) - (Number(fx.poison) || 0); // melee & ranged defense (Poison lowers both)
-  const defense = (round.holding ? 2 + (tr.brace ? 2 : 0) : 0) + both + (Number(f.defMelee) || 0) + tierVal(tr.shielded, [1, 2, 3]);
+  const supp = !!fx.suppressed; // Suppressing Fire: Attack -1, melee defense -1, Hold and Brace lost
+  if (supp) attack -= 1;
+  const defense = (round.holding && !supp ? 2 + (tr.brace ? 2 : 0) : 0) - (supp ? 1 : 0) + both + (Number(f.defMelee) || 0) + tierVal(tr.shielded, [1, 2, 3]);
   const rangedDefense = both + (Number(f.defRanged) || 0) + tierVal(tr.shielded, [2, 4, 6])
     + (fx.stillLast && tr["shield battery"] ? 2 : 0);
   let range = s.range > 1 && fx.stillLast ? tierVal(tr["range up"], [1, 2]) : 0;
@@ -191,7 +193,7 @@ export function unitStatus(token) {
     if (s.range > 1) range += ground.range;
   }
   return { rolls, attack, defense: defense + groundDef, rangedDefense: rangedDefense + groundRanged, range, holding: !!round.holding, hidden: !!s.hidden,
-    reloading: !!fx.reload };
+    reloading: !!fx.reload, suppressed: supp };
 }
 
 /** A heater shield centred on (0,0), w wide and h tall. */

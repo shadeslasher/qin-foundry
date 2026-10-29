@@ -371,6 +371,7 @@ function animateChanges(scene, before, s, entries, actionType = null) {
     steps.push({ kind: "attack", attacker: r.attacker, defender: r.defender, toDefender: toD, toAttacker: toA, returnStrike: r.damageToAttacker > 0, attackBonus, ranged: !!r.ranged, returnRanged,
       crossbow: /nushu/i.test(aType?.skill ?? ""), charge: !!r.charge && aType?.category === "cavalry", overwatch: overwatchShot });
     overwatchShot = false;
+    if (r.suppressed) steps.push({ kind: "suppressed", unit: r.defender }); // Suppressing Fire landed
     const gains = [];
     if (r.xpAttacker) { gains.push([r.attacker, "xp", `+${r.xpAttacker} XP`]); add(r.attacker, "xp", r.xpAttacker); }
     if (r.xpDefender) { gains.push([r.defender, "xp", `+${r.xpDefender} XP`]); add(r.defender, "xp", r.xpDefender); }

@@ -269,6 +269,7 @@ const FLOAT_STYLES = {
   xp: { fill: "#ffd84a", fontSize: 30 },
   levelUp: { fill: "#ffe680", fontSize: 44 },
   surrounded: { fill: "#ffffff", fontSize: 34 },
+  suppressed: { fill: "#f2b84b", fontSize: 32 },
   miss: { text: "Miss", fill: "#dddddd", fontSize: 28 },
   block: { text: "Blocked", fill: "#8ab8ff", fontSize: 30 },
   dodge: { text: "Dodged", fill: "#8fe08f", fontSize: 30 },
@@ -811,6 +812,48 @@ function surroundedLocal(token) {
   });
 }
 
+/**
+ * Suppressing Fire hit (David, 2026-10-29): a rain of bolts pins the unit down, it dims under the pressure while
+ * amber chevrons press down on it, and "Suppressed" rises over it.
+ */
+function suppressedLocal(token) {
+  if (!token) return;
+  const x = token.x, y = token.y, w = token.w, h = token.h, T = Math.min(w, h);
+  floatLocal({ x: x + w / 2, y: y + h * 0.42 }, "suppressed", "Suppressed");
+  // where each bolt lands (around the unit, a little inside its square) and when it falls
+  const bolts = [[0.18, 0.3], [0.8, 0.22], [0.35, 0.78], [0.66, 0.7], [0.5, 0.15], [0.12, 0.62], [0.88, 0.58]]
+    .map(([fx, fy], i) => ({ tx: x + fx * w, ty: y + fy * h, t0: i * 0.035 }));
+  return animate(1500, (g, t) => {
+    // 1. the volley: steep streaks that drop onto the square, a puff of dust where each lands
+    for (const b of bolts) {
+      const k = seg(t, b.t0, b.t0 + 0.16);
+      if (k > 0 && k < 1) {
+        const sx = b.tx - T * 0.55, sy = b.ty - T * 1.1, hx = sx + (b.tx - sx) * k, hy = sy + (b.ty - sy) * k;
+        const tl = 0.28, tx0 = hx - (b.tx - sx) * tl * 0.4, ty0 = hy - (b.ty - sy) * tl * 0.4;
+        g.lineStyle(Math.max(1.5, T * 0.018), 0x2b2116, 0.95).moveTo(tx0, ty0).lineTo(hx, hy);
+      }
+      const d = seg(t, b.t0 + 0.16, b.t0 + 0.42);
+      if (d > 0 && d < 1) g.lineStyle(0).beginFill(0xc9b48a, 0.55 * (1 - d)).drawCircle(b.tx, b.ty, T * (0.03 + 0.07 * d)).endFill();
+      if (t > b.t0 + 0.16) { // the bolt stays stuck in the ground, fading with the rest
+        const fade = 1 - seg(t, 0.75, 1);
+        g.lineStyle(Math.max(1.5, T * 0.016), 0x2b2116, 0.9 * fade).moveTo(b.tx - T * 0.05, b.ty - T * 0.1).lineTo(b.tx, b.ty);
+      }
+    }
+    // 2. pinned down: the square dims and amber chevrons press down on it, three beats
+    const env = seg(t, 0.2, 0.35) * (1 - seg(t, 0.8, 1));
+    if (env > 0) {
+      g.lineStyle(0).beginFill(0x1a1a1a, 0.32 * env).drawRoundedRect(x + T * 0.04, y + T * 0.04, w - T * 0.08, h - T * 0.08, T * 0.1).endFill();
+      for (let i = 0; i < 3; i++) {
+        const p = ((t - 0.25) * 2.4 + i / 3) % 1; // each chevron slides down and fades, then starts again
+        if (t < 0.25 || p < 0) continue;
+        const cy = y + h * (0.12 + 0.45 * p), cw = w * 0.22, a = env * Math.sin(p * Math.PI);
+        g.lineStyle(Math.max(2, T * 0.04), 0xf2b84b, a).moveTo(x + w / 2 - cw, cy).lineTo(x + w / 2, cy + cw * 0.55).lineTo(x + w / 2 + cw, cy);
+      }
+      g.lineStyle(Math.max(2, T * 0.03), 0xf2b84b, 0.8 * env).drawRoundedRect(x + T * 0.04, y + T * 0.04, w - T * 0.08, h - T * 0.08, T * 0.1);
+    }
+  });
+}
+
 /** A white flag raised and waved over a unit that surrenders. */
 function whiteFlagLocal({ at, size }) {
   return animate(2600, (g, t) => {
@@ -991,6 +1034,9 @@ export async function playBattleAnim({ sceneId, steps }) {
         await playTacticTrigger(st.tactic);
       } else if (st.kind === "setFire") {
         await playSetFire(st.x, st.y);
+      } else if (st.kind === "suppressed") {
+        suppressedLocal(tok(st.unit));
+        await wait(1100);
       } else if (st.kind === "surrounded") {
         for (const id of st.units) surroundedLocal(tok(id));
         await wait(1400);

@@ -68,6 +68,24 @@ test('Suppressing Fire: a hit gives the target Attack -1 until the end of its ne
   assert.ok(!m.D.fx.suppressed);
 });
 
+test('Suppressing Fire (2026-10-29): melee defense -1, movement 1, Hold/Brace/Anti-Cavalry/Charge Reflection lost; result flags the animation', () => {
+  const { s, A, D, r } = duel(unitType('a', { weapon: 'ranged', rangeMax: 3 }), unitType('d', { move: 4 }), [9, 0, 0, 0], traits({ 'suppressing fire': 1 }));
+  assert.ok(r.suppressed, 'the attack result says it landed (UI plays the Suppressed animation)');
+  assert.strictEqual(R.movementOf(s, D), 1, 'movement 1');
+  assert.strictEqual(part(rollOf(s, D, 'defender', A), /^Suppressed: melee defense/), -1);
+  assert.strictEqual(part(rollOf(s, D, 'defender', A, { ranged: true }), /^Suppressed/), 0, 'ranged defense unchanged');
+  D.round.holding = true; D.traitTiers = { brace: 1, 'anti-cavalry': 2, 'charge reflection': 1 };
+  const cav = unitType('c', { category: 'cavalry' }); s.library.unitTypes.push(cav); A.typeId = 'c';
+  const dr = rollOf(s, D, 'defender', A);
+  assert.strictEqual(part(dr, /^Holding|^Brace|^Anti-Cavalry/), 0, 'no Hold, Brace or Anti-Cavalry while suppressed');
+  delete D.fx.suppressed;
+  assert.strictEqual(R.movementOf(s, D), 4, 'wears off');
+  assert.ok(part(rollOf(s, D, 'defender', A), /^Holding/) > 0 && part(rollOf(s, D, 'defender', A), /^Anti-Cavalry/) > 0);
+  // only ranged attacks suppress
+  const m = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], traits({ 'suppressing fire': 1 }));
+  assert.ok(!m.D.fx.suppressed && !m.r.suppressed);
+});
+
 test('Hold the Line: a holding unit gives adjacent allied infantry Melee defense +1/+2 (not ranged, not cavalry)', () => {
   const s = setup();
   s.library.unitTypes.push(unitType('i'), unitType('c', { category: 'cavalry' }), unitType('e'));
