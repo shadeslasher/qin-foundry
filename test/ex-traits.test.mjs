@@ -83,3 +83,8 @@ test('Splash Attack++: 6 casualties to each other enemy next to the defender', (
   const sp = s.log.filter(e => e.detail && e.detail.type === 'splash').pop();
   assert.ok(sp, 'splash logged'); assert.strictEqual(sp.detail.casualties, 6);
 });
+
+test('Anti-Cavalry attack bonus is melee only', () => {
+  const { r } = duel(unitType('a', { weapon: 'ranged', rangeMax: 3 }), unitType('d', { category: 'cavalry' }), [3, 0, 0, 0], traits({ 'anti-cavalry': 3 }));
+  assert.strictEqual(part(r.attackRoll, /^Anti-Cavalry/), 0);
+});

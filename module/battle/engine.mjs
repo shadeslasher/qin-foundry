@@ -857,8 +857,8 @@ function buildRoll(s, unit, role, ctx) {
   // no bonus on its own attacks. Anti-Infantry (+1/+2/+4) only counts on the unit's own attacks.
   if (role === 'defender' && oc === 'cavalry' && !ctx.ranged && !ctx.rear && trait(unit, 'anti-cavalry') && !suppressed(unit))
     parts.push(['Anti-Cavalry: defense against cavalry', tierVal(trait(unit, 'anti-cavalry'), [2, 4, 6])]);
-  // ...and Attack +1 / +2 / +3 on its own attacks against cavalry (David, 2026-10-29)
-  if (role === 'attacker' && oc === 'cavalry' && trait(unit, 'anti-cavalry') && !suppressed(unit))
+  // ...and Attack +1 / +2 / +3 on its own melee attacks against cavalry (David, 2026-10-29)
+  if (role === 'attacker' && oc === 'cavalry' && !ctx.ranged && trait(unit, 'anti-cavalry') && !suppressed(unit)) // melee only
     parts.push(['Anti-Cavalry: attacking cavalry', tierVal(trait(unit, 'anti-cavalry'), [1, 2, 3])]);
   if (role === 'attacker' && oc === 'infantry' && trait(unit, 'anti-infantry')) parts.push(['Anti-Infantry', tierVal(trait(unit, 'anti-infantry'), [1, 2, 4])]);
   let ms = moraleState(unit.morale);
