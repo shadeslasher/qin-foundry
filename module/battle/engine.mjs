@@ -824,7 +824,7 @@ function buildRoll(s, unit, role, ctx) {
     if (ctx.phoenixWon) parts.push(['Tactic: Fury of a Phoenix (won the first attack)', 1]);
   } else {
     // Defense bonuses: everything that makes a unit harder to hit is added to the defender's roll
-    if (!ctx.ranged && holdingNow(unit)) parts.push(['Holding: melee defense', 2]); // Hold doesn't help against ranged attacks
+    if (!ctx.ranged && holdingNow(unit)) parts.push(['Holding: melee defense', 1]); // +1 (David, 2026-10-30; was +2). Hold doesn't help against ranged attacks
     if (!ctx.ranged && holdingNow(unit) && trait(unit, 'brace')) parts.push([(trait(unit, 'brace') > 1 ? 'Brace+' : 'Brace') + ': melee defense', tierVal(trait(unit, 'brace'), [2, 4])]); // Brace+ +4 (David, 2026-10-29)
     if (!ctx.ranged && suppressed(unit)) parts.push(['Suppressed: melee defense (Hold, Brace, Anti-Cavalry and Charge Reflection lost)', -1]);
     // Hold the Line (trait): an adjacent allied unit that is holding gives infantry Melee defense +1/+2 (the best one counts)
@@ -2033,7 +2033,7 @@ const ACTIONS = {
     const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
     if (r.u.round.attacked || r.act.forcedMarched) return err('Too late to hold this turn');
     r.u.round.holding = true;
-    log(s, r.u.name + ' holds position (+2 melee defense until its next turn).');
+    log(s, r.u.name + ' holds position (+1 melee defense until its next turn).');
     for (const tc of fireTactics(s, 'hold', r.u)) tc.anchor = r.u.id; // Hold the Line: this unit and adjacent holders
     finishActivation(s, r.u);
   },

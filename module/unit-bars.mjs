@@ -36,7 +36,7 @@ function hasActed(token) {
   return !!battle.meta?.[token.id]?.round?.activated;
 }
 
-/** Is this unit holding (+2 melee defense until its next activation)? */
+/** Is this unit holding (+1 melee defense until its next activation)? */
 function isHolding(token) {
   let battle;
   try { battle = game.settings.get("qin", "battle"); } catch { return false; }
@@ -173,7 +173,7 @@ export function unitStatus(token) {
   const both = -(Number(fx.poison) || 0); // melee & ranged defense (Poison lowers both)
   const supp = !!fx.suppressed; // Suppressing Fire: Attack -1, melee defense -1, Hold and Brace lost
   if (supp) attack -= 1;
-  const defense = (round.holding && !supp ? 2 + tierVal(tr.brace, [2, 4]) : 0) - (supp ? 1 : 0) + both + tierVal(tr.shielded, [1, 2, 3]);
+  const defense = (round.holding && !supp ? 1 + tierVal(tr.brace, [2, 4]) : 0) - (supp ? 1 : 0) + both + tierVal(tr.shielded, [1, 2, 3]);
   const rangedDefense = both + tierVal(tr.shielded, [2, 4, 6])
     + (fx.stillLast && tr["shield battery"] ? 2 : 0);
   let range = s.range > 1 && fx.stillLast ? tierVal(tr["range up"], [1, 2]) : 0;

@@ -40,14 +40,14 @@ test('status icons: Command roll bonus/penalty, defense, ranged defense', () => 
   assert.strictEqual(U.unitStatus(tok({ category: 'cavalry' })).attack, 0);
   // during an attack the sword shows that attack's total
   const t = tok({}); t.qinAttackBonus = -1; assert.strictEqual(U.unitStatus(t).attack, -1);
-  // defense: Hold +2 (melee only)
+  // defense: Hold +1 (melee only)
   battle.meta.t = { round: { holding: true } };
-  assert.strictEqual(U.unitStatus(tok({})).defense, 2);
+  assert.strictEqual(U.unitStatus(tok({})).defense, 1);
   assert.strictEqual(U.unitStatus(tok({})).rangedDefense, 0, 'Hold does not help against arrows');
   // traits: Brace while holding, Shielded+, Poison on both shields
   battle.meta.t = { round: { holding: true }, fx: { poison: 1 } };
   const st = U.unitStatus(tok({ traits: '<p>Brace - x</p><p>Shielded+ - y</p>' }));
-  assert.strictEqual(st.defense, 5, 'hold 2 + brace 2 + shielded+ 2 - poison 1');
+  assert.strictEqual(st.defense, 4, 'hold 1 + brace 2 + shielded+ 2 - poison 1');
   assert.strictEqual(st.rangedDefense, 3, 'shielded+ 4 - poison 1');
   // not moved this round: Precision+; stood still last turn: Range Up+, Shield Battery
   battle.meta.t = { round: {}, fx: { stillLast: true } };
