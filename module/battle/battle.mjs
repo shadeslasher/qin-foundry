@@ -23,7 +23,8 @@ setTimeout(() => setBattleRequest(battleRequest), 0);
 /** Send an action to the battle (runs on the active GM's client). */
 /** GM test control: while on, clicking a map square sets it alight; right-click or Esc stops. */
 let gmFire = null;
-function toggleGmFire() {
+export const gmFireActive = () => !!gmFire;
+export function toggleGmFire() {
   const stop = () => {
     if (!gmFire) return;
     document.removeEventListener("pointerdown", gmFire.down, true);
@@ -68,15 +69,49 @@ export async function battleRequest(action) {
 
 const { api } = foundry.applications;
 
+/** GM: hide or reveal the selected unit tokens (abilities, landmarks, rulings). */
+export async function setHiddenSelected(hidden) {
+  if (!game.user.isGM) return;
+  const toks = (canvas.tokens?.controlled ?? []).filter(t => t.actor?.type === "unit");
+  if (!toks.length) return ui.notifications.warn("Select one or more unit tokens on the map first.");
+  const battle = getBattle();
+  if (battle.active && battle.sceneId === canvas.scene?.id) {
+    for (const t of toks) await battleRequest({ type: "setHidden", unitId: t.id, hidden });
+  } else {
+    // no battle: mark the unit, and keep hidden enemy/neutral tokens out of players' sight
+    const manage = game.settings.get(SYSTEM_ID, "manageStealth");
+    for (const t of toks) {
+      await t.actor.update({ "system.hidden": hidden });
+      const side = t.actor.system.side;
+      if (manage && (side === "enemy" || side === "neutral")) {
+        const flagged = t.document.getFlag(SYSTEM_ID, "stealthHidden");
+        if (hidden && !t.document.hidden) await t.document.update({ hidden: true, [`flags.${SYSTEM_ID}.stealthHidden`]: true });
+        else if (!hidden && flagged) await t.document.update({ hidden: false, [`flags.${SYSTEM_ID}.stealthHidden`]: false });
+      }
+    }
+  }
+  ui.notifications.info(`${toks.length} unit${toks.length === 1 ? "" : "s"} ${hidden ? "hidden" : "revealed"}.`);
+}
+
+/** GM: end the battle after a confirmation. */
+export async function confirmEndBattle() {
+  const ok = await (api.Dialog ?? api.DialogV2).confirm({ window: { title: "End battle?" }, content: "<p>End the battle? Units keep their health, morale and XP.</p>" });
+  if (ok) await battleRequest({ type: "endBattle" });
+}
+
 // v14 renamed ApplicationV2 to Application.
 /** Is the Recent log folded away on this computer? */
 function recentClosed() { try { return localStorage.getItem("qin.recentClosed") === "1"; } catch { return false; } }
+
+/** The separate GM controls window registers its refresh here (it re-renders whenever the Battle panel does). */
+let gmRefresh = null;
+export function setGmRefresh(fn) { gmRefresh = fn; }
 
 export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application ?? api.ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "qin-battle-panel",
     classes: ["qin", "qin-battle"],
-    window: { title: "Battle", icon: "fa-solid fa-chess-rook", resizable: true, controls: [{ icon: "fa-solid fa-keyboard", label: "Hotkeys", action: "hotkeys" }, { icon: "fa-solid fa-volume-high", label: "Sounds", action: "sounds" }] },
+    window: { title: "Battle", icon: "fa-solid fa-chess-rook", resizable: true, controls: [{ icon: "fa-solid fa-sliders", label: "GM controls", action: "gmPanel", visible: () => game.user.isGM }, { icon: "fa-solid fa-keyboard", label: "Hotkeys", action: "hotkeys" }, { icon: "fa-solid fa-volume-high", label: "Sounds", action: "sounds" }] },
     position: { width: 400, height: 640, top: 80, left: 120 },
     actions: {
       do: BattlePanel.#do,
@@ -89,6 +124,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
       importMap: () => importBattleMap(SYSTEM_ID),
       redrawMap: () => redrawScene(canvas.scene),
       gmFire: () => toggleGmFire(),
+      gmPanel: async () => (await import("./gm-panel.mjs")).GmPanel.toggle(),
       toggleCompact: async () => { await game.settings.set(SYSTEM_ID, "compactUnits", !game.settings.get(SYSTEM_ID, "compactUnits")); BattlePanel.refresh(); },
       paintMap: () => MapEditorApp.open(canvas.scene),
       zonePaint: () => startZoneBrush("paint"),
@@ -122,7 +158,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
     this.instance.render({ force: true });
     return this.instance;
   }
-  static refresh() { if (this.instance?.rendered) this.instance.render(); }
+  static refresh() { if (this.instance?.rendered) this.instance.render(); gmRefresh?.(); }
 
   async _prepareContext() {
     const battle = getBattle();
@@ -304,10 +340,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
     if (!unitTokens(canvas.scene).length) return ui.notifications.warn("Place Unit tokens on this scene first.");
     await battleRequest({ type: "startBattle", sceneId: canvas.scene.id });
   }
-  static async #endBattle() {
-    const ok = await (api.Dialog ?? api.DialogV2).confirm({ window: { title: "End battle?" }, content: "<p>End the battle? Units keep their health, morale and XP.</p>" });
-    if (ok) await battleRequest({ type: "endBattle" });
-  }
+  static async #endBattle() { await confirmEndBattle(); }
   static async #attackTarget(event, target) {
     const t = [...game.user.targets][0];
     if (!t) return ui.notifications.warn("Target an enemy unit token first (hover it and press T).");
@@ -318,30 +351,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
     if (!t) return ui.notifications.warn("Target the adjacent allied unit to swap with first.");
     await battleRequest({ type: "swap", unitId: target.dataset.unitId, targetId: t.id });
   }
-  /** GM: hide or reveal the selected unit tokens (abilities, landmarks, rulings). */
-  static async #setHidden(event, target) {
-    if (!game.user.isGM) return;
-    const hidden = target.dataset.hidden === "1";
-    const toks = (canvas.tokens?.controlled ?? []).filter(t => t.actor?.type === "unit");
-    if (!toks.length) return ui.notifications.warn("Select one or more unit tokens on the map first.");
-    const battle = getBattle();
-    if (battle.active && battle.sceneId === canvas.scene?.id) {
-      for (const t of toks) await battleRequest({ type: "setHidden", unitId: t.id, hidden });
-    } else {
-      // no battle: mark the unit, and keep hidden enemy/neutral tokens out of players' sight
-      const manage = game.settings.get(SYSTEM_ID, "manageStealth");
-      for (const t of toks) {
-        await t.actor.update({ "system.hidden": hidden });
-        const side = t.actor.system.side;
-        if (manage && (side === "enemy" || side === "neutral")) {
-          const flagged = t.document.getFlag(SYSTEM_ID, "stealthHidden");
-          if (hidden && !t.document.hidden) await t.document.update({ hidden: true, [`flags.${SYSTEM_ID}.stealthHidden`]: true });
-          else if (!hidden && flagged) await t.document.update({ hidden: false, [`flags.${SYSTEM_ID}.stealthHidden`]: false });
-        }
-      }
-    }
-    ui.notifications.info(`${toks.length} unit${toks.length === 1 ? "" : "s"} ${hidden ? "hidden" : "revealed"}.`);
-  }
+  static async #setHidden(event, target) { await setHiddenSelected(target.dataset.hidden === "1"); }
   static async #selectUnit(event, target) {
     const tok = canvas.tokens?.get(target.dataset.unitId);
     if (tok) { tok.control({ releaseOthers: true }); canvas.animatePan({ x: tok.center.x, y: tok.center.y }); }

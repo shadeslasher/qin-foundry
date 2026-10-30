@@ -1135,18 +1135,21 @@ function killTactics(s, killer, victim) {
 }
 
 const XP_PER_LEVEL = 100;
+export const MAX_LEVEL = 5; // level cap (David, 2026-10-29)
 function gainXp(s, u, amount, why) {
   if (u.side !== 'player' || trait(u, 'mercenary')) return 0; // only Player units earn XP; Mercenaries never do
+  if ((u.level || 1) >= MAX_LEVEL) return 0;                  // level 5 is the cap: no more XP
   const n = Math.floor(amount);
   if (n <= 0) return 0;
   u.xp = (u.xp || 0) + n;
   log(s, u.name + ' gains ' + n + ' XP (' + why + ').', { type: 'xp', unit: u.id, amount: n });
   // Every 100 XP is a level (tier doesn't change; levels feed the promotion tree later)
-  while (u.xp >= XP_PER_LEVEL) {
+  while (u.xp >= XP_PER_LEVEL && (u.level || 1) < MAX_LEVEL) {
     u.xp -= XP_PER_LEVEL;
     u.level = (u.level || 1) + 1;
     log(s, u.name + ' reaches level ' + u.level + '!', { type: 'levelUp', unit: u.id, level: u.level });
   }
+  if ((u.level || 1) >= MAX_LEVEL) u.xp = 0; // at the cap the bar stays empty
   return n;
 }
 

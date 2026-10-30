@@ -66,11 +66,7 @@
         {{/each}}
       </ul>
       {{/if}}
-      <h4>GM controls</h4>
-      <div class="qin-btns">
-        <button type="button" data-action="setHidden" data-hidden="1" title="Hide the unit tokens you have selected"><i class="fa-solid fa-eye-slash"></i> Hide selected</button>
-        <button type="button" data-action="setHidden" data-hidden="0" title="Reveal the unit tokens you have selected"><i class="fa-solid fa-eye"></i> Reveal selected</button>
-      </div>
+      {{#if isGM}}<div class="qin-btns"><button type="button" data-action="gmPanel" title="Hide/reveal, level up or down, fire, outcomes"><i class="fa-solid fa-sliders"></i> GM controls</button></div>{{/if}}
     {{else}}
       <p>The GM hasn't started a battle.</p>
     {{/if}}
@@ -173,24 +169,7 @@
         <button type="button" data-action="rzNew"><i class="fa-solid fa-plus"></i> New zone</button></div>
       <p class="qin-muted">Paint a zone, then drag units onto it: they stay hidden from the players and out of the battle until that round starts.</p>
     </div>{{/if}}
-    <div class="qin-card"><h4>GM controls</h4>
-      <div class="qin-btns">
-        <button type="button" data-action="setHidden" data-hidden="1" title="Hide the unit tokens you have selected"><i class="fa-solid fa-eye-slash"></i> Hide selected</button>
-        <button type="button" data-action="setHidden" data-hidden="0" title="Reveal the unit tokens you have selected"><i class="fa-solid fa-eye"></i> Reveal selected</button>
-        <button type="button" data-action="gmFire" class="{{#if gmFireOn}}qin-on{{/if}}" title="Click squares on the map to set them alight (only ones that can burn). Right-click or Esc stops."><i class="fa-solid fa-fire"></i> {{#if gmFireOn}}Stop setting fires{{else}}Set fire{{/if}}</button>
-      </div>
-      <div class="qin-btns">
-        {{#if tacticsWaiting}}<button type="button" data-action="do" data-type="triggerAllTactics" title="Set off every placed tactic that hasn't fired yet ({{tacticsWaiting}}). Raise Flag and Set Aflame stay until a unit takes their action."><i class="fa-solid fa-chess-knight"></i> Trigger all tactics ({{tacticsWaiting}})</button>{{/if}}
-        {{#if showSkip}}<button type="button" data-action="do" data-type="skipPrompt">Skip current turn</button>{{/if}}
-        <button type="button" data-action="do" data-type="resetBattle">Back to setup</button>
-        <button type="button" data-action="endBattle">End battle</button>
-      </div>
-      {{#if canDeclare}}<div class="qin-btns">
-        <button type="button" class="qin-declare win" data-action="do" data-type="declareOutcome" data-result="victory" title="End the battle now as a victory (everyone sees the Victory banner)"><i class="fa-solid fa-flag"></i> Victory</button>
-        <button type="button" class="qin-declare lose" data-action="do" data-type="declareOutcome" data-result="defeat" title="End the battle now as a defeat (everyone sees the Defeat banner)"><i class="fa-solid fa-skull"></i> Defeat</button>
-        <button type="button" class="qin-declare draw" data-action="do" data-type="declareOutcome" data-result="stalemate" title="End the battle now as a stalemate (everyone sees the Stalemate banner)"><i class="fa-solid fa-handshake"></i> Stalemate</button>
-      </div>{{/if}}
-    </div>
+    <div class="qin-btns"><button type="button" data-action="gmPanel" title="Hide/reveal, level up or down, fire, tactics, skip, outcomes, end the battle"><i class="fa-solid fa-sliders"></i> GM controls</button></div>
     {{/if}}
   </div>
 {{/unless}}

@@ -652,6 +652,18 @@ test('levels: every 100 XP is a level', () => {
   assert.strictEqual(A.xp, 30);
 });
 
+test('levels: capped at 5 (David, 2026-10-29)', () => {
+  const s = setup();
+  const [A] = duel(s, unitType('lv', { tier: 1 }), unitType('big', { tier: 4 }), [7, 2, 0, 0], (a, d) => { a.level = 4; a.xp = 90; });
+  assert.strictEqual(A.level, 5, 'reaches 5');
+  assert.strictEqual(A.xp, 0, 'no XP kept past the cap');
+  const s2 = setup();
+  const [B] = duel(s2, unitType('lv', { tier: 1 }), unitType('big', { tier: 4 }), [7, 2, 0, 0], (a, d) => { a.level = 5; a.xp = 0; });
+  assert.strictEqual(B.level, 5, 'never past 5');
+  assert.strictEqual(B.xp, 0, 'gains no XP at the cap');
+  assert.strictEqual(R.MAX_LEVEL, 5);
+});
+
 test('facing: attacking turns a unit; the first attacker this round turns it unless it already attacked; clears when the round ends', () => {
   const s = setup();
   const a = add(s, { typeId: 'yt_warriors', side: 'player', owner: 'p1', x: 5, y: 4 });

@@ -149,7 +149,7 @@ export class UnitData extends foundry.abstract.TypeDataModel {
       rangeMin: int(1, { min: 1 }),
       unitValue: int(1, { min: 0 }),
       cost: int(0, { min: 0 }),                                     // recruitment cost in coins; upkeep is a quarter of it a month
-      level: int(1, { min: 1 }),                                    // every 100 XP; for the promotion tree (not tier)
+      level: int(1, { min: 1, max: 5 }),                            // every 100 XP, up to level 5 (David, 2026-10-29); not tier
       xp: new fields.SchemaField({ value: int(0, { min: 0 }), max: int(100, { min: 1 }) }),
       morale: int(50, { min: 0, max: 100 }),
       hidden: new fields.BooleanField({ initial: false }),
@@ -177,6 +177,7 @@ export class UnitData extends foundry.abstract.TypeDataModel {
     if (source.rangeMax !== undefined && source.range === undefined) source.range = source.weapon === "ranged" ? Math.max(2, source.rangeMax) : 1;
     // free-text traits become trait cards (the text is kept until the list is first edited)
     if (typeof source.traits === "string" && source.traits.trim() && !source.traitList?.length) source.traitList = parseTraitText(source.traits);
+    if (Number(source.level) > 5) source.level = 5; // level cap 5
     return super.migrateData(source);
   }
 

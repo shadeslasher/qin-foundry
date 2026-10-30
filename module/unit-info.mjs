@@ -63,8 +63,8 @@ export function unitTooltipHTML(token) {
     <div class="qin-tt-bar"><i style="width:${pct((100 * men) / max)}%;background:${hex(healthColor(men / max))}"></i></div>
     <div class="qin-tt-bl"><span>Morale</span><span>${morale}${sys.moraleState ? ` · ${esc(sys.moraleState)}` : ""}</span></div>
     <div class="qin-tt-bar"><i style="width:${pct(morale)}%;background:${hex(moraleColor(morale))}"></i></div>
-    <div class="qin-tt-bl qin-tt-lv"><span>${levelChevronsSVG(sys.level ?? 1, 15)} Level ${esc(sys.level ?? 1)}</span><span>${sys.xp?.value ?? 0} / ${sys.xp?.max || 100} XP</span></div>
-    <div class="qin-tt-bar"><i style="width:${pct((100 * (sys.xp?.value ?? 0)) / (sys.xp?.max || 100))}%;background:#c9a24a"></i></div>`;
+    <div class="qin-tt-bl qin-tt-lv"><span>${levelChevronsSVG(sys.level ?? 1, 15)} Level ${esc(sys.level ?? 1)}</span><span>${(sys.level ?? 1) >= 5 ? "Max level" : `${sys.xp?.value ?? 0} / ${sys.xp?.max || 100} XP`}</span></div>
+    <div class="qin-tt-bar"><i style="width:${(sys.level ?? 1) >= 5 ? 100 : pct((100 * (sys.xp?.value ?? 0)) / (sys.xp?.max || 100))}%;background:#c9a24a"></i></div>`;
   const chip = (icon, v, label) => `<div class="qin-tt-chip"><i>${TT_ICONS[icon]}</i><b>${v}</b><small>${label}</small></div>`;
   html += `<div class="qin-tt-chips">${chip("dmg", sys.damage ?? 0, "Dmg")}${chip("pen", sys.armorPen ?? 0, "Pierce")}${chip("armor", sys.armor ?? 0, "Armor")}${chip("move", sys.move ?? 0, "Move")}</div>`;
   const w = weaponLine(sys);

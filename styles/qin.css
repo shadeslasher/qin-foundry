@@ -961,3 +961,10 @@ details.qin-recent[open] > summary { margin-bottom: 4px; }
 /* level chevrons in the hover card and Info window (2026-10-29) */
 .qin-lv-chev { display: inline-block; vertical-align: -2px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.6)); }
 .qin-tt-lv > span:first-child, .qin-ui-lv { display: inline-flex; align-items: center; gap: 5px; }
+/* GM controls window (2026-10-29) */
+.qin-gm-sel { list-style: none; margin: 0 0 6px; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.qin-gm-sel li { display: flex; align-items: center; gap: 6px; }
+.qin-gm-sel img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(0,0,0,.35); }
+.qin-gm-sel b { flex: 1; }
+.qin-gm-lv { display: inline-flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
+.qin-gm-panel .qin-btns button[disabled] { opacity: .45; }

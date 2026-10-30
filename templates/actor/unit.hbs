@@ -19,7 +19,7 @@
   <section class="qin-ud-bars">
     <span>Health</span><div class="qin-ud-bar"><i style="width:{{menPct}}%;background:{{healthColor}}"></i></div><b><input type="number" name="system.men.value" value="{{system.men.value}}" min="0"> / {{system.men.max}}</b>
     <span>Morale</span><div class="qin-ud-bar"><i style="width:{{system.morale}}%;background:{{moraleColor}}"></i></div><b><input type="number" name="system.morale" value="{{system.morale}}" min="0" max="100"><small>{{system.moraleState}}</small></b>
-    <span class="qin-ud-lv">Level <input type="number" name="system.level" value="{{system.level}}" min="1"></span><div class="qin-ud-bar"><i style="width:{{xpPct}}%;background:#c9a24a"></i></div><b><input type="number" name="system.xp.value" value="{{system.xp.value}}" min="0"> / {{system.xp.max}} XP</b>
+    <span class="qin-ud-lv">Level <input type="number" name="system.level" value="{{system.level}}" min="1" max="5"></span><div class="qin-ud-bar"><i style="width:{{xpPct}}%;background:#c9a24a"></i></div><b><input type="number" name="system.xp.value" value="{{system.xp.value}}" min="0"> / {{system.xp.max}} XP</b>
   </section>
 
   <nav class="qin-tabs qin-ud-tabs"><a data-tab="stats">Unit</a><a data-tab="officer">Officer</a><a data-tab="equipment">Equipment{{#if equipment.length}} <span class="qin-trait-badge gold">{{equipment.length}}</span>{{/if}}</a><a data-tab="notes">Traits{{#if traitChoices}} <span class="qin-trait-badge">{{traitChoices}}</span>{{/if}}</a></nav>

@@ -1,0 +1,33 @@
+<div class="qin-battle-scroll qin-gm">
+  <div class="qin-card"><h4>Selected units</h4>
+    {{#if selected.length}}
+      <ul class="qin-gm-sel">{{#each selected}}<li><img src="{{img}}" alt=""><b>{{name}}</b><span class="qin-gm-lv">{{{chev}}} Lv {{level}}</span></li>{{/each}}</ul>
+    {{else}}<p class="qin-muted">Select unit tokens on the map.</p>{{/if}}
+    <div class="qin-btns">
+      <button type="button" data-action="setHidden" data-hidden="1" title="Hide the unit tokens you have selected"><i class="fa-solid fa-eye-slash"></i> Hide</button>
+      <button type="button" data-action="setHidden" data-hidden="0" title="Reveal the unit tokens you have selected"><i class="fa-solid fa-eye"></i> Reveal</button>
+    </div>
+    <div class="qin-btns">
+      <button type="button" data-action="level" data-step="1" title="Raise the selected units one level (up to 5)" {{#unless canUp}}disabled{{/unless}}><i class="fa-solid fa-angles-up"></i> Level up</button>
+      <button type="button" data-action="level" data-step="-1" title="Lower the selected units one level (down to 1)" {{#unless canDown}}disabled{{/unless}}><i class="fa-solid fa-angles-down"></i> Level down</button>
+    </div>
+  </div>
+  {{#if active}}
+  <div class="qin-card"><h4>Battle</h4>
+    <div class="qin-btns">
+      <button type="button" data-action="gmFire" class="{{#if gmFireOn}}qin-on{{/if}}" title="Click squares on the map to set them alight (only ones that can burn). Right-click or Esc stops."><i class="fa-solid fa-fire"></i> {{#if gmFireOn}}Stop setting fires{{else}}Set fire{{/if}}</button>
+      {{#if tacticsWaiting}}<button type="button" data-action="do" data-type="triggerAllTactics" title="Set off every placed tactic that hasn't fired yet ({{tacticsWaiting}}). Raise Flag and Set Aflame stay until a unit takes their action."><i class="fa-solid fa-chess-knight"></i> Trigger all tactics ({{tacticsWaiting}})</button>{{/if}}
+      {{#if showSkip}}<button type="button" data-action="do" data-type="skipPrompt">Skip current turn</button>{{/if}}
+    </div>
+    <div class="qin-btns">
+      <button type="button" data-action="do" data-type="resetBattle">Back to setup</button>
+      <button type="button" data-action="endBattle">End battle</button>
+    </div>
+    {{#if canDeclare}}<div class="qin-btns">
+      <button type="button" class="qin-declare win" data-action="do" data-type="declareOutcome" data-result="victory" title="End the battle now as a victory (everyone sees the Victory banner)"><i class="fa-solid fa-flag"></i> Victory</button>
+      <button type="button" class="qin-declare lose" data-action="do" data-type="declareOutcome" data-result="defeat" title="End the battle now as a defeat (everyone sees the Defeat banner)"><i class="fa-solid fa-skull"></i> Defeat</button>
+      <button type="button" class="qin-declare draw" data-action="do" data-type="declareOutcome" data-result="stalemate" title="End the battle now as a stalemate (everyone sees the Stalemate banner)"><i class="fa-solid fa-handshake"></i> Stalemate</button>
+    </div>{{/if}}
+  </div>
+  {{/if}}
+</div>
