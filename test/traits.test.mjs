@@ -66,7 +66,7 @@ test('Brace adds melee defense while holding; Shielded adds melee +1/level and r
   H.traitTiers = { brace: 1, shielded: 3, 'shield battery': 1 }; H.round.holding = true; H.fx = { stillLast: true, poison: 1 };
   const roll = (att) => { const A = R.unitById(s, att); return R.buildRoll(s, H, 'defender', { attacker: A, defender: H, ranged: R.typeOf(s, A).weapon === 'ranged' }); };
   const melee = roll(m), ranged = roll(rr);
-  assert.strictEqual(part(melee, /^Brace/), 2);
+  assert.strictEqual(part(melee, /^Brace/), 1);
   assert.strictEqual(part(melee, /^Shielded/), 3);
   assert.strictEqual(part(melee, /^Shield Battery/), 0);
   assert.strictEqual(part(ranged, /^Shielded/), 6);
@@ -348,10 +348,10 @@ test('Hybrid (2026-10-29): an adjacent attack is a melee attack: full Attacker b
   assert.strictEqual(part(shot, /^Attacker bonus/), 0, 'a shot after moving loses it');
 });
 
-test('Brace+ (2026-10-29): melee defense +4 while holding (Brace +2)', () => {
+test('Brace +1, Brace+ +2, Brace++ +3 melee defense while holding (2026-10-30)', () => {
   const { s, A, D } = duel(unitType('a'), unitType('d'), [3, 0, 0, 0]);
   D.round.holding = true;
-  for (const [tier, v] of [[1, 2], [2, 4]]) {
+  for (const [tier, v] of [[1, 1], [2, 2], [3, 3]]) {
     D.traitTiers = { brace: tier };
     assert.strictEqual(part(R.buildRoll(s, D, 'defender', { attacker: A, defender: D, ranged: false }), /^Brace/), v);
   }
