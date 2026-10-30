@@ -539,7 +539,8 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
         const levels = [...new Set([1, 3, 5, ...cards.map(c => Math.max(1, c.level || 1))])].sort((a, b) => a - b);
         return levels.map(L => {
           const list = cards.filter(c => Math.max(1, c.level || 1) === L);
-          if (!list.length && L !== 1 && L !== 3 && L !== 5) return null;
+          // an empty level 3 or 5 section is only shown to the GM (to add traits there); players see only levels that have traits (David, 2026-10-30)
+          if (!list.length && L !== 1 && !((L === 3 || L === 5) && game.user.isGM)) return null;
           const choice = list.some(c => c.isChoice);
           return { level: L, cards: list, locked: L > lv, title: L === 1 ? "Level 1 traits" : `Level ${L}${choice ? " · choose one" : " traits"}` };
         }).filter(Boolean); })(),
