@@ -740,7 +740,14 @@ function casualtiesOf(dmg, armor, pen, reduce, evade) {
 }
 /** Evasion: the share of melee casualties ignored — 25% / 40% / 55%, Evasion EX 70%. */
 const EVASION_PCT = [0, 25, 40, 55, 70];
-function evasionOf(u) { return EVASION_PCT[trait(u, 'evasion ex') ? 4 : Math.min(4, trait(u, 'evasion'))]; }
+/** Shields count toward Evasion (David, 2026-10-30): each Shielded level adds 15% to the unit's Evasion %, and the unit gets
+ * the highest Evasion step that total reaches (25 / 40 / 55 / 70). Shield Breaker (`breaker`) ignores the shield's share. */
+function evasionOf(u, breaker) {
+  const ev = trait(u, 'evasion ex') ? 4 : Math.min(4, trait(u, 'evasion')), sh = breaker ? 0 : Math.min(3, trait(u, 'shielded'));
+  const pct = EVASION_PCT[ev] + 15 * sh;
+  let step = 0; for (let i = 1; i < EVASION_PCT.length; i++) if (pct >= EVASION_PCT[i]) step = i;
+  return EVASION_PCT[step];
+}
 /** What is left of a hit after Evasion ignores `pct` percent of it; the damage taken rounds up. */
 function evadeCasualties(cas, pct) { return pct > 0 && cas > 0 ? Math.ceil(cas * (100 - pct) / 100 - 1e-9) : cas; }
 
@@ -834,7 +841,7 @@ function buildRoll(s, unit, role, ctx) {
       if (htl) parts.push(['Hold the Line (holding ally): melee defense', htl]);
     }
     if (trait(unit, 'shielded') && trait(ctx.attacker, 'shield breaker')) parts.push(['Shielded (ignored: Shield Breaker)', 0]);
-    else if (trait(unit, 'shielded')) parts.push(ctx.ranged ? ['Shielded: ranged defense', tierVal(trait(unit, 'shielded'), [2, 4, 6])] : ['Shielded: melee defense', tierVal(trait(unit, 'shielded'), [1, 2, 3])]);
+    else if (trait(unit, 'shielded') && ctx.ranged) parts.push(['Shielded: ranged defense', tierVal(trait(unit, 'shielded'), [2, 4, 6])]); // in melee shields add to Evasion instead (2026-10-30)
     if (ctx.ranged && trait(unit, 'shield battery') && fx(unit).stillLast) parts.push(['Shield Battery: ranged defense', 2]);
     if (!ctx.ranged && saddleOf(unit) >= 2) parts.push(['Saddle+: melee defense', 1]);
     // Deflect: ranged defense +3 against the first ranged attack each round; Deflect+ against the first two (no melee bonus since v0.83.0, David 2026-10-28)
@@ -980,9 +987,9 @@ function resolveAttack(s, attacker, defender, opts) {
   // Casualties = armor pen + what the damage leaves after armor, less Evasion in melee.
   // Armor is lowered by Sunder, and Shield Breaker ignores the armor a unit gets from shields.
   const armorOf = (t, u, breaker) => Math.max(0, (t.armor ?? t.defense ?? 0) + tierVal(trait(u, 'reinforced armor'), [1, 2, 3]) - (fx(u).sunder || 0) - (breaker ? (t.shieldArmor || 0) : 0));
-  const evDef = ranged ? 0 : evasionOf(defender);
+  const evDef = ranged ? 0 : evasionOf(defender, trait(attacker, 'shield breaker'));
   const returnRanged = dt.weapon === 'ranged' && !(!ranged && hybridOf(defender)); // a ranged unit's strike back is a shot, unless it's a Hybrid in melee
-  const evAtt = returnRanged ? 0 : evasionOf(attacker);
+  const evAtt = returnRanged ? 0 : evasionOf(attacker, trait(defender, 'shield breaker'));
   const hitDef = (dmg, pen) => casualtiesOf(dmg, armorOf(dt, defender, trait(attacker, 'shield breaker')), pen, 0, 0);
   // Repeating: the attack lands as two hits of half damage (and half pen) each; armor counts against each hit. Evasion then takes its share of the total.
   const repeating = !!trait(attacker, 'repeating') && dmgToDef > 0;
