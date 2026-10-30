@@ -720,6 +720,7 @@ function checkpointMorale(u) {
   const now = Math.min(4, checkpointsPassed(u)), before = fx(u).checkpoints || 0;
   if (now <= before) return 0;
   fx(u).checkpoints = now;
+  if (trait(u, 'disciplined') >= 4) return 0; // Disciplined EX: no morale loss from casualties (David, 2026-10-29)
   return u.men > 0 ? (now - before) * CHECKPOINT_MORALE : 0;
 }
 
@@ -737,7 +738,7 @@ function casualtiesOf(dmg, armor, pen, reduce, evade) {
 }
 /** Evasion: the share of melee casualties ignored — 25% / 40% / 55%, Evasion EX 70%. */
 const EVASION_PCT = [0, 25, 40, 55, 70];
-function evasionOf(u) { return EVASION_PCT[trait(u, 'evasion ex') ? 4 : Math.min(3, trait(u, 'evasion'))]; }
+function evasionOf(u) { return EVASION_PCT[trait(u, 'evasion ex') ? 4 : Math.min(4, trait(u, 'evasion'))]; }
 /** What is left of a hit after Evasion ignores `pct` percent of it; the damage taken rounds up. */
 function evadeCasualties(cas, pct) { return pct > 0 && cas > 0 ? Math.ceil(cas * (100 - pct) / 100 - 1e-9) : cas; }
 
@@ -774,7 +775,7 @@ function hornTargets(s, u) {
 }
 
 /** Disciplined: the unit's resting morale is 50 + 5/10/15 (set on the sheet; the engine doesn't add it). */
-function disciplinedBonus(u) { return tierVal(trait(u, 'disciplined'), [5, 10, 15]); }
+function disciplinedBonus(u) { return tierVal(trait(u, 'disciplined'), [5, 10, 15, 20]); }
 
 // Build one side's roll. role: 'attacker' | 'defender'.
 function buildRoll(s, unit, role, ctx) {
@@ -796,7 +797,8 @@ function buildRoll(s, unit, role, ctx) {
     if (ctx.charge && p.chargeAttackBonus) parts.push(['Officer passive: charge', p.chargeAttackBonus]);
     if (trait(unit, 'sharpened weapons')) parts.push(['Sharpened Weapons', tierVal(trait(unit, 'sharpened weapons'), [1, 2, 3])]);
     if (saddleOf(unit)) parts.push(['Saddle', 1]);
-    if (!ctx.ranged && ctx.tilesMoved >= 2 && trait(unit, 'charging strike')) parts.push(['Charging Strike (moved ' + ctx.tilesMoved + ' tiles)', tierVal(trait(unit, 'charging strike'), [2, 4, 6])]);
+    // Charging Strike +2/+4/+6 after moving 2+ tiles; Charging Strike EX +8 after moving 1+ tile (David, 2026-10-29)
+    if (!ctx.ranged && trait(unit, 'charging strike') && ctx.tilesMoved >= (trait(unit, 'charging strike') >= 4 ? 1 : 2)) parts.push(['Charging Strike (moved ' + ctx.tilesMoved + (ctx.tilesMoved === 1 ? ' tile)' : ' tiles)'), tierVal(trait(unit, 'charging strike'), [2, 4, 6, 8])]);
     if (ctx.hybridMelee) parts.push(['Hybrid: melee attack', -2]);
     if (ctx.second) parts.push(['Second attack (Dual Weapons)', -2]);
     if (trait(unit, 'hefty weapon') && unit.round.moved) parts.push(['Hefty Weapon (moved)', -2]);
@@ -855,6 +857,9 @@ function buildRoll(s, unit, role, ctx) {
   // no bonus on its own attacks. Anti-Infantry (+1/+2/+4) only counts on the unit's own attacks.
   if (role === 'defender' && oc === 'cavalry' && !ctx.ranged && !ctx.rear && trait(unit, 'anti-cavalry') && !suppressed(unit))
     parts.push(['Anti-Cavalry: defense against cavalry', tierVal(trait(unit, 'anti-cavalry'), [2, 4, 6])]);
+  // ...and Attack +1 / +2 / +3 on its own attacks against cavalry (David, 2026-10-29)
+  if (role === 'attacker' && oc === 'cavalry' && trait(unit, 'anti-cavalry') && !suppressed(unit))
+    parts.push(['Anti-Cavalry: attacking cavalry', tierVal(trait(unit, 'anti-cavalry'), [1, 2, 3])]);
   if (role === 'attacker' && oc === 'infantry' && trait(unit, 'anti-infantry')) parts.push(['Anti-Infantry', tierVal(trait(unit, 'anti-infantry'), [1, 2, 4])]);
   let ms = moraleState(unit.morale);
   if (ms === 'Surrendered' && trait(unit, 'fanatic')) ms = 'Demoralized'; // Fanatic: fights on at 0 morale
@@ -966,7 +971,7 @@ function resolveAttack(s, attacker, defender, opts) {
   // Winning the exchange while defending: Counter-Attack and Charge Reflection hit back harder
   if (winner === 'defender' && dmgToAtt > 0) {
     dmgToAtt += tierVal(trait(defender, 'counter-attack'), [2, 4]);
-    if (charge && trait(defender, 'charge reflection') && !suppressed(defender)) dmgToAtt += chargeBonus;
+    if (charge && at.category === 'cavalry' && trait(defender, 'charge reflection') && !suppressed(defender)) dmgToAtt += chargeBonus; // cavalry charges only
   }
   if (trait(attacker, 'duelist')) { dmgToAtt = 0; canCounter = false; } // Duelist: ignores counter-strike damage
 
@@ -1028,14 +1033,14 @@ function resolveAttack(s, attacker, defender, opts) {
   // 2 casualties (Splash Attack) or 4 (Splash Attack+), flat
   const splash = trait(attacker, 'splash attack');
   if (splash && casDef > 0) {
-    const n = tierVal(splash, [2, 4]);
+    const n = tierVal(splash, [2, 4, 6]); // Splash Attack++ 6 (David, 2026-10-29)
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const b = unitAt(s, defender.x + dx, defender.y + dy);
       if (!b || b === attacker || b === defender || !alive(b) || !hostile(attacker, b)) continue;
       const cas = Math.min(n, b.men);
       b.men = Math.max(0, b.men - cas);
       b.morale = clamp(b.morale - checkpointMorale(b), 0, 100);
-      log(s, (splash > 1 ? 'Splash Attack+: ' : 'Splash Attack: ') + b.name + ', next to ' + defender.name + ', takes ' + cas + ' casualties.', { type: 'splash', unit: b.id, casualties: cas });
+      log(s, ('Splash Attack' + '+'.repeat(Math.min(2, splash - 1)) + ': ') + b.name + ', next to ' + defender.name + ', takes ' + cas + ' casualties.', { type: 'splash', unit: b.id, casualties: cas });
     }
   }
   if (loser) loser.morale = clamp(loser.morale - moraleLoss, 0, 100);
@@ -1051,7 +1056,7 @@ function resolveAttack(s, attacker, defender, opts) {
   if (winner === 'attacker') {
     const pz = trait(attacker, 'poison'), sd = trait(attacker, 'sunder');
     if (pz) fx(defender).poison = Math.max(fx(defender).poison || 0, tierVal(pz, [1, 2]));   // doesn't stack; Poison+ replaces Poison
-    if (sd) fx(defender).sunder = Math.max(fx(defender).sunder || 0, tierVal(sd, [2, 4]));   // doesn't stack; Sunder+ replaces Sunder
+    if (sd) fx(defender).sunder = Math.max(fx(defender).sunder || 0, tierVal(sd, [2, 4, 6]));   // doesn't stack; Sunder+ / Sunder++ (-6, David 2026-10-29) replace Sunder
     // Suppressing Fire (ranged): Attack -1, melee defense -1, movement -2 (min 1), no Hold/Brace/Anti-Cavalry/Charge Reflection until the end of its next turn
     if (ranged && trait(attacker, 'suppressing fire')) { fx(defender).suppressed = true; suppressedNow = true; }
   }

@@ -32,13 +32,13 @@ function duel(aType, dType, rolls, setupFn, extra = []) {
 const part = (roll, re) => roll.parts.filter(([l]) => re.test(l)).reduce((t, [, v]) => t + v, 0);
 const traits = (o) => (u) => { u.traitTiers = o; };
 
-test('Anti-Cavalry: Defense +2/+4/+6 when cavalry attack it in melee; nothing on its own attacks. Anti-Infantry only attacking', () => {
+test('Anti-Cavalry: Defense +2/+4/+6 when cavalry attack it in melee; +1/+2/+3 on its own attacks against cavalry. Anti-Infantry only attacking', () => {
   for (const [tier, val] of [[1, 2], [2, 4], [3, 6]]) {
     const { r } = duel(unitType('c', { category: 'cavalry' }), unitType('a'), [3, 0, 0, 0], (a, d) => { d.traitTiers = { 'anti-cavalry': tier }; });
     assert.strictEqual(part(r.defendRoll, /^Anti-Cavalry/), val, 'Anti-Cavalry tier ' + tier);
   }
   const { r } = duel(unitType('a'), unitType('c', { category: 'cavalry' }), [3, 0, 0, 0], (a, d) => { a.traitTiers = { 'anti-cavalry': 3 }; d.traitTiers = { 'anti-infantry': 2 }; });
-  assert.strictEqual(part(r.attackRoll, /^Anti-Cavalry/), 0, 'no bonus on its own attacks');
+  assert.strictEqual(part(r.attackRoll, /^Anti-Cavalry/), 3, 'Anti-Cavalry++ attacking cavalry: Attack +3 (David, 2026-10-29)');
   assert.strictEqual(part(r.defendRoll, /^Anti-Infantry/), 0, 'Anti-Infantry not when defending');
   const inf = duel(unitType('i'), unitType('a'), [3, 0, 0, 0], (a, d) => { d.traitTiers = { 'anti-cavalry': 3 }; });
   assert.strictEqual(part(inf.r.defendRoll, /^Anti-Cavalry/), 0, 'not against infantry');

@@ -13,6 +13,9 @@ export function traitLines(text) {
 export function traitTiersOf(text) {
   const out = {};
   for (const line of traitLines(text)) {
+    // "Name EX" is the tier above "Name++" (Evasion EX, Disciplined EX, Charging Strike EX: David, 2026-10-29)
+    const ex = line.match(/^([A-Za-z][A-Za-z' \-]*?[A-Za-z])\s+EX\s*(?:-\s|–|—|:|$)/);
+    if (ex) { const b = ex[1].trim().toLowerCase(); out[b] = Math.max(out[b] || 0, 4); out[b + ' ex'] = 1; continue; }
     // "Name", "Name+", "Name++"; weaker versions end in "-"/"--" (Fragile-, Fragile--: David, 2026-10-29) and keep the
     // minus in their key ("fragile-") so they are never mistaken for the full trait
     const m = line.match(/^([A-Za-z][A-Za-z' \-]*?[A-Za-z])(-{1,2}|\+{0,2})\s*(?:-\s|–|—|:|$)/);

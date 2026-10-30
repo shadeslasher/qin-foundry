@@ -126,7 +126,7 @@ export class HenchmanData extends QinBaseActor {
 /** A unit's resting morale: 50, +5/+10/+15 for Disciplined/+/++ (David, 2026-10-25). */
 export function defaultMoraleFor(traits) {
   const d = traitTiersOf(traits).disciplined || 0;
-  return 50 + [0, 5, 10, 15][Math.min(3, d)];
+  return 50 + [0, 5, 10, 15, 20][Math.min(4, d)]; // Disciplined EX +20
 }
 
 export class UnitData extends foundry.abstract.TypeDataModel {
