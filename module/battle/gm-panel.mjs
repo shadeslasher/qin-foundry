@@ -9,6 +9,7 @@ import { battleRequest, setHiddenSelected, confirmEndBattle, toggleGmFire, gmFir
 import { TacticsApp } from "./tactics-ui.mjs";
 import { levelChevronsSVG } from "../icons.mjs";
 import { broadcastBattleAnim } from "../attack-fx.mjs";
+import { pickRandomChoices } from "./traits.mjs";
 
 const { api } = foundry.applications;
 const MAX_LEVEL = E.MAX_LEVEL ?? 5;
@@ -26,7 +27,16 @@ export async function stepLevel(step) {
     const cur = Math.max(1, Math.min(MAX_LEVEL, Number(t.actor.system.level) || 1));
     const next = Math.max(1, Math.min(MAX_LEVEL, cur + step));
     if (next === cur) { capped.push(t.name); continue; }
-    await t.actor.update({ "system.level": next });
+    const upd = { "system.level": next };
+    // Enemy, allied and neutral units pick their level-up trait choices at random (David, 2026-10-30); players choose their own
+    const picks = [];
+    if (step > 0 && t.actor.system.side !== "player") {
+      const list = foundry.utils.deepClone(t.actor.system.traitList ?? []);
+      picks.push(...pickRandomChoices(list, next));
+      if (picks.length) upd["system.traitList"] = list;
+    }
+    await t.actor.update(upd);
+    if (picks.length) ui.notifications.info(`${t.name} picks ${picks.join(", ")}.`);
     changed.push([t, next]);
   }
   const ups = changed.filter(() => step > 0).map(([t, lv]) => ({ kind: "levelUp", unit: t.id, level: lv }));

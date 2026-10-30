@@ -107,3 +107,12 @@ test('Shields add 15% Evasion per level; the unit takes the Evasion step the tot
   assert.strictEqual(ev({ evasion: 3, shielded: 3 }), 70, 'capped at Evasion EX');
   assert.strictEqual(ev({ evasion: 1, shielded: 3 }, true), 25, 'Shield Breaker: only the unit\'s own Evasion');
 });
+
+test('GM level-up: non-player units pick reached trait choices at random, and only those', async () => {
+  const { pickRandomChoices } = await import('../module/battle/traits.mjs');
+  const list = [{ name: 'Evasion', options: [] }, { level: 3, options: [{ name: 'A' }, { name: 'B' }], chosen: -1 },
+    { level: 5, options: [{ name: 'C' }, { name: 'D' }], chosen: -1 }, { level: 3, options: [{ name: 'E' }, { name: 'F' }], chosen: 0 }];
+  assert.deepStrictEqual(pickRandomChoices(list, 3, () => 0.99), ['B']);
+  assert.strictEqual(list[1].chosen, 1); assert.strictEqual(list[2].chosen, -1, 'level 5 choice still locked'); assert.strictEqual(list[3].chosen, 0, 'made choices kept');
+  assert.deepStrictEqual(pickRandomChoices(list, 5, () => 0), ['C']);
+});

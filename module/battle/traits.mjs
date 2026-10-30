@@ -83,3 +83,15 @@ export function traitTextOf(list, level = 1) {
   return (list ?? []).map((e, i) => gone.has(i) ? null : traitAtLevel(e, level)).filter(t => t?.name)
     .map(t => t.desc ? `${t.name} - ${t.desc}` : t.name).join("\n");
 }
+
+/** Pick every unmade trait choice the unit has reached at `level`, at random (enemy, allied and neutral units: David, 2026-10-30).
+ * Changes `list` in place and returns the names picked. */
+export function pickRandomChoices(list, level, rand = Math.random) {
+  const picks = [];
+  for (const e of list ?? []) {
+    if (!e.options?.length || (e.chosen ?? -1) >= 0 || (e.level || 1) > level) continue;
+    e.chosen = Math.min(e.options.length - 1, Math.floor(rand() * e.options.length));
+    picks.push(e.options[e.chosen]?.name || "?");
+  }
+  return picks;
+}
