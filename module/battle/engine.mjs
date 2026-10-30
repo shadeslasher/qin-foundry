@@ -644,9 +644,9 @@ function stealthFriends(a, b) {
   if (a === b) return true;
   return (a === 'player' && b === 'ally') || (a === 'ally' && b === 'player');
 }
-/** A unit that moves next to hidden hostile units reveals them (Scouts: within 2 tiles). */
+/** A unit that moves next to hidden hostile units reveals them (Scouts: within 3 tiles). */
 function revealAround(s, u) {
-  const reach = trait(u, 'scouts') ? 2 : 1;
+  const reach = trait(u, 'scouts') ? 3 : 1; // Scouts: 3 tiles (David, 2026-10-30; was 2)
   for (const o of liveUnits(s)) {
     if (o.hidden && !stealthFriends(alliance(o.side), alliance(u.side)) && manhattan(o, u) <= reach) {
       o.hidden = false;
@@ -654,11 +654,11 @@ function revealAround(s, u) {
     }
   }
 }
-/** Scouts: hostile Scouts within 2 tiles of this unit (they reveal it, and it can't hide there). */
+/** Scouts: hostile Scouts within 3 tiles of this unit (they reveal it, and it can't hide there). */
 function scoutNear(s, u) {
-  return liveUnits(s).find(o => o !== u && trait(o, 'scouts') && !stealthFriends(alliance(o.side), alliance(u.side)) && manhattan(o, u) <= 2) || null;
+  return liveUnits(s).find(o => o !== u && trait(o, 'scouts') && !stealthFriends(alliance(o.side), alliance(u.side)) && manhattan(o, u) <= 3) || null;
 }
-/** Scouts reveal every hidden enemy within 2 tiles of them. */
+/** Scouts reveal every hidden enemy within 3 tiles of them. */
 function scoutSweep(s) {
   for (const u of liveUnits(s)) {
     if (!u.hidden) continue;
@@ -687,8 +687,18 @@ function repositionTiles(s, d, u) {
   }
   return out;
 }
-/** Does terrain hide a unit that ends its turn there? (forests) */
-function hidesIn(s, u) { const r = tileRules(s, u.x, u.y); return r ? r.hides : terrainAt(s, u.x, u.y) === 'trees'; }
+/** Stalk (David, 2026-10-30): the unit can also hide in tall grass, plains and farmland (open squares with no road or building on them). */
+const STALK_TERRAIN = new Set(['tall-grass', 'plains', 'farmland']);
+/** Does terrain hide a unit that ends its turn there? (forests, tall grass; Stalk adds plains and farmland) */
+function hidesIn(s, u) {
+  const r = tileRules(s, u.x, u.y);
+  if (r ? r.hides : terrainAt(s, u.x, u.y) === 'trees') return true;
+  if (!trait(u, 'stalk')) return false;
+  const t = s.map.tiles && s.map.tiles[u.x + ',' + u.y];
+  if (!t) return false;
+  const now = burnState(s, u.x, u.y, t);
+  return STALK_TERRAIN.has(now.terrain) && !(now.overlays || []).length;
+}
 
 // ---------------------------------------------------------------- combat
 
@@ -2386,7 +2396,7 @@ function viewFor(s, viewer) {
   return v;
 }
 
-export { officerWeaponLevel, casualtiesOf, evasionOf, evadeCasualties, disciplinedBonus, warDrumsBonus, hornReady, hornTargets, checkpointMorale, checkpointsPassed, overwatchFire as _overwatchFire, surroundAfterTurn as _surroundAfterTurn,
+export { hidesIn as _hidesIn, officerWeaponLevel, casualtiesOf, evasionOf, evadeCasualties, disciplinedBonus, warDrumsBonus, hornReady, hornTargets, checkpointMorale, checkpointsPassed, overwatchFire as _overwatchFire, surroundAfterTurn as _surroundAfterTurn,
   moveOptions, attackTargets, actionMenu, threatArea, TACTIC_SIDES, tileRules, ladderTiles, climbTiles, insideCity, isWallTop, gateAt,
   newState, act, viewFor, prompt, reachable, duelTargets, movementOf, moraleState, visibleTo, rangeOk,
   resolveAttack, buildRoll, skillCheck, setRng, yinYang, typeOf, officerOf, unitById, SIDES, settle, advance,

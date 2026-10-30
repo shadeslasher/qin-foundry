@@ -2,7 +2,7 @@
   "id": "qin",
   "title": "Qin: The Warring States",
   "description": "Unofficial Foundry VTT system for Qin: The Warring States (Yin/Yang system), with a Fire Emblem\u2013style battlefield unit combat system for a Three Kingdoms campaign.",
-  "version": "0.99.3",
+  "version": "0.99.4",
   "compatibility": {
     "minimum": "14",
     "verified": "14.369",

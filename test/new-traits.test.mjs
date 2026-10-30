@@ -193,7 +193,7 @@ test('Woodsmen: forests cost no extra movement', () => {
   assert.strictEqual(R.reachable(s, u, 2).get('5,3'), 2);
 });
 
-test('Scouts: reveal hidden enemies within 2 tiles, and enemies can\'t hide that close to them', () => {
+test('Scouts (2026-10-30): reveal hidden enemies within 3 tiles', () => {
   const s = setup(); plains(s, { '5,2': { terrain: 'forest' } });
   s.library.unitTypes.push(unitType('sc', { move: 3 }), unitType('e'));
   const sc = add(s, { typeId: 'sc', side: 'player', owner: 'p1', x: 5, y: 8 });
@@ -204,12 +204,24 @@ test('Scouts: reveal hidden enemies within 2 tiles, and enemies can\'t hide that
   must(R.act(s, HOST, { type: 'startBattle' }));
   dice([0, 0]); must(R.act(s, HOST, { type: 'startRound' }));
   must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: sc }));
-  must(R.act(s, P1, { type: 'moveTo', unitId: sc, x: 5, y: 5 }));
-  assert.ok(E.hidden, '3 tiles away: still hidden');
-  // next to it within 2: reveals on moving there
+  must(R.act(s, P1, { type: 'moveTo', unitId: sc, x: 5, y: 6 }));
+  assert.ok(E.hidden, '4 tiles away: still hidden');
   S.round.moved = false; s.turn.activation.step = 'move';
-  must(R.act(s, P1, { type: 'moveTo', unitId: sc, x: 5, y: 4 }));
-  assert.ok(!E.hidden, 'spotted from 2 tiles');
+  must(R.act(s, P1, { type: 'moveTo', unitId: sc, x: 5, y: 5 }));
+  assert.ok(!E.hidden, 'spotted from 3 tiles');
+});
+
+test('Stalk (2026-10-30): hides on plains and farmland, not on a road; others only hide in cover', () => {
+  const s = setup(); plains(s, { '2,2': { terrain: 'farmland' }, '8,8': { terrain: 'plains', overlays: ['road'] } });
+  s.library.unitTypes.push(unitType('st'));
+  const a = add(s, { typeId: 'st', side: 'enemy', x: 2, y: 2 }), b = add(s, { typeId: 'st', side: 'enemy', x: 5, y: 5 }),
+    c = add(s, { typeId: 'st', side: 'enemy', x: 8, y: 8 }), d = add(s, { typeId: 'st', side: 'enemy', x: 0, y: 0 });
+  for (const id of [a, b, c]) R.unitById(s, id).traitTiers = { stalk: 1 };
+  const H = (id) => R._hidesIn(s, R.unitById(s, id));
+  assert.ok(H(a), 'farmland');
+  assert.ok(H(b), 'plains');
+  assert.ok(!H(c), 'road');
+  assert.ok(!H(d), 'no Stalk: plains give no cover');
 });
 
 test('Outrider: after a normal move, ride on 1 tile (Outrider+ 2) instead of attacking; the turn then ends', () => {
