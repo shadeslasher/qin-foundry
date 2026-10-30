@@ -172,7 +172,8 @@ test('Dual Weapons: a second attack at -2 on another adjacent enemy, or skip', (
   assert.ok(!s.turn.activation || s.turn.activation.unitId !== A.id, 'turn over');
 });
 
-test('Charge Reflection: a defender that beats a charge adds the charge bonus to its strike back', () => {
+test('Charge Reflection (2026-10-30): only while holding; adds the charge bonus to the strike back, win or lose', () => {
+ for (const [holding, win, want] of [[false, true, 91], [true, true, 88], [true, false, null]]) {
   const s = setup();
   s.library.unitTypes.push(unitType('cav', { category: 'cavalry' }), unitType('d'));
   const a = add(s, { typeId: 'cav', side: 'player', owner: 'p1', x: 5, y: 1 });
@@ -182,12 +183,15 @@ test('Charge Reflection: a defender that beats a charge adds the charge bonus to
   must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: a }));
   s.freeMovement = false;
   must(R.act(s, P1, { type: 'moveTo', unitId: a, x: 5, y: 4 })); // 3 tiles: charge +1
-  dice([0, 0, 9, 0]);
+  if (holding) R.unitById(s, d).round.holding = true;
+  dice(win ? [0, 0, 9, 0] : [9, 0, 0, 0]);
   must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
   const r = s.log.filter(e => e.detail && e.detail.type === 'attack').pop().detail.result;
-  // A: 0+2+2+1 (cavalry vs infantry) = 5 (3 tiles: +2), D: 9 + 2 (Anti-Cavalry defense) = 11 -> diff 6. Return: 6 + 6 + 2 (reflected charge) = 14 - 3 = 11.
-  assert.strictEqual(R.unitById(s, a).men, 100 - 11);
   assert.ok(r.charge);
+  if (want !== null) assert.strictEqual(R.unitById(s, a).men, want, `holding ${holding}`);
+  // the strike back carries the charge bonus (2) only while holding, win or lose
+  else assert.strictEqual(r.damageToAttacker, 6 + 2, 'lost the roll: base damage 6 + charge bonus 2');
+ }
 });
 
 test('Inspiration: allies next to it gain 2 morale at the end of the round, not the end of its turn', () => {

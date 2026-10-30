@@ -980,8 +980,10 @@ function resolveAttack(s, attacker, defender, opts) {
   // Winning the exchange while defending: Counter-Attack and Charge Reflection hit back harder
   if (winner === 'defender' && dmgToAtt > 0) {
     dmgToAtt += tierVal(trait(defender, 'counter-attack'), [2, 4]);
-    if (charge && at.category === 'cavalry' && trait(defender, 'charge reflection') && !suppressed(defender)) dmgToAtt += chargeBonus; // cavalry charges only
   }
+  // Charge Reflection (David, 2026-10-30): a holding unit charged by cavalry adds the charge bonus to its strike back, win or lose,
+  // whenever it can strike back at all (never in the rear; Anti-Cavalry needed to strike back at a charge; not while Suppressed)
+  if (charge && at.category === 'cavalry' && canCounter && dmgToAtt > 0 && holdingNow(defender) && trait(defender, 'charge reflection')) dmgToAtt += chargeBonus;
   if (trait(attacker, 'duelist')) { dmgToAtt = 0; canCounter = false; } // Duelist: ignores counter-strike damage
 
   // Casualties = armor pen + what the damage leaves after armor, less Evasion in melee.
