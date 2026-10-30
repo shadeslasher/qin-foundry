@@ -161,7 +161,7 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
     s.library.unitTypes.push({
       id: tok.id, name: a.name, faction: sys.faction, tier: sys.tier, category: sys.category, weapon: ranged ? "ranged" : "melee",
       skill: sys.weaponSkill, skill2: sys.weaponSkill2 || "", unitValue: sys.unitValue, damage: sys.damage, armor: sys.armor, armorPen: sys.armorPen, move: sys.move,
-      shieldArmor: shieldArmorOf(sys.armorNote), // the part of its armor that comes from shields (Shield Breaker ignores it)
+      shield: /shield/i.test(String(sys.unitType ?? "")), // carries a shield (its weapon includes one): Shield Breaker ignores some of its armor
       rangeMin: ranged ? Math.min(sys.rangeMin || 1, sys.range) : 1, rangeMax: ranged ? sys.range : 1,
     });
     let officerId = null;

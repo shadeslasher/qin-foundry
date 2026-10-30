@@ -845,8 +845,7 @@ function buildRoll(s, unit, role, ctx) {
         .map(o => tierVal(trait(o, 'hold the line'), [1, 2])));
       if (htl) parts.push(['Hold the Line (holding ally): melee defense', htl]);
     }
-    if (trait(unit, 'shielded') && trait(ctx.attacker, 'shield breaker')) parts.push(['Shielded (ignored: Shield Breaker)', 0]);
-    else if (trait(unit, 'shielded') && ctx.ranged) parts.push(['Shielded: ranged defense', tierVal(trait(unit, 'shielded'), [2, 4, 6])]); // ranged defense only; in melee the unit's Evasion trait already covers its shield (2026-10-30)
+    if (trait(unit, 'shielded') && ctx.ranged) parts.push(['Shielded: ranged defense', tierVal(trait(unit, 'shielded'), [2, 4, 6])]); // ranged defense only; in melee the unit's Evasion trait already covers its shield (2026-10-30)
     if (ctx.ranged && trait(unit, 'shield battery') && fx(unit).stillLast) parts.push(['Shield Battery: ranged defense', 2]);
     if (!ctx.ranged && saddleOf(unit) >= 2) parts.push(['Saddle+: melee defense', 1]);
     // Deflect: ranged defense +3 against the first ranged attack each round; Deflect+ against the first two (no melee bonus since v0.83.0, David 2026-10-28)
@@ -993,7 +992,9 @@ function resolveAttack(s, attacker, defender, opts) {
 
   // Casualties = armor pen + what the damage leaves after armor, less Evasion in melee.
   // Armor is lowered by Sunder, and Shield Breaker ignores the armor a unit gets from shields.
-  const armorOf = (t, u, breaker) => Math.max(0, (t.armor ?? t.defense ?? 0) + tierVal(trait(u, 'reinforced armor'), [1, 2, 3]) - (fx(u).sunder || 0) - (breaker ? (t.shieldArmor || 0) : 0));
+  // Shield Breaker (David, 2026-10-30): against a unit with a shield (its weapon includes a shield) ignore 1 / 2 / 3 / 4 armor
+  // for Shield Breaker / + / ++ / EX
+  const armorOf = (t, u, breaker) => Math.max(0, (t.armor ?? t.defense ?? 0) + tierVal(trait(u, 'reinforced armor'), [1, 2, 3]) - (fx(u).sunder || 0) - (breaker && t.shield ? tierVal(breaker, [1, 2, 3, 4]) : 0));
   const evDef = ranged ? 0 : evasionOf(defender, trait(attacker, 'shield breaker'));
   const returnRanged = dt.weapon === 'ranged' && !(!ranged && hybridOf(defender)); // a ranged unit's strike back is a shot, unless it's a Hybrid in melee
   const evAtt = returnRanged ? 0 : evasionOf(attacker, trait(defender, 'shield breaker'));
