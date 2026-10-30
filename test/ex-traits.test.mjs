@@ -97,11 +97,15 @@ test('Throwing Axes: a range-2 unit fights adjacent enemies in melee without the
   assert.strictEqual(part(hy.r.attackRoll, /^Hybrid/), -2);
 });
 
-test('Shielded does not add Evasion (the Evasion trait already covers shields, 2026-10-30)', () => {
-  const ev = (t) => R.evasionOf({ traitTiers: t });
-  assert.strictEqual(ev({ shielded: 3 }), 0);
-  assert.strictEqual(ev({ evasion: 1, shielded: 2 }), 25);
-  assert.strictEqual(ev({ evasion: 2, shielded: 1 }), 40);
+test('Shields add 15% Evasion per level; the unit takes the Evasion step the total reaches; Shield Breaker ignores it', () => {
+  const ev = (t, b) => R.evasionOf({ traitTiers: t }, b);
+  assert.strictEqual(ev({ shielded: 1 }), 0, 'Shielded alone (15) reaches nothing');
+  assert.strictEqual(ev({ shielded: 2 }), 25, 'Shielded+ alone (30) = Evasion');
+  assert.strictEqual(ev({ shielded: 3 }), 40, 'Shielded++ alone (45) = Evasion+');
+  assert.strictEqual(ev({ evasion: 1, shielded: 1 }), 40, 'Evasion + Shielded = Evasion+');
+  assert.strictEqual(ev({ evasion: 2, shielded: 2 }), 70, 'Evasion+ + Shielded+ = Evasion EX');
+  assert.strictEqual(ev({ evasion: 3, shielded: 3 }), 70, 'capped at Evasion EX');
+  assert.strictEqual(ev({ evasion: 1, shielded: 3 }, true), 25, 'Shield Breaker: only the unit\'s own Evasion');
 });
 
 test('GM level-up: non-player units pick reached trait choices at random, and only those', async () => {

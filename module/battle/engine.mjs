@@ -750,9 +750,14 @@ function casualtiesOf(dmg, armor, pen, reduce, evade) {
 }
 /** Evasion: the share of melee casualties ignored — 25% / 40% / 55%, Evasion EX 70%. */
 const EVASION_PCT = [0, 25, 40, 55, 70];
-/** Evasion step from the unit's Evasion trait. Shielded adds nothing here: the Evasion trait already accounts for the unit's
- * shield (David, 2026-10-30); Shielded only gives ranged defense. `breaker` is kept for callers and ignored. */
-function evasionOf(u, breaker) { return EVASION_PCT[trait(u, 'evasion ex') ? 4 : Math.min(4, trait(u, 'evasion'))]; }
+/** Shields count toward Evasion (David, 2026-10-30): each Shielded level adds 15% to the unit's Evasion %, and the unit gets
+ * the highest Evasion step that total reaches (25 / 40 / 55 / 70). Shield Breaker (`breaker`) ignores the shield's share. */
+function evasionOf(u, breaker) {
+  const ev = trait(u, 'evasion ex') ? 4 : Math.min(4, trait(u, 'evasion')), sh = breaker ? 0 : Math.min(3, trait(u, 'shielded'));
+  const pct = EVASION_PCT[ev] + 15 * sh;
+  let step = 0; for (let i = 1; i < EVASION_PCT.length; i++) if (pct >= EVASION_PCT[i]) step = i;
+  return EVASION_PCT[step];
+}
 /** What is left of a hit after Evasion ignores `pct` percent of it; the damage taken rounds up. */
 function evadeCasualties(cas, pct) { return pct > 0 && cas > 0 ? Math.ceil(cas * (100 - pct) / 100 - 1e-9) : cas; }
 
@@ -846,7 +851,7 @@ function buildRoll(s, unit, role, ctx) {
       if (htl) parts.push(['Hold the Line (holding ally): melee defense', htl]);
     }
     if (trait(unit, 'shielded') && trait(ctx.attacker, 'shield breaker')) parts.push(['Shielded (ignored: Shield Breaker)', 0]);
-    else if (trait(unit, 'shielded') && ctx.ranged) parts.push(['Shielded: ranged defense', tierVal(trait(unit, 'shielded'), [2, 4, 6])]); // ranged defense only; in melee the unit's Evasion trait already covers its shield (2026-10-30)
+    else if (trait(unit, 'shielded') && ctx.ranged) parts.push(['Shielded: ranged defense', tierVal(trait(unit, 'shielded'), [2, 4, 6])]); // in melee shields add to Evasion instead (2026-10-30)
     if (ctx.ranged && trait(unit, 'shield battery') && fx(unit).stillLast) parts.push(['Shield Battery: ranged defense', 2]);
     if (!ctx.ranged && saddleOf(unit) >= 2) parts.push(['Saddle+: melee defense', 1]);
     // Deflect: ranged defense +3 against the first ranged attack each round; Deflect+ against the first two (no melee bonus since v0.83.0, David 2026-10-28)
