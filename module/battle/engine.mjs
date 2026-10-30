@@ -346,6 +346,8 @@ function moraleState(m) {
 function trait(u, base) { const t = u && u.traitTiers; return (t && t[base]) || 0; }
 /** Suppressing Fire (David, 2026-10-29): movement -2 (min 1); a suppressed unit loses Hold, Brace, Anti-Cavalry and Charge Reflection until it wears off. */
 const suppressed = (u) => !!(u && u.fx && u.fx.suppressed);
+/** Hybrid, or Throwing Axes (Hybrid without the melee Attack -2: David, 2026-10-29): a ranged unit that also fights adjacent enemies in melee. */
+const hybridOf = (u) => !!(trait(u, 'hybrid') || trait(u, 'throwing axes'));
 const holdingNow = (u) => !!(u && u.round && u.round.holding) && !suppressed(u);
 const tierVal = (tier, vals) => (tier ? vals[Math.min(tier, vals.length) - 1] : 0);
 /** Lasting per-unit battle effects (poison, sunder, reload, slowed, stood still last turn). */
@@ -496,7 +498,7 @@ function threatArea(s, u) {
   const moveSet = new Set(move ? reachable(s, u, move).keys() : []);
   const t = typeOf(s, u), ranged = t.weapon === 'ranged';
   const bands = [[t.rangeMin || 1, (t.rangeMax || 1) + (ranged ? rangeBonus(s, u) : 0)]];
-  if (ranged && trait(u, 'hybrid')) bands.push([1, 1]);
+  if (ranged && hybridOf(u)) bands.push([1, 1]);
   const attack = new Set();
   const origins = [[u.x, u.y], ...[...moveSet].map(k => k.split(',').map(Number))];
   for (const [ox, oy] of origins) for (const [lo, hi] of bands) {
@@ -695,7 +697,7 @@ function rangeOk(s, attacker, defender) {
   const tr = t.weapon === 'ranged' ? tileRules(s, attacker.x, attacker.y) : null;
   const bonus = t.weapon === 'ranged' ? rangeBonus(s, attacker) + (tr ? tr.range : 0) : 0;
   // Hybrid units may fight next to them in melee
-  if (d === 1 && t.weapon === 'ranged' && trait(attacker, 'hybrid')) return meleeLevelOk(s, attacker, defender);
+  if (d === 1 && t.weapon === 'ranged' && hybridOf(attacker)) return meleeLevelOk(s, attacker, defender);
   if (!(d >= (t.rangeMin || 1) && d <= Math.max(1, (t.rangeMax || 1) + bonus))) return false;
   if (t.weapon !== 'ranged') return meleeLevelOk(s, attacker, defender); // walls: melee needs the same level or a ladder
   return !wallBlocksShot(s, attacker, defender);
@@ -799,7 +801,7 @@ function buildRoll(s, unit, role, ctx) {
     if (saddleOf(unit)) parts.push(['Saddle', 1]);
     // Charging Strike +2/+4/+6 after moving 2+ tiles; Charging Strike EX +8 after moving 1+ tile (David, 2026-10-29)
     if (!ctx.ranged && trait(unit, 'charging strike') && ctx.tilesMoved >= (trait(unit, 'charging strike') >= 4 ? 1 : 2)) parts.push(['Charging Strike (moved ' + ctx.tilesMoved + (ctx.tilesMoved === 1 ? ' tile)' : ' tiles)'), tierVal(trait(unit, 'charging strike'), [2, 4, 6, 8])]);
-    if (ctx.hybridMelee) parts.push(['Hybrid: melee attack', -2]);
+    if (ctx.hybridMelee && !trait(unit, 'throwing axes')) parts.push(['Hybrid: melee attack', -2]); // Throwing Axes: no penalty
     if (ctx.second) parts.push(['Second attack (Dual Weapons)', -2]);
     if (trait(unit, 'hefty weapon') && unit.round.moved) parts.push(['Hefty Weapon (moved)', -2]);
     // Precision: ranged attacks only (not a Hybrid's melee attack), when the unit hasn't moved; Precision++ +6 (David, 2026-10-28/29)
@@ -913,7 +915,7 @@ function damageValue(s, u) {
 function resolveAttack(s, attacker, defender, opts) {
   const at = typeOf(s, attacker), dt = typeOf(s, defender);
   // Hybrid: a ranged unit may fight an adjacent enemy in melee (Attack -2)
-  const hybridMelee = at.weapon === 'ranged' && !!trait(attacker, 'hybrid') && manhattan(attacker, defender) === 1;
+  const hybridMelee = at.weapon === 'ranged' && !!hybridOf(attacker) && manhattan(attacker, defender) === 1;
   const ranged = at.weapon === 'ranged' && !hybridMelee;
   // Charge: a cavalry unit's melee attack gains +1 for every tile it moved this turn past the first (2 tiles = +1)
   const tilesMoved = opts.movedThisActivation ? (opts.tilesMoved || 0) : 0;
@@ -954,7 +956,7 @@ function resolveAttack(s, attacker, defender, opts) {
   if (!ranged) {
     if (!aNeg) dmgToDef = base(attacker) + winBonus('attacker');
     // ranged defenders deal no return damage against melee attackers
-    canCounter = (dt.weapon !== 'ranged' || !!trait(defender, 'hybrid')) && meleeLevelOk(s, defender, attacker);
+    canCounter = (dt.weapon !== 'ranged' || !!hybridOf(defender)) && meleeLevelOk(s, defender, attacker);
     if (!dNeg && canCounter) dmgToAtt = base(defender) + winBonus('defender');
     if (ambush) { dmgToAtt = 0; canCounter = false; } // attacked from hiding: the defender rolls but can't strike back
   } else {
@@ -979,7 +981,7 @@ function resolveAttack(s, attacker, defender, opts) {
   // Armor is lowered by Sunder, and Shield Breaker ignores the armor a unit gets from shields.
   const armorOf = (t, u, breaker) => Math.max(0, (t.armor ?? t.defense ?? 0) + tierVal(trait(u, 'reinforced armor'), [1, 2, 3]) - (fx(u).sunder || 0) - (breaker ? (t.shieldArmor || 0) : 0));
   const evDef = ranged ? 0 : evasionOf(defender);
-  const returnRanged = dt.weapon === 'ranged' && !(!ranged && trait(defender, 'hybrid')); // a ranged unit's strike back is a shot, unless it's a Hybrid in melee
+  const returnRanged = dt.weapon === 'ranged' && !(!ranged && hybridOf(defender)); // a ranged unit's strike back is a shot, unless it's a Hybrid in melee
   const evAtt = returnRanged ? 0 : evasionOf(attacker);
   const hitDef = (dmg, pen) => casualtiesOf(dmg, armorOf(dt, defender, trait(attacker, 'shield breaker')), pen, 0, 0);
   // Repeating: the attack lands as two hits of half damage (and half pen) each; armor counts against each hit. Evasion then takes its share of the total.

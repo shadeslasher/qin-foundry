@@ -88,3 +88,11 @@ test('Anti-Cavalry attack bonus is melee only', () => {
   const { r } = duel(unitType('a', { weapon: 'ranged', rangeMax: 3 }), unitType('d', { category: 'cavalry' }), [3, 0, 0, 0], traits({ 'anti-cavalry': 3 }));
   assert.strictEqual(part(r.attackRoll, /^Anti-Cavalry/), 0);
 });
+
+test('Throwing Axes: a range-2 unit fights adjacent enemies in melee without the Hybrid Attack -2', () => {
+  const ax = duel(unitType('a', { weapon: 'ranged', rangeMax: 2 }), unitType('d'), [3, 0, 0, 0], traits({ 'throwing axes': 1 }));
+  assert.strictEqual(ax.r.ranged, false, 'adjacent attack is melee');
+  assert.strictEqual(part(ax.r.attackRoll, /^Hybrid/), 0);
+  const hy = duel(unitType('a', { weapon: 'ranged', rangeMax: 2 }), unitType('d'), [3, 0, 0, 0], traits({ hybrid: 1 }));
+  assert.strictEqual(part(hy.r.attackRoll, /^Hybrid/), -2);
+});
