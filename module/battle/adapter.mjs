@@ -9,7 +9,7 @@ import { REINFORCE_FLAG, REINFORCE_TOKEN_FLAG, zonesOf as reinforceZonesOf, isWa
 import { equipmentByName } from "./equipment-data.mjs";
 import { officerEligibility } from "../officer-rules.mjs";
 export { traitTiersOf, shieldArmorOf };
-import { FORMATIONS, HEROIC_ACTIONS } from "./engine-data.mjs";
+import { HEROIC_ACTIONS } from "./engine-data.mjs";
 import { SYSTEM_ID } from "../config.mjs";
 import { decodeTiles, gatesFromMap, FLAG as MAP_FLAG } from "./battlemap.mjs";
 import { DEPLOY_FLAG } from "./deploy-rules.mjs";
@@ -23,9 +23,6 @@ export const isWritingBack = () => writing;
 const BIG = 100000;
 let queue = Promise.resolve();
 
-export const defaultFormations = () => foundry.utils.deepClone(FORMATIONS);
-/** Formations are on hold unless the GM turns them back on (Use formations in battles). */
-export function formationsEnabled() { try { return !!game.settings.get(SYSTEM_ID, "useFormations"); } catch { return false; } }
 
 export function emptyBattle() {
   return { active: false, sceneId: null, turn: E.newState().turn, log: [], meta: {}, tactics: null, siege: null };
@@ -81,15 +78,6 @@ function officerLibraryEntry(officer) {
  * Traits from a unit's Traits tab, as { "base name": tier } (1 = base, 2 = "+", 3 = "++").
  * Each line reads "Name - effect"; only the name matters here.
  */
-/** Engine formation entry from a unit's formation item. */
-function formationEntry(tokenId, item) {
-  const f = item.system;
-  const e = { id: `${tokenId}.${item.id}`, name: item.name, desc: stripHtml(f.description) };
-  for (const k of ["moveMod", "defAll", "defMelee", "defRanged", "defFront", "frontMelee", "atkMod", "rearAtk", "chargeBonus", "dmgMod", "casReduce"]) if (f[k]) e[k] = f[k];
-  for (const k of ["immobile", "noAttackerBonus", "noRear", "noChargeBonus", "winReposition"]) if (f[k]) e[k] = true;
-  return e;
-}
-
 function terrainAt(scene, x, y) {
   for (const region of scene.regions ?? []) {
     const name = (region.name || "").toLowerCase();
@@ -147,7 +135,6 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
   s.outcome = battle.outcome ?? null;
   s.introAt = battle.introAt ?? null;
   s.duels = foundry.utils.deepClone(battle.duels ?? { pending: null, refused: [] });
-  s.library.formations = [{ id: "none", name: "No formation", desc: "No modifiers." }];
   s.library.unitTypes = [];
   s.library.officers = [];
   s.map = { image: null, cols: BIG, rows: BIG, tile: 1, offsetX: 0, offsetY: 0, terrain: {} };
@@ -170,15 +157,12 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
     if (isWaitingReinforcement(tok.getFlag?.(SYSTEM_ID, REINFORCE_TOKEN_FLAG), rzones)) continue; // reinforcements not yet arrived: not in the battle
     const a = tok.actor, sys = a.system;
     const gx = Math.round(tok.x / size), gy = Math.round(tok.y / size);
-    // This unit's formations (embedded items) become engine formations "<token>.<item>"
-    const forms = formationsEnabled() ? a.items.filter(i => i.type === "formation").map(i => formationEntry(tok.id, i)) : [];
-    s.library.formations.push(...forms);
     const ranged = sys.range > 1;
     s.library.unitTypes.push({
       id: tok.id, name: a.name, faction: sys.faction, tier: sys.tier, category: sys.category, weapon: ranged ? "ranged" : "melee",
       skill: sys.weaponSkill, skill2: sys.weaponSkill2 || "", unitValue: sys.unitValue, damage: sys.damage, armor: sys.armor, armorPen: sys.armorPen, move: sys.move,
       shieldArmor: shieldArmorOf(sys.armorNote), // the part of its armor that comes from shields (Shield Breaker ignores it)
-      rangeMin: ranged ? Math.min(sys.rangeMin || 1, sys.range) : 1, rangeMax: ranged ? sys.range : 1, formations: ["none", ...forms.map(f => f.id)],
+      rangeMin: ranged ? Math.min(sys.rangeMin || 1, sys.range) : 1, rangeMax: ranged ? sys.range : 1,
     });
     let officerId = null;
     let officer = sys.officerActor;
@@ -197,7 +181,6 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
     s.units.push({
       id: tok.id, typeId: tok.id, officerId, name: tok.name, side: sys.side, owner: ownerUserId(a),
       x: fromPos ? fromPos.x : gx, y: fromPos ? fromPos.y : gy, men: sys.men.value, maxMen: sys.men.max, morale: sys.morale, xp: sys.xp?.value ?? 0, level: sys.level ?? 1,
-      formation: formationsEnabled() && a.items.get(sys.formation)?.type === "formation" ? `${tok.id}.${sys.formation}` : "none",
       facing: meta.facing ?? null, hidden: sys.hidden, status: sys.status,
       fierceCharge: fierce ? 1 + fierce[1].length : 0,
       traitTiers: traitTiersOf(sys.traits), fx: meta.fx ?? {},
@@ -247,8 +230,6 @@ async function writeBack(battle, s, scene) {
     if (sys.morale !== u.morale) upd["system.morale"] = u.morale;
     if ((sys.xp?.value ?? 0) !== (u.xp || 0)) upd["system.xp.value"] = u.xp || 0;
     if ((sys.level ?? 1) !== (u.level || 1)) upd["system.level"] = u.level || 1;
-    const formItem = u.formation && u.formation !== "none" ? u.formation.split(".").pop() : "none";
-    if (formationsEnabled() && (sys.formation || "none") !== formItem) upd["system.formation"] = formItem; // on hold: leave the sheet's choice alone
     // Health at the start of the battle (post-battle XP loss = casualties suffered)
     battle.startMen ??= {};
     if (battle.startMen[u.id] === undefined) battle.startMen[u.id] = sys.men.value;

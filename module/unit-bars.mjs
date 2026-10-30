@@ -120,10 +120,8 @@ function battleRecord(token) {
  *           losses (2 soldiers -1, 1 soldier -2), and on its own turn the cavalry charge bonus after a
  *           2+ tile move, or the ranged attacker's +2 kept by not moving. During an attack it shows that
  *           attack's whole situational total instead (token.qinAttackBonus).
- *  defense - against melee attacks: Hold (+2), formation defense, formation modifiers to enemy attacks and
- *           enemy melee attacks.
- *  rangedDefense - against ranged attacks: formation defense, formation modifiers to enemy attacks and
- *           enemy ranged attacks. (Hold does not count against ranged attacks.)
+ *  defense - against melee attacks: Hold (+2), Brace, Shielded, Poison, Suppressing Fire.
+ *  rangedDefense - against ranged attacks: Shielded, Shield Battery, Poison. (Hold does not count against ranged attacks.)
  *  range - extra range (nothing grants this automatically yet).
  */
 const tierCache = new Map();
@@ -152,9 +150,6 @@ export function unitStatus(token) {
   const meta = battle?.meta?.[token.id] ?? {};
   const round = meta.round ?? {}, fx = meta.fx ?? {};
   const tr = tiersFor(s.traits);
-  const form = actor.items?.get?.(s.formation);
-  let formsOn = false; try { formsOn = !!game.settings.get("qin", "useFormations"); } catch { /* not registered */ }
-  const f = formsOn && form?.type === "formation" ? form.system : {}; // formations on hold: no modifiers
   // rolls: changes to ALL Command rolls (attacking and defending): morale and losses
   let rolls = 0, attack = 0;
   const m = s.morale ?? 0;
@@ -162,7 +157,6 @@ export function unitStatus(token) {
   const figs = figureCount(s.men?.value ?? 0, s.men?.max || 100);
   if (figs === 1) rolls -= 2; else if (figs === 2) rolls -= 1;
   // attack: changes that only count when attacking
-  attack += Number(f.atkMod) || 0; // the formation's attack modifier always shows (it only counts when attacking)
   if (!round.moved && s.range > 1) attack += tierVal(tr.precision, [2, 4, 6]); // Precision: ranged attacks only, hasn't moved before attacking
   if (round.moved && tr["hefty weapon"]) attack -= 2;
   const ac = battle?.turn?.activation;
@@ -172,15 +166,15 @@ export function unitStatus(token) {
       const tiles = ac.tilesMoved || 0;
       const fierce = Math.min(3, tr["fierce charge"] || 0);
       const charge = Math.max(0, tiles - 1); // +1 per tile past the first; Fierce Charge +2 / +4 / +4 on a charge
-      if (charge > 0) attack += charge + [0, 2, 4, 4][fierce] + (Number(f.chargeBonus) || 0);
+      if (charge > 0) attack += charge + [0, 2, 4, 4][fierce];
     }
   }
   if (token.qinAttackBonus !== undefined && token.qinAttackBonus !== null) attack = token.qinAttackBonus;
-  const both = (Number(f.defAll) || 0) - (Number(fx.poison) || 0); // melee & ranged defense (Poison lowers both)
+  const both = -(Number(fx.poison) || 0); // melee & ranged defense (Poison lowers both)
   const supp = !!fx.suppressed; // Suppressing Fire: Attack -1, melee defense -1, Hold and Brace lost
   if (supp) attack -= 1;
-  const defense = (round.holding && !supp ? 2 + tierVal(tr.brace, [2, 4]) : 0) - (supp ? 1 : 0) + both + (Number(f.defMelee) || 0) + tierVal(tr.shielded, [1, 2, 3]);
-  const rangedDefense = both + (Number(f.defRanged) || 0) + tierVal(tr.shielded, [2, 4, 6])
+  const defense = (round.holding && !supp ? 2 + tierVal(tr.brace, [2, 4]) : 0) - (supp ? 1 : 0) + both + tierVal(tr.shielded, [1, 2, 3]);
+  const rangedDefense = both + tierVal(tr.shielded, [2, 4, 6])
     + (fx.stillLast && tr["shield battery"] ? 2 : 0);
   let range = s.range > 1 && fx.stillLast ? tierVal(tr["range up"], [1, 2]) : 0;
   // the square it stands on (battle maps): command, defense, range

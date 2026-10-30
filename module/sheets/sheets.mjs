@@ -16,7 +16,7 @@ const ItemSheetBase = sheets.ItemSheet ?? sheets.ItemSheetV2;
 
 const ITEM_GROUPS = {
   weapon: "Weapons", armor: "Armor & shields", technique: "Combat techniques", tao: "Taos", magic: "Magic",
-  gift: "Gift", weakness: "Weakness", gear: "Equipment", skill: "Extra skills", officerAbility: "Tactics", signature: "Signature skills", formation: "Formations",
+  gift: "Gift", weakness: "Weakness", gear: "Equipment", skill: "Extra skills", officerAbility: "Tactics", signature: "Signature skills",
 };
 const TAO_LEVELS = { 0: "0", 1: "1", 2: "2", 3: "3", 4: "4" };
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
@@ -130,9 +130,6 @@ function libraryDetails(doc) {
   } else if (doc.type === "technique") {
     const used = { attack: "Attack Test", defense: "Active Defense", other: "Special" }[s.roll] ?? s.roll;
     html += `<p class="qin-muted">${s.kind === "distance" ? "Distance" : "Close"} combat · ${used} · ST +${s.stIncrease}</p>${s.description || ""}`;
-  } else if (doc.type === "formation") {
-    const fx = formationSummary(s);
-    html += (fx ? `<p class="qin-info-fx">${esc(fx)}</p>` : "") + (s.description || "");
   } else html += s.description || "";
   return html;
 }
@@ -448,28 +445,6 @@ export class HenchmanSheet extends QinActorSheetBase {
   }
 }
 
-/** Short text for a formation's numeric effects (shown on unit sheets). */
-export function formationSummary(f) {
-  const out = [];
-  const sg = (n) => (n > 0 ? `+${n}` : `${n}`);
-  if (f.immobile) out.push("Cannot move");
-  else if (f.moveMod) out.push(`Movement ${sg(f.moveMod)}`);
-  if (f.defAll) out.push(`Melee & ranged defense ${sg(f.defAll)}`);
-  if (f.defMelee) out.push(`Melee defense ${sg(f.defMelee)}`);
-  if (f.defRanged) out.push(`Ranged defense ${sg(f.defRanged)}`);
-  if (f.atkMod) out.push(`Attack ${sg(f.atkMod)}`);
-  if (f.noChargeBonus) out.push("Enemies charging it get no charge bonus");
-  if (f.rearAtk) out.push(`Rear attacks against it: attack ${sg(f.rearAtk)} more`);
-  if (f.winReposition) out.push("Moves beside the enemy after winning an attack");
-  if (f.defFront) out.push(`Defense from the front ${sg(f.defFront)}`);
-  if (f.frontMelee) out.push(`Melee from the front ${sg(f.frontMelee)}`);
-  if (f.chargeBonus) out.push(`Own cavalry charge ${sg(f.chargeBonus)}`);
-  if (f.dmgMod) out.push(`Damage ${sg(f.dmgMod)}`);
-  if (f.casReduce) out.push(`${f.casReduce} fewer casualties`);
-  if (f.noAttackerBonus) out.push("No attacker bonus");
-  if (f.noRear) out.push("Can't be attacked in the rear");
-  return out.join(" · ");
-}
 
 /** Every trait name used by units in the world or in unit compendiums, with a description, for the "Add trait" list. */
 let traitCatalogCache = null;
@@ -523,8 +498,6 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
       itemEdit: UnitSheet.#itemEdit,
       itemDelete: UnitSheet.#itemDelete,
       itemCreate: UnitSheet.#itemCreate,
-      addFormation: UnitSheet.#addFormation,
-      addAllFormations: UnitSheet.#addAllFormations,
       pickFaction: UnitSheet.#pickFaction,
     },
   };
@@ -540,17 +513,11 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
     const context = await super._prepareContext(options);
     const actor = this.document, system = actor.system;
     const officer = system.officerActor;
-    const formations = actor.items.filter(i => i.type === "formation").sort((a, b) => (a.sort || 0) - (b.sort || 0));
-    const lib = game.user.isGM ? await loadLibrary("formations") : [];
-    const owned = new Set(formations.map(f => f.name));
     Object.assign(context, {
       actor, system, editable: this.isEditable, isGM: game.user.isGM,
       categories: UNIT_CATEGORIES, sides: SIDES, faction: factionOf(system.faction),
       weaponSkills: Object.fromEntries(Object.entries(SKILLS).filter(([, s]) => s.martial).map(([k, s]) => [k, s.label])),
       weaponSkills2: { "": "None", ...Object.fromEntries(Object.entries(SKILLS).filter(([, s]) => s.martial).map(([k, s]) => [k, s.label])) },
-      formationChoices: { none: "No formation", ...Object.fromEntries(formations.map(f => [f.id, f.name])) },
-      formations: formations.map(f => ({ id: f.id, name: f.name, description: f.system.description, summary: formationSummary(f.system), active: system.formation === f.id })),
-      formationLibrary: lib.map(l => ({ ...l, owned: owned.has(l.name) })),
       officer, officerStats: officer ? {
         fire: officer.system.aspects.fire, command: officer.system.skills.command.value,
         // two-weapon units: the officer's higher skill of the two
@@ -565,8 +532,17 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
       healthColor: hex(healthColor(system.men.value / (system.men.max || 100))), moraleColor: hex(moraleColor(system.morale ?? 0)),
       tierN: Math.max(1, Math.min(4, Number(system.tier) || 1)), icons: TT_ICONS,
       xpPct: Math.min(100, Math.round(100 * (system.xp?.value ?? 0) / (system.xp?.max || 100))),
-      traitCards: (() => { const lv = system.level ?? 1, gone = replacedTraits(system.traitList, lv);
-        return (system.traitList ?? []).map((e, i) => e.equip ? null : ({ ...traitCard(e, i, lv, this.#traitEditing.has(i)), replacedBy: gone.get(i) ?? null })).filter(Boolean); })(),
+      // Traits tab in level sections (David, 2026-10-29): Level 1 = what the unit starts with; Level 3 and Level 5 = the
+      // traits or picks it gains there, greyed out until it reaches that level. Any other unlock level gets its own section.
+      traitSections: (() => { const lv = system.level ?? 1, gone = replacedTraits(system.traitList, lv);
+        const cards = (system.traitList ?? []).map((e, i) => e.equip ? null : ({ ...traitCard(e, i, lv, this.#traitEditing.has(i)), replacedBy: gone.get(i) ?? null })).filter(Boolean);
+        const levels = [...new Set([1, 3, 5, ...cards.map(c => Math.max(1, c.level || 1))])].sort((a, b) => a - b);
+        return levels.map(L => {
+          const list = cards.filter(c => Math.max(1, c.level || 1) === L);
+          if (!list.length && L !== 1 && L !== 3 && L !== 5) return null;
+          const choice = list.some(c => c.isChoice);
+          return { level: L, cards: list, locked: L > lv, title: L === 1 ? "Level 1 traits" : `Level ${L}${choice ? " · choose one" : " traits"}` };
+        }).filter(Boolean); })(),
       equipment: equipmentOf(this.document).map(e => ({ name: e.name, desc: e.desc })),
       traitCatalog: game.user.isGM ? await traitCatalog() : [],
       traitChoices: pendingTraitChoices(system.traitList, system.level ?? 1),
@@ -576,7 +552,6 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
 
   _onRender(context, options) {
     super._onRender(context, options);
-    wirePickers(this, this.element, context.formationLibrary ?? []);
     // Drop a character actor onto the sheet to make them this unit's officer.
     const zone = this.element.querySelector(".qin-officer-drop");
     zone?.addEventListener("dragover", ev => ev.preventDefault());
@@ -641,12 +616,12 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
       const list = this.#traitList(), e = list[i];
       if (act === "add") {
         const input = root.querySelector("[data-trait-new]"), name = input?.value.trim() || "New trait";
-        list.push({ name, desc: catalog.get(name) ?? "", level: 1, upgrades: [] });
+        list.push({ name, desc: catalog.get(name) ?? "", level: Math.max(1, Number(btn.dataset.level) || 1), upgrades: [] });
         this.#traitEditing.add(list.length - 1);
         return this.#saveTraits(list);
       }
       if (act === "addChoice") {
-        list.push({ name: "", desc: "", level: 5, upgrades: [], options: [{ name: "", desc: "" }, { name: "", desc: "" }], chosen: -1 });
+        list.push({ name: "", desc: "", level: Math.max(1, Number(btn.dataset.level) || 3), upgrades: [], options: [{ name: "", desc: "" }, { name: "", desc: "" }], chosen: -1 });
         this.#traitEditing.add(list.length - 1);
         return this.#saveTraits(list);
       }
@@ -690,25 +665,12 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
     if (!item) return;
     const ok = await (api.Dialog ?? api.DialogV2).confirm({ window: { title: `Remove ${item.name}?` }, content: `<p>Remove <b>${esc(item.name)}</b> from ${esc(this.document.name)}?</p>` });
     if (ok) {
-      if (this.document.system.formation === item.id) await this.document.update({ "system.formation": "none" });
       await item.delete();
     }
   }
   static async #itemCreate(event, target) {
     const type = target.dataset.type;
-    openItemDraft(this.document, { name: type === "formation" ? "New Formation" : `New ${type}`, type });
-  }
-  static async #addFormation() {
-    const uuid = this.element.querySelector('.qin-picker[data-library="formations"]')?.dataset.value;
-    if (!uuid) return ui.notifications.info("Choose a formation from the list first.");
-    const doc = await fromUuid(uuid);
-    if (doc) await this.document.createEmbeddedDocuments("Item", [doc.toObject()]);
-  }
-  static async #addAllFormations() {
-    const owned = new Set(this.document.items.filter(i => i.type === "formation").map(i => i.name));
-    const lib = await loadLibrary("formations");
-    const docs = (await Promise.all(lib.filter(l => !owned.has(l.name)).map(l => fromUuid(l.uuid)))).filter(Boolean);
-    if (docs.length) await this.document.createEmbeddedDocuments("Item", docs.map(d => d.toObject()));
+    openItemDraft(this.document, { name: `New ${type}`, type });
   }
   static async #pickFaction() { if (this.isEditable) openFactionPicker(this.document); }
   static async #openOfficer() { this.document.system.officerActor?.sheet.render(true); }
@@ -757,12 +719,6 @@ export class QinItemSheet extends api.HandlebarsApplicationMixin(ItemSheetBase) 
     if (!this.options.qinDraft) return super._processSubmitData(event, form, submitData, options);
     this.document.updateSource(foundry.utils.expandObject(submitData));
     if (this.rendered) this.render();
-  }
-
-  /** Formation effects are the GM's to set: players can read them but not edit. */
-  get isEditable() {
-    if (this.document.type === "formation" && !game.user.isGM) return false;
-    return super.isEditable;
   }
 
   get title() {

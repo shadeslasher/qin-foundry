@@ -13,7 +13,7 @@ const no = (reason) => ({ ok: false, reason });
 /**
  * May this user move a unit token to square (x, y)?
  *   phase    - "none" when no battle is running on the scene, else the battle's phase
- *              ("setup", "tactics", "formations", "officer"...)
+ *              ("setup", "tactics", "start", "officer"...)
  *   isGM     - the GM can always place units outside the battle rounds
  *   zones    - Set of "x,y" deployment squares
  *   occupied - another unit already stands on (x, y)

@@ -215,27 +215,6 @@ test('Inspiration: allies next to it gain 2 morale at the end of the round, not 
   assert.strictEqual(R.unitById(s, al).morale, 52);
 });
 
-test('Wedge + Dual Weapons: moves up after winning, then gets the second attack from the new tile', () => {
-  const s = setup();
-  s.library.unitTypes.push(unitType('w'), unitType('d'), unitType('o'));
-  s.library.formations.push({ id: 'wd', name: 'Wedge', defAll: -2, winReposition: true });
-  const a = add(s, { typeId: 'w', side: 'player', owner: 'p1', x: 5, y: 4 });
-  const d = add(s, { typeId: 'd', side: 'enemy', x: 5, y: 5 });
-  const o = add(s, { typeId: 'o', side: 'enemy', x: 7, y: 5 }); // only adjacent after moving to (6,5)
-  const A = R.unitById(s, a); A.formation = 'wd'; A.traitTiers = { 'dual weapons': 1 };
-  must(R.act(s, HOST, { type: 'startBattle' })); dice([0, 0]); must(R.act(s, HOST, { type: 'startRound' }));
-  must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: a }));
-  dice([9, 0, 0, 0]);
-  must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
-  assert.strictEqual(s.turn.activation.step, 'reposition');
-  must(R.act(s, P1, { type: 'reposition', unitId: a, x: 6, y: 5 }));
-  assert.strictEqual(s.turn.activation.step, 'second');
-  assert.deepStrictEqual(s.turn.activation.second.targets, [o]);
-  dice([3, 0, 0, 0]);
-  must(R.act(s, P1, { type: 'secondAttack', unitId: a, targetId: o }));
-  assert.ok(!s.turn.activation || s.turn.activation.unitId !== a);
-});
-
 test('Allies can be moved through but Heavy units and enemies block', () => {
   const s = setup();
   s.library.unitTypes.push(unitType('m', { move: 3 }), unitType('w'));

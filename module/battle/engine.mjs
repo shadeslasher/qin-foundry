@@ -18,7 +18,6 @@ function newState() {
     library: {
       unitTypes: clone(data.UNIT_TYPES),
       officers: clone(data.OFFICERS),
-      formations: clone(data.FORMATIONS),
     },
     players: {},       // playerId -> { name, color }
     units: [],
@@ -38,9 +37,8 @@ function duels(s) { if (!s.duels) s.duels = freshDuels(); if (!s.duels.refused) 
 
 function freshTurn(phase, round) {
   return {
-    phase,            // setup | formations | officer | officerless | final
+    phase,            // setup | start (round start, waiting for the GM) | officer | officerless | final
     round,
-    ready: {},        // playerId -> true (formations phase)
     order: [],        // officer unit ids, highest initiative first
     init: {},         // unitId -> { total, yin, yang, fire }
     decided: [],      // officer units that have used their slot (acted / held / forfeited)
@@ -57,7 +55,6 @@ function clone(o) { return JSON.parse(JSON.stringify(o)); }
 
 const typeOf = (s, u) => s.library.unitTypes.find(t => t.id === u.typeId) || null;
 const officerOf = (s, u) => (u.officerId ? s.library.officers.find(o => o.id === u.officerId) || null : null);
-const formationOf = (s, u) => s.library.formations.find(f => f.id === u.formation) || { id: 'none' };
 const unitById = (s, id) => s.units.find(u => u.id === id) || null;
 const alive = u => u.status === 'active';
 const liveUnits = s => s.units.filter(alive);
@@ -408,14 +405,13 @@ function officerWeaponLevel(o, t) {
 const heroOfficer = (s, u) => { const o = officerOf(s, u), t = typeOf(s, u); return !!(o && t && officerWeaponLevel(o, t) >= 5); };
 
 function movementOf(s, u) {
-  const t = typeOf(s, u); const f = formationOf(s, u);
-  if (f.immobile) return 0;
+  const t = typeOf(s, u);
   const slowed = fx(u).slow ? 1 : 0; // Barbed Arrows
   const load = carrying(u) === 'ladders' ? 1 : carrying(u) === 'engine' ? 2 : 0; // siege equipment is heavy
   const saddle = saddleOf(u) >= 3 ? 1 : 0; // Saddle++: movement +1
-  // whatever slows it, a unit can always move at least 1 tile (David, 2026-10-25); only an immobile formation stops it
+  // whatever slows it, a unit can always move at least 1 tile (David, 2026-10-25)
   const supp = suppressed(u) ? 2 : 0; // Suppressing Fire: movement -2 (still at least 1)
-  return Math.max(1, (t ? t.move : 4) + (f.moveMod || 0) + (passive(s, u).moveBonus || 0) - slowed - load + saddle - supp);
+  return Math.max(1, (t ? t.move : 4) + (passive(s, u).moveBonus || 0) - slowed - load + saddle - supp);
 }
 
 /** Heroic actions in battles are off for now (David, 2026-10-25); the code stays for later. */
@@ -730,7 +726,7 @@ function checkpointMorale(u) {
 /**
  * Casualties from one hit (David, 2026-10-25, Total War style): armor pen is extra damage that always goes through;
  * the hit's damage (base + the roll margin) gets through only where it beats the armor.
- *   casualties = pen + max(0, damage - armor - formation reduction), then Evasion ignores a share of it (melee only).
+ *   casualties = pen + max(0, damage - armor), then Evasion ignores a share of it (melee only).
  *   8 dmg, pen 1, armor 11 -> 1;  12 dmg, pen 1, armor 11 -> 1 (over the armor) + 1 (pen) = 2.
  * No damage at all (a negated roll) means no pen either.
  */
@@ -782,30 +778,25 @@ function disciplinedBonus(u) { return tierVal(trait(u, 'disciplined'), [5, 10, 1
 
 // Build one side's roll. role: 'attacker' | 'defender'.
 function buildRoll(s, unit, role, ctx) {
-  const t = typeOf(s, unit), o = officerOf(s, unit), f = formationOf(s, unit), p = passive(s, unit);
+  const t = typeOf(s, unit), o = officerOf(s, unit), p = passive(s, unit);
   const other = role === 'attacker' ? ctx.defender : ctx.attacker;
-  const of = formationOf(s, other);
   const dice = yinYang();
   const parts = [['Yin/Yang (' + dice.yin + ' vs ' + dice.yang + ')', dice.value]];
   parts.push(['Command', o ? o.command : 0]); // the officer's Command at full value (Fire and weapon skill don't add to the roll)
   parts.push(['Unit Value', t.unitValue || 0]);
 
   if (role === 'attacker') {
-    if (f.noAttackerBonus) parts.push(['Attacker bonus (lost: ' + f.name + ')', 0]);
-    else if (ctx.ranged && unit.round.moved && !trait(unit, 'moving shot')) parts.push(['Attacker bonus (lost: moved before shooting)', 0]);
+    if (ctx.ranged && unit.round.moved && !trait(unit, 'moving shot')) parts.push(['Attacker bonus (lost: moved before shooting)', 0]);
     else parts.push(['Attacker bonus', 2]);
     // Officer leading with his own weapon (David, 2026-10-28): Attack +1 per level of the unit's weapon skill above Competent (2):
     // Expert +1, Master +2, Legendary +3, Godlike +4. Two-weapon units use his higher skill. Only on the unit's own attacks.
     if (o) { const lv = officerWeaponLevel(o, t); if (lv > 2) parts.push(["Officer's weapon (" + (lv === officerWeaponLevel(o, { skill: t.skill }) ? t.skill : t.skill2) + ' ' + lv + ')', lv - 2]); }
-    if (!ctx.ranged && f.frontMelee && isFront(s, other, unit)) parts.push(['Formation front (' + f.name + ')', f.frontMelee]);
     if (ctx.charge) parts.push(['Cavalry charge (' + ctx.tilesMoved + ' tiles moved)', ctx.chargeBase]);
     if (ctx.charge && ctx.fierceBonus) parts.push([FIERCE_NAMES[Math.min(3, ctx.fierce)], ctx.fierceBonus]);
-    if (ctx.charge && f.chargeBonus) parts.push(['Formation charge bonus (' + f.name + ')', f.chargeBonus]);
     if (ctx.charge && p.chargeAttackBonus) parts.push(['Officer passive: charge', p.chargeAttackBonus]);
     if (trait(unit, 'sharpened weapons')) parts.push(['Sharpened Weapons', tierVal(trait(unit, 'sharpened weapons'), [1, 2, 3])]);
     if (saddleOf(unit)) parts.push(['Saddle', 1]);
     if (!ctx.ranged && ctx.tilesMoved >= 2 && trait(unit, 'charging strike')) parts.push(['Charging Strike (moved ' + ctx.tilesMoved + ' tiles)', tierVal(trait(unit, 'charging strike'), [2, 4, 6])]);
-    if (f.atkMod) parts.push(['Attack (' + f.name + ')', f.atkMod]); // attack modifiers only count when attacking
     if (ctx.hybridMelee) parts.push(['Hybrid: melee attack', -2]);
     if (ctx.second) parts.push(['Second attack (Dual Weapons)', -2]);
     if (trait(unit, 'hefty weapon') && unit.round.moved) parts.push(['Hefty Weapon (moved)', -2]);
@@ -817,9 +808,7 @@ function buildRoll(s, unit, role, ctx) {
     // Attack +1 for every ranged attack already made on the defender this round
     if (trait(unit, 'volley fire') >= 2) { const n = ctx.ranged ? (other.round?.rangedTaken || 0) : 0; if (n) parts.push(['Volley Fire+ (' + n + ' shot' + (n > 1 ? 's' : '') + ' before)', n]); }
     else if (trait(unit, 'volley fire') && other.round && other.round.hitByRanged) parts.push(['Volley Fire', 1]);
-    if (ctx.chargeCancelled) parts.push(['Charge bonus (cancelled: ' + of.name + ')', 0]);
     if (ctx.rear) parts.push(['Rear attack', 2]);
-    if (ctx.rear && of.rearAtk) parts.push(['Rear attack vs ' + of.name, of.rearAtk]);
     if (ctx.ambush) parts.push(trait(unit, 'ambusher') ? ['Attacking from hiding (Ambusher)', 4] : ['Attacking from hiding', 2]);
     if (trait(unit, 'shock troop') && !fx(unit).attackedOnce) parts.push(['Shock Troop (first attack of the battle)', tierVal(trait(unit, 'shock troop'), [2, 4, 6])]);
     if (fx(unit).suppressed) parts.push(['Suppressed (Suppressing Fire)', -1]);
@@ -848,11 +837,6 @@ function buildRoll(s, unit, role, ctx) {
     if (ctx.ranged && trait(unit, 'deflect') && (unit.round.rangedTaken || 0) < tierVal(trait(unit, 'deflect'), [1, 2]))
       parts.push([(trait(unit, 'deflect') > 1 ? 'Deflect+' : 'Deflect') + ': ranged defense', 3]);
     if (fx(unit).poison) parts.push(['Poisoned: melee & ranged defense', -fx(unit).poison]);
-    if (f.defAll) parts.push(['Melee & ranged defense (' + f.name + ')', f.defAll]);
-    if (ctx.ranged && f.defRanged) parts.push(['Ranged defense (' + f.name + ')', f.defRanged]);
-    if (!ctx.ranged && f.defMelee) parts.push(['Melee defense (' + f.name + ')', f.defMelee]);
-    if (f.defFront && isFront(s, ctx.attacker, unit)) parts.push(['Defense from the front (' + f.name + ')', f.defFront]);
-    if (!ctx.ranged && f.frontMelee && isFront(s, ctx.attacker, unit)) parts.push(['Formation front vs melee (' + f.name + ')', f.frontMelee]);
     if (hasTactic(s, unit, 'defend')) parts.push(['Tactic: Defend (melee & ranged defense)', 2]);
     if (ctx.ranged && t.weapon === 'ranged' && hasTactic(s, unit, 'divineWinds')) parts.push(['Tactic: Divine Winds (ranged defense)', 2]);
     if (holdingNow(unit) && s.tactics && s.tactics.placed.some(tc => tc.key === 'holdTheLine' && tc.side === unit.side && tacticLive(s, tc) &&
@@ -916,9 +900,8 @@ function soldierFigures(men, full) {
   return Math.max(1, Math.min(5, Math.ceil((5 * men) / (full || 100) - 1e-9)));
 }
 
-function damageValue(s, u) { // formation damage modifier applies to the unit's damage value
-  const t = typeOf(s, u), f = formationOf(s, u);
-  return Math.max(0, (t.damage || 0) + (f.dmgMod || 0));
+function damageValue(s, u) {
+  return Math.max(0, typeOf(s, u).damage || 0);
 }
 
 // Resolve an attack. Returns a result object (also logged). Mutates state.
@@ -931,18 +914,15 @@ function resolveAttack(s, attacker, defender, opts) {
   const tilesMoved = opts.movedThisActivation ? (opts.tilesMoved || 0) : 0;
   // Fierce Charge trait on a charge attack: Fierce Charge +2, Fierce Charge+ +4, Fierce Charge++ +4 and the enemy behind takes half damage
   const fierce = attacker.fierceCharge || 0;
-  const dfF = formationOf(s, defender);
   const chargeBase = !ranged && at.category === 'cavalry' ? Math.max(0, tilesMoved - 1) : 0;
   const fierceBonus = chargeBase > 0 ? [0, 2, 4, 4][Math.min(3, fierce)] : 0;
   const rawCharge = chargeBase + fierceBonus;
-  const chargeCancelled = rawCharge > 0 && !!dfF.noChargeBonus; // e.g. Spear Wall, Hollowed Square
-  const chargeBonus = chargeCancelled ? 0 : rawCharge;
+  const chargeBonus = rawCharge;
   const charge = chargeBonus > 0;
-  const df = formationOf(s, defender);
-  let rear = isRear(s, attacker, defender) && !df.noRear && !passive(s, defender).noRearAgainst && !rearDenied(s, attacker);
+  let rear = isRear(s, attacker, defender) && !passive(s, defender).noRearAgainst && !rearDenied(s, attacker);
   const ambush = !!opts.ambush;
   const free = !!opts.free; // a tactic's free attack: no strike back, doesn't use the unit's action
-  const ctx = { attacker, defender, ranged, charge, chargeBonus, chargeBase, fierceBonus, chargeCancelled, tilesMoved, fierce, rear, ambush, hybridMelee, second: !!opts.second, phoenixWon: !!opts.phoenixWon };
+  const ctx = { attacker, defender, ranged, charge, chargeBonus, chargeBase, fierceBonus, tilesMoved, fierce, rear, ambush, hybridMelee, second: !!opts.second, phoenixWon: !!opts.phoenixWon };
   // Tactics this attack sets off (they count for this attack already)
   let allOut = [];
   if (!opts.noTactics) {
@@ -990,18 +970,17 @@ function resolveAttack(s, attacker, defender, opts) {
   }
   if (trait(attacker, 'duelist')) { dmgToAtt = 0; canCounter = false; } // Duelist: ignores counter-strike damage
 
-  // Casualties = armor pen + what the damage leaves after armor and formation reduction, less Evasion in melee.
+  // Casualties = armor pen + what the damage leaves after armor, less Evasion in melee.
   // Armor is lowered by Sunder, and Shield Breaker ignores the armor a unit gets from shields.
-  const af = formationOf(s, attacker);
   const armorOf = (t, u, breaker) => Math.max(0, (t.armor ?? t.defense ?? 0) + tierVal(trait(u, 'reinforced armor'), [1, 2, 3]) - (fx(u).sunder || 0) - (breaker ? (t.shieldArmor || 0) : 0));
   const evDef = ranged ? 0 : evasionOf(defender);
   const returnRanged = dt.weapon === 'ranged' && !(!ranged && trait(defender, 'hybrid')); // a ranged unit's strike back is a shot, unless it's a Hybrid in melee
   const evAtt = returnRanged ? 0 : evasionOf(attacker);
-  const hitDef = (dmg, pen) => casualtiesOf(dmg, armorOf(dt, defender, trait(attacker, 'shield breaker')), pen, df.casReduce, 0);
+  const hitDef = (dmg, pen) => casualtiesOf(dmg, armorOf(dt, defender, trait(attacker, 'shield breaker')), pen, 0, 0);
   // Repeating: the attack lands as two hits of half damage (and half pen) each; armor counts against each hit. Evasion then takes its share of the total.
   const repeating = !!trait(attacker, 'repeating') && dmgToDef > 0;
   const casDef = evadeCasualties(repeating ? hitDef(Math.ceil(dmgToDef / 2), Math.ceil((at.armorPen || 0) / 2)) + hitDef(Math.floor(dmgToDef / 2), Math.floor((at.armorPen || 0) / 2)) : hitDef(dmgToDef, at.armorPen), evDef);
-  const casAtt = casualtiesOf(dmgToAtt, armorOf(at, attacker, trait(defender, 'shield breaker')), dt.armorPen, af.casReduce, evAtt);
+  const casAtt = casualtiesOf(dmgToAtt, armorOf(at, attacker, trait(defender, 'shield breaker')), dt.armorPen, 0, evAtt);
 
   // Morale loss for the loser
   // An attacker that can't be struck back (ranged out of reach, charges, Duelist, ambushes...) loses no morale for losing the roll
@@ -1038,7 +1017,7 @@ function resolveAttack(s, attacker, defender, opts) {
     const b = unitAt(s, defender.x + dir.x, defender.y + dir.y);
     if (b && b !== attacker && alive(b) && hostile(attacker, b)) {
       const bt = typeOf(s, b);
-      const cas = casualtiesOf(Math.floor(dmgToDef / 2), armorOf(bt, b, false), Math.floor((at.armorPen || 0) / 2), formationOf(s, b).casReduce, evasionOf(b));
+      const cas = casualtiesOf(Math.floor(dmgToDef / 2), armorOf(bt, b, false), Math.floor((at.armorPen || 0) / 2), 0, evasionOf(b));
       b.men = Math.max(0, b.men - cas);
       b.morale = clamp(b.morale - checkpointMorale(b), 0, 100);
       trample = { unit: b.id, casualties: cas };
@@ -1187,7 +1166,7 @@ function settle(s, opts = {}) {
 
 // ---------------------------------------------------------------- victory and defeat
 const objState = (s) => { if (!s.objState) s.objState = freshObjState(); return s.objState; };
-const BATTLE_PHASES = ['tactics', 'formations', 'officer', 'officerless', 'final'];
+const BATTLE_PHASES = ['tactics', 'start', 'officer', 'officerless', 'final'];
 /** A unit's turn ends: the square counts as seized by its side; a unit that must escape leaves from an extraction square. */
 function trackEndOfTurn(s, u) {
   if (!alive(u)) return;
@@ -1361,14 +1340,15 @@ function rollInitiative(s) {
 
 // What the game is waiting for right now.
 // Returns { kind, unitId?, side?, rank } where kind is one of:
-//  'setup' | 'formations' | 'decide' (act/hold) | 'final' (act/forfeit) |
+//  'setup' | 'start' | 'decide' (act/hold) | 'final' (act/forfeit) |
 //  'claim' (player side officerless) | 'host-pick' (enemy/ally officerless) |
 //  'pick' (claimer picks a unit) | 'activation' | 'idle'
 function prompt(s) {
   const t = s.turn;
   if (t.phase === 'setup') return { kind: 'setup', rank: -1 };
   if (t.phase === 'tactics') return { kind: 'tactics', rank: -1 };
-  if (t.phase === 'formations') return { kind: 'formations', rank: -1 };
+  if (t.phase === 'formations') t.phase = 'start'; // battles saved before formations were removed (2026-10-29)
+  if (t.phase === 'start') return { kind: 'start', rank: -1 };
   if (t.phase === 'over') return { kind: 'over', rank: -1 }; // decided: victory or defeat
   if (t.activation) {
     const u = unitById(s, t.activation.unitId);
@@ -1443,7 +1423,7 @@ function endRound(s) {
   }
   log(s, 'Round ' + s.turn.round + ' ends.');
   for (const tc of s.tactics ? s.tactics.placed : []) if (tc.state === 'active' && tc.untilRound !== undefined && tc.untilRound < next) tc.state = 'spent';
-  s.turn = freshTurn('formations', next);
+  s.turn = freshTurn('start', next);
   // Hold lasts until the unit's next activation (David, 2026-10-27), so it carries over the round change
   for (const u of s.units) u.round = Object.assign(newRoundFlags(), { holding: !!(u.round && u.round.holding) });
   log(s, 'Round ' + next + ' begins.');
@@ -1592,7 +1572,7 @@ const ACTIONS = {
     }
   },
   setLibrary(s, actor, a) {
-    if (!['unitTypes', 'officers', 'formations'].includes(a.key) || !Array.isArray(a.data)) return err('Bad library data');
+    if (!['unitTypes', 'officers'].includes(a.key) || !Array.isArray(a.data)) return err('Bad library data');
     for (const item of a.data) if (!item || typeof item.id !== 'string') return err('Every entry needs a string "id"');
     s.library[a.key] = a.data;
     log(s, 'Host updated the ' + a.key + ' library.');
@@ -1608,7 +1588,7 @@ const ACTIONS = {
       name: a.name || (o ? o.name + "'s " : '') + t.name,
       side: a.side, owner: a.owner || null, x: a.x, y: a.y, men: 100,
       morale: a.morale !== undefined ? clamp(a.morale, 0, 100) : 50,
-      formation: 'none', facing: null, hidden: false,
+      facing: null, hidden: false,
       status: 'active', mods: [], heroicUsed: 0, lastHeroic: null, surrounded: false, round: newRoundFlags(),
     };
     s.units.push(u);
@@ -1618,7 +1598,7 @@ const ACTIONS = {
   editUnit(s, actor, a) {
     const u = unitById(s, a.unitId); if (!u) return err('No such unit');
     const p = a.patch || {};
-    for (const k of ['name', 'typeId', 'officerId', 'side', 'owner', 'men', 'morale', 'formation', 'hidden', 'status']) {
+    for (const k of ['name', 'typeId', 'officerId', 'side', 'owner', 'men', 'morale', 'hidden', 'status']) {
       if (p[k] !== undefined) u[k] = p[k];
     }
     u.men = clamp(Number(u.men) || 0, 0, 999); u.morale = clamp(Number(u.morale) || 0, 0, 100);
@@ -1668,7 +1648,7 @@ const ACTIONS = {
   startBattle(s) {
     if (s.turn.phase !== 'setup') return err('Battle already started');
     s.duels = freshDuels();
-    // Tactics come first: before formations, initiative or anything else
+    // Tactics come first: before initiative or anything else
     s.turn = freshTurn('tactics', 1);
     s.tactics = { phase: 'setup', sides: { player: null, ally: null, enemy: null }, placed: [], nextId: 1 };
     for (const u of s.units) u.round = newRoundFlags();
@@ -1689,7 +1669,8 @@ const ACTIONS = {
   },
   startRound(s, actor) {
     if (s.turn.phase === 'tactics') ACTIONS.finishTactics(s, actor); // starting the round ends the tactics phase as it stands
-    if (s.turn.phase !== 'formations') return err('Not in the formations step');
+    if (s.turn.phase === 'formations') s.turn.phase = 'start'; // saved before formations were removed
+    if (s.turn.phase !== 'start') return err('Not at the start of a round');
     s.turn.phase = 'officer'; s.turn.decided = []; s.turn.held = [];
     rollInitiative(s); advance(s);
   },
@@ -1762,16 +1743,16 @@ const ACTIONS = {
     const T = s.tactics;
     if (s.turn.phase !== 'tactics' || !T) return err('Not in the tactics phase');
     T.phase = 'battle';
-    s.turn.phase = 'formations';
+    s.turn.phase = 'start';
     const n = T.placed.length;
-    log(s, n ? n + ' tactic' + (n === 1 ? ' is' : 's are') + ' set. Round 1: declare formations.' : 'No tactics placed. Round 1: declare formations.');
+    log(s, n ? n + ' tactic' + (n === 1 ? ' is' : 's are') + ' set. Round 1 is ready to start.' : 'No tactics placed. Round 1 is ready to start.');
   },
   skipTactics(s) {
     const T = s.tactics;
     if (s.turn.phase !== 'tactics' || !T) return err('Not in the tactics phase');
     T.placed = []; T.phase = 'battle';
-    s.turn.phase = 'formations';
-    log(s, 'Tactics skipped. Round 1: declare formations.');
+    s.turn.phase = 'start';
+    log(s, 'Tactics skipped. Round 1 is ready to start.');
   },
 
   // ---------- GM: set off every tactic still waiting, now
@@ -1806,21 +1787,6 @@ const ACTIONS = {
     if (!u || !alive(u)) return err('No such unit');
     u.hidden = !!a.hidden;
     log(s, u.name + (u.hidden ? ' is now hidden.' : ' is revealed.'), { type: u.hidden ? 'hidden' : 'revealed', unit: u.id });
-  },
-
-  // ---------- formations
-  setFormation(s, actor, a) {
-    const u = unitById(s, a.unitId);
-    if (!controls(s, actor, u)) return err('Not your unit');
-    if (!['formations', 'setup', 'tactics'].includes(s.turn.phase) && !actor.host) return err('Formations are declared at the start of the round');
-    const f = s.library.formations.find(f => f.id === a.formation); if (!f) return err('Unknown formation');
-    const t = typeOf(s, u);
-    if (t.formations && !t.formations.includes(f.id)) return err(t.name + " can't use " + f.name);
-    u.formation = f.id;
-  },
-  ready(s, actor) {
-    if (s.turn.phase !== 'formations') return err('Not in the formations step');
-    s.turn.ready[actor.id] = true;
   },
 
   // ---------- turn order
@@ -2075,11 +2041,6 @@ const ACTIONS = {
     if (!alive(d)) { log(s, d.name + ' gave up before the attack landed.'); if (alive(u)) finishActivation(s, u); return; }
     const res = resolveAttack(s, u, d, { movedThisActivation: ac.movedThisActivation, tilesMoved: chargeTiles(ac, d), ambush: !!u.hidden });
     if (!alive(u)) return;
-    // Wedge: after winning, the attacker may move to any empty tile next to the enemy unit
-    if (formationOf(s, u).winReposition && res && res.winner === 'attacker') {
-      const tiles = repositionTiles(s, d, u);
-      if (tiles.length) { ac.step = 'reposition'; ac.reposition = { targetId: d.id, tiles, won: res.winner === 'attacker', melee: !res.ranged }; log(s, u.name + ' may move next to ' + d.name + '.'); return; }
-    }
     // Clear a Path: destroying an enemy after moving lets the unit move and attack again
     if (res && res.killedBy === u.id && ac.movedThisActivation && hasTactic(s, u, 'clearPath')) {
       u.round.attacked = false; u.round.moved = false;
@@ -2362,10 +2323,8 @@ function doMove(s, actor, a, forced) {
   if (s.freeMovement) {
     // On a virtual tabletop the token has already been dragged: record it, warn if too far.
     const dist = Math.abs(a.x - u.x) + Math.abs(a.y - u.y);
-    if (!budget) warning = u.name + ' cannot move in its formation.';
-    else if (dist > budget) warning = u.name + ' moved ' + dist + ' tiles; its movement is ' + budget + '.';
+    if (dist > budget) warning = u.name + ' moved ' + dist + ' tiles; its movement is ' + budget + '.';
   } else {
-    if (!budget) return err('This unit cannot move (formation)');
     const reach = reachable(s, u, budget);
     if (!reach.has(a.x + ',' + a.y)) return err('Out of movement range or blocked');
   }

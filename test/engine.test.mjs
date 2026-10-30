@@ -258,51 +258,6 @@ test('Hold gives +2 melee defense only, not against ranged', () => {
   assert.strictEqual(roll(r), 0);
 });
 
-test('formation attack modifiers, charge cancelling, extra rear bonus', () => {
-  const s = setup();
-  s.library.formations.push(
-    { id: 'lz', name: 'Loose', defRanged: 3, defMelee: -2, atkMod: -1 },
-    { id: 'sw', name: 'Spear Wall', moveMod: -1, defMelee: 3, noChargeBonus: true, defRanged: -2, rearAtk: 2 });
-  const a = add(s, { typeId: 'han_lancer_cav', side: 'player', owner: 'p1', x: 5, y: 1 });
-  const d = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 5 });
-  R.unitById(s, a).formation = 'lz';
-  R.unitById(s, d).formation = 'sw';
-  R.typeOf(s, R.unitById(s, a)).formations = null; R.typeOf(s, R.unitById(s, d)).formations = null;
-  must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'startRound' }));
-  R.unitById(s, d).facing = { dx: 0, dy: 1 }; // facing away: the cavalry hits its rear
-  must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: a }));
-  s.freeMovement = false;
-  must(R.act(s, P1, { type: 'moveTo', unitId: a, x: 5, y: 4 }));
-  dice([3, 0, 0, 0]);
-  must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
-  const r = s.log.filter(e => e.detail && e.detail.type === 'attack').pop().detail.result;
-  const has = (roll, re, v) => roll.parts.some(([l, x]) => re.test(l) && x === v);
-  assert.ok(has(r.attackRoll, /^Attack \(Loose\)/, -1), 'Loose: attack -1 when attacking');
-  assert.ok(!r.charge && has(r.attackRoll, /cancelled/, 0), 'Spear Wall cancels the charge bonus');
-  assert.ok(has(r.attackRoll, /^Rear attack$/, 2) && has(r.attackRoll, /^Rear attack vs Spear Wall/, 2), 'rear +2 and +2 more');
-  assert.ok(has(r.defendRoll, /^Melee defense \(Spear Wall\)/, 3));
-  // when the Loose unit defends, its attack -1 doesn't count
-  const D = R.buildRoll(s, R.unitById(s, a), 'defender', { attacker: R.unitById(s, d), defender: R.unitById(s, a), ranged: false });
-  assert.ok(!D.parts.some(([l]) => /^Attack/.test(l)));
-});
-
-test('Wedge: winning attacker may move next to the enemy, or stay', () => {
-  const s = setup();
-  s.library.formations.push({ id: 'wd', name: 'Wedge', defAll: -2, winReposition: true });
-  const a = add(s, { typeId: 'han_lancer_cav', side: 'player', owner: 'p1', x: 5, y: 4 });
-  const d = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 5 });
-  R.unitById(s, a).formation = 'wd'; R.typeOf(s, R.unitById(s, a)).formations = null;
-  must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'startRound' }));
-  must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: a }));
-  dice([9, 0, 0, 0]);
-  must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
-  assert.strictEqual(s.turn.activation.step, 'reposition');
-  assert.ok(!R.act(s, P1, { type: 'reposition', unitId: a, x: 9, y: 9 }).ok, 'only the offered tiles');
-  must(R.act(s, P1, { type: 'reposition', unitId: a, x: 6, y: 5 }));
-  assert.deepStrictEqual([R.unitById(s, a).x, R.unitById(s, a).y], [6, 5]);
-  assert.ok(!s.turn.activation || s.turn.activation.unitId !== a, 'turn over');
-});
-
 test('initiative: officers first, hold, interject chain, officer-less alternation, final pass', () => {
   const s = setup();
   const o1 = add(s, { typeId: 'han_ji_inf', officerId: 'xu_chu', side: 'player', owner: 'p1', x: 1, y: 1 });
@@ -350,7 +305,7 @@ test('initiative: officers first, hold, interject chain, officer-less alternatio
   must(R.act(s, P1, { type: 'begin', unitId: g1 }));
   must(R.act(s, P1, { type: 'endTurn', unitId: g1 }));
   // nothing held -> round over
-  assert.strictEqual(s.turn.phase, 'formations');
+  assert.strictEqual(s.turn.phase, 'start');
   assert.strictEqual(s.turn.round, 2);
 });
 
@@ -369,7 +324,7 @@ test('final pass: held officers act or forfeit, lowest initiative first', () => 
   assert.strictEqual(R.prompt(s).unitId, o1);
   must(R.act(s, P1, { type: 'decide', unitId: o1, choice: 'act' }));
   must(R.act(s, P1, { type: 'endTurn', unitId: o1 }));
-  assert.strictEqual(s.turn.phase, 'formations');
+  assert.strictEqual(s.turn.phase, 'start');
 });
 
 test('end-of-turn regen up to 75; kill morale can exceed 75 up to 100', () => {
@@ -462,16 +417,6 @@ test('stealth: ending a turn next to a hostile unit reveals; Player and Ally do 
   must(R.act(s, HOST, { type: 'decide', unitId: e, choice: 'act' }));
   must(R.act(s, HOST, { type: 'endTurn', unitId: e }));
   assert.ok(!R.unitById(s, e).hidden, 'enemy ended next to an ally: spotted');
-});
-
-test('formations: circle cannot move and blocks rear attacks', () => {
-  const s = setup();
-  const a = add(s, { typeId: 'han_ji_inf', side: 'player', owner: 'p1', x: 5, y: 5 });
-  must(R.act(s, HOST, { type: 'startBattle' }));
-  must(R.act(s, P1, { type: 'setFormation', unitId: a, formation: 'circle' }));
-  must(R.act(s, HOST, { type: 'startRound' }));
-  must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: a }));
-  assert.ok(!R.act(s, P1, { type: 'move', unitId: a, x: 5, y: 6 }).ok);
 });
 
 test('players cannot control other players units', () => {
@@ -579,17 +524,6 @@ test('XP: casualties dealt x enemy tier / own tier, rounded down; kill bonus 25 
   const [A] = duel(s, unitType('vet', { tier: 2 }), unitType('militia', { tier: 1 }), [7, 2, 0, 0], (a, d) => { d.men = 10; });
   // only the 10 men it had count: 10 * 1/2 = 5; kill 25 * 1/2 = 12.5 -> 12
   assert.strictEqual(A.xp, 5 + 12);
-});
-
-test('Turtle: no attacker bonus, +2 defending, 2 fewer casualties; strength penalty scales with max health', () => {
-  const s = setup();
-  s.library.formations.push({ id: 'turt', name: 'Turtle', moveMod: -2, casReduce: 2, noAttackerBonus: true, defAll: 2 });
-  const [A, D] = duel(s, unitType('a1', {}), unitType('d1', { formations: null, category: 'cavalry' }), [7, 2, 0, 0],
-    (a, d) => { d.formation = 'turt'; d.maxMen = 50; d.men = 50; });
-  // attacker 5+2 = 7 vs defender 0+2+1 (cavalry vs infantry) = 3 -> diff 4. Damage 6+4 = 10 - armor 3 - turtle 2 = 5
-  assert.strictEqual(D.men, 50 - 5);
-  // defender's return damage 6 - 3 armor = 3 (turtle reduction only protects the turtle)
-  assert.strictEqual(A.men, 100 - 3);
 });
 
 function turnFor(s, aType, extra = []) {
@@ -750,7 +684,7 @@ test('facing: attacking turns a unit; the first attacker this round turns it unl
     if (p.kind === 'claim') { R.act(s, P1, { type: 'claim' }); continue; }
     if (!R.act(s, HOST, { type: 'skipPrompt' }).ok) break;
   }
-  assert.ok(s.turn.round > 1 || s.turn.phase === 'formations', 'the round ended');
+  assert.ok(s.turn.round > 1 || s.turn.phase === 'start', 'the round ended');
   assert.deepStrictEqual([A.facing, B.facing, C.facing, E.facing], [null, null, null, null]);
 });
 
@@ -786,7 +720,7 @@ test('armor pen is damage that always goes through', () => {
   assert.strictEqual(R.casualtiesOf(0, 4, 2), 0, 'no hit, nothing goes through');
   assert.strictEqual(R.casualtiesOf(1, 9, 3), 3, 'pen is extra damage: it goes through even when the hit is small');
   assert.strictEqual(R.casualtiesOf(12, 11, 1, 0, 40), 2, 'Evasion+ ignores 40% of the total, pen included: 2 -> 1.2 -> 2 (rounds up)');
-  assert.strictEqual(R.casualtiesOf(20, 4, 2, 3, 25), Math.ceil((2 + 13) * 0.75), 'formation reduction only on the part over the armor; evasion on the total');
+  assert.strictEqual(R.casualtiesOf(20, 4, 2, 3, 25), Math.ceil((2 + 13) * 0.75), 'reduction only on the part over the armor; evasion on the total');
   assert.strictEqual(R.evadeCasualties(16, 55), 8, '16 at 55%: 7.2 -> 8');
   assert.strictEqual(R.evadeCasualties(10, 70), 3);
   assert.strictEqual(R.evadeCasualties(10, 0), 10);

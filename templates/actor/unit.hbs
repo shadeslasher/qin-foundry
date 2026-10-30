@@ -22,7 +22,7 @@
     <span class="qin-ud-lv">Level <input type="number" name="system.level" value="{{system.level}}" min="1"></span><div class="qin-ud-bar"><i style="width:{{xpPct}}%;background:#c9a24a"></i></div><b><input type="number" name="system.xp.value" value="{{system.xp.value}}" min="0"> / {{system.xp.max}} XP</b>
   </section>
 
-  <nav class="qin-tabs qin-ud-tabs"><a data-tab="stats">Unit</a><a data-tab="formations">Formations</a><a data-tab="officer">Officer</a><a data-tab="equipment">Equipment{{#if equipment.length}} <span class="qin-trait-badge gold">{{equipment.length}}</span>{{/if}}</a><a data-tab="notes">Traits{{#if traitChoices}} <span class="qin-trait-badge">{{traitChoices}}</span>{{/if}}</a></nav>
+  <nav class="qin-tabs qin-ud-tabs"><a data-tab="stats">Unit</a><a data-tab="officer">Officer</a><a data-tab="equipment">Equipment{{#if equipment.length}} <span class="qin-trait-badge gold">{{equipment.length}}</span>{{/if}}</a><a data-tab="notes">Traits{{#if traitChoices}} <span class="qin-trait-badge">{{traitChoices}}</span>{{/if}}</a></nav>
   <div class="qin-body">
     <section class="qin-tab" data-tab="stats">
       <div class="qin-ud-sech">Battle</div>
@@ -51,36 +51,6 @@
       </div>
       <label class="qin-inline qin-ud-chk"><input type="checkbox" name="system.hidden" {{checked system.hidden}}> Hidden (attacks from hiding are ambushes)</label>
       <p class="qin-muted qin-ud-note">XP: casualties dealt × (enemy tier ÷ this unit's tier), rounded down; a kill adds 25 × the same ratio. Every 100 XP the unit gains a level (tier stays the same; levels are for the promotion tree).</p>
-    </section>
-
-    <section class="qin-tab" data-tab="formations">
-      <div class="qin-ud-sech">Formations</div>
-      <label>Current formation <select name="system.formation">{{selectOptions formationChoices selected=system.formation}}</select></label>
-      <ul class="qin-formations">
-        {{#each formations}}
-        <li data-item-id="{{id}}" class="{{#if active}}active{{/if}}">
-          <div class="qin-form-head"><b>{{name}}</b>{{#if active}} <span class="qin-tag">in use</span>{{/if}}
-            {{#if @root.isGM}}<span class="qin-controls"><a data-action="itemEdit" title="Edit"><i class="fa-solid fa-pen"></i></a><a data-action="itemDelete" title="Remove"><i class="fa-solid fa-trash"></i></a></span>{{/if}}
-          </div>
-          {{#if summary}}<div class="qin-form-fx">{{summary}}</div>{{/if}}
-          <div class="qin-form-desc">{{{description}}}</div>
-        </li>
-        {{else}}<li class="qin-muted">No formations yet.{{#if @root.isGM}} Add some below.{{/if}}</li>
-        {{/each}}
-      </ul>
-      {{#if isGM}}
-      <div class="qin-library qin-form-add">
-        <div class="qin-picker" data-library="formations">
-          <button type="button" class="qin-picker-toggle"><span class="qin-picker-label">Choose a formation…</span> <i class="fa-solid fa-caret-down"></i></button>
-          <ul class="qin-picker-list">
-            {{#each formationLibrary}}<li data-uuid="{{uuid}}" class="{{#if owned}}owned{{/if}}">{{name}}{{#if owned}} <span class="qin-muted">(has it)</span>{{/if}}</li>{{/each}}
-          </ul>
-          <div class="qin-picker-info"></div>
-        </div>
-        <button type="button" data-action="addFormation"><i class="fa-solid fa-plus"></i> Add</button>
-        <button type="button" data-action="itemCreate" data-type="formation"><i class="fa-solid fa-feather"></i> Homebrew</button>
-      </div>
-      {{else}}<p class="qin-muted">Only the GM can add or change this unit's formations.</p>{{/if}}
     </section>
 
     <section class="qin-tab" data-tab="officer">
@@ -122,97 +92,103 @@
     </section>
 
     <section class="qin-tab" data-tab="notes">
-      <div class="qin-ud-sech">Traits</div>
-      <div class="qin-traits" data-traits>
-        {{#each traitCards}}
-        {{#if isChoice}}
-        <article class="qin-trait choice{{#if replacedBy}} replaced{{/if}}{{#if locked}} locked{{/if}}{{#if pending}} pending{{/if}}{{#if editing}} editing{{/if}}" data-trait="{{index}}">
-          <header class="qin-trait-head">
-            <span class="qin-trait-name">{{#if chosen}}{{chosen.name}}{{else}}{{title}}{{/if}}</span>
-            {{#if locked}}<span class="qin-trait-lock"><i class="fa-solid fa-lock"></i> Choose at level {{level}}</span>{{/if}}
-            {{#if pending}}<span class="qin-trait-badge">Choose one</span>{{/if}}
-            {{#if replacedBy}}<span class="qin-trait-lock"><i class="fa-solid fa-arrow-up"></i> Replaced by {{replacedBy}}</span>{{/if}}
-            {{#if @root.isGM}}<span class="qin-controls">
-              {{#if chosen}}<a data-trait-act="unchoose" title="Undo the choice"><i class="fa-solid fa-rotate-left"></i></a>{{/if}}
-              <a data-trait-act="edit" title="{{#if editing}}Done{{else}}Edit{{/if}}"><i class="fa-solid {{#if editing}}fa-check{{else}}fa-pen{{/if}}"></i></a>
-              <a data-trait-act="remove" title="Remove"><i class="fa-solid fa-trash"></i></a></span>{{/if}}
-          </header>
-          {{#if chosen}}
-            {{#if chosen.desc}}<p class="qin-trait-desc">{{chosen.desc}}</p>{{/if}}
-            <ol class="qin-trait-chain">{{#each choices}}<li class="{{#if picked}}current{{else}}done{{/if}}" title="{{desc}}"><span>Lv {{../level}}</span> {{name}}</li>{{/each}}</ol>
-          {{else}}
-            <div class="qin-trait-options">
-              {{#each choices}}
-              <div class="qin-trait-option">
-                <b>{{name}}</b>{{#if desc}}<span>{{desc}}</span>{{/if}}
-                {{#if ../pending}}{{#if @root.editable}}<button type="button" data-trait-act="choose" data-opt="{{@index}}">Choose</button>{{/if}}{{/if}}
-              </div>
-              {{/each}}
-            </div>
-          {{/if}}
-          {{#if editing}}
-          <div class="qin-trait-edit">
-            <div class="qin-trait-row">
-              <label>Title (shown until chosen) <input type="text" data-field="name" value="{{name}}" placeholder="Choose a trait"></label>
-              <label class="qin-trait-lv">Choose at level <input type="number" min="1" data-field="level" value="{{level}}"></label>
-            </div>
-            <div class="qin-trait-ups">
-              {{#each options}}
-              <div class="qin-trait-up" data-opt="{{@index}}">
-                <label>Option {{inc @index}} <input type="text" data-field="name" value="{{name}}"></label>
-                <a data-trait-act="removeOption" title="Remove this option"><i class="fa-solid fa-xmark"></i></a>
-                <label class="qin-trait-updesc">Description <textarea rows="2" data-field="desc">{{desc}}</textarea></label>
-              </div>
-              {{/each}}
-              <button type="button" data-trait-act="addOption"><i class="fa-solid fa-plus"></i> Add an option</button>
-            </div>
-          </div>
-          {{/if}}
-        </article>
-        {{else}}
-        <article class="qin-trait{{#if replacedBy}} replaced{{/if}}{{#if locked}} locked{{/if}}{{#if editing}} editing{{/if}}" data-trait="{{index}}">
-          <header class="qin-trait-head">
-            <span class="qin-trait-name">{{current.name}}</span>
-            {{#if locked}}<span class="qin-trait-lock"><i class="fa-solid fa-lock"></i> Unlocks at level {{level}}</span>{{/if}}
-            {{#if replacedBy}}<span class="qin-trait-lock"><i class="fa-solid fa-arrow-up"></i> Replaced by {{replacedBy}}</span>{{/if}}
-            {{#if @root.isGM}}<span class="qin-controls">
-              <a data-trait-act="edit" title="{{#if editing}}Done{{else}}Edit{{/if}}"><i class="fa-solid {{#if editing}}fa-check{{else}}fa-pen{{/if}}"></i></a>
-              <a data-trait-act="remove" title="Remove"><i class="fa-solid fa-trash"></i></a></span>{{/if}}
-          </header>
-          {{#if current.desc}}<p class="qin-trait-desc">{{current.desc}}</p>{{/if}}
-          {{#if chain}}<ol class="qin-trait-chain">
-            {{#each steps}}<li class="{{state}}" title="{{desc}}">{{#if (eq state "locked")}}<i class="fa-solid fa-lock"></i> {{/if}}<span>Lv {{level}}</span> {{name}}</li>{{/each}}
-          </ol>{{/if}}
-          {{#if editing}}
-          <div class="qin-trait-edit">
-            <div class="qin-trait-row">
-              <label>Name <input type="text" data-field="name" value="{{name}}"></label>
-              <label class="qin-trait-lv">Unlocks at level <input type="number" min="1" data-field="level" value="{{level}}"></label>
-            </div>
-            <label>Description <textarea rows="2" data-field="desc">{{desc}}</textarea></label>
-            <div class="qin-trait-ups">
-              {{#each upgrades}}
-              <div class="qin-trait-up" data-up="{{@index}}">
-                <label class="qin-trait-lv">At level <input type="number" min="1" data-field="level" value="{{level}}"></label>
-                <label>Becomes <input type="text" data-field="name" value="{{name}}"></label>
-                <a data-trait-act="removeUpgrade" title="Remove this upgrade"><i class="fa-solid fa-xmark"></i></a>
-                <label class="qin-trait-updesc">Description <textarea rows="2" data-field="desc">{{desc}}</textarea></label>
-              </div>
-              {{/each}}
-              <button type="button" data-trait-act="addUpgrade"><i class="fa-solid fa-angles-up"></i> Add a level upgrade</button>
-            </div>
-          </div>
-          {{/if}}
-        </article>
-        {{/if}}
-        {{else}}<p class="qin-muted">No traits.</p>
+{{#*inline "traitCard"}}
+  {{#if isChoice}}
+  <article class="qin-trait choice{{#if replacedBy}} replaced{{/if}}{{#if locked}} locked{{/if}}{{#if pending}} pending{{/if}}{{#if editing}} editing{{/if}}" data-trait="{{index}}">
+    <header class="qin-trait-head">
+      <span class="qin-trait-name">{{#if chosen}}{{chosen.name}}{{else}}{{title}}{{/if}}</span>
+      
+      {{#if pending}}<span class="qin-trait-badge">Choose one</span>{{/if}}
+      {{#if replacedBy}}<span class="qin-trait-lock"><i class="fa-solid fa-arrow-up"></i> Replaced by {{replacedBy}}</span>{{/if}}
+      {{#if @root.isGM}}<span class="qin-controls">
+        {{#if chosen}}<a data-trait-act="unchoose" title="Undo the choice"><i class="fa-solid fa-rotate-left"></i></a>{{/if}}
+        <a data-trait-act="edit" title="{{#if editing}}Done{{else}}Edit{{/if}}"><i class="fa-solid {{#if editing}}fa-check{{else}}fa-pen{{/if}}"></i></a>
+        <a data-trait-act="remove" title="Remove"><i class="fa-solid fa-trash"></i></a></span>{{/if}}
+    </header>
+    {{#if chosen}}
+      {{#if chosen.desc}}<p class="qin-trait-desc">{{chosen.desc}}</p>{{/if}}
+    {{else}}
+      <div class="qin-trait-options">
+        {{#each choices}}
+        <div class="qin-trait-option">
+          <b>{{name}}</b>{{#if desc}}<span>{{desc}}</span>{{/if}}
+          {{#if ../pending}}{{#if @root.editable}}<button type="button" data-trait-act="choose" data-opt="{{@index}}">Choose</button>{{/if}}{{/if}}
+        </div>
         {{/each}}
       </div>
+    {{/if}}
+    {{#if editing}}
+    <div class="qin-trait-edit">
+      <div class="qin-trait-row">
+        <label>Title (shown until chosen) <input type="text" data-field="name" value="{{name}}" placeholder="Choose a trait"></label>
+        <label class="qin-trait-lv">Choose at level <input type="number" min="1" data-field="level" value="{{level}}"></label>
+      </div>
+      <div class="qin-trait-ups">
+        {{#each options}}
+        <div class="qin-trait-up" data-opt="{{@index}}">
+          <label>Option {{inc @index}} <input type="text" data-field="name" value="{{name}}"></label>
+          <a data-trait-act="removeOption" title="Remove this option"><i class="fa-solid fa-xmark"></i></a>
+          <label class="qin-trait-updesc">Description <textarea rows="2" data-field="desc">{{desc}}</textarea></label>
+        </div>
+        {{/each}}
+        <button type="button" data-trait-act="addOption"><i class="fa-solid fa-plus"></i> Add an option</button>
+      </div>
+    </div>
+    {{/if}}
+  </article>
+  {{else}}
+  <article class="qin-trait{{#if replacedBy}} replaced{{/if}}{{#if locked}} locked{{/if}}{{#if editing}} editing{{/if}}" data-trait="{{index}}">
+    <header class="qin-trait-head">
+      <span class="qin-trait-name">{{current.name}}</span>
+      
+      {{#if replacedBy}}<span class="qin-trait-lock"><i class="fa-solid fa-arrow-up"></i> Replaced by {{replacedBy}}</span>{{/if}}
+      {{#if @root.isGM}}<span class="qin-controls">
+        <a data-trait-act="edit" title="{{#if editing}}Done{{else}}Edit{{/if}}"><i class="fa-solid {{#if editing}}fa-check{{else}}fa-pen{{/if}}"></i></a>
+        <a data-trait-act="remove" title="Remove"><i class="fa-solid fa-trash"></i></a></span>{{/if}}
+    </header>
+    {{#if current.desc}}<p class="qin-trait-desc">{{current.desc}}</p>{{/if}}
+    {{#if chain}}<ol class="qin-trait-chain">
+      {{#each steps}}<li class="{{state}}" title="{{desc}}">{{#if (eq state "locked")}}<i class="fa-solid fa-lock"></i> {{/if}}<span>Lv {{level}}</span> {{name}}</li>{{/each}}
+    </ol>{{/if}}
+    {{#if editing}}
+    <div class="qin-trait-edit">
+      <div class="qin-trait-row">
+        <label>Name <input type="text" data-field="name" value="{{name}}"></label>
+        <label class="qin-trait-lv">Unlocks at level <input type="number" min="1" data-field="level" value="{{level}}"></label>
+      </div>
+      <label>Description <textarea rows="2" data-field="desc">{{desc}}</textarea></label>
+      <div class="qin-trait-ups">
+        {{#each upgrades}}
+        <div class="qin-trait-up" data-up="{{@index}}">
+          <label class="qin-trait-lv">At level <input type="number" min="1" data-field="level" value="{{level}}"></label>
+          <label>Becomes <input type="text" data-field="name" value="{{name}}"></label>
+          <a data-trait-act="removeUpgrade" title="Remove this upgrade"><i class="fa-solid fa-xmark"></i></a>
+          <label class="qin-trait-updesc">Description <textarea rows="2" data-field="desc">{{desc}}</textarea></label>
+        </div>
+        {{/each}}
+        <button type="button" data-trait-act="addUpgrade"><i class="fa-solid fa-angles-up"></i> Add a level upgrade</button>
+      </div>
+    </div>
+    {{/if}}
+  </article>
+  {{/if}}
+{{/inline}}
+      {{#each traitSections}}
+      <div class="qin-trait-sec{{#if locked}} locked{{/if}}" data-level="{{level}}">
+        <div class="qin-ud-sech">{{title}}{{#if locked}} <span class="qin-trait-seclock" data-tooltip="Unlocks at level {{level}}"><i class="fa-solid fa-lock"></i> Locked</span>{{/if}}
+          {{#if @root.isGM}}<span class="qin-trait-secadd"><a data-trait-act="add" data-level="{{level}}" title="Add a trait at level {{level}} (name from the box below)"><i class="fa-solid fa-plus"></i> Trait</a><a data-trait-act="addChoice" data-level="{{level}}" title="At level {{level}}, the unit picks one of several traits"><i class="fa-solid fa-code-branch"></i> Choice</a></span>{{/if}}</div>
+        <div class="qin-traits" data-traits>
+          {{#each cards}}{{> traitCard}}
+          {{else}}<p class="qin-muted">{{#if (eq ../level 1)}}No traits.{{else}}Nothing new at level {{../level}}.{{/if}}</p>
+          {{/each}}
+        </div>
+      </div>
+      {{/each}}
       {{#if isGM}}
       <div class="qin-trait-add">
         <input type="text" data-trait-new placeholder="Trait name (pick one or type a new one)">
-        <button type="button" data-trait-act="add"><i class="fa-solid fa-plus"></i> Add trait</button>
-        <button type="button" data-trait-act="addChoice" title="At a level, the unit picks one of several traits"><i class="fa-solid fa-code-branch"></i> Add choice</button>
+        <button type="button" data-trait-act="add" data-level="1"><i class="fa-solid fa-plus"></i> Add trait</button>
+        <button type="button" data-trait-act="addChoice" data-level="3" title="At a level, the unit picks one of several traits"><i class="fa-solid fa-code-branch"></i> Add choice</button>
       </div>
       {{/if}}
     </section>

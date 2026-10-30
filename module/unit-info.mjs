@@ -1,12 +1,11 @@
 // Battle unit details for everyone at the table: the hover tooltip, a movement preview while hovering,
-// and a read-only "Info" window (portrait, stats, officer, formations, traits).
+// and a read-only "Info" window (portrait, stats, officer, traits).
 import * as E from "./battle/engine.mjs";
-import { getBattle, buildState, emptyBattle, formationsEnabled } from "./battle/adapter.mjs";
-import { formationSummary } from "./sheets/sheets.mjs";
+import { getBattle, buildState, emptyBattle } from "./battle/adapter.mjs";
 import { factionOf } from "./factions.mjs";
 import { SKILLS } from "./config.mjs";
 import { healthColor, moraleColor } from "./unit-bars.mjs";
-import { TT_ICONS } from "./icons.mjs";
+import { TT_ICONS, levelChevronsSVG } from "./icons.mjs";
 import { equipmentOf } from "./equipment.mjs";
 
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
@@ -63,7 +62,9 @@ export function unitTooltipHTML(token) {
   html += `<div class="qin-tt-bl"><span>Health</span><span>${men} / ${max}</span></div>
     <div class="qin-tt-bar"><i style="width:${pct((100 * men) / max)}%;background:${hex(healthColor(men / max))}"></i></div>
     <div class="qin-tt-bl"><span>Morale</span><span>${morale}${sys.moraleState ? ` · ${esc(sys.moraleState)}` : ""}</span></div>
-    <div class="qin-tt-bar"><i style="width:${pct(morale)}%;background:${hex(moraleColor(morale))}"></i></div>`;
+    <div class="qin-tt-bar"><i style="width:${pct(morale)}%;background:${hex(moraleColor(morale))}"></i></div>
+    <div class="qin-tt-bl qin-tt-lv"><span>${levelChevronsSVG(sys.level ?? 1, 15)} Level ${esc(sys.level ?? 1)}</span><span>${sys.xp?.value ?? 0} / ${sys.xp?.max || 100} XP</span></div>
+    <div class="qin-tt-bar"><i style="width:${pct((100 * (sys.xp?.value ?? 0)) / (sys.xp?.max || 100))}%;background:#c9a24a"></i></div>`;
   const chip = (icon, v, label) => `<div class="qin-tt-chip"><i>${TT_ICONS[icon]}</i><b>${v}</b><small>${label}</small></div>`;
   html += `<div class="qin-tt-chips">${chip("dmg", sys.damage ?? 0, "Dmg")}${chip("pen", sys.armorPen ?? 0, "Pierce")}${chip("armor", sys.armor ?? 0, "Armor")}${chip("move", sys.move ?? 0, "Move")}</div>`;
   const w = weaponLine(sys);
@@ -272,7 +273,6 @@ export class UnitInfoApp extends Base {
     const tok = this.token, actor = tok.actor, sys = actor.system;
     const officer = officerOf(sys);
     const faction = factionOf(sys.faction);
-    const forms = actor.items.filter(i => i.type === "formation").sort((a, b) => (a.sort || 0) - (b.sort || 0));
     const menPct = Math.max(0, Math.min(100, Math.round(100 * sys.men.value / (sys.men.max || 100))));
     const sideLabel = { player: "Player", enemy: "Enemy", ally: "Ally", neutral: "Neutral" }[sys.side] ?? sys.side;
     const skill = [sys.weaponSkill, sys.weaponSkill2].filter((k, i, a) => k && a.indexOf(k) === i).map(k => SKILLS[k]?.label ?? k).join(" or ");
@@ -286,7 +286,7 @@ export class UnitInfoApp extends Base {
         <div class="qin-ui-id">
           ${gold ? `<div class="qin-ui-ti">${faction?.img ? `<img src="${esc(faction.img)}" alt="">` : ""}${esc(gold)}</div>` : ""}
           <div class="qin-ui-name">${esc(tok.document.name)}</div>
-          <div class="qin-ui-sub"><span class="qin-ui-side ${esc(sys.side)}">${esc(sideLabel)}</span><span>Tier ${sys.tier}</span><span class="dot">·</span><span>Level ${sys.level ?? 1}</span>${sys.unitType ? `<span class="dot">·</span><span>${esc(sys.unitType)}</span>` : ""}${sys.category ? `<span class="dot">·</span><span>${esc(sys.category[0].toUpperCase() + sys.category.slice(1))}</span>` : ""}</div>
+          <div class="qin-ui-sub"><span class="qin-ui-side ${esc(sys.side)}">${esc(sideLabel)}</span><span>Tier ${sys.tier}</span><span class="dot">·</span><span class="qin-ui-lv">${levelChevronsSVG(sys.level ?? 1, 14)} Level ${sys.level ?? 1}</span>${sys.unitType ? `<span class="dot">·</span><span>${esc(sys.unitType)}</span>` : ""}${sys.category ? `<span class="dot">·</span><span>${esc(sys.category[0].toUpperCase() + sys.category.slice(1))}</span>` : ""}</div>
         </div>
         <span class="qin-tt-tier t${tierN}">T${esc(sys.tier)}</span>
       </header>
@@ -305,11 +305,6 @@ export class UnitInfoApp extends Base {
           <div class="s">Fights with ${esc(skill)}</div></div><i class="fa-solid fa-chevron-right chev"></i>
         </a>` : `<p class="qin-muted">No officer. The unit rolls with Command, Fire and Skill at 0.</p>`}
       </section>
-      ${!formationsEnabled() ? "" : `<section class="qin-ui-sec"><div class="qin-ui-sech">Formations</div>${forms.length ? `<ul class="qin-ui-forms">${forms.map(f => {
-        const sum = formationSummary(f.system);
-        const active = sys.formation === f.id;
-        return `<li class="${active ? "active" : ""}"><div><b>${esc(f.name)}</b>${active ? ` <span class="qin-tag">in use</span>` : ""}</div>${sum ? `<div class="qin-ui-fx">${esc(sum)}</div>` : ""}</li>`;
-      }).join("")}</ul>` : `<p class="qin-muted">No formations known.</p>`}</section>`}
       ${(() => { const eq = equipmentOf(actor); return eq.length ? `<section class="qin-ui-sec"><div class="qin-ui-sech">Equipment</div><div class="qin-ui-traits">${eq.map(e => `<div class="qin-ui-trait equip"><b><i class="fa-solid fa-shield-halved"></i> ${esc(e.name)}</b>${e.desc ? `<span>${esc(e.desc)}</span>` : ""}</div>`).join("")}</div></section>` : ""; })()}
       <section class="qin-ui-sec"><div class="qin-ui-sech">Traits</div>${traitsHTML(sys.traits, new Set(equipmentOf(actor).map(e => e.name)))}</section>
     </div>`;

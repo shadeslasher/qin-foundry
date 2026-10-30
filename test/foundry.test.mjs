@@ -38,8 +38,6 @@ test("battle adapter: a full officer turn through Foundry tokens", async () => {
   const gm = M.addUser("gm", true), alice = M.addUser("alice", false);
   game.user = gm;
   M.setSetting("battle", A.emptyBattle());
-  M.setSetting("formations", A.defaultFormations());
-  M.setSetting("useFormations", true); // formations are on hold by default; this test covers them when turned on
   M.setSetting("manageStealth", true);
   M.setSetting("rotateFacing", true);
 
@@ -52,17 +50,13 @@ test("battle adapter: a full officer turn through Foundry tokens", async () => {
     return u;
   };
   const scene = M.makeScene("field");
-  const shieldWall = { id: "fsw", type: "formation", name: "Shield Wall", system: { moveMod: -1, defFront: 2, defCharge: null, description: "" } };
-  const ally = M.makeActor({ type: "unit", owners: ["alice"], items: [shieldWall], system: unitSystem({ officer: "Actor.wenping" }) });
+  const ally = M.makeActor({ type: "unit", owners: ["alice"], items: [], system: unitSystem({ officer: "Actor.wenping" }) });
   const foe = M.makeActor({ type: "unit", system: unitSystem({ side: "enemy", faction: "Yellow Turban", weaponSkill: "jianshu" }) });
   const tA = M.addToken(scene, { id: "tokA", name: "Wen Ping's Ji Infantry", x: 2, y: 2, actor: ally });
   const tE = M.addToken(scene, { id: "tokE", name: "Yellow Turbans", x: 2, y: 6, actor: foe });
 
   let r = await A.runAction("gm", { type: "startBattle", sceneId: "field" });
   assert.ok(r.ok, r.error);
-  r = await A.runAction("alice", { type: "setFormation", unitId: "tokA", formation: "tokA.fsw" });
-  assert.ok(r.ok, r.error);
-  assert.strictEqual(ally.system.formation, "fsw", "formation (item id) written to the actor");
   r = await A.runAction("gm", { type: "startRound" });
   assert.ok(r.ok, r.error);
   let b = A.getBattle();
@@ -77,7 +71,7 @@ test("battle adapter: a full officer turn through Foundry tokens", async () => {
   assert.ok(r.ok, r.error);
   assert.strictEqual(ally.system.morale, 40);
 
-  // Alice drags her token 3 tiles down (Shield Wall: movement 3)
+  // Alice drags her token 3 tiles down (movement 4)
   tA.y = 5 * 100;
   await A.onTokenMoved(tA, { y: 500 }, {});
   b = A.getBattle();
@@ -108,25 +102,6 @@ test("battle adapter: a full officer turn through Foundry tokens", async () => {
   r = await A.runAction("gm", { type: "endBattle" });
   assert.ok(r.ok && !A.getBattle().active);
   assert.strictEqual(ally.system.xp.value, allyXpBefore, "after battle, XP is kept (no loss for casualties suffered)");
-});
-
-test("formations on hold (default): the battle ignores them and leaves the sheet's choice alone", async () => {
-  const gm = M.addUser("gm2", true);
-  game.user = gm;
-  M.setSetting("battle", A.emptyBattle());
-  M.setSetting("useFormations", false);
-  const shieldWall = { id: "fsw2", type: "formation", name: "Shield Wall", system: { moveMod: -1, defAll: 2, description: "" } };
-  const sys = Object.assign(new UnitData(), { side: "player", tier: 2, category: "infantry", weaponSkill: "qiangshu", unitValue: 2, damage: 6, armor: 3, armorPen: 0, move: 3, range: 1, rangeMin: 1, men: { value: 100, max: 100 }, xp: { value: 0, max: 100 }, morale: 50, formation: "fsw2", hidden: false, status: "active", officer: "" });
-  sys.prepareDerivedData();
-  const unit = M.makeActor({ type: "unit", items: [shieldWall], system: sys });
-  const scene = M.makeScene("field2");
-  M.addToken(scene, { id: "tokF", name: "Ji Infantry", x: 1, y: 1, actor: unit });
-  const r = await A.runAction("gm2", { type: "startBattle", sceneId: "field2" });
-  assert.ok(r.ok, r.error);
-  const { s } = A.buildState(A.getBattle());
-  assert.strictEqual(s.units[0].formation, "none", "no formation in battle");
-  assert.strictEqual(unit.system.formation, "fsw2", "the sheet keeps its formation");
-  M.setSetting("useFormations", true);
 });
 
 test('unit name labels (L): unit name, officer in the second line when there is one', async () => {

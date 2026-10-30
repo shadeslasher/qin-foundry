@@ -8,49 +8,11 @@ const TERRAIN = {
   impassable: { name: 'Impassable', passable: false, cover: 0 },
 };
 
-// Formation fields (all optional, default 0/false):
-//   moveMod        added to the unit's movement
-//   immobile       unit cannot move
-//   defAll         melee & ranged defense: added to THIS unit's roll whenever it defends
-//   defMelee       melee defense: added to this unit's roll against melee attacks
-//   defRanged      ranged defense: added to this unit's roll against ranged attacks
-//   atkMod         attack: added to THIS unit's roll only when it attacks
-//   rearAtk        extra attack for enemies attacking this unit from the rear (on top of the usual +2)
-//   noChargeBonus  enemies charging this unit get no charge bonus
-//   winReposition  after winning as the attacker, may move to an empty tile next to the enemy unit
-//   defFront       added to THIS unit's roll when defending against attacks from the front
-//   chargeBonus    added to this unit's roll when it makes a cavalry charge
-//   dmgMod         added to this unit's damage value
-//   noRear         this unit cannot be attacked in the rear
-//   defAll         added to THIS unit's roll whenever it defends
-//   frontMelee     added to THIS unit's roll in melee (attacking or defending) when the enemy is in front of it
-//   casReduce      this unit takes this many fewer casualties (attacking or defending)
-//   noAttackerBonus  this unit loses the +2 attacker bonus
-const FORMATIONS = [
-  { id: 'none', name: 'No formation', desc: 'No modifiers.' },
-  { id: 'loose', name: 'Loose', defRanged: 3, defMelee: -2, atkMod: -1,
-    desc: 'Ranged defense +3. Melee defense -2. Attack -1. (Most infantry units.)' },
-  { id: 'diamond', name: 'Diamond', moveMod: -3, atkMod: -2, defAll: 2,
-    desc: 'Movement -3. Attack -2. Melee and ranged defense +2. (Cavalry only.)' },
-  { id: 'wedge', name: 'Wedge', defAll: -2, winReposition: true,
-    desc: 'Melee and ranged defense -2. If it wins the Command roll when attacking, it may move to any empty tile next to the enemy unit. (Cavalry.)' },
-  { id: 'circle', name: 'Circle', immobile: true, defMelee: 2, defRanged: -1, atkMod: -1, noRear: true,
-    desc: 'Cannot move. Melee defense +2. Ranged defense -1. Attack -1. Cannot be attacked in the rear. (Melee infantry.)' },
-  { id: 'hollow_square', name: 'Hollowed Square', immobile: true, defMelee: 2, noChargeBonus: true, defRanged: -2, atkMod: -2, noRear: true,
-    desc: 'Cannot move. Melee defense +2. Enemies charging it get no charge bonus. Ranged defense -2. Attack -2. Cannot be attacked in the rear. (Melee infantry.)' },
-  { id: 'shield_wall', name: 'Shield Wall', moveMod: -1, defAll: 2, rearAtk: 2,
-    desc: 'Movement -1. Melee and ranged defense +2. Rear attacks against it get Attack +2 more. (Infantry with shields.)' },
-  { id: 'spear_wall', name: 'Spear Wall', moveMod: -1, defMelee: 4, atkMod: 1, noChargeBonus: true, defRanged: -2, rearAtk: 2,
-    desc: 'Movement -1. Melee defense +4. Attack +1. Enemies charging it get no charge bonus. Ranged defense -2. Rear attacks against it get Attack +2 more. (Infantry with spears.)' },
-  { id: 'turtle', name: 'Turtle', moveMod: -2, defAll: 3, atkMod: -2, noRear: true,
-    desc: 'Movement -2. Melee and ranged defense +3. Attack -2. Cannot be attacked in the rear. (Infantry with shields.)' },
-];
 
 // Unit types. Damage and Defense come from the v1.9 compendium (Dmg, Armor).
 // Unit Value and movement are PLACEHOLDERS until the stat sheets are done.
 // category: infantry | cavalry | ranged.  weapon: melee | ranged.
 // skill: the officer weapon skill used for Skill Value in the combat roll.
-const ALL = FORMATIONS.map(f => f.id);
 function ut(id, name, faction, tier, category, weapon, skill, damage, defense, extra) {
   const base = {
     id, name, faction, tier, category, weapon, skill, damage, defense,
@@ -58,7 +20,6 @@ function ut(id, name, faction, tier, category, weapon, skill, damage, defense, e
     move: category === 'cavalry' ? 6 : 4,
     rangeMin: weapon === 'ranged' ? 2 : 1,
     rangeMax: weapon === 'ranged' ? 3 : 1,
-    formations: ALL,
   };
   return Object.assign(base, extra || {});
 }
@@ -222,4 +183,4 @@ const MAP_OVERLAYS = {
   trees: { name: 'Trees', move: 1, rough: true, rangedDef: 2, hides: true, flammable: true, fireRes: 1, burnTime: 3, burnsInto: null },
 };
 
-export { TERRAIN, FORMATIONS, UNIT_TYPES, OFFICERS, HEROIC_ACTIONS, TACTICS, MAP_TERRAIN, MAP_OVERLAYS };
+export { TERRAIN, UNIT_TYPES, OFFICERS, HEROIC_ACTIONS, TACTICS, MAP_TERRAIN, MAP_OVERLAYS };

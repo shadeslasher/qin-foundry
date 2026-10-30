@@ -9,3 +9,21 @@ export const BOOT = `<svg class="qin-tt-svg" viewBox="0 0 24 24"><g transform="t
 export const SWORDS = `<svg class="qin-tt-svg" viewBox="0 0 24 24"><g transform="translate(12 12) scale(0.990) translate(-12.00 -12.60)"><path d="M3 3 L3.92 5.76 L13.24 15.08 L15.08 13.24 L5.76 3.92 Z" fill="#e9eef2" stroke="#3a4048" stroke-width="1"/><path d="M11.9 16.42 L16.42 11.9" stroke="#c9a24a" stroke-width="1.8" stroke-linecap="round"/><path d="M14.16 14.16 L20.15 20.15" stroke="#7a2a20" stroke-width="2" stroke-linecap="round"/><circle cx="21" cy="21" r="1.2" fill="#c9a24a"/><path d="M21 3 L18.24 3.92 L8.92 13.24 L10.76 15.08 L20.08 5.76 Z" fill="#e9eef2" stroke="#3a4048" stroke-width="1"/><path d="M7.58 11.9 L12.1 16.42" stroke="#c9a24a" stroke-width="1.8" stroke-linecap="round"/><path d="M9.84 14.16 L3.85 20.15" stroke="#7a2a20" stroke-width="2" stroke-linecap="round"/><circle cx="3" cy="21" r="1.2" fill="#c9a24a"/></g></svg>`;
 
 export const TT_ICONS = { dmg: SWORDS, armor: CHESTPLATE, pen: PIERCE, move: BOOT };
+
+/**
+ * Unit level as rank chevrons (David, 2026-10-29): levels 1-2 one or two bronze, 3-4 one or two silver, 5+ one gold.
+ * Shared by the token stand (PIXI) and the hover card / Info window (SVG).
+ */
+export const LEVEL_METALS = { bronze: ["#b8692a", "#5e300e"], silver: ["#e6eaee", "#8a929b"], gold: ["#ffc928", "#a36a00"] };
+export function levelRank(level) {
+  const lv = Math.max(1, Math.floor(Number(level) || 1));
+  if (lv >= 5) return { metal: "gold", count: 1 };
+  if (lv >= 3) return { metal: "silver", count: lv - 2 };
+  return { metal: "bronze", count: lv };
+}
+export function levelChevronsSVG(level, size = 14) {
+  const { metal, count } = levelRank(level), [fill] = LEVEL_METALS[metal];
+  const h = 10 + (count - 1) * 4.5;
+  const one = (y) => `<path d="M1 ${y + 6} L8 ${y} L15 ${y + 6} L15 ${y + 8.6} L8 ${y + 2.6} L1 ${y + 8.6} Z" fill="${fill}" stroke="#140c04" stroke-width="1" stroke-linejoin="round"/>`;
+  return `<svg class="qin-lv-chev ${metal}" viewBox="0 0 16 ${h}" width="${size}" height="${(size * h / 16).toFixed(1)}" aria-hidden="true">${[...Array(count)].map((_, i) => one(0.7 + i * 4.5)).join("")}</svg>`;
+}

@@ -33,7 +33,7 @@ function battle(place, extra = []) {
   return { s, a, d, A: R.unitById(s, a), D: R.unitById(s, d) };
 }
 
-test('the battle opens with the tactics phase; finishing or skipping it moves on to formations', () => {
+test('the battle opens with the tactics phase; finishing or skipping it moves on to the start of round 1', () => {
   const s = setup();
   s.library.unitTypes.push(unitType('a'));
   add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 1, y: 1 });
@@ -42,7 +42,7 @@ test('the battle opens with the tactics phase; finishing or skipping it moves on
   must(R.act(s, HOST, { type: 'setTactician', side: 'enemy', tactician: { id: 'x', name: 'Zhang Bao', aow: 0 } }));
   must(R.act(s, HOST, { type: 'placeTactic', side: 'enemy', key: 'brutalize', x: 3, y: 3 }));
   must(R.act(s, HOST, { type: 'skipTactics' }));
-  assert.strictEqual(s.turn.phase, 'formations');
+  assert.strictEqual(s.turn.phase, 'start');
   assert.strictEqual(s.tactics.placed.length, 0, 'skipping clears placed tactics');
 });
 

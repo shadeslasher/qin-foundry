@@ -55,23 +55,6 @@
   {{else if (eq type "officerAbility")}}
     <label>Kind <select name="system.kind">{{selectOptions officerKinds selected=system.kind}}</select></label>
     <label>Morale cost <input type="number" name="system.moraleCost" value="{{system.moraleCost}}"></label>
-  {{else if (eq type "formation")}}
-    <label>Movement modifier <input type="number" name="system.moveMod" value="{{system.moveMod}}"></label>
-    <label class="qin-inline"><input type="checkbox" name="system.immobile" {{checked system.immobile}}> Cannot move</label>
-    <label class="qin-inline"><input type="checkbox" name="system.noRear" {{checked system.noRear}}> Can't be attacked in the rear</label>
-    <label>Melee &amp; ranged defense <input type="number" name="system.defAll" value="{{system.defAll}}" title="Added to this unit's roll whenever it defends"></label>
-    <label>Melee defense <input type="number" name="system.defMelee" value="{{system.defMelee}}"></label>
-    <label>Ranged defense <input type="number" name="system.defRanged" value="{{system.defRanged}}"></label>
-    <label>Attack <input type="number" name="system.atkMod" value="{{system.atkMod}}" title="Added to this unit's roll only when it attacks"></label>
-    <label>Rear attacks against it <input type="number" name="system.rearAtk" value="{{system.rearAtk}}" title="Extra attack for enemies hitting it from the rear (on top of the usual +2)"></label>
-    <label class="qin-inline"><input type="checkbox" name="system.noChargeBonus" {{checked system.noChargeBonus}}> Enemies charging it get no charge bonus</label>
-    <label class="qin-inline"><input type="checkbox" name="system.winReposition" {{checked system.winReposition}}> After winning an attack, may move to an empty tile next to the enemy</label>
-    <label>Defense from the front <input type="number" name="system.defFront" value="{{system.defFront}}" title="Melee and ranged attacks from the front"></label>
-    <label>Own melee roll vs the front <input type="number" name="system.frontMelee" value="{{system.frontMelee}}" title="Attacking or defending in melee when the enemy is in front"></label>
-    <label>Own cavalry charge roll <input type="number" name="system.chargeBonus" value="{{system.chargeBonus}}"></label>
-    <label>Damage modifier <input type="number" name="system.dmgMod" value="{{system.dmgMod}}"></label>
-    <label>Fewer casualties taken <input type="number" name="system.casReduce" value="{{system.casReduce}}"></label>
-    <label class="qin-inline"><input type="checkbox" name="system.noAttackerBonus" {{checked system.noAttackerBonus}}> Loses the +2 attacker bonus</label>
   {{else if (eq type "signature")}}
     <label>Slot <select name="system.slot">{{selectOptions signatureSlots selected=system.slot}}</select></label>
     {{#if isActive}}<label>Chi cost <input type="number" name="system.chiCost" value="{{system.chiCost}}"></label>

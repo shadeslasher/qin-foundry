@@ -8,7 +8,7 @@ import { QinItem, QinCombat } from "./module/documents/other.mjs";
 import { CharacterSheet, HenchmanSheet, UnitSheet, QinItemSheet } from "./module/sheets/sheets.mjs";
 import { onRenderChatMessage } from "./module/chat.mjs";
 import { BattlePanel, registerBattleQuery, battleRequest } from "./module/battle/battle.mjs";
-import { defaultFormations, emptyBattle, onTokenMoved, getBattle } from "./module/battle/adapter.mjs";
+import { emptyBattle, onTokenMoved, getBattle } from "./module/battle/adapter.mjs";
 import * as QinRules from "./module/rules/qin-rules.mjs";
 import { registerTokenHover } from "./module/token-hover.mjs";
 import { registerCombatQuery, onRenderCombatTracker } from "./module/combat-actions.mjs";
@@ -91,19 +91,11 @@ Hooks.once("init", () => {
       if (getBattle().active && !BattlePanel.instance?.rendered && game.settings.get(SYSTEM_ID, "autoOpenBattle")) BattlePanel.open();
     },
   });
-  game.settings.register(SYSTEM_ID, "formations", {
-    scope: "world", config: false, type: new ArrayField(new ObjectField()), default: defaultFormations(), onChange: () => BattlePanel.refresh(),
-  });
   game.settings.register(SYSTEM_ID, "rerollInitiative", {
     name: "Reroll initiative every round (personal combat)", hint: "Qin rerolls Water + Yin/Yang each round.",
     scope: "world", config: true, type: Boolean, default: true,
   });
   registerUnitEditor();
-  game.settings.register(SYSTEM_ID, "useFormations", { // on hold since 2026-10-24: too fiddly for players
-    name: "Use formations in battles", hint: "When off, units fight without formations: the battle panel doesn't offer them and their modifiers don't apply. Units keep the formations on their sheets.",
-    scope: "world", config: true, type: Boolean, default: false,
-    onChange: () => { BattlePanel.refresh(); redrawAllUnitBars(); },
-  });
   game.settings.register(SYSTEM_ID, "compactUnits", { // the Battle panel's "Less info" button, per player
     scope: "client", config: false, type: Boolean, default: false,
   });
@@ -222,12 +214,31 @@ Hooks.once("init", () => {
 
 Hooks.once("ready", () => {
   reapplyUnitEdits();
+  removeFormationItems();
   registerAttackFxSocket();
   initBattleMapSync();
   refreshTactics();
   if (game.user.isGM && getBattle().active) BattlePanel.open();
   else if (getBattle().active && game.settings.get(SYSTEM_ID, "autoOpenBattle")) BattlePanel.open();
 });
+
+/**
+ * Formations were removed from the game (David, 2026-10-29). The item type stays registered so old worlds load
+ * cleanly; on the GM's client any formation items left on units or in the world are deleted once.
+ */
+async function removeFormationItems() {
+  if (!game.user.isGM) return;
+  try {
+    for (const a of game.actors ?? []) {
+      const ids = a.items.filter(i => i.type === "formation").map(i => i.id);
+      if (ids.length) await a.deleteEmbeddedDocuments("Item", ids);
+    }
+    const world = (game.items ?? []).filter(i => i.type === "formation").map(i => i.id);
+    if (world.length) await Item.deleteDocuments(world);
+  } catch (e) { console.warn("Qin | removing formation items", e); }
+}
+// ...and no new ones can be made
+Hooks.on("preCreateItem", (item) => { if (item.type === "formation") { ui.notifications.warn("Formations aren't part of the game any more."); return false; } });
 
 Hooks.on("renderChatMessageHTML", onRenderChatMessage);
 registerTokenHover();
@@ -337,15 +348,6 @@ Hooks.on("hotbarDrop", (bar, data, slot) => {
   })();
   return false;
 });
-
-// Only the GM may create, change or remove a unit's formations
-for (const hook of ["preCreateItem", "preUpdateItem", "preDeleteItem"]) {
-  Hooks.on(hook, (item) => {
-    if (item.type !== "formation" || !item.parent || game.user.isGM) return;
-    ui.notifications.warn("Only the GM can change a unit's formations.");
-    return false;
-  });
-}
 
 // Renaming an actor renames its tokens too (prototype + placed tokens that still had the old name)
 Hooks.on("preUpdateActor", (actor, change, options) => {

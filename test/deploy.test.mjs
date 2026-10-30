@@ -18,7 +18,7 @@ test('deployMoveCheck: who may move a unit where', () => {
   assert.ok(!chk({ zones: zoneSet([]) }), 'no zones: players cannot move');
   assert.ok(!chk({ phase: 'none' }), 'no battle: players cannot move their units');
   assert.ok(!chk({ phase: 'setup' }), 'setup: the GM positions');
-  assert.ok(!chk({ phase: 'formations' }), 'deployment locks once tactics are finished');
+  assert.ok(!chk({ phase: 'start' }), 'deployment locks once tactics are finished');
   assert.ok(!chk({ phase: 'officer' }), 'rounds: Move action only');
   assert.ok(chk({ isGM: true, phase: 'none' }, 9, 9), 'GM outside a battle: anywhere');
   assert.ok(chk({ isGM: true, phase: 'tactics' }, 9, 9), 'GM during tactics: anywhere');

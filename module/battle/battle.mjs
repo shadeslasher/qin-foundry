@@ -1,7 +1,7 @@
 // Battle panel (all clients) and the player -> GM request channel.
 import { SYSTEM_ID, systemPath, SIDES } from "../config.mjs";
 import * as E from "./engine.mjs";
-import { getBattle, buildState, runAction, unitTokens, formationsEnabled } from "./adapter.mjs";
+import { getBattle, buildState, runAction, unitTokens } from "./adapter.mjs";
 import { mapFlag, hasMapRenderer, redrawScene, MapEditorApp } from "./maprender.mjs";
 import { scaledPosition } from "../sheets/sheets.mjs";
 import { setBattleRequest, highlightUnit } from "./battle-ui.mjs";
@@ -12,7 +12,7 @@ import { reinforceCardState, newZone, removeZone, startReinforceBrush, arriveNow
 import { objectivesCardState, addCondition, removeCondition, setRounds, startPick, startExtractionBrush } from "./objectives-ui.mjs";
 
 const QUERY = `${SYSTEM_ID}.battle`;
-const PHASE_NAME = { over: "Battle over", tactics: "Tactics", setup: "Setup", formations: "Declare formations", officer: "Officer phase", officerless: "Officer-less phase", final: "Final pass" };
+const PHASE_NAME = { over: "Battle over", tactics: "Tactics", setup: "Setup", start: "Start of round", officer: "Officer phase", officerless: "Officer-less phase", final: "Final pass" };
 
 export function registerBattleQuery() {
   CONFIG.queries[QUERY] = async ({ userId, action }) => runAction(userId, action);
@@ -146,7 +146,6 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
     const t = s.turn;
     const p = E.prompt(s);
     ctx.reinforce = reinforceCardState(); // GM, mid-battle: zones where reinforcements wait
-    const useForms = formationsEnabled();
     const me = { id: game.user.isGM ? "host" : game.user.id, host: game.user.isGM };
     const mine = (u) => u && (u.owner === game.user.id || (game.user.isGM && !u.owner));
     const unit = (id) => E.unitById(s, id);
@@ -159,7 +158,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
     switch (p.kind) {
       case "setup":
         prompt.text = game.user.isGM ? "Back in setup. Reposition units, then begin again." : "The GM is setting up.";
-        if (game.user.isGM) btn(useForms ? "Begin (declare formations)" : "Begin", "startBattle", { primary: true });
+        if (game.user.isGM) btn("Begin", "startBattle", { primary: true });
         break;
       case "tactics": {
         const T = battle.tactics;
@@ -182,11 +181,8 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
           + (game.user.isGM ? `<br><span class="qin-muted">Press End battle (GM controls, below) to finish.</span>` : "");
         break;
       }
-      case "formations":
-        if (useForms) {
-          prompt.text = "Choose formations for your units, then mark yourself ready.";
-          if (!game.user.isGM) btn(t.ready[game.user.id] ? "Ready ✓" : "Ready", "ready");
-        } else prompt.text = game.user.isGM ? "Start the round when you're ready." : "Waiting for the GM to start the round.";
+      case "start":
+        prompt.text = game.user.isGM ? "Start the round when you're ready." : "Waiting for the GM to start the round.";
         if (game.user.isGM) btn("Start round (roll initiative)", "startRound", { primary: true });
         break;
       case "decide": case "final": {
@@ -248,19 +244,16 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
 
     const units = s.units.filter(shown).map(u => ({
       id: u.id, name: u.name, side: u.side, men: u.men, maxMen: u.maxMen ?? 100, xp: u.xp ?? 0, morale: u.morale, moraleState: E.moraleState(u.morale), status: u.status,
-      formation: useForms ? (s.library.formations.find(f => f.id === u.formation)?.name ?? "—") : "", officer: E.officerOf(s, u)?.name ?? null,
+      officer: E.officerOf(s, u)?.name ?? null,
       done: u.round.activated, mine: mine(u), img: tokenImg(u.id), pickable: pickable.includes(u),
-      sideEditable: game.user.isGM && (t.phase === "formations" || t.phase === "setup"),
-      formationOptions: useForms && (t.phase === "formations" || t.phase === "setup") && mine(u)
-        ? s.library.formations.filter(f => { const ty = E.typeOf(s, u); return !ty?.formations || ty.formations.includes(f.id); }).map(f => ({ id: f.id, name: f.name, selected: f.id === u.formation }))
-        : null,
+      sideEditable: game.user.isGM && (t.phase === "start" || t.phase === "setup"),
     })).sort((x, y) => (x.side > y.side ? 1 : -1));
 
     Object.assign(ctx, {
-      round: t.round, phase: t.phase === "formations" && !useForms ? "Start of round" : PHASE_NAME[t.phase], prompt, held, controls, order, units,
+      round: t.round, phase: PHASE_NAME[t.phase], prompt, held, controls, order, units,
       log: (s.log || []).slice(-12).reverse().map(e => e.text), recentClosed: recentClosed(),
       wrongScene: canvas.scene?.id !== battle.sceneId, battleScene: scene?.name,
-      showSkip: game.user.isGM && !["setup", "formations", "tactics", "over"].includes(p.kind),
+      showSkip: game.user.isGM && !["setup", "start", "tactics", "over"].includes(p.kind),
       gmFireOn: !!gmFire,
       canDeclare: game.user.isGM && !s.outcome && !["setup", "over"].includes(t.phase),
       tacticsWaiting: game.user.isGM && s.tactics?.phase === "battle" ? s.tactics.placed.filter(t => t.state === "hidden" && !["raiseFlag", "setAflame"].includes(t.key)).length : 0,
@@ -296,9 +289,6 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
     this.element.querySelectorAll("input[data-rz-round]").forEach(inp => inp.addEventListener("change", () => setZoneRound(inp.dataset.rzRound, inp.value)));
     this.element.querySelectorAll("select[data-gate]").forEach(sel => sel.addEventListener("change", () => {
       battleRequest({ type: "setGate", gateId: sel.dataset.gate, [sel.dataset.field]: sel.value });
-    }));
-    this.element.querySelectorAll("select[data-formation-unit]").forEach(sel => sel.addEventListener("change", () => {
-      battleRequest({ type: "setFormation", unitId: sel.dataset.formationUnit, formation: sel.value });
     }));
   }
 

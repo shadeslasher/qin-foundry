@@ -28,7 +28,7 @@ function playRound(s, moves = {}) {
   const start = s.turn.round;
   for (let guard = 0; guard < 40 && s.turn.phase !== 'over'; guard++) {
     const p = R.prompt(s);
-    if (p.kind === 'formations') { if (s.turn.round !== start) return; must(R.act(s, HOST, { type: 'startRound' })); continue; }
+    if (p.kind === 'start') { if (s.turn.round !== start) return; must(R.act(s, HOST, { type: 'startRound' })); continue; }
     if (p.kind === 'claim') { must(R.act(s, P1, { type: 'claim' })); continue; }
     if (p.kind === 'pick') { const u = s.units.find(u => u.side === 'player' && u.status === 'active' && !u.round.activated); must(R.act(s, P1, { type: 'begin', unitId: u.id })); continue; }
     if (p.kind === 'host-pick') { const u = s.units.find(u => u.side === p.side && u.status === 'active' && !u.round.activated); must(R.act(s, HOST, { type: 'begin', unitId: u.id })); continue; }

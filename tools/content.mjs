@@ -197,14 +197,3 @@ export const WEAKNESSES = [
 
 export const UNITS = UNIT_TYPES;
 
-// Battlefield formations (David's formation handout). Effects are the numbers the battle engine uses.
-export const FORMATIONS = [
-  ["Loose", {"key": "loose", "defRanged": 3, "defMelee": -2, "atkMod": -1}, "<p>Commanded Unit spreads out: <b>ranged defense +3</b>, <b>melee defense -2</b>, <b>attack -1</b>. <i>Most infantry units.</i></p>"],
-  ["Diamond", {"key": "diamond", "moveMod": -3, "atkMod": -2, "defAll": 2}, "<p>Commanded Unit forms a diamond: <b>movement -3</b>, <b>attack -2</b>, <b>melee and ranged defense +2</b>. <i>Cavalry only.</i></p>"],
-  ["Wedge", {"key": "wedge", "defAll": -2, "winReposition": true}, "<p>Commanded Unit forms a wedge: <b>melee and ranged defense -2</b>. If it <b>wins the Command roll when attacking</b>, it may <b>move to any empty tile next to the enemy unit</b>. <i>Cavalry.</i></p>"],
-  ["Circle", {"key": "circle", "immobile": true, "defMelee": 2, "defRanged": -1, "atkMod": -1, "noRear": true}, "<p>Commanded Unit forms a circle and <b>cannot move</b>: <b>melee defense +2</b>, <b>ranged defense -1</b>, <b>attack -1</b>. It <b>cannot be attacked in the rear</b>. <i>Melee infantry.</i></p>"],
-  ["Hollowed Square", {"key": "hollow_square", "immobile": true, "defMelee": 2, "noChargeBonus": true, "defRanged": -2, "atkMod": -2, "noRear": true}, "<p>Commanded Unit forms a hollow square and <b>cannot move</b>: <b>melee defense +2</b>, <b>enemies charging it get no charge bonus</b>, <b>ranged defense -2</b>, <b>attack -2</b>. It <b>cannot be attacked in the rear</b>. <i>Melee infantry.</i></p>"],
-  ["Shield Wall", {"key": "shield_wall", "moveMod": -1, "defAll": 2, "rearAtk": 2}, "<p>Commanded Unit raises its shields: <b>movement -1</b>, <b>melee and ranged defense +2</b>. <b>Rear attacks against it get attack +2</b> more. <i>Infantry with shields.</i></p>"],
-  ["Spear Wall", {"key": "spear_wall", "moveMod": -1, "defMelee": 4, "atkMod": 1, "noChargeBonus": true, "defRanged": -2, "rearAtk": 2}, "<p>Commanded Unit points its spears forward: <b>movement -1</b>, <b>melee defense +4</b>, <b>attack +1</b>, <b>enemies charging it get no charge bonus</b>, <b>ranged defense -2</b>. <b>Rear attacks against it get attack +2</b> more. <i>Infantry with spears.</i></p>"],
-  ["Turtle", {"key": "turtle", "moveMod": -2, "defAll": 3, "atkMod": -2, "noRear": true}, "<p>Commanded Unit overlaps its shields: <b>movement -2</b>, <b>melee and ranged defense +3</b>, <b>attack -2</b>. It <b>cannot be attacked in the rear</b>. <i>Infantry with shields.</i></p>"],
-];

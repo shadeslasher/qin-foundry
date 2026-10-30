@@ -152,7 +152,6 @@ export class UnitData extends foundry.abstract.TypeDataModel {
       level: int(1, { min: 1 }),                                    // every 100 XP; for the promotion tree (not tier)
       xp: new fields.SchemaField({ value: int(0, { min: 0 }), max: int(100, { min: 1 }) }),
       morale: int(50, { min: 0, max: 100 }),
-      formation: new fields.StringField({ initial: "none" }),      // id of one of this unit's formation items
       hidden: new fields.BooleanField({ initial: false }),
       status: new fields.StringField({ initial: "active", choices: ["active", "defeated", "surrendered", "escaped"] }),
       officer: new fields.StringField({ initial: "" }),            // UUID of a character actor

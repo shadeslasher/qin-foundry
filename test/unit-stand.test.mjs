@@ -21,8 +21,7 @@ test('loss order (2 back, 3 front): front-right first, then front-left, back-rig
 test('status icons: Command roll bonus/penalty, defense, ranged defense', () => {
   let battle = { active: true, sceneId: 's', turn: { activation: null }, meta: {} };
   globalThis.game = { settings: { get: () => battle } };
-  const form = (sys) => ({ get: (id) => (id === 'f' ? { type: 'formation', system: sys } : null) });
-  const tok = (sys, items = form({}), id = 't') => ({ id, document: { parent: { id: 's' } }, actor: { system: { formation: 'f', range: 1, category: 'infantry', men: { value: 100, max: 100 }, morale: 50, traits: '', ...sys }, items } });
+  const tok = (sys, items = { get: () => null }, id = 't') => ({ id, document: { parent: { id: 's' } }, actor: { system: { range: 1, category: 'infantry', men: { value: 100, max: 100 }, morale: 50, traits: '', ...sys }, items } });
   // morale and losses
   assert.strictEqual(U.unitStatus(tok({ morale: 80 })).rolls, 2);
   assert.strictEqual(U.unitStatus(tok({ morale: 80 })).attack, 0, 'morale is on all rolls, not the sword');
@@ -32,35 +31,30 @@ test('status icons: Command roll bonus/penalty, defense, ranged defense', () => 
   assert.strictEqual(U.unitStatus(tok({ range: 3 })).attack, 2);
   battle.meta.t = { round: { moved: true } };
   assert.strictEqual(U.unitStatus(tok({ range: 3 })).attack, 0, 'moved: keeps nothing');
-  // cavalry after a 4-tile move: +3, Fierce Charge+ adds +4, Wedge adds +4
+  // cavalry after a 4-tile move: +3, Fierce Charge+ adds +4
   battle.meta = {}; battle.turn.activation = { unitId: 't', movedThisActivation: true, tilesMoved: 4 };
   assert.strictEqual(U.unitStatus(tok({ category: 'cavalry' })).attack, 3);
   assert.strictEqual(U.unitStatus(tok({ category: 'cavalry', traits: 'Fierce Charge+ - x' })).attack, 7);
-  assert.strictEqual(U.unitStatus(tok({ category: 'cavalry' }, form({ chargeBonus: 4 }))).attack, 7);
   // undone / not its turn: no charge
   battle.turn.activation = null;
   assert.strictEqual(U.unitStatus(tok({ category: 'cavalry' })).attack, 0);
-  assert.strictEqual(U.unitStatus(tok({}, form({ atkMod: -1 }))).attack, -1, 'formation attack modifier always shows');
   // during an attack the sword shows that attack's total
   const t = tok({}); t.qinAttackBonus = -1; assert.strictEqual(U.unitStatus(t).attack, -1);
-  // defense: Hold +2, Turtle defAll +2; ranged defense: Loose (enemy ranged -3) = 3, Spear Wall (enemy ranged +2) = -2
+  // defense: Hold +2 (melee only)
   battle.meta.t = { round: { holding: true } };
-  assert.strictEqual(U.unitStatus(tok({}, form({ defAll: 2 }))).defense, 4);
-  assert.strictEqual(U.unitStatus(tok({}, form({ defAll: 2 }))).rangedDefense, 2, 'Turtle helps against arrows too; Hold does not');
-  assert.strictEqual(U.unitStatus(tok({}, form({ defRanged: 3, defMelee: -1 }))).rangedDefense, 3);
-  assert.strictEqual(U.unitStatus(tok({}, form({ defRanged: 3, defMelee: -1 }))).defense, 1, 'Loose: hold 2, melee defense -1');
-  assert.strictEqual(U.unitStatus(tok({}, form({ defRanged: -2 }))).rangedDefense, -2);
+  assert.strictEqual(U.unitStatus(tok({})).defense, 2);
+  assert.strictEqual(U.unitStatus(tok({})).rangedDefense, 0, 'Hold does not help against arrows');
   // traits: Brace while holding, Shielded+, Poison on both shields
   battle.meta.t = { round: { holding: true }, fx: { poison: 1 } };
-  const st = U.unitStatus(tok({ traits: '<p>Brace - x</p><p>Shielded+ - y</p>' }, form({})));
+  const st = U.unitStatus(tok({ traits: '<p>Brace - x</p><p>Shielded+ - y</p>' }));
   assert.strictEqual(st.defense, 5, 'hold 2 + brace 2 + shielded+ 2 - poison 1');
   assert.strictEqual(st.rangedDefense, 3, 'shielded+ 4 - poison 1');
   // not moved this round: Precision+; stood still last turn: Range Up+, Shield Battery
   battle.meta.t = { round: {}, fx: { stillLast: true } };
-  const p = U.unitStatus(tok({ range: 3, traits: '<p>Precision+ - a</p><p>Range Up+ - b</p><p>Shield Battery - c</p>' }, form({})));
+  const p = U.unitStatus(tok({ range: 3, traits: '<p>Precision+ - a</p><p>Range Up+ - b</p><p>Shield Battery - c</p>' }));
   assert.deepStrictEqual([p.attack, p.range, p.rangedDefense], [4, 2, 2]);
   // Hefty Weapon after moving; Unwavering ignores low morale
   battle.meta.t = { round: { moved: true } };
-  assert.strictEqual(U.unitStatus(tok({ traits: 'Hefty Weapon - z' }, form({}))).attack, -2);
-  assert.strictEqual(U.unitStatus(tok({ morale: 20, traits: 'Unwavering - z' }, form({}))).rolls, 0);
+  assert.strictEqual(U.unitStatus(tok({ traits: 'Hefty Weapon - z' })).attack, -2);
+  assert.strictEqual(U.unitStatus(tok({ morale: 20, traits: 'Unwavering - z' })).rolls, 0);
 });

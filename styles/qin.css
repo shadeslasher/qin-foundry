@@ -237,16 +237,8 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin-token-hover .qin-th-title { text-align: center; font-style: italic; color: #d8c8a8; margin: -1px 0 3px; }
 .qin-token-hover .qin-th-pip { width: 8px; height: 8px; margin-right: 1px; }
 
-/* Unit sheet: formations and XP */
+/* Unit sheet: XP */
 .qin .qin-bar.xp i { background: #b58b2a; }
-.qin .qin-formations { list-style: none; margin: 8px 0; padding: 0; }
-.qin .qin-formations li { border: 1px solid var(--qin-line); border-radius: 5px; padding: 6px 8px; margin-bottom: 6px; background: rgba(255,255,255,0.35); }
-.qin .qin-formations li.active { border-color: var(--qin-red); box-shadow: 0 0 0 1px var(--qin-red) inset; }
-.qin .qin-form-head { display: flex; align-items: center; gap: 6px; font-size: calc(14px * var(--qin-scale, 1.15)); }
-.qin .qin-form-head .qin-controls { margin-left: auto; }
-.qin .qin-form-fx { color: var(--qin-red); font-size: calc(12px * var(--qin-scale, 1.15)); margin: 2px 0; }
-.qin .qin-form-desc p { margin: 2px 0; font-size: calc(12px * var(--qin-scale, 1.15)); }
-.qin .qin-form-add select { flex: 1 1 200px; }
 .qin .qin-desc-read { padding: 6px; border: 1px solid var(--qin-line); border-radius: 4px; background: rgba(255,255,255,0.4); }
 
 /* Fire Emblem-style action menu beside the active unit */
@@ -370,9 +362,6 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin-ui-officer .n { font-family: "Qin Cinzel", Georgia, serif; font-size: 1.25em; font-weight: 700; }
 .qin-ui-officer .s { color: #d9c9a6; font-size: .9em; }
 .qin-ui-officer .chev { margin-left: auto; color: #c9a24a; opacity: .8; }
-.qin-ui-forms { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.qin-ui-forms li { padding: 4px 6px; border-left: 3px solid rgba(184, 134, 43, 0.5); background: rgba(128, 128, 128, 0.10); }
-.qin-ui-forms li.active { border-left-color: #8b1a1a; background: rgba(139, 26, 26, 0.07); }
 .qin-ui-fx { font-size: 0.9em; opacity: 0.85; }
 .qin-ui-traits { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .qin-ui-trait { padding: 6px 10px 7px; border-left: 3px solid #c9a24a; border-radius: 0 6px 6px 0; background: rgba(255,255,255,.045); }
@@ -881,9 +870,6 @@ details.qin-recent[open] > summary { margin-bottom: 4px; }
 .qin-unit-dark .qin-officer-drop h3 { margin: 0 0 2px; border: none; font-family: "Qin Cinzel", Georgia, serif; font-size: 1.3em; }
 .qin-unit-dark .qin-officer-drop h3 a { color: #f3ead8; margin: 0; font-size: 1em; }
 .qin-unit-dark .qin-officer-warn { color: #ff9a8a; }
-/* formations tab */
-.qin-unit-dark .qin-formations li { background: rgba(255,255,255,.045); border-left-color: rgba(201,162,74,.6); }
-.qin-unit-dark .qin-formations li.active { border-left-color: #c0503a; background: rgba(176,40,30,.12); }
 /* trait cards */
 .qin-unit-dark .qin-trait { border: 0; border-left: 3px solid #c9a24a; border-radius: 0 6px 6px 0; background: rgba(255,255,255,.045); box-shadow: none; }
 .qin-unit-dark .qin-trait.editing { border-left-color: #f0c24a; background: rgba(184,134,43,.1); }
@@ -957,3 +943,21 @@ details.qin-recent[open] > summary { margin-bottom: 4px; }
 .qin-office-add { font-size: .8em; margin-left: 6px; cursor: pointer; }
 
 .qin-sync-all { flex: 1 1 100%; margin-top: 4px; }
+
+/* Unit sheet Traits tab in level sections (2026-10-29): Level 1 / Level 3 / Level 5; a level the unit hasn't reached is greyed out */
+.qin-unit-dark .qin-trait-sec + .qin-trait-sec { margin-top: 10px; }
+.qin-unit-dark .qin-trait-seclock { font-size: .92em; font-weight: 600; letter-spacing: 0; text-transform: none; color: #b9ad95; }
+.qin-unit-dark .qin-trait-secadd { margin-left: auto; display: flex; gap: 10px; font-size: .92em; font-weight: 600; letter-spacing: 0; text-transform: none; order: 3; }
+.qin-unit-dark .qin-trait-secadd a { color: #c9a24a; cursor: pointer; }
+.qin-unit-dark .qin-trait-sec.locked .qin-ud-sech { color: #8d8576; }
+.qin-unit-dark .qin-trait-sec.locked .qin-ud-sech::after { background: linear-gradient(90deg, rgba(141,133,118,.45), transparent); }
+.qin-unit-dark .qin-trait-sec.locked .qin-traits { filter: grayscale(1); opacity: .5; }
+.qin-unit-dark .qin-trait-sec .qin-ud-sech { flex-wrap: nowrap; white-space: nowrap; }
+.qin-unit-dark .qin-trait-seclock { order: 2; }
+.qin-unit-dark .qin-trait-option { background: rgba(255,255,255,.05); border: 1px solid rgba(201,162,74,.28); color: #e6dcc6; }
+.qin-unit-dark .qin-trait-option b { color: #f0c24a; }
+.qin-unit-dark .qin-trait-option span { color: #cfc4ad; }
+.qin-unit-dark .qin-trait.choice.pending { box-shadow: 0 0 0 1px rgba(240,194,74,.55), 0 0 12px rgba(240,194,74,.18); }
+/* level chevrons in the hover card and Info window (2026-10-29) */
+.qin-lv-chev { display: inline-block; vertical-align: -2px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.6)); }
+.qin-tt-lv > span:first-child, .qin-ui-lv { display: inline-flex; align-items: center; gap: 5px; }

@@ -132,9 +132,6 @@
             <div class="qin-muted qin-udetail">{{men}}/{{maxMen}} health · {{morale}} morale{{#if (eq side "player")}} · {{xp}} XP{{/if}} ({{moraleState}}){{#unless (eq status "active")}} · {{status}}{{/unless}}</div>
             <div class="qin-udetail">
             {{#if sideEditable}}<select data-side-unit="{{id}}" title="Side (can change before initiative)">{{#each ../sideChoices}}<option value="{{@key}}" {{#if (eq @key ../side)}}selected{{/if}}>{{this}}</option>{{/each}}</select>{{/if}}
-            {{#if formationOptions}}
-              <select data-formation-unit="{{id}}">{{#each formationOptions}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{name}}</option>{{/each}}</select>
-            {{else}}{{#if formation}}<div class="qin-muted">{{formation}}</div>{{/if}}{{/if}}
             </div>
           </div>
           {{#if pickable}}<button type="button" class="qin-primary" data-action="do" data-type="begin" data-unit-id="{{id}}">Take turn</button>{{/if}}
