@@ -173,7 +173,7 @@ export function unitStatus(token) {
   const both = -(Number(fx.poison) || 0); // melee & ranged defense (Poison lowers both)
   const supp = !!fx.suppressed; // Suppressing Fire: Attack -1, melee defense -1, Hold and Brace lost
   if (supp) attack -= 1;
-  const defense = (round.holding && !supp ? 1 + tierVal(tr.brace, [1, 2, 3]) : 0) - (supp ? 1 : 0) + both; // Shielded adds to Evasion in melee, not to defense (2026-10-30)
+  const defense = (round.holding && !supp ? 1 + tierVal(tr.brace, [1, 2, 3]) : 0) - (supp ? 1 : 0) + both; // Shielded gives ranged defense only (2026-10-30)
   const rangedDefense = both + tierVal(tr.shielded, [2, 4, 6])
     + (fx.stillLast && tr["shield battery"] ? 2 : 0);
   let range = s.range > 1 && fx.stillLast ? tierVal(tr["range up"], [1, 2]) : 0;
