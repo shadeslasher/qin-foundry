@@ -5,12 +5,13 @@ const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? ""
 const SIDES = { player: "Player", ally: "Ally", enemy: "Enemy", neutral: "Neutral" };
 
 /** The battle units' three armies (anything else is listed after them as "Other"). */
-export const ARMIES = ["Han", "Bandits", "Yellow Turbans", "Qiang", "Other"];
+export const ARMIES = ["Han", "Bandits", "Yellow Turbans", "Qiang", "Northern", "Other"];
 export function factionGroup(f) {
   const k = String(f ?? "").toLowerCase();
   if (/yellow|turban/.test(k)) return "Yellow Turbans";
   if (/bandit|zhang-yan|black.?mountain/.test(k)) return "Bandits";
   if (/qiang/.test(k)) return "Qiang"; // Qiang units (David, 2026-10-31)
+  if (/northern/.test(k)) return "Northern"; // Northern units (David, 2026-10-31)
   if (/^han\b|han-empire|^han$/.test(k)) return "Han";
   return "Other";
 }
