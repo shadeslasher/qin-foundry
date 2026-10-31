@@ -267,3 +267,20 @@ test('a cavalry charge through trees gets no charge bonus; around them it does',
   assert.strictEqual(r.charge, false, 'ending in the trees: no charge');
   assert.ok(!r.attackRoll.parts.some(([l]) => /Cavalry charge|Charging Strike/.test(l)));
 });
+
+test('Frontier Riders: sand, tall grass and rocky ground cost nothing extra and do not stop a charge; forest still does', () => {
+  const s = field({ '5,3': { terrain: 'rocky' }, '6,3': { terrain: 'sand' }, '4,3': { terrain: 'forest' } });
+  s.library.unitTypes.push(unitType('cav', { category: 'cavalry', move: 5 }), unitType('inf'));
+  const c = R.unitById(s, add(s, { typeId: 'cav', side: 'player', owner: 'p1', x: 5, y: 5 }));
+  c.traitTiers = { 'frontier riders': 1 };
+  let r = R.reachable(s, c, 6);
+  assert.strictEqual(r.get('5,3'), 2, 'rocky: no horse surcharge');
+  assert.ok(!r.rough.has('5,3'), 'rocky: chargeable');
+  assert.strictEqual(r.get('6,3'), 3, 'sand: no extra cost');
+  assert.ok(!r.rough.has('6,3'));
+  assert.strictEqual(r.get('4,3'), 5, 'forest: still 3 squares + (1 + 1)');
+  assert.ok(r.rough.has('4,3'), 'forest still stops a charge');
+  const f = R.unitById(s, add(s, { typeId: 'inf', side: 'player', owner: 'p1', x: 6, y: 5 }));
+  f.traitTiers = { 'frontier riders': 1 };
+  assert.strictEqual(R.reachable(s, f, 6).get('6,3'), 2, 'foot: sand costs nothing extra');
+});

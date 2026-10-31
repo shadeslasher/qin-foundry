@@ -144,6 +144,7 @@ function surcharge(s, x, y, u) {
   if (!r) return 0;
   let move = r.move;
   const tile = s.map.tiles && s.map.tiles[x + ',' + y];
+  if (u && tile && trait(u, 'frontier riders')) { const f = frontierRules(tile); return Math.max(0, f.move) + (f.rough && isCavalry(s, u) ? 1 : 0); }
   if (u && tile && trait(u, 'woodsmen')) {
     if (tile.terrain === 'forest') move -= (data.MAP_TERRAIN.forest.move || 0);
     if (tile.overlays?.includes('trees')) move -= (data.MAP_OVERLAYS.trees.move || 0);
@@ -152,7 +153,23 @@ function surcharge(s, x, y, u) {
 }
 const isCavalry = (s, u) => !!u && (typeOf(s, u) || {}).category === 'cavalry';
 /** Rough ground for this unit: cavalry can't charge across or onto it (a road through it is clear). */
-const roughFor = (s, x, y, u) => isCavalry(s, u) && !!(tileRules(s, x, y) || {}).rough;
+const roughFor = (s, x, y, u) => {
+  if (!isCavalry(s, u)) return false;
+  const tile = s.map.tiles && s.map.tiles[x + ',' + y];
+  if (tile && trait(u, 'frontier riders')) return frontierRules(tile).rough;
+  return !!(tileRules(s, x, y) || {}).rough;
+};
+/** Frontier Riders (Qiang, David 2026-10-31): sand, tall grass and rocky ground cost no extra movement and don't stop a
+ *  charge. Movement and roughness of a square with those parts left out (other terrain and overlays still count). */
+const FRONTIER = new Set(['sand', 'tall-grass', 'rocky']);
+function frontierRules(tile) {
+  const overlays = tile.overlays || [];
+  const parts = [[tile.terrain, data.MAP_TERRAIN[tile.terrain]], ...overlays.map(o => [o, data.MAP_OVERLAYS[o]])].filter(([k, p]) => p && !FRONTIER.has(k));
+  let move = 0, rough = false;
+  for (const [, p] of parts) { move += p.move || 0; if (p.rough) rough = true; }
+  if (rough && overlays.some(o => o === 'road' || o === 'bridge')) rough = false;
+  return { move, rough };
+}
 
 // ---------------------------------------------------------------- walls and siege
 // Wall level: city walls and fortress towers (units stand on top). Gates are ground level and can't be entered.
