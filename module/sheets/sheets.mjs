@@ -530,7 +530,7 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
       officerProblem: officer ? (officerEligibility(officer, system).ok ? "" : officerEligibility(officer, system).reason) : "",
       menPct: Math.min(100, Math.round(100 * system.men.value / (system.men.max || 100))),
       healthColor: hex(healthColor(system.men.value / (system.men.max || 100))), moraleColor: hex(moraleColor(system.morale ?? 0)),
-      tierN: Math.max(1, Math.min(4, Number(system.tier) || 1)), icons: TT_ICONS,
+      tierN: Math.max(1, Math.min(5, Number(system.tier) || 1)), icons: TT_ICONS,
       xpPct: Math.min(100, Math.round(100 * (system.xp?.value ?? 0) / (system.xp?.max || 100))),
       // Traits tab in level sections (David, 2026-10-29): Level 1 = what the unit starts with; Level 3 and Level 5 = the
       // traits or picks it gains there, greyed out until it reaches that level. Any other unlock level gets its own section.

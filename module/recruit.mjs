@@ -111,7 +111,7 @@ export class RecruitApp extends foundry.applications.api.ApplicationV2 {
       if (!ts.length) return "";
       return `<h4>${army} · ${label}</h4><ul>${ts.map(t => {
         const chk = recruitCheck({ coin, cost: t.cost, armies, army: t.faction, hasCharacter: !!pc });
-        return `<li class="${chk.ok ? "" : "off"}"><img src="${esc(t.img)}" alt="" data-action="info" data-uuid="${esc(t.id)}"><span class="qin-party-tag tier t${Math.min(4, t.tier)}">T${t.tier}</span>
+        return `<li class="${chk.ok ? "" : "off"}"><img src="${esc(t.img)}" alt="" data-action="info" data-uuid="${esc(t.id)}"><span class="qin-party-tag tier t${Math.min(5, t.tier)}">T${t.tier}</span>
           <a class="nm" data-action="info" data-uuid="${esc(t.id)}" data-tooltip="Show this unit's details">${esc(t.name)}</a><span class="cost" data-tooltip="Upkeep ${Math.round(t.cost / 4)} a month"><i class="fa-solid fa-coins"></i> ${t.cost}</span>
           <button type="button" data-action="buy" data-uuid="${esc(t.id)}" ${chk.ok ? "" : `disabled data-tooltip="${esc(chk.reason)}"`}>Recruit</button></li>`;
       }).join("")}</ul>`;

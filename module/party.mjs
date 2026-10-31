@@ -125,7 +125,7 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
         <img src="${esc(a.img)}" alt="" data-action="open" data-id="${a.id}">
         <div class="qin-party-main">
           <div class="qin-party-name"><a data-action="open" data-id="${a.id}">${esc(a.name)}</a> ${status}${btns("unit", a.id, a)}</div>
-          <div class="qin-party-sub"><span class="qin-party-tag tier t${Math.min(4, s.tier)}">T${s.tier}</span><span class="qin-party-tag">Lv ${s.level ?? 1}</span>${s.unitType ? `<span class="qin-party-tag">${esc(s.unitType)}</span>` : ""}${s.cost ? `<span class="qin-party-tag coin" data-tooltip="Recruitment cost ${s.cost} · upkeep ${s.upkeep} a month"><i class="fa-solid fa-coins"></i> ${s.upkeep}/mo</span>` : ""}${equipmentOf(a).map(e => `<span class="qin-party-tag equip" data-tooltip="${esc(e.desc)}"><i class="fa-solid fa-shield-halved"></i> ${esc(e.name)}</span>`).join("")}</div>
+          <div class="qin-party-sub"><span class="qin-party-tag tier t${Math.min(5, s.tier)}">T${s.tier}</span><span class="qin-party-tag">Lv ${s.level ?? 1}</span>${s.unitType ? `<span class="qin-party-tag">${esc(s.unitType)}</span>` : ""}${s.cost ? `<span class="qin-party-tag coin" data-tooltip="Recruitment cost ${s.cost} · upkeep ${s.upkeep} a month"><i class="fa-solid fa-coins"></i> ${s.upkeep}/mo</span>` : ""}${equipmentOf(a).map(e => `<span class="qin-party-tag equip" data-tooltip="${esc(e.desc)}"><i class="fa-solid fa-shield-halved"></i> ${esc(e.name)}</span>`).join("")}</div>
           ${officerPicker(a, g)}
           <div class="qin-party-bars">
             <span>Health</span><div class="qin-bar"><i style="width:${pct(s.men.value, s.men.max)}%"></i></div><b>${s.men.value}/${s.men.max}</b>

@@ -757,3 +757,35 @@ test('casualty checkpoints: -5 morale for each fifth of health lost, once per ba
   u.men = 0; assert.strictEqual(R.checkpointMorale(u), 0, 'wiped out: nothing more');
   const c = { men: 50, maxMen: 50, fx: {} }; c.men = 40; assert.strictEqual(R.checkpointMorale(c), 5, 'same for 50-health units');
 });
+
+test('Imperial Solidarity: allies within 2 tiles (not itself) get melee defense +2 and +4 morale at round end, once however many', () => {
+  const s = setup();
+  const imp = add(s, { typeId: 'han_ji_inf', side: 'player', owner: 'p1', x: 5, y: 5 });
+  const imp2 = add(s, { typeId: 'han_ji_inf', side: 'player', owner: 'p1', x: 4, y: 5 });
+  const ally = add(s, { typeId: 'han_ji_inf', side: 'player', owner: 'p1', x: 5, y: 7 });   // 2 tiles from imp
+  const far = add(s, { typeId: 'han_ji_inf', side: 'player', owner: 'p1', x: 9, y: 9 });
+  for (const id of [imp, imp2]) R.unitById(s, id).traitTiers = { 'imperial solidarity': 1 };
+  for (const id of [imp, imp2, ally, far]) R.unitById(s, id).morale = 50;
+  const lone = setup();
+  const solo = add(lone, { typeId: 'han_ji_inf', side: 'player', owner: 'p1', x: 5, y: 5 });
+  R.unitById(lone, solo).traitTiers = { 'imperial solidarity': 1 };
+  must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'startRound' }));
+  R._endRound(s);
+  assert.strictEqual(R.unitById(s, ally).morale, 54, 'once, not once per imperial unit');
+  assert.strictEqual(R.unitById(s, imp).morale, 54, 'buffed by the other imperial unit');
+  assert.strictEqual(R.unitById(s, far).morale, 50);
+  assert.ok(R._imperialAura(s, R.unitById(s, ally)));
+  assert.ok(!R._imperialAura(lone, R.unitById(lone, solo)), 'never from itself');
+});
+
+test('Inspiration from two neighbours counts once (same-name traits do not stack)', () => {
+  const s = setup();
+  const a = add(s, { typeId: 'han_ji_inf', side: 'player', owner: 'p1', x: 5, y: 5 });
+  const b = add(s, { typeId: 'han_ji_inf', side: 'player', owner: 'p1', x: 4, y: 5 });
+  const c = add(s, { typeId: 'han_ji_inf', side: 'player', owner: 'p1', x: 6, y: 5 });
+  R.unitById(s, b).traitTiers = { inspiration: 1 }; R.unitById(s, c).traitTiers = { inspiration: 2 };
+  R.unitById(s, a).morale = 50;
+  must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'startRound' }));
+  R._endRound(s);
+  assert.strictEqual(R.unitById(s, a).morale, 54, 'the best one (Inspiration+ 4), not 2 + 4');
+});

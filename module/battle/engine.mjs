@@ -768,6 +768,13 @@ function warDrumsBonus(s, u) {
   return best;
 }
 /** Rallying Banner: at the end of the carrier's turn, adjacent allies gain 1 / 2 / 3 morale (David, 2026-10-25). */
+/** Imperial Solidarity (David, 2026-10-31): another allied unit with the trait within 2 tiles gives melee defense +2,
+ *  pen +1 and +4 morale at the end of the round. Never from itself; several imperial units nearby count once. */
+function imperialAura(s, u) {
+  return liveUnits(s).find(o => o !== u && friendly(o, u) && trait(o, 'imperial solidarity') && manhattan(o, u) <= 2) || null;
+}
+const penOf = (s, t, u) => (t.armorPen || 0) + (imperialAura(s, u) ? 1 : 0);
+
 function rallyingBanner(s, u) {
   const b = trait(u, 'rallying banner'); if (!b || !alive(u)) return;
   for (const o of liveUnits(s)) if (o !== u && friendly(o, u) && manhattan(o, u) === 1 && o.morale < 100) {
@@ -845,6 +852,7 @@ function buildRoll(s, unit, role, ctx) {
         .map(o => tierVal(trait(o, 'hold the line'), [1, 2])));
       if (htl) parts.push(['Hold the Line (holding ally): melee defense', htl]);
     }
+    if (!ctx.ranged && imperialAura(s, unit)) parts.push(['Imperial Solidarity (' + imperialAura(s, unit).name + '): melee defense', 2]);
     if (trait(unit, 'shielded') && ctx.ranged) parts.push(['Shielded: ranged defense', tierVal(trait(unit, 'shielded'), [2, 4, 6])]); // ranged defense only; in melee the unit's Evasion trait already covers its shield (2026-10-30)
     if (ctx.ranged && trait(unit, 'shield battery') && fx(unit).stillLast) parts.push(['Shield Battery: ranged defense', 2]);
     if (!ctx.ranged && saddleOf(unit) >= 2) parts.push(['Saddle+: melee defense', 1]);
@@ -1001,8 +1009,8 @@ function resolveAttack(s, attacker, defender, opts) {
   const hitDef = (dmg, pen) => casualtiesOf(dmg, armorOf(dt, defender, trait(attacker, 'shield breaker')), pen, 0, 0);
   // Repeating: the attack lands as two hits of half damage (and half pen) each; armor counts against each hit. Evasion then takes its share of the total.
   const repeating = !!trait(attacker, 'repeating') && dmgToDef > 0;
-  const casDef = evadeCasualties(repeating ? hitDef(Math.ceil(dmgToDef / 2), Math.ceil((at.armorPen || 0) / 2)) + hitDef(Math.floor(dmgToDef / 2), Math.floor((at.armorPen || 0) / 2)) : hitDef(dmgToDef, at.armorPen), evDef);
-  const casAtt = casualtiesOf(dmgToAtt, armorOf(at, attacker, trait(defender, 'shield breaker')), dt.armorPen, 0, evAtt);
+  const casDef = evadeCasualties(repeating ? hitDef(Math.ceil(dmgToDef / 2), Math.ceil(penOf(s, at, attacker) / 2)) + hitDef(Math.floor(dmgToDef / 2), Math.floor(penOf(s, at, attacker) / 2)) : hitDef(dmgToDef, penOf(s, at, attacker)), evDef);
+  const casAtt = casualtiesOf(dmgToAtt, armorOf(at, attacker, trait(defender, 'shield breaker')), penOf(s, dt, defender), 0, evAtt);
 
   // Morale loss for the loser
   // An attacker that can't be struck back (ranged out of reach, charges, Duelist, ambushes...) loses no morale for losing the roll
@@ -1039,7 +1047,7 @@ function resolveAttack(s, attacker, defender, opts) {
     const b = unitAt(s, defender.x + dir.x, defender.y + dir.y);
     if (b && b !== attacker && alive(b) && hostile(attacker, b)) {
       const bt = typeOf(s, b);
-      const cas = casualtiesOf(Math.floor(dmgToDef / 2), armorOf(bt, b, false), Math.floor((at.armorPen || 0) / 2), 0, evasionOf(b));
+      const cas = casualtiesOf(Math.floor(dmgToDef / 2), armorOf(bt, b, false), Math.floor(penOf(s, at, attacker) / 2), 0, evasionOf(b));
       b.men = Math.max(0, b.men - cas);
       b.morale = clamp(b.morale - checkpointMorale(b), 0, 100);
       trample = { unit: b.id, casualties: cas };
@@ -1433,13 +1441,17 @@ function endRound(s) {
   objState(s).roundsDone = s.turn.round; // rounds survived / held / used up
   burnRound(s); // fires burn down
   for (const u of s.units) u.facing = null; // every unit's facing clears when the round ends
-  // Inspiration: at the end of the round, allied units next to it gain 2 morale; Inspiration+ 4 (David, 2026-10-28)
-  for (const u of liveUnits(s)) if (trait(u, 'inspiration')) {
-    const gain = tierVal(trait(u, 'inspiration'), [2, 4]);
-    for (const o of liveUnits(s)) if (o !== u && friendly(o, u) && manhattan(o, u) === 1 && o.morale < 100) {
-      o.morale = Math.min(100, o.morale + gain);
-      log(s, o.name + ' gains ' + gain + ' morale (Inspiration' + (gain > 2 ? '+' : '') + ' from ' + u.name + ').');
+  // Inspiration: at the end of the round, allied units next to it gain 2 morale; Inspiration+ 4 (David, 2026-10-28).
+  // Traits of the same name don't stack (David, 2026-10-31): a unit next to several inspiring units gains once, the best.
+  // Imperial Solidarity: allies within 2 tiles of another unit with it gain 4 morale (once, however many are near).
+  for (const o of liveUnits(s)) {
+    let best = 0, from = null;
+    for (const u of liveUnits(s)) if (u !== o && friendly(o, u) && manhattan(o, u) === 1 && trait(u, 'inspiration')) {
+      const g = tierVal(trait(u, 'inspiration'), [2, 4]); if (g > best) { best = g; from = u; }
     }
+    if (best && o.morale < 100) { o.morale = Math.min(100, o.morale + best); log(s, o.name + ' gains ' + best + ' morale (Inspiration' + (best > 2 ? '+' : '') + ' from ' + from.name + ').'); }
+    const imp = imperialAura(s, o);
+    if (imp && o.morale < 100) { o.morale = Math.min(100, o.morale + 4); log(s, o.name + ' gains 4 morale (Imperial Solidarity from ' + imp.name + ').'); }
   }
   // Hiding: a unit in cover (forest, tall grass) at the end of the round hides, unless an enemy is next to it
   for (const u of liveUnits(s)) if (!u.hidden && hidesIn(s, u) && !hostileAdjacent(s, u) && !scoutNear(s, u)) {
@@ -2392,7 +2404,7 @@ function viewFor(s, viewer) {
   return v;
 }
 
-export { hidesIn as _hidesIn, officerWeaponLevel, casualtiesOf, evasionOf, evadeCasualties, disciplinedBonus, warDrumsBonus, hornReady, hornTargets, checkpointMorale, checkpointsPassed, overwatchFire as _overwatchFire, surroundAfterTurn as _surroundAfterTurn,
+export { endRound as _endRound, imperialAura as _imperialAura, hidesIn as _hidesIn, officerWeaponLevel, casualtiesOf, evasionOf, evadeCasualties, disciplinedBonus, warDrumsBonus, hornReady, hornTargets, checkpointMorale, checkpointsPassed, overwatchFire as _overwatchFire, surroundAfterTurn as _surroundAfterTurn,
   moveOptions, attackTargets, actionMenu, threatArea, TACTIC_SIDES, tileRules, ladderTiles, climbTiles, insideCity, isWallTop, gateAt,
   newState, act, viewFor, prompt, reachable, duelTargets, movementOf, moraleState, visibleTo, rangeOk,
   resolveAttack, buildRoll, skillCheck, setRng, yinYang, typeOf, officerOf, unitById, SIDES, settle, advance,

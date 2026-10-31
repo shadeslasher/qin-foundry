@@ -50,7 +50,7 @@ export function unitTooltipHTML(token) {
   const pct = (v) => Math.max(0, Math.min(100, v));
   // header (dark red band): flag, gold line (officer's title, else the faction), name, then unit type and tier badge.
   // Without an officer the unit's own name is the big line and the tier badge sits beside it.
-  const tierN = Math.max(1, Math.min(4, Number(sys.tier) || 1)); // badge colour: bronze, silver, gold, purple (4+)
+  const tierN = Math.max(1, Math.min(5, Number(sys.tier) || 1)); // badge colour: bronze, silver, gold, purple (4), red (5+)
   const badge = `<span class="qin-tt-tier t${tierN}">T${esc(sys.tier)}</span>`; // a tab hanging from the card's top edge, top right
   const gold = officer ? (officer.system?.details?.title || facName) : facName;
   let html = `<div class="qin-tt"><div class="qin-tt-hd">${fac?.img ? `<img src="${esc(fac.img)}" alt="">` : ""}<div>`;
@@ -276,7 +276,7 @@ export class UnitInfoApp extends Base {
     const menPct = Math.max(0, Math.min(100, Math.round(100 * sys.men.value / (sys.men.max || 100))));
     const sideLabel = { player: "Player", enemy: "Enemy", ally: "Ally", neutral: "Neutral" }[sys.side] ?? sys.side;
     const skill = [sys.weaponSkill, sys.weaponSkill2].filter((k, i, a) => k && a.indexOf(k) === i).map(k => SKILLS[k]?.label ?? k).join(" or ");
-    const tierN = Math.max(1, Math.min(4, Number(sys.tier) || 1));
+    const tierN = Math.max(1, Math.min(5, Number(sys.tier) || 1));
     const gold = [officer?.system?.details?.title, faction?.name].filter(Boolean).join(" · ");
     const tile = (icon, v, label, note = "") => `<div class="qin-ui-tile"${note ? ` data-tooltip="${esc(note)}"` : ""}><i>${icon}</i><b>${v}</b><small>${label}</small></div>`;
     const fa = (cls) => `<i class="fa-solid ${cls} qin-ui-fa"></i>`;

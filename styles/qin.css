@@ -390,6 +390,7 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin-tt-tier.t2 { background: #7c838b; color: #f3f5f7; }
 .qin-tt-tier.t3 { background: #94700f; color: #fff0c4; }
 .qin-tt-tier.t4 { background: #5f3a8e; color: #eedcff; }
+.qin-tt-tier.t5 { background: #9e2a22; color: #ffe2dc; } /* tier 5, the Imperial units: red (David, 2026-10-31) */
 .qin-tt-body { padding: 8px 12px 10px; }
 .qin-tt-title { color: #f0c24a; font-size: 0.95em; font-style: italic; }
 .qin-tt-name { font-weight: 700; font-size: 1.25em; line-height: 1.15; }
@@ -681,7 +682,7 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin-party-sub { display: flex; flex-wrap: wrap; gap: 3px; margin: 2px 0 4px; }
 .qin-party-tag { font-size: .74em; line-height: 1.5; padding: 0 5px; border-radius: 3px; border: 1px solid rgba(160,140,100,.6); background: rgba(127,127,127,.15); white-space: nowrap; }
 .qin-party-tag.tier { font-weight: bold; color: #fff; border-color: transparent; }
-.qin-party-tag.tier.t1 { background: #8a5630; } .qin-party-tag.tier.t2 { background: #7c838b; } .qin-party-tag.tier.t3 { background: #94700f; } .qin-party-tag.tier.t4 { background: #6b3fa0; }
+.qin-party-tag.tier.t1 { background: #8a5630; } .qin-party-tag.tier.t2 { background: #7c838b; } .qin-party-tag.tier.t3 { background: #94700f; } .qin-party-tag.tier.t4 { background: #6b3fa0; } .qin-party-tag.tier.t5 { background: #a8302a; }
 .qin-party-tag.off { border-color: rgba(58,120,200,.6); }
 .qin-party-bars { display: grid; grid-template-columns: auto 1fr auto; gap: 1px 6px; align-items: center; font-size: .78em; }
 .qin-party-bars .qin-bar { margin-top: 0; height: 7px; }
