@@ -182,7 +182,7 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
       id: tok.id, typeId: tok.id, officerId, name: tok.name, side: sys.side, owner: ownerUserId(a),
       x: fromPos ? fromPos.x : gx, y: fromPos ? fromPos.y : gy, men: sys.men.value, maxMen: sys.men.max, morale: sys.morale, xp: sys.xp?.value ?? 0, level: sys.level ?? 1,
       facing: meta.facing ?? null, hidden: sys.hidden, status: sys.status,
-      fierceCharge: fierce ? 1 + fierce[1].length : 0,
+      fierceCharge: fierce ? 1 + fierce[1].length : (traitTiersOf(sys.traits)['fierce charge'] || 0), // Fierce Charge EX = 4 (David, 2026-10-31)
       traitTiers: traitTiersOf(sys.traits), fx: meta.fx ?? {},
       carry: meta.carry !== undefined ? meta.carry : startingCarry(sys.traits),
       mods: meta.mods ?? [], overwatch: !!meta.overwatch, heroicUsed: meta.heroicUsed ?? 0, lastHeroic: meta.lastHeroic ?? null,

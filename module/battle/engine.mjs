@@ -814,7 +814,7 @@ function buildRoll(s, unit, role, ctx) {
     // Expert +1, Master +2, Legendary +3, Godlike +4. Two-weapon units use his higher skill. Only on the unit's own attacks.
     if (o) { const lv = officerWeaponLevel(o, t); if (lv > 2) parts.push(["Officer's weapon (" + (lv === officerWeaponLevel(o, { skill: t.skill }) ? t.skill : t.skill2) + ' ' + lv + ')', lv - 2]); }
     if (ctx.charge) parts.push(['Cavalry charge (' + ctx.tilesMoved + ' tiles moved)', ctx.chargeBase]);
-    if (ctx.charge && ctx.fierceBonus) parts.push([FIERCE_NAMES[Math.min(3, ctx.fierce)], ctx.fierceBonus]);
+    if (ctx.charge && ctx.fierceBonus) parts.push([FIERCE_NAMES[Math.min(4, ctx.fierce)], ctx.fierceBonus]);
     if (ctx.charge && p.chargeAttackBonus) parts.push(['Officer passive: charge', p.chargeAttackBonus]);
     if (trait(unit, 'sharpened weapons')) parts.push(['Sharpened Weapons', tierVal(trait(unit, 'sharpened weapons'), [1, 2, 3])]);
     if (saddleOf(unit)) parts.push(['Saddle', 1]);
@@ -833,7 +833,7 @@ function buildRoll(s, unit, role, ctx) {
     else if (trait(unit, 'volley fire') && other.round && other.round.hitByRanged) parts.push(['Volley Fire', 1]);
     if (ctx.rear) parts.push(['Rear attack', 2]);
     if (ctx.ambush) parts.push(trait(unit, 'ambusher') ? ['Attacking from hiding (Ambusher)', 4] : ['Attacking from hiding', 2]);
-    if (trait(unit, 'shock troop') && !fx(unit).attackedOnce) parts.push(['Shock Troop (first attack of the battle)', tierVal(trait(unit, 'shock troop'), [2, 4, 6])]);
+    if (trait(unit, 'shock troop') && !fx(unit).attackedOnce) parts.push(['Shock Troop (first attack of the battle)', tierVal(trait(unit, 'shock troop'), [2, 4, 6, 8])]);
     if (fx(unit).suppressed) parts.push(['Suppressed (Suppressing Fire)', -1]);
     for (const tc of tacticsOn(s, unit, ['attack', 'flanking', 'ambush'])) parts.push(['Tactic: ' + tacticDef(tc.key).name, 2]);
     // Cavalry Charge: only an attack that is a cavalry charge gains it
@@ -918,7 +918,7 @@ function buildRoll(s, unit, role, ctx) {
   return { total, parts, dice };
 }
 
-const FIERCE_NAMES = ['', 'Fierce Charge', 'Fierce Charge+', 'Fierce Charge++'];
+const FIERCE_NAMES = ['', 'Fierce Charge', 'Fierce Charge+', 'Fierce Charge++', 'Fierce Charge EX'];
 
 /** Soldier figures a unit shows: one per 20% of its full strength (matches the token). */
 function soldierFigures(men, full) {
@@ -941,7 +941,7 @@ function resolveAttack(s, attacker, defender, opts) {
   // Fierce Charge trait on a charge attack: Fierce Charge +2, Fierce Charge+ +4, Fierce Charge++ +4 and the enemy behind takes half damage
   const fierce = attacker.fierceCharge || 0;
   const chargeBase = !ranged && at.category === 'cavalry' ? Math.max(0, tilesMoved - 1) : 0;
-  const fierceBonus = chargeBase > 0 ? [0, 2, 4, 4][Math.min(3, fierce)] : 0;
+  const fierceBonus = chargeBase > 0 ? [0, 2, 4, 4, 4][Math.min(4, fierce)] : 0; // EX: +4, and the unit behind takes full damage
   const rawCharge = chargeBase + fierceBonus;
   const chargeBonus = rawCharge;
   const charge = chargeBonus > 0;
@@ -1047,11 +1047,12 @@ function resolveAttack(s, attacker, defender, opts) {
     const b = unitAt(s, defender.x + dir.x, defender.y + dir.y);
     if (b && b !== attacker && alive(b) && hostile(attacker, b)) {
       const bt = typeOf(s, b);
-      const cas = casualtiesOf(Math.floor(dmgToDef / 2), armorOf(bt, b, false), Math.floor(penOf(s, at, attacker) / 2), 0, evasionOf(b));
+      const full = fierce >= 4; // Fierce Charge EX (David, 2026-10-31): full damage instead of half; armor and Evasion still apply
+      const cas = casualtiesOf(full ? dmgToDef : Math.floor(dmgToDef / 2), armorOf(bt, b, false), full ? penOf(s, at, attacker) : Math.floor(penOf(s, at, attacker) / 2), 0, evasionOf(b));
       b.men = Math.max(0, b.men - cas);
       b.morale = clamp(b.morale - checkpointMorale(b), 0, 100);
       trample = { unit: b.id, casualties: cas };
-      log(s, 'Fierce Charge++: ' + b.name + ', behind ' + defender.name + ', takes half the damage (-' + cas + ').', { type: 'trample', unit: b.id, casualties: cas });
+      log(s, (full ? 'Fierce Charge EX: ' : 'Fierce Charge++: ') + b.name + ', behind ' + defender.name + ', takes ' + (full ? 'the full' : 'half the') + ' damage (-' + cas + ').', { type: 'trample', unit: b.id, casualties: cas });
     }
   }
   // Splash Attack (David, 2026-10-28): when the attack lands, every other enemy unit next to the defender takes

@@ -164,9 +164,9 @@ export function unitStatus(token) {
     if (s.range > 1) { if (!round.moved || tr["moving shot"]) attack += 2; }
     else if (s.category === "cavalry" && ac.movedThisActivation) {
       const tiles = ac.tilesMoved || 0;
-      const fierce = Math.min(3, tr["fierce charge"] || 0);
+      const fierce = Math.min(4, tr["fierce charge"] || 0);
       const charge = Math.max(0, tiles - 1); // +1 per tile past the first; Fierce Charge +2 / +4 / +4 on a charge
-      if (charge > 0) attack += charge + [0, 2, 4, 4][fierce];
+      if (charge > 0) attack += charge + [0, 2, 4, 4, 4][fierce];
     }
   }
   if (token.qinAttackBonus !== undefined && token.qinAttackBonus !== null) attack = token.qinAttackBonus;

@@ -179,6 +179,12 @@ test('Fierce Charge tiers: +2 / +4 / +4 on a charge attack; ++ also hits the ene
   x = run(3, 0, true);                                                       // 4 tiles: +3, Fierce++ +4, and the unit behind
   assert.deepStrictEqual([x.charge, x.fierce], [3, 4]);
   assert.ok(x.s.log.some(e => e.detail && e.detail.type === 'trample'), 'the enemy behind takes half damage');
+  const half = x.s.log.find(e => e.detail && e.detail.type === 'trample').detail.casualties;
+  x = run(4, 0, true);                                                       // Fierce Charge EX: +4, the unit behind takes full damage
+  assert.deepStrictEqual([x.charge, x.fierce], [3, 4]);
+  assert.ok(x.r.attackRoll.parts.some(([l]) => l === 'Fierce Charge EX'));
+  const full = x.s.log.find(e => e.detail && e.detail.type === 'trample').detail.casualties;
+  assert.ok(full > half, 'full damage beats half (' + full + ' vs ' + half + ')');
 });
 
 test('surrounding costs morale when an adjacent enemy ends its turn (a move alone, or undone, costs nothing)', () => {
