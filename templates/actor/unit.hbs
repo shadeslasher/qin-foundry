@@ -62,7 +62,7 @@
             {{#if officer.system.details.title}}<div class="qin-ud-otitle">{{officer.system.details.title}}</div>{{/if}}
             <h3><a data-action="openOfficer">{{officer.name}}</a></h3>
             <p>Fire {{officerStats.fire}} · Command {{officerStats.command}} · {{officerStats.skillLabel}} {{officerStats.skill}}</p>
-            <p class="qin-muted">Command {{officerStats.command}} is added to the unit's rolls; Fire + Command restores morale on turns it doesn't fight.</p>
+            <p class="qin-muted">Command {{officerStats.command}} is added to the unit's rolls{{#if officerStats.weaponBonus}}; {{officerStats.skillLabel}} {{officerStats.skill}} adds Attack +{{officerStats.weaponBonus}} on the unit's attacks{{/if}}; Fire + Command restores morale on turns it doesn't fight.</p>
             {{#if officerProblem}}<p class="qin-officer-warn"><i class="fa-solid fa-triangle-exclamation"></i> Can't lead this unit ({{officerProblem}}): it fights without an officer.</p>{{/if}}
             {{#if editable}}<a data-action="clearOfficer"><i class="fa-solid fa-xmark"></i> Remove officer</a>{{/if}}
           </div>

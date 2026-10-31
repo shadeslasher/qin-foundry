@@ -521,7 +521,7 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
       officer, officerStats: officer ? {
         fire: officer.system.aspects.fire, command: officer.system.skills.command.value,
         // two-weapon units: the officer's higher skill of the two
-        ...(() => { const b = officerWeaponSkill(officer, system); return { skill: b.value, skillLabel: SKILLS[b.key]?.label }; })(),
+        ...(() => { const b = officerWeaponSkill(officer, system); return { skill: b.value, skillLabel: SKILLS[b.key]?.label, weaponBonus: Math.max(0, (Number(b.value) || 0) - 2) }; })(),
       } : null,
       // characters that can be picked as officer: any for the GM, a player's own characters for them
       officerChoices: this.isEditable ? (game.actors?.contents ?? []).filter(a => a.type === "character" && (game.user.isGM || a.isOwner))
