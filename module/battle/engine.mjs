@@ -1041,10 +1041,11 @@ function resolveAttack(s, attacker, defender, opts) {
   attacker.men = Math.max(0, attacker.men - casAtt);
   // Fierce Charge++: the enemy unit right behind the defender (in the charge's direction) takes half the damage
   let trample = null;
-  // Fierce Charge (any tier) that wins the roll pins the defender: it can't move on its next activation (David, 2026-10-31)
-  if (charge && fierce >= 1 && winner === 'attacker' && alive(defender) && !fx(defender).pinned) {
-    fx(defender).pinned = true;
-    log(s, defender.name + ' is pinned by the charge and cannot move on its next activation.', { type: 'pinned', unit: defender.id });
+  // Shock (David, 2026-10-31): a Fierce Charge (any tier) that wins the roll against foot troops leaves them shocked:
+  // they can't move on their next activation. s.cavalryShock (sim/testing) extends it to every cavalry charge.
+  if (charge && winner === 'attacker' && (fierce >= 1 || s.cavalryShock) && dt.category !== 'cavalry' && alive(defender) && !fx(defender).shocked) {
+    fx(defender).shocked = true;
+    log(s, defender.name + ' is shocked by the charge and cannot move on its next activation.', { type: 'shocked', unit: defender.id });
   }
   // Fierce Charge++ / EX: only a successful charge (the attacker wins the roll) hits the unit behind (David, 2026-10-31)
   if (charge && fierce >= 3 && winner === 'attacker' && dmgToDef > 0) {
@@ -1476,9 +1477,9 @@ function endRound(s) {
 
 function startActivation(s, u, extra) {
   if (u.round && u.round.holding) u.round.holding = false; // Hold ends when the unit acts again
-  if (u.fx && u.fx.pinned) { // pinned by a Fierce Charge: no movement this activation
-    delete u.fx.pinned; u.round.cannotMove = true;
-    log(s, u.name + ' is pinned and cannot move this turn.', { type: 'pinned', unit: u.id });
+  if (u.fx && u.fx.shocked) { // shocked by a charge: no movement this activation
+    delete u.fx.shocked; u.round.cannotMove = true;
+    log(s, u.name + ' is shocked and cannot move this turn.', { type: 'shocked', unit: u.id });
   }
   if (u.overwatch) { delete u.overwatch; log(s, u.name + ' stands down from overwatch.', { type: 'overwatch', unit: u.id, on: false }); }
   s.turn.activation = Object.assign({ unitId: u.id, step: 'move', started: false, startedHidden: !!u.hidden,

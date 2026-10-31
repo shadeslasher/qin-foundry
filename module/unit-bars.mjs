@@ -61,6 +61,14 @@ function drawOverwatch(size) {
   return g;
 }
 
+/** Shock (David, 2026-10-31): a lightning bolt, the unit was hit by a winning charge and can't move on its next activation. */
+function drawShock(size) {
+  const g = new PIXI.Graphics(), u = size / 20;
+  g.lineStyle(Math.max(1, u * 0.9), 0x3a2400, 1).beginFill(0xffd84a, 1)
+    .drawPolygon([2 * u, -8.5 * u, -5 * u, 1 * u, -0.5 * u, 1 * u, -2.5 * u, 8.5 * u, 5.5 * u, -1.5 * u, 0.8 * u, -1.5 * u]).endFill();
+  return g;
+}
+
 /** Which way the unit faces in the battle (up, down, left or right), or null; none while tokens rotate instead. */
 function facingOf(token) {
   const f = battleRecord(token)?.meta?.[token.id]?.facing;
@@ -444,7 +452,7 @@ export async function drawUnitBars(token) {
   // a player's own units get bright corner brackets (only that player sees them; the GM never does)
   const mine = !game.user?.isGM && !!actor.isOwner;
   const facing = facingOf(token);
-  const key = JSON.stringify([men, max, morale, w, h, s.side, acted, active, holding, watching, st, mine, n, art, off, fac?.img ?? null, facing, battleRecord(token)?.meta?.[token.id]?.carry ?? null, s.traits]); // traits: equipment icons (ladders, engine)
+  const key = JSON.stringify([men, max, morale, w, h, s.side, acted, active, holding, watching, st, mine, n, art, off, fac?.img ?? null, facing, battleRecord(token)?.meta?.[token.id]?.carry ?? null, !!battleRecord(token)?.meta?.[token.id]?.fx?.shocked, s.traits]); // traits: equipment icons (ladders, engine)
   let c = token[KEY];
   if (c && !c.destroyed && c.parent === token && c.qinKey === key) return;
   const my = (gen.get(token) ?? 0) + 1;
@@ -560,6 +568,7 @@ export async function drawUnitBars(token) {
   if (st.range) icons.push([drawBow, signed(st.range), st.range < 0]);
   if (st.hidden) icons.push([drawHiddenEye, "", false]);
   if (watching) icons.push([drawOverwatch, "", false]);
+  if (battleRecord(token)?.meta?.[token.id]?.fx?.shocked) icons.push([drawShock, "", true]);
   // siege equipment it carries: the battle's record once a battle runs (it can drop or pick it up), else its traits
   const tiers = tiersFor(s.traits);
   const carried = battleRecord(token)?.meta?.[token.id]?.carry;

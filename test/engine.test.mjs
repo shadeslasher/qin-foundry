@@ -796,7 +796,7 @@ test('Inspiration from two neighbours counts once (same-name traits do not stack
   assert.strictEqual(R.unitById(s, a).morale, 54, 'the best one (Inspiration+ 4), not 2 + 4');
 });
 
-test('Fierce Charge: a winning charge pins the defender (no move on its next activation); a lost charge pins nothing and spares the unit behind', () => {
+test('Fierce Charge: a winning charge shocks foot defenders (no move on their next activation); a lost charge shocks nothing and spares the unit behind', () => {
   const run = (rolls, startY = 0) => {
     const s = setup();
     const a = add(s, { typeId: 'han_lancer_cav', side: 'player', owner: 'p1', x: 5, y: startY });
@@ -812,10 +812,10 @@ test('Fierce Charge: a winning charge pins the defender (no move on its next act
     return { s, d: R.unitById(s, d) };
   };
   let x = run([3, 0, 0, 0]);                       // charge wins
-  assert.ok(x.d.fx.pinned, 'pinned');
+  assert.ok(x.d.fx.shocked, 'shocked');
   assert.ok(x.s.log.some(e => e.detail && e.detail.type === 'trample'));
   x = run([0, 0, 9, 0], 2);                        // short charge (+1, Fierce +4): the defender wins the roll
   assert.ok(x.s.log.some(e => e.detail && e.detail.type === 'attack' && e.detail.result.winner === 'defender'), 'defender won');
-  assert.ok(!(x.d.fx && x.d.fx.pinned), 'a lost charge pins nothing');
+  assert.ok(!(x.d.fx && x.d.fx.shocked), 'a lost charge shocks nothing');
   assert.ok(!x.s.log.some(e => e.detail && e.detail.type === 'trample'), 'a lost charge spares the unit behind');
 });
