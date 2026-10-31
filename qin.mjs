@@ -8,6 +8,7 @@ import { QinItem, QinCombat } from "./module/documents/other.mjs";
 import { CharacterSheet, HenchmanSheet, UnitSheet, QinItemSheet } from "./module/sheets/sheets.mjs";
 import { onRenderChatMessage } from "./module/chat.mjs";
 import { BattlePanel, registerBattleQuery, battleRequest } from "./module/battle/battle.mjs";
+import { registerDeployDrop } from "./module/battle/deploy-drop.mjs";
 import { emptyBattle, onTokenMoved, getBattle } from "./module/battle/adapter.mjs";
 import * as QinRules from "./module/rules/qin-rules.mjs";
 import { registerTokenHover } from "./module/token-hover.mjs";
@@ -208,6 +209,7 @@ Hooks.once("init", () => {
   });
 
   registerBattleQuery();
+  registerDeployDrop();
   registerRecruitQuery();
   registerCombatQuery();
 });

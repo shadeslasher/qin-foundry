@@ -574,7 +574,9 @@ export function showUnitBox(token) {
     + `<button type="button" data-info="1"><i class="fa-solid fa-circle-info"></i> Info</button>`
     + (canPinThreat(token) ? `<button type="button" data-threat="1" class="${threatPinned(token.id) ? "qin-on" : ""}" title="Keep this unit's reach on the map: where it can move this turn and, in orange, where it could attack from there. Press again to hide it."><i class="fa-solid fa-bullseye"></i> ${threatPinned(token.id) ? "Hide threat range" : "Threat range"}</button>` : "");
   document.body.append(pickEl);
-  playMoment("Unit selected");
+  // no "Unit selected" sound while units are being deployed (setup and tactics phases: David, 2026-10-30)
+  { const b = game.settings.get(SYSTEM_ID, "battle"); const deploying = b?.active && b.sceneId === canvas.scene?.id && ["setup", "tactics"].includes(b.turn?.phase);
+    if (!deploying) playMoment("Unit selected"); }
   const pos = toClient({ x: token.x + token.w, y: token.y });
   pickEl.style.left = `${Math.round(pos.x + 8)}px`;
   pickEl.style.top = `${Math.round(pos.y)}px`;
