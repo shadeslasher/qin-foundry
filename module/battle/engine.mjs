@@ -1462,10 +1462,10 @@ function startActivation(s, u, extra) {
     movedThisActivation: false, tilesMoved: 0, roughPath: false, forcedMarched: false, interject: false, from: { x: u.x, y: u.y } }, extra || {});
 }
 
-/** Tiles that count for a charge against `target`: none if the unit started its turn next to it (no stepping out and back in). */
-function chargeTiles(ac, target) {
+/** Tiles that count for a charge. Any cavalry that moved 2+ tiles and attacks charges, even if it started next to
+ *  the target (David, 2026-10-30, for clarity; replaces the "no stepping out and back in" rule). */
+function chargeTiles(ac, target) { // eslint-disable-line no-unused-vars
   if (ac.roughPath) return 0; // cavalry that rode across or onto rough ground get no charge
-  if (ac.from && Math.abs(ac.from.x - target.x) + Math.abs(ac.from.y - target.y) <= 1) return 0;
   return ac.tilesMoved || 0;
 }
 
