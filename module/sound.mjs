@@ -183,6 +183,7 @@ export function onUnitTokenMoved(doc, change, battle) {
   lastPos.set(doc.id, { x: doc.x, y: doc.y });
   if (doc.actor?.type !== "unit") return;
   if (!battle?.active || battle.sceneId !== doc.parent?.id || canvas?.scene?.id !== doc.parent?.id) return;
+  if (["setup", "tactics"].includes(battle.turn?.phase ?? "setup")) return; // no unit sounds while deploying (David, 2026-10-30)
   if (doc.hidden && !game.user.isGM) return;
   const size = doc.parent?.grid?.size ?? 100;
   const squares = from ? Math.max(Math.abs(doc.x - from.x), Math.abs(doc.y - from.y)) / size : 1;

@@ -36,7 +36,10 @@ export function drawNameLabels() {
     if (t2) { t2.anchor?.set?.(0.5, 0); t2.position.set(cx, top + T * 0.01 + t1.height - 1); layer.addChild(t2); }
     if (tok.document.hidden) { bg.alpha = 0.6; t1.alpha = 0.7; if (t2) t2.alpha = 0.7; } // the GM's view of a hidden unit
   }
-  (canvas.interface ?? canvas.controls ?? canvas.stage).addChild(layer);
+  // above every unit stand, so a label isn't hidden under the unit below it (David, 2026-10-30)
+  const parent = canvas.interface ?? canvas.controls ?? canvas.stage;
+  layer.zIndex = 1e6; parent.sortableChildren = true;
+  parent.addChild(layer); parent.sortChildren?.();
 }
 
 export function nameLabelsOn() { return on; }
