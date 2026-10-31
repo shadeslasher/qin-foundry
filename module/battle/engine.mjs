@@ -1041,7 +1041,13 @@ function resolveAttack(s, attacker, defender, opts) {
   attacker.men = Math.max(0, attacker.men - casAtt);
   // Fierce Charge++: the enemy unit right behind the defender (in the charge's direction) takes half the damage
   let trample = null;
-  if (charge && fierce >= 3 && dmgToDef > 0) {
+  // Fierce Charge (any tier) that wins the roll pins the defender: it can't move on its next activation (David, 2026-10-31)
+  if (charge && fierce >= 1 && winner === 'attacker' && alive(defender) && !fx(defender).pinned) {
+    fx(defender).pinned = true;
+    log(s, defender.name + ' is pinned by the charge and cannot move on its next activation.', { type: 'pinned', unit: defender.id });
+  }
+  // Fierce Charge++ / EX: only a successful charge (the attacker wins the roll) hits the unit behind (David, 2026-10-31)
+  if (charge && fierce >= 3 && winner === 'attacker' && dmgToDef > 0) {
     const ddx = defender.x - attacker.x, ddy = defender.y - attacker.y;
     const dir = Math.abs(ddx) >= Math.abs(ddy) ? { x: sign(ddx), y: 0 } : { x: 0, y: sign(ddy) };
     const b = unitAt(s, defender.x + dir.x, defender.y + dir.y);
@@ -1470,6 +1476,10 @@ function endRound(s) {
 
 function startActivation(s, u, extra) {
   if (u.round && u.round.holding) u.round.holding = false; // Hold ends when the unit acts again
+  if (u.fx && u.fx.pinned) { // pinned by a Fierce Charge: no movement this activation
+    delete u.fx.pinned; u.round.cannotMove = true;
+    log(s, u.name + ' is pinned and cannot move this turn.', { type: 'pinned', unit: u.id });
+  }
   if (u.overwatch) { delete u.overwatch; log(s, u.name + ' stands down from overwatch.', { type: 'overwatch', unit: u.id, on: false }); }
   s.turn.activation = Object.assign({ unitId: u.id, step: 'move', started: false, startedHidden: !!u.hidden,
     movedThisActivation: false, tilesMoved: 0, roughPath: false, forcedMarched: false, interject: false, from: { x: u.x, y: u.y } }, extra || {});
