@@ -611,6 +611,12 @@ export async function drawUnitBars(token) {
     c.qinTick();
     canvas.app?.ticker?.add(c.qinTick);
   }
+  // the banner sits above every outline drawn on the stand (David, 2026-10-31: it went under the border); greyed with the stand
+  if (c.qinFlag && !c.qinFlag.destroyed) {
+    if (stand.filters?.length) c.qinFlag.filters = stand.filters;
+    c.qinFlag.alpha = stand.alpha;
+    c.addChild(c.qinFlag);
+  }
 }
 
 /**
