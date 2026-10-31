@@ -813,6 +813,19 @@ test('Fierce Charge: a winning charge shocks foot defenders (no move on their ne
   };
   let x = run([3, 0, 0, 0]);                       // charge wins
   assert.ok(x.d.fx.shocked, 'shocked');
+  { // Shock is a cavalry rule: no Fierce Charge needed
+    const s = setup();
+    const a = add(s, { typeId: 'han_lancer_cav', side: 'player', owner: 'p1', x: 5, y: 0 });
+    const d = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 5 });
+    R.unitById(s, a).fierceCharge = 0;
+    must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'startRound' }));
+    must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: a }));
+    s.freeMovement = false;
+    must(R.act(s, P1, { type: 'moveTo', unitId: a, x: 5, y: 4 }));
+    dice([5, 0, 0, 0]);
+    must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
+    assert.ok(R.unitById(s, d).fx.shocked, 'shocked without Fierce Charge');
+  }
   assert.ok(x.s.log.some(e => e.detail && e.detail.type === 'trample'));
   x = run([0, 0, 9, 0], 2);                        // short charge (+1, Fierce +4): the defender wins the roll
   assert.ok(x.s.log.some(e => e.detail && e.detail.type === 'attack' && e.detail.result.winner === 'defender'), 'defender won');

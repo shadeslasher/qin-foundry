@@ -1041,9 +1041,9 @@ function resolveAttack(s, attacker, defender, opts) {
   attacker.men = Math.max(0, attacker.men - casAtt);
   // Fierce Charge++: the enemy unit right behind the defender (in the charge's direction) takes half the damage
   let trample = null;
-  // Shock (David, 2026-10-31): a Fierce Charge (any tier) that wins the roll against foot troops leaves them shocked:
-  // they can't move on their next activation. s.cavalryShock (sim/testing) extends it to every cavalry charge.
-  if (charge && winner === 'attacker' && (fierce >= 1 || s.cavalryShock) && dt.category !== 'cavalry' && alive(defender) && !fx(defender).shocked) {
+  // Shock (David, 2026-10-31, a cavalry rule): any cavalry charge that wins the roll against foot troops leaves them
+  // shocked: they can't move on their next activation.
+  if (charge && winner === 'attacker' && dt.category !== 'cavalry' && alive(defender) && !fx(defender).shocked) {
     fx(defender).shocked = true;
     log(s, defender.name + ' is shocked by the charge and cannot move on its next activation.', { type: 'shocked', unit: defender.id });
   }
