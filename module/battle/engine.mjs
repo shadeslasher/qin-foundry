@@ -2122,6 +2122,7 @@ const ACTIONS = {
     // attacking commits the move: apply any encirclement it caused first
     settle(s);
     if (!alive(d)) { log(s, d.name + ' gave up before the attack landed.'); if (alive(u)) finishActivation(s, u); return; }
+    ac.lastTargetId = d.id; // Hit and Fade rides away from this unit
     const res = resolveAttack(s, u, d, { movedThisActivation: ac.movedThisActivation, tilesMoved: chargeTiles(ac, d), ambush: !!u.hidden });
     if (!alive(u)) return;
     // Clear a Path: destroying an enemy after moving lets the unit move and attack again
@@ -2162,7 +2163,7 @@ const ACTIONS = {
     if (a.x !== undefined && a.y !== undefined) {
       if (!ac.reposition.tiles.some(([x, y]) => x === a.x && y === a.y)) return err('Pick one of the marked tiles');
       u.x = a.x; u.y = a.y;
-      log(s, u.name + (ac.reposition.outrider ? ' rides on.' : ac.reposition.skirmish ? ' skirmishes back.' : ' moves up beside the enemy.'));
+      log(s, u.name + (ac.reposition.outrider ? ' rides on.' : ac.reposition.fade ? ' fades away.' : ac.reposition.skirmish ? ' skirmishes back.' : ' moves up beside the enemy.'));
       revealAround(s, u);
     }
     const { targetId, won, melee, skirmish } = ac.reposition;
@@ -2333,6 +2334,25 @@ function backsTurned(s, u, to) {
 
 /** The end of an attacking turn: Skirmisher (move 1 tile, Skirmisher+ 2) after attacking, else the turn ends. */
 function endAfterAttack(s, u, ac) {
+  // Hit and Fade (Xianbei, David 2026-11-01): after attacking, the unit may use its remaining movement,
+  // as long as it ends farther from the enemy it attacked. Replaces Skirmisher when it reaches farther.
+  if (alive(u) && trait(u, 'hit and fade') && !ac.faded) {
+    ac.faded = true;
+    const left = Math.max(0, movementOf(s, u) - (ac.movedThisActivation ? (ac.tilesMoved || 0) : 0));
+    const t = unitById(s, ac.lastTargetId);
+    if (left > 0) {
+      const reach = reachable(s, u, left);
+      const from = t ? manhattan(u, t) : 0;
+      const tiles = [...reach.keys()].map(k => k.split(',').map(Number))
+        .filter(([x, y]) => !(x === u.x && y === u.y) && !unitAt(s, x, y) && (!t || !alive(t) || Math.abs(x - t.x) + Math.abs(y - t.y) > from));
+      if (tiles.length) {
+        ac.skirmished = true;
+        ac.step = 'reposition'; ac.reposition = { skirmish: true, fade: true, tiles };
+        log(s, u.name + ' may hit and fade: ride up to ' + left + ' tile' + (left === 1 ? '' : 's') + ' away.');
+        return;
+      }
+    }
+  }
   const sk = trait(u, 'skirmisher');
   if (alive(u) && sk && !ac.skirmished) {
     ac.skirmished = true;

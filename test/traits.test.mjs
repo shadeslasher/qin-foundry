@@ -377,3 +377,15 @@ test('Fragile / Fragile- / Fragile-- (2026-10-29): -5 / -4 / -3 extra morale on 
   assert.strictEqual(loss({ 'fragile-': 1 }) - plain, 4);
   assert.strictEqual(loss({ 'fragile--': 1 }) - plain, 3);
 });
+
+test('Hit and Fade: after attacking without moving, it may use its full move, ending farther from the target', () => {
+  const { s, A, D } = duel(unitType('hf', { category: 'cavalry', move: 3 }), unitType('d'), [3, 0, 0, 0], traits({ 'hit and fade': 1 }));
+  const ac = s.turn.activation;
+  assert.ok(ac && ac.step === 'reposition' && ac.reposition.fade, 'offered a fade move');
+  const from = Math.abs(A.x - D.x) + Math.abs(A.y - D.y);
+  assert.ok(ac.reposition.tiles.every(([x, y]) => Math.abs(x - D.x) + Math.abs(y - D.y) > from), 'every tile is farther from the target');
+  assert.ok(ac.reposition.tiles.some(([x, y]) => Math.abs(x - A.x) + Math.abs(y - A.y) === 3), 'can use all 3 movement');
+  const [x, y] = ac.reposition.tiles[0];
+  must(R.act(s, P1, { type: 'reposition', unitId: A.id, x, y }));
+  assert.ok(!s.turn.activation || s.turn.activation.unitId !== A.id, 'turn over');
+});
