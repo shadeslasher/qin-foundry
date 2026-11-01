@@ -531,3 +531,19 @@ test('Pale Thunder: Attack +2 on a ranged attack; after firing, none until a cha
   assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Pale Thunder/), 0, 'plain melee gets nothing');
   assert.strictEqual(part(rollOf(s, A, 'defender', D, { ranged: true }), /^Pale Thunder/), 0, 'not when defending');
 });
+
+test('Bonds of Brotherhood: Attack +2 against an enemy that attacked an allied unit this round', () => {
+  const s = setup(); s.library.unitTypes.push(unitType('a'), unitType('d'));
+  const A = R.unitById(s, add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 5, y: 5 }));
+  const F = R.unitById(s, add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 6, y: 4 }));
+  const D = R.unitById(s, add(s, { typeId: 'd', side: 'enemy', x: 5, y: 4 }));
+  A.traitTiers = { 'bonds of brotherhood': 1 };
+  assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Bonds/), 0, 'enemy has attacked nobody');
+  D.fx = { struck: { round: s.turn.round, hits: [{ id: A.id, side: 'player' }] } };
+  assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Bonds/), 0, 'attacking this unit itself does not count');
+  D.fx.struck.hits.push({ id: F.id, side: 'player' });
+  assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Bonds/), 2);
+  assert.strictEqual(part(rollOf(s, A, 'defender', D), /^Bonds/), 0, 'not when defending');
+  D.fx.struck.round = s.turn.round - 1;
+  assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Bonds/), 0, 'only this round');
+});

@@ -407,3 +407,8 @@ test('Breakthrough: a winning melee attack costs the defender 3 more morale; not
   const shotPlain = duel(unitType('b', { weapon: 'ranged', rangeMax: 3 }), unitType('d'), [9, 0, 0, 0]);
   assert.strictEqual(shot.r.moraleLoss, shotPlain.r.moraleLoss, 'melee only');
 });
+
+test('Bonds of Brotherhood: an attack records its target for the round', () => {
+  const { s, A, D } = duel(unitType('a'), unitType('d'), [9, 0, 0, 0]);
+  assert.deepStrictEqual(A.fx.struck, { round: s.turn.round, hits: [{ id: D.id, side: D.side }] });
+});

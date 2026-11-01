@@ -908,6 +908,11 @@ function buildRoll(s, unit, role, ctx) {
   if (role === 'attacker' && trait(unit, 'ride them down') && other && (other.morale ?? 100) <= 25) parts.push(['Ride Them Down (target Demoralized)', 3]);
   // Avenge the Fallen (Wu, David 2026-11-01): Attack +4 on the next attack after a nearby ally fell
   if (role === 'attacker' && fx(unit).avenge) parts.push(['Avenge the Fallen', 4]);
+  // Bonds of Brotherhood (Liu Bei, David 2026-11-01): Attack +2 against an enemy that attacked an allied unit this round
+  if (role === 'attacker' && other && trait(unit, 'bonds of brotherhood')) {
+    const st = other.fx && other.fx.struck;
+    if (st && st.round === s.turn.round && st.hits.some(h => h.side === unit.side && h.id !== unit.id)) parts.push(['Bonds of Brotherhood (it attacked an ally this round)', 2]);
+  }
   // Pale Thunder (Gongsun Zan, David 2026-11-01): Attack +2 on a ranged attack; once fired, the bonus is gone until the unit
   // makes a charge attack, and that charge gains Attack +2 (then the ranged bonus is back)
   if (role === 'attacker' && trait(unit, 'pale thunder')) {
@@ -1006,6 +1011,10 @@ function resolveAttack(s, attacker, defender, opts) {
 
   const A = buildRoll(s, attacker, 'attacker', ctx);
   if (fx(attacker).avenge) delete fx(attacker).avenge; // Avenge the Fallen: the bonus is spent on this attack
+  { // remember whom this unit attacked this round (Bonds of Brotherhood)
+    const f = fx(attacker); if (!f.struck || f.struck.round !== s.turn.round) f.struck = { round: s.turn.round, hits: [] };
+    f.struck.hits.push({ id: defender.id, side: defender.side });
+  }
   if (trait(attacker, 'pale thunder')) { if (ranged) fx(attacker).paleFired = true; else if (charge) delete fx(attacker).paleFired; }
   const D = buildRoll(s, defender, 'defender', ctx);
   const diff = Math.abs(A.total - D.total);
