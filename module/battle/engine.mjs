@@ -1071,6 +1071,8 @@ function resolveAttack(s, attacker, defender, opts) {
       if (ranged && trait(attacker, 'fire arrows')) moraleLoss += 3; // Fire Arrows: a hit costs 3 more morale
       // Trample: a winning charge against infantry costs the defender 5 more morale
       if (charge && trait(attacker, 'trample') && dt.category === 'infantry') moraleLoss += 5;
+      // Breakthrough (Lu Bu, David 2026-11-01): a melee attack that wins the roll costs the defender 3 more morale
+      if (!ranged && trait(attacker, 'breakthrough')) moraleLoss += 3;
       if (rear && trait(defender, 'cowardly')) moraleLoss *= 2; // Cowardly: rear attacks cause double morale loss
     } else {
       moraleLoss = base + (passive(s, defender).extraMoraleLossOnWin || 0);

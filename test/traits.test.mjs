@@ -395,3 +395,15 @@ test('Four Generations: immune to Terror', () => {
   const fg = duel(unitType('t'), unitType('d'), [9, 0, 0, 0], (a, d) => { a.traitTiers = { terror: 1 }; d.traitTiers = { 'four generations': 1 }; });
   assert.strictEqual(plain.r.moraleLoss - 2, fg.r.moraleLoss);
 });
+
+test('Breakthrough: a winning melee attack costs the defender 3 more morale; not on a lost roll or a shot', () => {
+  const plain = duel(unitType('b'), unitType('d'), [9, 0, 0, 0]);
+  const bt = duel(unitType('b'), unitType('d'), [9, 0, 0, 0], traits({ breakthrough: 1 }));
+  assert.strictEqual(bt.r.moraleLoss, plain.r.moraleLoss + 3);
+  const lost = duel(unitType('b'), unitType('d'), [0, 0, 9, 0], traits({ breakthrough: 1 }));
+  const lostPlain = duel(unitType('b'), unitType('d'), [0, 0, 9, 0]);
+  assert.strictEqual(lost.r.moraleLoss, lostPlain.r.moraleLoss, 'losing the roll: no effect');
+  const shot = duel(unitType('b', { weapon: 'ranged', rangeMax: 3 }), unitType('d'), [9, 0, 0, 0], traits({ breakthrough: 1 }));
+  const shotPlain = duel(unitType('b', { weapon: 'ranged', rangeMax: 3 }), unitType('d'), [9, 0, 0, 0]);
+  assert.strictEqual(shot.r.moraleLoss, shotPlain.r.moraleLoss, 'melee only');
+});

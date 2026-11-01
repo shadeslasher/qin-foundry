@@ -5,7 +5,7 @@ const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? ""
 const SIDES = { player: "Player", ally: "Ally", enemy: "Enemy", neutral: "Neutral" };
 
 /** The battle units' three armies (anything else is listed after them as "Other"). */
-export const ARMIES = ["Han", "Bandits", "Yellow Turbans", "Qiang", "Northern", "Cao Cao", "Wei", "Xiongnu", "Xianbei", "Song", "Xiliang", "Mercenary", "Wu", "Yuan Shu", "Gongsun Zan", "Other"];
+export const ARMIES = ["Han", "Bandits", "Yellow Turbans", "Qiang", "Northern", "Cao Cao", "Wei", "Xiongnu", "Xianbei", "Song", "Xiliang", "Mercenary", "Wu", "Yuan Shu", "Gongsun Zan", "Lu Bu", "Other"];
 export function factionGroup(f) {
   const k = String(f ?? "").toLowerCase();
   if (/yellow|turban/.test(k)) return "Yellow Turbans";
@@ -22,6 +22,7 @@ export function factionGroup(f) {
   if (/^wu\b/.test(k)) return "Wu"; // Wu: Sun Jian / Sun Ce units (David, 2026-11-01)
   if (/yuan.?shu/.test(k)) return "Yuan Shu"; // Yuan Shu's units (David, 2026-11-01)
   if (/gongsun|white.?horse/.test(k)) return "Gongsun Zan"; // Gongsun Zan's White Horse units (David, 2026-11-01)
+  if (/lu.?bu/.test(k)) return "Lu Bu"; // Lu Bu's units (David, 2026-11-01)
   if (/^han\b|han-empire|^han$/.test(k)) return "Han";
   return "Other";
 }
