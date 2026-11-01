@@ -412,3 +412,15 @@ test('Bonds of Brotherhood: an attack records its target for the round', () => {
   const { s, A, D } = duel(unitType('a'), unitType('d'), [9, 0, 0, 0]);
   assert.deepStrictEqual(A.fx.struck, { round: s.turn.round, hits: [{ id: D.id, side: D.side }] });
 });
+
+test("Scholar's Peace: above 50 morale, the first morale loss each round is 3 smaller", () => {
+  const plain = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], (a, d) => { d.morale = 60; });
+  const sp = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], (a, d) => { d.morale = 60; d.traitTiers = { "scholar's peace": 1 }; });
+  assert.strictEqual(sp.r.moraleLoss, plain.r.moraleLoss - 3);
+  assert.strictEqual(sp.D.fx.peaceRound, sp.s.turn.round, 'used for this round');
+  const low = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], (a, d) => { d.morale = 50; d.traitTiers = { "scholar's peace": 1 }; });
+  const lowPlain = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], (a, d) => { d.morale = 50; });
+  assert.strictEqual(low.r.moraleLoss, lowPlain.r.moraleLoss, 'not at 50 or below');
+  const used = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], (a, d) => { d.morale = 60; d.traitTiers = { "scholar's peace": 1 }; d.fx = { peaceRound: 1 }; });
+  if (used.s.turn.round === 1) assert.strictEqual(used.r.moraleLoss, plain.r.moraleLoss, 'once a round');
+});

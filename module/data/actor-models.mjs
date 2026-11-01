@@ -127,7 +127,7 @@ export class HenchmanData extends QinBaseActor {
 export function defaultMoraleFor(traits) {
   const t = traitTiersOf(traits), d = t.disciplined || 0;
   // Disciplined EX +20; Four Generations (Song, David 2026-11-01) +5
-  return 50 + [0, 5, 10, 15, 20][Math.min(4, d)] + (t['four generations'] ? 5 : 0);
+  return 50 + [0, 5, 10, 15, 20][Math.min(4, d)] + (t['four generations'] ? 5 : 0) + (t["scholar's peace"] ? 5 : 0); // Scholar's Peace (Liu Biao) +5
 }
 
 export class UnitData extends foundry.abstract.TypeDataModel {

@@ -369,6 +369,15 @@ const holdingNow = (u) => !!(u && u.round && u.round.holding) && !suppressed(u);
 const tierVal = (tier, vals) => (tier ? vals[Math.min(tier, vals.length) - 1] : 0);
 /** Lasting per-unit battle effects (poison, sunder, reload, slowed, stood still last turn). */
 function fx(u) { if (!u.fx) u.fx = {}; return u.fx; }
+/** Scholar's Peace (Liu Biao, David 2026-11-01): while above 50 morale, the first morale loss each round is 3 smaller. */
+function peaceCut(s, u, n) {
+  if (!(n > 0) || !trait(u, "scholar's peace") || !(u.morale > 50)) return n;
+  const r = (s.turn && s.turn.round) || 0;
+  if (fx(u).peaceRound === r) return n;
+  fx(u).peaceRound = r;
+  log(s, u.name + " loses 3 less morale (Scholar's Peace).", { type: 'scholarsPeace', unit: u.id });
+  return Math.max(0, n - 3);
+}
 /** Extra range from Range Up (if the unit stood still on its last turn). */
 function rangeBonus(s, u) { return fx(u).stillLast ? tierVal(trait(u, 'range up'), [1, 2]) : 0; }
 
@@ -1131,11 +1140,11 @@ function resolveAttack(s, attacker, defender, opts) {
       log(s, ('Splash Attack' + '+'.repeat(Math.min(2, splash - 1)) + ': ') + b.name + ', next to ' + defender.name + ', takes ' + cas + ' casualties.', { type: 'splash', unit: b.id, casualties: cas });
     }
   }
-  if (loser) loser.morale = clamp(loser.morale - moraleLoss, 0, 100);
+  if (loser) { moraleLoss = peaceCut(s, loser, moraleLoss); loser.morale = clamp(loser.morale - moraleLoss, 0, 100); }
   // Cutthroat (bandits, David 2026-10-28): the unit that wins the contested roll, attacking or defending, gains 1 / 2 / 3 morale
   if (winner) { const w = winner === 'attacker' ? attacker : defender, bl = trait(w, 'cutthroat'); if (bl) w.morale = clamp(w.morale + tierVal(bl, [1, 2, 3]), 0, 100); }
   // casualties cost morale at checkpoints: -5 the first time each fifth of the unit's health is lost this battle
-  const cmD = checkpointMorale(defender), cmA = checkpointMorale(attacker);
+  const cmD = peaceCut(s, defender, checkpointMorale(defender)), cmA = peaceCut(s, attacker, checkpointMorale(attacker));
   if (cmD) defender.morale = clamp(defender.morale - cmD, 0, 100);
   if (cmA) attacker.morale = clamp(attacker.morale - cmA, 0, 100);
 
