@@ -845,3 +845,18 @@ test('Plunderers: 3 x the broken unit\'s tier in morale when an enemy within 3 s
   assert.strictEqual(P.morale, 46, 'within 3: +3 x tier 2 (Ji Infantry)');
   assert.strictEqual(F.morale, 40, 'too far away');
 });
+
+test('Avenge the Fallen: an ally within 3 squares falls -> +5 morale and Attack +4 on the next attack only', () => {
+  const s = setup();
+  const a = add(s, { typeId: 'han_ji_inf', side: 'player', owner: 'p1', x: 5, y: 5, morale: 20 });
+  const w = add(s, { typeId: 'han_ji_inf', side: 'player', owner: 'p1', x: 5, y: 7, morale: 40 });
+  const e = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 6, y: 7 });
+  const W = R.unitById(s, w), E = R.unitById(s, e);
+  W.traitTiers = { 'avenge the fallen': 1 };
+  must(R.act(s, HOST, { type: 'adjust', unitId: a, morale: -20 }));
+  assert.strictEqual(W.morale, 45, '+5 morale');
+  const part = (r) => r.parts.filter(([l]) => /^Avenge/.test(l)).reduce((t, [, v]) => t + v, 0);
+  assert.strictEqual(part(R.buildRoll(s, W, 'attacker', { attacker: W, defender: E })), 4);
+  dice([0, 0, 0, 0]); R.resolveAttack(s, W, E, {});
+  assert.strictEqual(part(R.buildRoll(s, W, 'attacker', { attacker: W, defender: E })), 0, 'spent');
+});

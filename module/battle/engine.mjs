@@ -906,6 +906,8 @@ function buildRoll(s, unit, role, ctx) {
     parts.push(['Opportunists (enemy already engaged)', 2]);
   // Ride Them Down (Xiliang, David 2026-11-01): Attack +3 against a Demoralized enemy (25 morale or less)
   if (role === 'attacker' && trait(unit, 'ride them down') && other && (other.morale ?? 100) <= 25) parts.push(['Ride Them Down (target Demoralized)', 3]);
+  // Avenge the Fallen (Wu, David 2026-11-01): Attack +4 on the next attack after a nearby ally fell
+  if (role === 'attacker' && fx(unit).avenge) parts.push(['Avenge the Fallen', 4]);
   if (role === 'attacker' && trait(unit, 'ruthless pursuit') && (other.morale ?? 100) <= 50) parts.push(['Ruthless Pursuit (target at 50 morale or less)', 2]);
   let ms = moraleState(unit.morale);
   if (ms === 'Surrendered' && trait(unit, 'fanatic')) ms = 'Demoralized'; // Fanatic: fights on at 0 morale
@@ -994,6 +996,7 @@ function resolveAttack(s, attacker, defender, opts) {
   }
 
   const A = buildRoll(s, attacker, 'attacker', ctx);
+  if (fx(attacker).avenge) delete fx(attacker).avenge; // Avenge the Fallen: the bonus is spent on this attack
   const D = buildRoll(s, defender, 'defender', ctx);
   const diff = Math.abs(A.total - D.total);
   const winner = A.total > D.total ? 'attacker' : D.total > A.total ? 'defender' : null;
@@ -1284,6 +1287,13 @@ function settleLoop(s, opts) {
         if (trait(n, 'levy') && friendly(n, u) && manhattan(n, u) === 1) {
           n.morale = clamp(n.morale - 5, 0, 100);
           log(s, n.name + ' loses 5 morale (Levy: adjacent ally ' + ended.replace('is ', '') + ').');
+        }
+      }
+      // Avenge the Fallen (Wu, David 2026-11-01): an allied unit within 3 squares surrenders or is destroyed -> +5 morale, Attack +4 on the next attack
+      for (const n of liveUnits(s)) {
+        if (n !== u && trait(n, 'avenge the fallen') && friendly(n, u) && manhattan(n, u) <= 3) {
+          n.morale = clamp(n.morale + 5, 0, 100); fx(n).avenge = true;
+          log(s, n.name + ' swears vengeance: +5 morale, Attack +4 on its next attack (Avenge the Fallen).', { type: 'avenge', unit: n.id });
         }
       }
       // Plunderers (Xiongnu, David 2026-11-01): when an enemy unit within 3 squares surrenders or is destroyed, gain 3 x that unit's tier in morale
