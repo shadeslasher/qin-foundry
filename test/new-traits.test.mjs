@@ -300,6 +300,11 @@ test('Deflect: ranged defense +3 against the first ranged attack each round; Def
   assert.strictEqual(part(rollOf(s, D, 'defender', B, { ranged: true }), /^Deflect\+/), 3, 'Deflect+ still works on the second shot');
   D.round.rangedTaken = 2;
   assert.strictEqual(part(rollOf(s, D, 'defender', B, { ranged: true }), /^Deflect/), 0);
+  D.traitTiers = { deflect: 3 }; // Deflect++ (David 2026-11-01): the first three ranged attacks
+  assert.strictEqual(part(rollOf(s, D, 'defender', B, { ranged: true }), /^Deflect\+\+/), 3, 'Deflect++ on the third shot');
+  D.round.rangedTaken = 3;
+  assert.strictEqual(part(rollOf(s, D, 'defender', B, { ranged: true }), /^Deflect/), 0);
+  D.traitTiers = { deflect: 2 }; D.round.rangedTaken = 2;
   // the count comes from real attacks: a melee attack doesn't count as a ranged one
   const { D: D2 } = duel(unitType('a'), unitType('d'), [3, 0, 0, 0]);
   assert.strictEqual(D2.round.attacksTaken, 1);

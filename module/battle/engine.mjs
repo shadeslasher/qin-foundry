@@ -873,9 +873,9 @@ function buildRoll(s, unit, role, ctx) {
     if (trait(unit, 'shielded') && ctx.ranged) parts.push(['Shielded: ranged defense', tierVal(trait(unit, 'shielded'), [2, 4, 6])]); // ranged defense only; in melee the unit's Evasion trait already covers its shield (2026-10-30)
     if (ctx.ranged && trait(unit, 'shield battery') && fx(unit).stillLast) parts.push(['Shield Battery: ranged defense', 2]);
     if (!ctx.ranged && saddleOf(unit) >= 2) parts.push(['Saddle+: melee defense', 1]);
-    // Deflect: ranged defense +3 against the first ranged attack each round; Deflect+ against the first two (no melee bonus since v0.83.0, David 2026-10-28)
-    if (ctx.ranged && trait(unit, 'deflect') && (unit.round.rangedTaken || 0) < tierVal(trait(unit, 'deflect'), [1, 2]))
-      parts.push([(trait(unit, 'deflect') > 1 ? 'Deflect+' : 'Deflect') + ': ranged defense', 3]);
+    // Deflect: ranged defense +3 against the first ranged attack each round; Deflect+ the first two; Deflect++ the first three (David 2026-11-01; no melee bonus since v0.83.0)
+    if (ctx.ranged && trait(unit, 'deflect') && (unit.round.rangedTaken || 0) < tierVal(trait(unit, 'deflect'), [1, 2, 3]))
+      parts.push(['Deflect' + '+'.repeat(Math.min(2, trait(unit, 'deflect') - 1)) + ': ranged defense', 3]);
     if (fx(unit).poison) parts.push(['Poisoned: melee & ranged defense', -fx(unit).poison]);
     if (hasTactic(s, unit, 'defend')) parts.push(['Tactic: Defend (melee & ranged defense)', 2]);
     if (ctx.ranged && t.weapon === 'ranged' && hasTactic(s, unit, 'divineWinds')) parts.push(['Tactic: Divine Winds (ranged defense)', 2]);
