@@ -29,3 +29,17 @@ export function deployMoveCheck({ phase, isGM, zones, occupied }, x, y) {
   if (occupied) return no("Another unit is already on that square.");
   return ok;
 }
+
+/**
+ * The top-left free deployment square (topmost row first, then leftmost), or null when every square is taken.
+ * Used by the Deploy button (David, 2026-10-31).
+ *   zones    - Set (or array) of "x,y" deployment squares
+ *   occupied - Set of "x,y" squares a unit already stands on
+ */
+export function firstFreeSquare(zones, occupied = new Set()) {
+  const free = [...(zones ?? [])].filter(k => !occupied.has(k)).map(k => k.split(",").map(Number))
+    .filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y));
+  if (!free.length) return null;
+  free.sort((a, b) => a[1] - b[1] || a[0] - b[0]);
+  return { x: free[0][0], y: free[0][1] };
+}

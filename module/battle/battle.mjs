@@ -7,6 +7,7 @@ import { scaledPosition } from "../sheets/sheets.mjs";
 import { setBattleRequest, highlightUnit } from "./battle-ui.mjs";
 import { TacticsApp } from "./tactics-ui.mjs";
 import { importBattleMap } from "./battlemap.mjs";
+import { deployListState, deployUnit, undeployUnit } from "./deploy-drop.mjs";
 import { deployCardState, startZoneBrush, clearZones, confirmZones, discardZones, savedZones } from "./deploy.mjs";
 import { reinforceCardState, newZone, removeZone, startReinforceBrush, arriveNow, setZoneRound } from "./reinforce.mjs";
 import { objectivesCardState, addCondition, removeCondition, setRounds, startPick, startExtractionBrush } from "./objectives-ui.mjs";
@@ -137,6 +138,8 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
       objExtract: (ev, el) => startExtractionBrush(el.dataset.mode),
       hotkeys: async () => (await import("../hotkeys.mjs")).HotkeyGuide.toggle(),
       sounds: async () => (await import("../sound.mjs")).SoundPanel.toggle(),
+      deployUnit: (ev, el) => deployUnit(el.dataset.actorId),
+      undeployUnit: (ev, el) => undeployUnit(el.dataset.actorId),
       rzNew: function () { newZone(this.element.querySelector("[name=rzRounds]")?.value ?? 2); },
       rzPaint: (ev, el) => startReinforceBrush(el.dataset.id, "paint"),
       rzErase: (ev, el) => startReinforceBrush(el.dataset.id, "erase"),
@@ -203,7 +206,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
           : tac ? `Tactics phase. Player tactician: <b>${foundry.utils.escapeHTML(tac.name)}</b>.` : "Tactics phase: the GM is choosing tacticians.";
         // deployment: players drag their units onto the blue-white squares until tactics are finished
         const zones = savedZones(game.scenes.get(battle.sceneId)).size;
-        prompt.text += zones ? `<br><span class="qin-muted">Deployment: drag your units onto the blue-white squares. Deployment locks when tactics are finished.</span>`
+        prompt.text += zones ? `<br><span class="qin-muted">Deployment: press Deploy below, or drag your units onto the blue-white squares. Deployment locks when tactics are finished.</span>`
           : `<br><span class="qin-muted">No deployment zones on this map: units stay where the GM placed them.</span>`;
         btn("Open tactics", "openTactics", { primary: true });
         break;
@@ -286,7 +289,9 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
     })).sort((x, y) => (x.side > y.side ? 1 : -1));
 
     Object.assign(ctx, {
-      round: t.round, phase: PHASE_NAME[t.phase], prompt, held, controls, order, units,
+      // before the first round is fought (setup, tactics) the heading reads "Deployment", not "Round 1" (David, 2026-10-31)
+      round: t.round, roundLabel: ["setup", "tactics"].includes(t.phase) ? "Deployment" : null, phase: PHASE_NAME[t.phase], prompt,
+      deployList: deployListState(), held, controls, order, units,
       log: (s.log || []).slice(-12).reverse().map(e => e.text), recentClosed: recentClosed(),
       wrongScene: canvas.scene?.id !== battle.sceneId, battleScene: scene?.name,
       showSkip: game.user.isGM && !["setup", "start", "tactics", "over"].includes(p.kind),
