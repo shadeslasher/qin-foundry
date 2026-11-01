@@ -135,7 +135,7 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: Boolean, default: false,
   });
   game.settings.register(SYSTEM_ID, "autoOpenBattle", {
-    name: "Open the battle panel automatically", scope: "client", config: true, type: Boolean, default: true,
+    name: "Open the battle panel automatically", scope: "client", config: true, type: Boolean, default: false,
   });
 
   Handlebars.registerHelper("add", (a, b) => Number(a) + Number(b));
@@ -220,8 +220,8 @@ Hooks.once("ready", () => {
   registerAttackFxSocket();
   initBattleMapSync();
   refreshTactics();
-  if (game.user.isGM && getBattle().active) BattlePanel.open();
-  else if (getBattle().active && game.settings.get(SYSTEM_ID, "autoOpenBattle")) BattlePanel.open();
+  // the Battle panel no longer opens by itself when the world loads, GM included (David 2026-11-01); the setting can turn it back on
+  if (getBattle().active && game.settings.get(SYSTEM_ID, "autoOpenBattle")) BattlePanel.open();
 });
 
 /**
