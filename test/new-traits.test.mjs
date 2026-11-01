@@ -424,3 +424,19 @@ test('Cutthroat: winning the contested roll, attacking or defending, gains 1 / 2
   for (let i = 0; i < 400 && !ok; i++) { const { D, r } = fight(2, 'd'); if (r.winner === 'defender') { assert.ok(D.morale >= 50 + 2 - 0, 'defender gains too'); ok = true; } }
   assert.ok(ok);
 });
+
+test('Misplaced Devotion: at 25 morale or less, no Demoralized; Attack +3, melee defense -3, ranged defense unchanged', () => {
+  const s = setup(); s.library.unitTypes.push(unitType('a'), unitType('d'));
+  const A = R.unitById(s, add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 5, y: 5, morale: 20 }));
+  const D = R.unitById(s, add(s, { typeId: 'd', side: 'enemy', x: 5, y: 4 }));
+  A.traitTiers = { 'misplaced devotion': 1 };
+  const atk = rollOf(s, A, 'attacker', D);
+  assert.strictEqual(part(atk, /^Misplaced Devotion/), 3);
+  assert.strictEqual(part(atk, /^Demoralized/), 0);
+  assert.strictEqual(part(rollOf(s, A, 'defender', D), /^Misplaced Devotion/), -3);
+  const shot = rollOf(s, A, 'defender', D, { ranged: true });
+  assert.strictEqual(part(shot, /^Misplaced Devotion/), 0, 'ranged defense unchanged');
+  assert.strictEqual(part(shot, /^Demoralized/), 0, 'and not Demoralized either');
+  A.morale = 60;
+  assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Misplaced Devotion/), 0, 'only when low');
+});

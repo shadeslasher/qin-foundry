@@ -903,7 +903,12 @@ function buildRoll(s, unit, role, ctx) {
   if (ms === 'Surrendered' && trait(unit, 'fanatic')) ms = 'Demoralized'; // Fanatic: fights on at 0 morale
   if (ms === 'Encouraged') parts.push(['Encouraged', 2]);
   const steady = p.ignoreMoralePenalty ? 'officer passive' : trait(unit, 'unwavering') ? 'Unwavering' : null;
-  if (ms === 'Demoralized' && trait(unit, 'zealot')) parts.push(['Zealot (morale 25 or less)', tierVal(trait(unit, 'zealot'), [1, 2, 3])]);
+  // Misplaced Devotion (Qingzhou, David 2026-10-31): at 25 morale or less the unit ignores Demoralized and instead
+  // gets Attack +3 on its own attacks and melee defense -3 (ranged defense unchanged)
+  if (ms === 'Demoralized' && trait(unit, 'misplaced devotion')) {
+    if (role === 'attacker') parts.push(['Misplaced Devotion (morale 25 or less): attack', 3]);
+    else if (!ctx.ranged) parts.push(['Misplaced Devotion (morale 25 or less): melee defense', -3]);
+  } else if (ms === 'Demoralized' && trait(unit, 'zealot')) parts.push(['Zealot (morale 25 or less)', tierVal(trait(unit, 'zealot'), [1, 2, 3])]);
   else if (ms === 'Demoralized') parts.push(['Demoralized' + (steady ? ' (ignored: ' + steady + ')' : ''), steady ? 0 : -2]);
   // Strength penalties scale with the unit's full health (cavalry have 50)
   const full = unit.maxMen || 100;
