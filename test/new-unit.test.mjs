@@ -32,4 +32,6 @@ test('Cao Cao units have their own army (2026-10-31)', async () => {
   assert.ok(ARMIES.includes('Cao Cao'));
   const { RECRUIT_ARMIES } = await import('../module/recruit.mjs');
   assert.ok(RECRUIT_ARMIES.includes('Cao Cao'));
+  assert.strictEqual(factionGroup('wei'), 'Wei');
+  assert.ok(ARMIES.includes('Wei') && RECRUIT_ARMIES.includes('Wei'));
 });
