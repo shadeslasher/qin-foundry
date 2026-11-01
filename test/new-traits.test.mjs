@@ -472,3 +472,14 @@ test('Northern Steel: no strength penalty and no morale loss from casualties', (
   D.fx = {}; D.men = 50; D.maxMen = 100;
   assert.strictEqual(R.checkpointMorale(D), 10, 'normal unit loses 5 per checkpoint (80% and 60% passed)');
 });
+
+test('Opportunists: Attack +2 against an enemy already next to another friendly unit, only when attacking', () => {
+  const s = setup(); s.library.unitTypes.push(unitType('a'), unitType('d'));
+  const A = R.unitById(s, add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 5, y: 6 }));
+  const D = R.unitById(s, add(s, { typeId: 'd', side: 'enemy', x: 5, y: 4 }));
+  A.traitTiers = { opportunists: 1 };
+  assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Opportunists/), 0, 'no ally next to the enemy');
+  add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 6, y: 4 });
+  assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Opportunists/), 2);
+  assert.strictEqual(part(rollOf(s, A, 'defender', D), /^Opportunists/), 0, 'not when defending');
+});
