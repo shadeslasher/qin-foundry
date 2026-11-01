@@ -15,7 +15,8 @@ export function bannerFor(s, p, { me, isGM, names = {}, img = () => null, canSee
   const round = s.turn?.round ?? 0;
   const mine = (u) => u && (u.owner === me || (isGM && !u.owner));
   switch (p.kind) {
-    case "tactics": return { side: "neutral", title: "Tactics", sub: "Tacticians place their tactics · players deploy their units", round };
+    // before the first round: "Deployment", no round number (Round 1 shows once the battle starts; David, 2026-10-31)
+    case "tactics": return { side: "neutral", title: "Deployment", sub: "Players deploy their units · tacticians place their tactics", round: null };
     case "start": return { side: "neutral", title: "Next round", sub: "Waiting for the GM to start the round", round: null };
     case "claim": return { side: "player", title: "Player side", sub: "Units without an officer: the first to press Take turn moves", round };
     case "pick": return { side: "player", title: p.player === me ? "Your turn" : `${names[p.player] ?? "The GM"}'s turn`, sub: "Choosing a unit without an officer", round };
@@ -52,7 +53,7 @@ export function renderTurnBanner() {
   el.dataset.key = key;
   el.className = "qin-turn-banner";
   el.style.setProperty("--c", SIDE_RGB[info.side] ?? SIDE_RGB.neutral);
-  el.innerHTML = `${info.img ? `<img src="${esc(info.img)}" alt="">` : `<span class="qin-tb-none"><i class="fa-solid fa-${info.title === "Tactics" ? "chess-knight" : "flag"}"></i></span>`}
+  el.innerHTML = `${info.img ? `<img src="${esc(info.img)}" alt="">` : `<span class="qin-tb-none"><i class="fa-solid fa-${info.title === "Deployment" ? "chess-knight" : "flag"}"></i></span>`}
     <div><div class="qin-tb-title">${esc(info.title)}</div>${info.sub ? `<div class="qin-tb-sub">${esc(info.sub)}</div>` : ""}</div>
     ${info.round ? `<div class="qin-tb-round">ROUND<big>${info.round}</big></div>` : "<div></div>"}`;
   el.classList.remove("qin-tb-in"); void el.offsetWidth; el.classList.add("qin-tb-in");

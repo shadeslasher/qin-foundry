@@ -17,3 +17,9 @@ test('turn banner: your turn, another player, the enemy, hidden enemies, the GM 
   assert.strictEqual(bannerFor(s, { kind: 'pick', player: 'p2' }, { me: 'p1', names }).title, "Bob's turn");
   assert.strictEqual(bannerFor(s, { kind: 'host-pick', side: 'enemy' }, { me: 'p1', names }).title, 'Enemy turn');
 });
+
+test('before the first round the banner says Deployment, with no round number', () => {
+  const b = bannerFor({ turn: { round: 1 }, units: [] }, { kind: 'tactics' }, { me: 'p1', isGM: false });
+  assert.strictEqual(b.title, 'Deployment');
+  assert.strictEqual(b.round, null);
+});
