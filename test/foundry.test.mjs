@@ -111,3 +111,21 @@ test('unit name labels (L): unit name, officer in the second line when there is 
   assert.deepStrictEqual(labelLines('Ji Militia', ''), { main: 'Ji Militia', sub: null });
   assert.deepStrictEqual(labelLines('', undefined), { main: 'Unit', sub: null });
 });
+
+test("battle adapter: initiative rolls itself once tactics are done (no Start round click)", async () => {
+  const gm = M.addUser("gm", true); game.user = gm;
+  M.setSetting("battle", A.emptyBattle());
+  const sys = (o) => { const u = Object.assign(new UnitData(), { side: "player", faction: "Han", tier: 1, category: "infantry", weaponSkill: "qiangshu", unitValue: 1, damage: 6, armor: 2, armorPen: 0, move: 3, range: 1, rangeMin: 1, men: { value: 100, max: 100 }, xp: { value: 0, max: 100 }, morale: 50, hidden: false, status: "active", officer: "", ...o }); u.prepareDerivedData(); return u; };
+  const scene = M.makeScene("auto");
+  M.addToken(scene, { id: "tokP", name: "Ji Militia", x: 1, y: 1, actor: M.makeActor({ type: "unit", items: [], system: sys({}) }) });
+  M.addToken(scene, { id: "tokF", name: "Bandits", x: 1, y: 8, actor: M.makeActor({ type: "unit", items: [], system: sys({ side: "enemy" }) }) });
+  assert.ok((await A.runAction("gm", { type: "startBattle", sceneId: "auto" })).ok);
+  assert.strictEqual(A.getBattle().turn.phase, "tactics");
+  assert.ok((await A.runAction("gm", { type: "skipTactics" })).ok);
+  await A.runAction("gm", { type: "noop" }).catch(() => {}); // the queued round start runs before this
+  const b = A.getBattle();
+  assert.notStrictEqual(b.turn.phase, "start", "the round started by itself");
+  assert.strictEqual(b.turn.round, 1);
+  assert.ok(!["tactics", "setup"].includes(b.turn.phase), `in the round (phase ${b.turn.phase})`);
+  await A.runAction("gm", { type: "endBattle" });
+});

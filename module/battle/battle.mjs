@@ -221,8 +221,8 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
         break;
       }
       case "start":
-        prompt.text = game.user.isGM ? "Start the round when you're ready." : "Waiting for the GM to start the round.";
-        if (game.user.isGM) btn("Start round (roll initiative)", "startRound", { primary: true });
+        prompt.text = "Rolling initiative…";
+        if (game.user.isGM) btn("Start round (roll initiative)", "startRound"); // fallback: the round normally starts itself
         break;
       case "decide": case "final": {
         const u = unit(p.unitId);

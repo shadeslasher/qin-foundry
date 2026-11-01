@@ -17,7 +17,7 @@ export function bannerFor(s, p, { me, isGM, names = {}, img = () => null, canSee
   switch (p.kind) {
     // before the first round: "Deployment", no round number (Round 1 shows once the battle starts; David, 2026-10-31)
     case "tactics": return { side: "neutral", title: "Deployment", sub: "Players deploy their units · tacticians place their tactics", round: null };
-    case "start": return { side: "neutral", title: "Next round", sub: "Waiting for the GM to start the round", round: null };
+    case "start": return { side: "neutral", title: "Next round", sub: "Rolling initiative", round: null };
     case "claim": return { side: "player", title: "Player side", sub: "Units without an officer: the first to press Take turn moves", round };
     case "pick": return { side: "player", title: p.player === me ? "Your turn" : `${names[p.player] ?? "The GM"}'s turn`, sub: "Choosing a unit without an officer", round };
     case "host-pick": return { side: p.side, title: SIDE_TURN[p.side] ?? "GM's turn", sub: "Units without an officer", round };

@@ -416,6 +416,14 @@ function duelOfficer(scene, unitId) {
 export function runAction(userId, action) {
   const job = queue.then(() => runActionNow(userId, action));
   queue = job.catch(() => {});
+  // Initiative rolls itself (David, 2026-10-31): whenever an action leaves the battle at the start of a round (tactics
+  // finished or skipped, a round ended), the GM's client starts the round, reinforcements due first as before.
+  // The Start round button stays as a fallback.
+  job.then(res => {
+    const b = getBattle();
+    if (res?.ok && action.type !== "startRound" && b.active && b.turn?.phase === "start" && !b.outcome)
+      runAction(game.user.id, { type: "startRound" }).catch(e => console.warn("Qin | auto start round", e));
+  }).catch(() => {});
   return job;
 }
 
