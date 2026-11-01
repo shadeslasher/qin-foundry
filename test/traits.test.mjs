@@ -389,3 +389,9 @@ test('Hit and Fade: after attacking without moving, it may use its full move, en
   must(R.act(s, P1, { type: 'reposition', unitId: A.id, x, y }));
   assert.ok(!s.turn.activation || s.turn.activation.unitId !== A.id, 'turn over');
 });
+
+test('Four Generations: immune to Terror', () => {
+  const plain = duel(unitType('t'), unitType('d'), [9, 0, 0, 0], (a) => { a.traitTiers = { terror: 1 }; });
+  const fg = duel(unitType('t'), unitType('d'), [9, 0, 0, 0], (a, d) => { a.traitTiers = { terror: 1 }; d.traitTiers = { 'four generations': 1 }; });
+  assert.strictEqual(plain.r.moraleLoss - 2, fg.r.moraleLoss);
+});

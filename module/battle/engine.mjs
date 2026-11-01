@@ -364,7 +364,7 @@ function trait(u, base) { const t = u && u.traitTiers; return (t && t[base]) || 
 /** Suppressing Fire (David, 2026-10-29): movement -2 (min 1); a suppressed unit loses Hold, Brace, Anti-Cavalry and Charge Reflection until it wears off. */
 const suppressed = (u) => !!(u && u.fx && u.fx.suppressed);
 /** Hybrid, or Throwing Axes (Hybrid without the melee Attack -2: David, 2026-10-29): a ranged unit that also fights adjacent enemies in melee. */
-const hybridOf = (u) => !!(trait(u, 'hybrid') || trait(u, 'throwing axes'));
+const hybridOf = (u) => !!(trait(u, 'hybrid') || trait(u, 'throwing axes') || trait(u, 'spear crossbow'));
 const holdingNow = (u) => !!(u && u.round && u.round.holding) && !suppressed(u);
 const tierVal = (tier, vals) => (tier ? vals[Math.min(tier, vals.length) - 1] : 0);
 /** Lasting per-unit battle effects (poison, sunder, reload, slowed, stood still last turn). */
@@ -838,7 +838,7 @@ function buildRoll(s, unit, role, ctx) {
     if (saddleOf(unit)) parts.push(['Saddle', 1]);
     // Charging Strike +2/+4/+6 after moving 2+ tiles; Charging Strike EX +8 after moving 1+ tile (David, 2026-10-29)
     if (!ctx.ranged && trait(unit, 'charging strike') && ctx.tilesMoved >= (trait(unit, 'charging strike') >= 4 ? 1 : 2)) parts.push(['Charging Strike (moved ' + ctx.tilesMoved + (ctx.tilesMoved === 1 ? ' tile)' : ' tiles)'), tierVal(trait(unit, 'charging strike'), [2, 4, 6, 8])]);
-    if (ctx.hybridMelee && !trait(unit, 'throwing axes')) parts.push(['Hybrid: melee attack', -2]); // Throwing Axes: no penalty
+    if (ctx.hybridMelee && !trait(unit, 'throwing axes') && !trait(unit, 'spear crossbow')) parts.push(['Hybrid: melee attack', -2]); // Throwing Axes: no penalty
     if (ctx.second) parts.push(['Second attack (Dual Weapons)', -2]);
     if (trait(unit, 'hefty weapon') && unit.round.moved) parts.push(['Hefty Weapon (moved)', -2]);
     // Precision: ranged attacks only (not a Hybrid's melee attack), when the unit hasn't moved; Precision++ +6 (David, 2026-10-28/29)
@@ -1051,7 +1051,7 @@ function resolveAttack(s, attacker, defender, opts) {
     if (winner === 'attacker') {
       mult = 1; // charges and rear attacks don't multiply morale loss
       moraleLoss = base * mult + (passive(s, attacker).extraMoraleLossOnWin || 0);
-      const terror = trait(attacker, 'terror'); // Terror: +2 morale loss; Terror+: double it
+      const terror = trait(defender, 'four generations') ? 0 : trait(attacker, 'terror'); // Terror: +2 morale loss; Terror+: double it. Four Generations (Song): immune
       if (terror === 1) moraleLoss += 2; else if (terror >= 2) moraleLoss *= 2;
       if (ranged && trait(attacker, 'fire arrows')) moraleLoss += 3; // Fire Arrows: a hit costs 3 more morale
       // Trample: a winning charge against infantry costs the defender 5 more morale

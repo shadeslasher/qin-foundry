@@ -483,3 +483,13 @@ test('Opportunists: Attack +2 against an enemy already next to another friendly 
   assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Opportunists/), 2);
   assert.strictEqual(part(rollOf(s, A, 'defender', D), /^Opportunists/), 0, 'not when defending');
 });
+
+test('Spear Crossbow: hybrid melee attacks take no Attack -2', () => {
+  const s = setup(); s.library.unitTypes.push(unitType('a'), unitType('d'));
+  const A = R.unitById(s, add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 5, y: 5 }));
+  const D = R.unitById(s, add(s, { typeId: 'd', side: 'enemy', x: 5, y: 4 }));
+  A.traitTiers = { hybrid: 1 };
+  assert.strictEqual(part(rollOf(s, A, 'attacker', D, { hybridMelee: true }), /^Hybrid/), -2);
+  A.traitTiers = { 'spear crossbow': 1 };
+  assert.strictEqual(part(rollOf(s, A, 'attacker', D, { hybridMelee: true }), /^Hybrid/), 0);
+});

@@ -125,8 +125,9 @@ export class HenchmanData extends QinBaseActor {
 /** A battlefield unit: one formation of soldiers, optionally led by an officer (Fire Emblem-style battles). */
 /** A unit's resting morale: 50, +5/+10/+15 for Disciplined/+/++ (David, 2026-10-25). */
 export function defaultMoraleFor(traits) {
-  const d = traitTiersOf(traits).disciplined || 0;
-  return 50 + [0, 5, 10, 15, 20][Math.min(4, d)]; // Disciplined EX +20
+  const t = traitTiersOf(traits), d = t.disciplined || 0;
+  // Disciplined EX +20; Four Generations (Song, David 2026-11-01) +5
+  return 50 + [0, 5, 10, 15, 20][Math.min(4, d)] + (t['four generations'] ? 5 : 0);
 }
 
 export class UnitData extends foundry.abstract.TypeDataModel {
