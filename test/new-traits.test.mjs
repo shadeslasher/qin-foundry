@@ -517,3 +517,17 @@ test("Pretender's Guard: melee defense +2 next to an allied officer's unit; can'
   assert.strictEqual(part(rollOf(s, A, 'defender', D, { ranged: true }), /^Pretender/), 0, 'melee only');
   assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Pretender/), 0, 'not when attacking');
 });
+
+test('Pale Thunder: Attack +2 on a ranged attack; after firing, none until a charge, which gains +2', () => {
+  const s = setup(); s.library.unitTypes.push(unitType('a'), unitType('d'));
+  const A = R.unitById(s, add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 5, y: 5 }));
+  const D = R.unitById(s, add(s, { typeId: 'd', side: 'enemy', x: 5, y: 4 }));
+  A.traitTiers = { 'pale thunder': 1 };
+  assert.strictEqual(part(rollOf(s, A, 'attacker', D, { ranged: true }), /^Pale Thunder/), 2);
+  assert.strictEqual(part(rollOf(s, A, 'attacker', D, { charge: true }), /^Pale Thunder/), 0, 'no charge bonus before a volley');
+  A.fx = { paleFired: true };
+  assert.strictEqual(part(rollOf(s, A, 'attacker', D, { ranged: true }), /^Pale Thunder/), 0, 'spent after firing');
+  assert.strictEqual(part(rollOf(s, A, 'attacker', D, { charge: true }), /^Pale Thunder/), 2);
+  assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Pale Thunder/), 0, 'plain melee gets nothing');
+  assert.strictEqual(part(rollOf(s, A, 'defender', D, { ranged: true }), /^Pale Thunder/), 0, 'not when defending');
+});

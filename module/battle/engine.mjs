@@ -908,6 +908,12 @@ function buildRoll(s, unit, role, ctx) {
   if (role === 'attacker' && trait(unit, 'ride them down') && other && (other.morale ?? 100) <= 25) parts.push(['Ride Them Down (target Demoralized)', 3]);
   // Avenge the Fallen (Wu, David 2026-11-01): Attack +4 on the next attack after a nearby ally fell
   if (role === 'attacker' && fx(unit).avenge) parts.push(['Avenge the Fallen', 4]);
+  // Pale Thunder (Gongsun Zan, David 2026-11-01): Attack +2 on a ranged attack; once fired, the bonus is gone until the unit
+  // makes a charge attack, and that charge gains Attack +2 (then the ranged bonus is back)
+  if (role === 'attacker' && trait(unit, 'pale thunder')) {
+    if (ctx.ranged && !fx(unit).paleFired) parts.push(['Pale Thunder (ranged)', 2]);
+    if (ctx.charge && fx(unit).paleFired) parts.push(['Pale Thunder (charge after a volley)', 2]);
+  }
   // Pretender's Guard (Yuan Shu, David 2026-11-01): melee defense +2 while next to an allied unit led by an officer
   if (role === 'defender' && !ctx.ranged && trait(unit, "pretender's guard") && liveUnits(s).some(f => f.id !== unit.id && friendly(f, unit) && f.officerId && manhattan(f, unit) === 1))
     parts.push(["Pretender's Guard (next to an officer's unit)", 2]);
@@ -1000,6 +1006,7 @@ function resolveAttack(s, attacker, defender, opts) {
 
   const A = buildRoll(s, attacker, 'attacker', ctx);
   if (fx(attacker).avenge) delete fx(attacker).avenge; // Avenge the Fallen: the bonus is spent on this attack
+  if (trait(attacker, 'pale thunder')) { if (ranged) fx(attacker).paleFired = true; else if (charge) delete fx(attacker).paleFired; }
   const D = buildRoll(s, defender, 'defender', ctx);
   const diff = Math.abs(A.total - D.total);
   const winner = A.total > D.total ? 'attacker' : D.total > A.total ? 'defender' : null;
