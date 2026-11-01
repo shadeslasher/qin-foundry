@@ -35,5 +35,7 @@ test('Cao Cao units have their own army (2026-10-31)', async () => {
   assert.strictEqual(factionGroup('wei'), 'Wei');
   assert.ok(ARMIES.includes('Wei') && RECRUIT_ARMIES.includes('Wei'));
   assert.strictEqual(factionGroup('xiongnu'), 'Xiongnu');
+  assert.strictEqual(factionGroup('xianbei'), 'Xianbei');
+  assert.ok(ARMIES.includes('Xianbei') && RECRUIT_ARMIES.includes('Xianbei'));
   assert.ok(ARMIES.includes('Xiongnu') && RECRUIT_ARMIES.includes('Xiongnu'));
 });
