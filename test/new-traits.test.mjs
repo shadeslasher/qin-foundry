@@ -504,3 +504,16 @@ test('Ride Them Down: Attack +3 against an enemy at 25 morale or less, only when
   D.morale = 26;
   assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Ride Them Down/), 0, 'not above 25');
 });
+
+test("Pretender's Guard: melee defense +2 next to an allied officer's unit; can't be surrounded", () => {
+  const s = setup(); s.library.unitTypes.push(unitType('a'), unitType('d'));
+  const A = R.unitById(s, add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 5, y: 5 }));
+  const D = R.unitById(s, add(s, { typeId: 'd', side: 'enemy', x: 5, y: 4 }));
+  const F = R.unitById(s, add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 6, y: 5 }));
+  A.traitTiers = { "pretender's guard": 1 };
+  assert.strictEqual(part(rollOf(s, A, 'defender', D), /^Pretender/), 0, 'ally has no officer');
+  F.officerId = 'someone';
+  assert.strictEqual(part(rollOf(s, A, 'defender', D), /^Pretender/), 2);
+  assert.strictEqual(part(rollOf(s, A, 'defender', D, { ranged: true }), /^Pretender/), 0, 'melee only');
+  assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Pretender/), 0, 'not when attacking');
+});

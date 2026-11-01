@@ -908,6 +908,9 @@ function buildRoll(s, unit, role, ctx) {
   if (role === 'attacker' && trait(unit, 'ride them down') && other && (other.morale ?? 100) <= 25) parts.push(['Ride Them Down (target Demoralized)', 3]);
   // Avenge the Fallen (Wu, David 2026-11-01): Attack +4 on the next attack after a nearby ally fell
   if (role === 'attacker' && fx(unit).avenge) parts.push(['Avenge the Fallen', 4]);
+  // Pretender's Guard (Yuan Shu, David 2026-11-01): melee defense +2 while next to an allied unit led by an officer
+  if (role === 'defender' && !ctx.ranged && trait(unit, "pretender's guard") && liveUnits(s).some(f => f.id !== unit.id && friendly(f, unit) && f.officerId && manhattan(f, unit) === 1))
+    parts.push(["Pretender's Guard (next to an officer's unit)", 2]);
   if (role === 'attacker' && trait(unit, 'ruthless pursuit') && (other.morale ?? 100) <= 50) parts.push(['Ruthless Pursuit (target at 50 morale or less)', 2]);
   let ms = moraleState(unit.morale);
   if (ms === 'Surrendered' && trait(unit, 'fanatic')) ms = 'Demoralized'; // Fanatic: fights on at 0 morale
@@ -1349,7 +1352,7 @@ function processFear(s) {
  */
 function surroundInfo(s, u) {
   const none = { surrounded: false, enemies: 0, blocked: 0 };
-  if (trait(u, 'stalwart')) return none;
+  if (trait(u, 'stalwart') || trait(u, "pretender's guard")) return none; // Pretender's Guard (Yuan Shu): can't be surrounded
   const tr = tileRules(s, u.x, u.y);
   if (tr && tr.noSurround) return none;
   let enemies = 0, blocked = 0;
