@@ -1281,11 +1281,12 @@ function settleLoop(s, opts) {
           log(s, n.name + ' loses 5 morale (Levy: adjacent ally ' + ended.replace('is ', '') + ').');
         }
       }
-      // Plunderers (Xiongnu, David 2026-11-01): +10 morale when an enemy unit within 3 squares surrenders or is destroyed
+      // Plunderers (Xiongnu, David 2026-11-01): when an enemy unit within 3 squares surrenders or is destroyed, gain 3 x that unit's tier in morale
+      const loot = 3 * (Number(typeOf(s, u)?.unitValue) || 1);
       for (const n of liveUnits(s)) {
         if (trait(n, 'plunderers') && !friendly(n, u) && manhattan(n, u) <= 3) {
-          n.morale = clamp(n.morale + 10, 0, 100);
-          log(s, n.name + ' gains 10 morale (Plunderers: enemy ' + ended.replace('is ', '') + ' nearby).', { type: 'plunderers', unit: n.id, gain: 10 });
+          n.morale = clamp(n.morale + loot, 0, 100);
+          log(s, n.name + ' gains ' + loot + ' morale (Plunderers: enemy ' + ended.replace('is ', '') + ' nearby).', { type: 'plunderers', unit: n.id, gain: loot });
         }
       }
     }
