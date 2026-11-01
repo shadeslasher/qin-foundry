@@ -493,3 +493,14 @@ test('Spear Crossbow: hybrid melee attacks take no Attack -2', () => {
   A.traitTiers = { 'spear crossbow': 1 };
   assert.strictEqual(part(rollOf(s, A, 'attacker', D, { hybridMelee: true }), /^Hybrid/), 0);
 });
+
+test('Ride Them Down: Attack +3 against an enemy at 25 morale or less, only when attacking', () => {
+  const s = setup(); s.library.unitTypes.push(unitType('a'), unitType('d'));
+  const A = R.unitById(s, add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 5, y: 5 }));
+  const D = R.unitById(s, add(s, { typeId: 'd', side: 'enemy', x: 5, y: 4, morale: 25 }));
+  A.traitTiers = { 'ride them down': 1 };
+  assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Ride Them Down/), 3);
+  assert.strictEqual(part(rollOf(s, A, 'defender', D), /^Ride Them Down/), 0, 'not when defending');
+  D.morale = 26;
+  assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Ride Them Down/), 0, 'not above 25');
+});
