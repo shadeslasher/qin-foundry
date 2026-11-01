@@ -1,6 +1,6 @@
-// GM controls, in their own window apart from the Battle panel (David, 2026-10-29):
-// hide/reveal and level up/down for the selected unit tokens, and, during a battle, fire, tactics,
-// skip, back to setup, end battle and the Victory / Defeat / Stalemate declarations.
+// GM controls, in their own window apart from the Battle panel (David, 2026-10-29): hide/reveal and level up/down
+// for the selected unit tokens. The battle controls (fire, tactics, skip, back to setup, end battle, Victory /
+// Defeat / Stalemate) went back into the Battle panel (David, 2026-11-01).
 import { SYSTEM_ID, systemPath } from "../config.mjs";
 import * as E from "./engine.mjs";
 import { getBattle, buildState } from "./adapter.mjs";
