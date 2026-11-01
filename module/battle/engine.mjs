@@ -1281,6 +1281,13 @@ function settleLoop(s, opts) {
           log(s, n.name + ' loses 5 morale (Levy: adjacent ally ' + ended.replace('is ', '') + ').');
         }
       }
+      // Plunderers (Xiongnu, David 2026-11-01): +10 morale when an enemy unit within 3 squares surrenders or is destroyed
+      for (const n of liveUnits(s)) {
+        if (trait(n, 'plunderers') && !friendly(n, u) && manhattan(n, u) <= 3) {
+          n.morale = clamp(n.morale + 10, 0, 100);
+          log(s, n.name + ' gains 10 morale (Plunderers: enemy ' + ended.replace('is ', '') + ' nearby).', { type: 'plunderers', unit: n.id, gain: 10 });
+        }
+      }
     }
     // a normal (undoable) move waits: encirclement is only applied once the move is committed
     if (!opts.deferEncirclement && checkEncirclement(s)) changed = true;

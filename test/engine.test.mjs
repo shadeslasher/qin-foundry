@@ -832,3 +832,16 @@ test('Fierce Charge: a winning charge shocks foot defenders (no move on their ne
   assert.ok(!(x.d.fx && x.d.fx.shocked), 'a lost charge shocks nothing');
   assert.ok(!x.s.log.some(e => e.detail && e.detail.type === 'trample'), 'a lost charge spares the unit behind');
 });
+
+test('Plunderers: +10 morale when an enemy within 3 squares surrenders or is destroyed', () => {
+  const s = setup();
+  const a = add(s, { typeId: 'han_ji_inf', side: 'player', owner: 'p1', x: 5, y: 5, morale: 20 });
+  const p = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 8, morale: 40 });
+  const f = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 12, morale: 40 });
+  const P = R.unitById(s, p), F = R.unitById(s, f);
+  P.traitTiers = { plunderers: 1 }; F.traitTiers = { plunderers: 1 };
+  must(R.act(s, HOST, { type: 'adjust', unitId: a, morale: -20 }));
+  assert.strictEqual(R.unitById(s, a).status, 'surrendered');
+  assert.strictEqual(P.morale, 50, 'within 3: +10');
+  assert.strictEqual(F.morale, 40, 'too far away');
+});
