@@ -750,6 +750,7 @@ function checkpointMorale(u) {
   if (now <= before) return 0;
   fx(u).checkpoints = now;
   if (trait(u, 'disciplined') >= 4) return 0; // Disciplined EX: no morale loss from casualties (David, 2026-10-29)
+  if (trait(u, 'northern steel')) return 0; // Northern Steel (Northern army, David 2026-11-01): no morale loss from casualties
   return u.men > 0 ? (now - before) * CHECKPOINT_MORALE : 0;
 }
 
@@ -917,8 +918,9 @@ function buildRoll(s, unit, role, ctx) {
   // Strength penalties follow the soldier figures on the token (one per 20% of full strength):
   // 2 soldiers left (21-40%) -1, 1 soldier left (1-20%) -2
   const figures = soldierFigures(unit.men, full);
-  if (figures === 1) parts.push(['One soldier left (1-20% strength)', -2]);
-  else if (figures === 2) parts.push(['Two soldiers left (21-40% strength)', -1]);
+  const grit = trait(unit, 'northern steel'); // Northern Steel (David 2026-11-01): ignores the strength penalties
+  if (figures === 1) parts.push(['One soldier left (1-20% strength)' + (grit ? ' (ignored: Northern Steel)' : ''), grit ? 0 : -2]);
+  else if (figures === 2) parts.push(['Two soldiers left (21-40% strength)' + (grit ? ' (ignored: Northern Steel)' : ''), grit ? 0 : -1]);
   // terrain of the square the unit stands on
   const tr = tileRules(s, unit.x, unit.y);
   if (tr) {
