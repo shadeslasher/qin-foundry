@@ -4,7 +4,8 @@
 // Deploy / Undeploy buttons in the Battle panel (David, 2026-10-31): Deploy puts the unit on the top-left free
 // deployment square, Undeploy takes its token off the map. Both run on the GM's client too.
 import { SYSTEM_ID } from "../config.mjs";
-import { DEPLOY_FLAG, deployMoveCheck, zoneSet, zoneKey, firstFreeSquare } from "./deploy-rules.mjs";
+import { DEPLOY_FLAG, deployMoveCheck, zoneSet, zoneKey, firstFreeSquare, vanguardInputs } from "./deploy-rules.mjs";
+import { traitTiersOf } from "./traits.mjs";
 
 const QUERY = `${SYSTEM_ID}.deployActor`;
 const UNDEPLOY = `${SYSTEM_ID}.undeployActor`;
@@ -44,7 +45,9 @@ function dropCheck(user, scene, actor, x, y) {
   const units = scene.tokens.filter(t => t.actor?.type === "unit");
   if (actor.prototypeToken?.actorLink && units.some(t => t.actorLink && t.actorId === actor.id)) return { ok: false, reason: `${actor.name} is already on the field.` };
   const occupied = units.some(t => Math.round(t.x / size) === x && Math.round(t.y / size) === y);
-  return deployMoveCheck({ phase: phaseOn(scene), isGM: false, zones: zoneSet(scene.getFlag(SYSTEM_ID, DEPLOY_FLAG)), occupied }, x, y);
+  const sq = units.map(t => ({ x: Math.round(t.x / size), y: Math.round(t.y / size), side: t.actor?.system?.side }));
+  const vg = vanguardInputs(traitTiersOf(actor.system?.traits ?? ""), actor.system?.side, sq);
+  return deployMoveCheck({ phase: phaseOn(scene), isGM: false, zones: zoneSet(scene.getFlag(SYSTEM_ID, DEPLOY_FLAG)), occupied, ...vg }, x, y);
 }
 
 /** Who may press Deploy / Undeploy now: the GM in setup or tactics, players in tactics only. */

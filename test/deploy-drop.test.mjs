@@ -59,3 +59,14 @@ test('Undeploy removes the unit\'s tokens, only for its owner and only while dep
   w = world([{ id: 't1', x: 0, y: 0, actorId: 'a1', actor: { type: 'unit' } }], { id: 'gm', isGM: true });
   assert.ok((await removeForUser({ userId: 'gm', sceneId: 's1', actorUuid: 'Actor.a1' })).ok, 'GM in setup'); phase = 'tactics';
 });
+
+test('Vanguard: may deploy outside the zones if more than 4 squares from every enemy', async () => {
+  const { deployMoveCheck, vanguardInputs } = await import('../module/battle/deploy-rules.mjs');
+  const zones = new Set(['0,0']);
+  const base = { phase: 'tactics', isGM: false, zones, occupied: false };
+  assert.ok(!deployMoveCheck(base, 5, 5).ok, 'plain unit: zone only');
+  const vg = vanguardInputs({ vanguard: 1 }, 'player', [{ x: 10, y: 5, side: 'enemy' }, { x: 6, y: 5, side: 'ally' }]);
+  assert.ok(deployMoveCheck({ ...base, ...vg }, 5, 5).ok, '5 squares from the enemy: allowed (allies ignored)');
+  assert.ok(!deployMoveCheck({ ...base, ...vg }, 6, 5).ok, '4 squares: refused');
+  assert.ok(!deployMoveCheck({ ...base, ...vanguardInputs({}, 'player', vg.enemies) }, 5, 5).ok, 'no trait: refused');
+});

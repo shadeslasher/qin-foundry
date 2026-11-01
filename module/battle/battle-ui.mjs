@@ -5,7 +5,8 @@ import { getBattle, buildState, isWritingBack } from "./adapter.mjs";
 import { SYSTEM_ID } from "../config.mjs";
 import { playMoment } from "../sound.mjs";
 import { openUnitInfo, unitVisible, setPickingCheck, canPinThreat, threatPinned, toggleThreatRange } from "../unit-info.mjs";
-import { deployMoveCheck, zoneSet, DEPLOY_FLAG } from "./deploy-rules.mjs";
+import { deployMoveCheck, zoneSet, DEPLOY_FLAG, vanguardInputs } from "./deploy-rules.mjs";
+import { traitTiersOf } from "./traits.mjs";
 
 setPickingCheck(() => !!mode);
 
@@ -650,7 +651,9 @@ function checkUnitMove(tokenDoc, px, py) {
   const size = scene?.grid?.size ?? 100;
   const x = Math.round(px / size), y = Math.round(py / size);
   const occupied = (scene?.tokens ?? []).some(t => t.id !== tokenDoc.id && t.actor?.type === "unit" && Math.round(t.x / size) === x && Math.round(t.y / size) === y);
-  const chk = deployMoveCheck({ phase, isGM: game.user.isGM, zones: zoneSet(scene?.getFlag?.(SYSTEM_ID, DEPLOY_FLAG)), occupied }, x, y);
+  const sq = (scene?.tokens ?? []).filter(t => t.id !== tokenDoc.id && t.actor?.type === "unit").map(t => ({ x: Math.round(t.x / size), y: Math.round(t.y / size), side: t.actor?.system?.side }));
+  const vg = vanguardInputs(traitTiersOf(tokenDoc.actor?.system?.traits ?? ""), tokenDoc.actor?.system?.side, sq);
+  const chk = deployMoveCheck({ phase, isGM: game.user.isGM, zones: zoneSet(scene?.getFlag?.(SYSTEM_ID, DEPLOY_FLAG)), occupied, ...vg }, x, y);
   if (chk.ok) return;
   playMoment("Error / not allowed");
   ui.notifications.warn(chk.reason);

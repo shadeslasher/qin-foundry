@@ -1725,7 +1725,8 @@ const ACTIONS = {
     const o = unitAt(s, a.x, a.y);
     if (!actor.host) {
       if (!controls(s, actor, u)) return err('You can only place your own units');
-      const chk = deployMoveCheck({ phase: s.turn.phase, isGM: false, zones: zoneSet(s.deployZones), occupied: !!(o && o !== u) }, a.x, a.y);
+      const chk = deployMoveCheck({ phase: s.turn.phase, isGM: false, zones: zoneSet(s.deployZones), occupied: !!(o && o !== u),
+        vanguard: !!trait(u, 'vanguard'), enemies: liveUnits(s).filter(d => hostile(u, d)) }, a.x, a.y);
       if (!chk.ok) return err(chk.reason);
     }
     if (o && o !== u) return err('Tile occupied');
