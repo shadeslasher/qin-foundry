@@ -25,3 +25,11 @@ test('blank units go into the right folder for their side or owner', async () =>
   await createUnit({ template: '', name: 'More raiders', owner: '', side: 'enemy', officer: '' });
   assert.strictEqual(folders.filter(f => f.name === 'Enemy Units').length, 1, 'reuses the folder');
 });
+
+test('Cao Cao units have their own army (2026-10-31)', async () => {
+  const { factionGroup, ARMIES } = await import('../module/new-unit.mjs');
+  assert.strictEqual(factionGroup('cao-cao'), 'Cao Cao');
+  assert.ok(ARMIES.includes('Cao Cao'));
+  const { RECRUIT_ARMIES } = await import('../module/recruit.mjs');
+  assert.ok(RECRUIT_ARMIES.includes('Cao Cao'));
+});
