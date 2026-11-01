@@ -899,6 +899,8 @@ function buildRoll(s, unit, role, ctx) {
   if (role === 'attacker' && oc === 'cavalry' && !ctx.ranged && trait(unit, 'anti-cavalry') && !suppressed(unit)) // melee only
     parts.push(['Anti-Cavalry: attacking cavalry', tierVal(trait(unit, 'anti-cavalry'), [1, 2, 3])]);
   if (role === 'attacker' && oc === 'infantry' && trait(unit, 'anti-infantry')) parts.push(['Anti-Infantry', tierVal(trait(unit, 'anti-infantry'), [1, 2, 4])]);
+  // Ruthless Pursuit (Wei, David 2026-11-01): Attack +2 against an enemy at 50 morale or less
+  if (role === 'attacker' && trait(unit, 'ruthless pursuit') && (other.morale ?? 100) <= 50) parts.push(['Ruthless Pursuit (target at 50 morale or less)', 2]);
   let ms = moraleState(unit.morale);
   if (ms === 'Surrendered' && trait(unit, 'fanatic')) ms = 'Demoralized'; // Fanatic: fights on at 0 morale
   if (ms === 'Encouraged') parts.push(['Encouraged', 2]);

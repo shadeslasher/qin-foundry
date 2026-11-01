@@ -440,3 +440,14 @@ test('Misplaced Devotion: at 25 morale or less, no Demoralized; Attack +3, melee
   A.morale = 60;
   assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Misplaced Devotion/), 0, 'only when low');
 });
+
+test('Ruthless Pursuit: Attack +2 against an enemy at 50 morale or less, only when attacking', () => {
+  const s = setup(); s.library.unitTypes.push(unitType('a'), unitType('d'));
+  const A = R.unitById(s, add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 5, y: 5 }));
+  const D = R.unitById(s, add(s, { typeId: 'd', side: 'enemy', x: 5, y: 4, morale: 50 }));
+  A.traitTiers = { 'ruthless pursuit': 1 };
+  assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Ruthless Pursuit/), 2);
+  assert.strictEqual(part(rollOf(s, A, 'defender', D), /^Ruthless Pursuit/), 0, 'not when defending');
+  D.morale = 51;
+  assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Ruthless Pursuit/), 0, 'not above 50');
+});
