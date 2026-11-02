@@ -22,6 +22,9 @@
 .qin-portrait.small { width: calc(56px * var(--qin-scale, 1.15)); height: calc(56px * var(--qin-scale, 1.15)); }
 .qin-head-main { flex: 1; display: flex; flex-direction: column; gap: 6px; }
 .qin-name { font-size: calc(22px * var(--qin-scale, 1.15)); font-family: "Signika", serif; height: calc(34px * var(--qin-scale, 1.15)); }
+.qin-name-row { display: flex; gap: 6px; align-items: center; }
+.qin-name-row .qin-name { flex: 1; min-width: 0; }
+.qin-add-officer { flex: none; width: auto; white-space: nowrap; font-size: 12px; padding: 2px 8px; height: auto; line-height: 1.6; }
 .qin-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 6px; }
 .qin-details label, .qin-grid3 label, .qin-grid2 label { display: flex; flex-direction: column; font-size: calc(11px * var(--qin-scale, 1.15)); color: var(--qin-muted); gap: 2px; }
 

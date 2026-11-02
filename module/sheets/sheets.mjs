@@ -195,6 +195,7 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
       officeRemove: QinActorSheetBase.#officeRemove,
       addFromLibrary: QinActorSheetBase.#addFromLibrary,
       syncCompendium: QinActorSheetBase.#syncCompendium,
+      addToOfficers: async function () { (await import("../officers.mjs")).addToOfficers(this.document); },
     },
   };
 
@@ -202,6 +203,7 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
   _getHeaderControls() {
     const controls = super._getHeaderControls();
     if (game.user.isGM && sourceUuid(this.actor)) controls.push({ icon: "fa-solid fa-cloud-arrow-down", label: "Update from compendium", action: "syncCompendium" });
+    if (game.user.isGM && ["character", "henchman"].includes(this.actor.type)) controls.push({ icon: "fa-solid fa-user-plus", label: "Add to Officers", action: "addToOfficers" });
     return controls;
   }
   static async #syncCompendium() {
@@ -214,6 +216,7 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
 
   async _prepareContext(options) {
     const context = await super._prepareContext(options);
+    context.isGM = game.user.isGM;
     const actor = this.document;
     const system = actor.system;
     const items = {};
