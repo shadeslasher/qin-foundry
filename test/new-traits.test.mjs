@@ -547,3 +547,19 @@ test('Bonds of Brotherhood: Attack +2 against an enemy that attacked an allied u
   D.fx.struck.round = s.turn.round - 1;
   assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Bonds/), 0, 'only this round');
 });
+
+test('Mountain Passes: melee and ranged defense +1 on a hill, forest, Trees or rocky ground; only when defending', () => {
+  const s = setup(); s.library.unitTypes.push(unitType('a'), unitType('d'));
+  const A = R.unitById(s, add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 5, y: 5 }));
+  const D = R.unitById(s, add(s, { typeId: 'd', side: 'enemy', x: 5, y: 4 }));
+  A.traitTiers = { 'mountain passes': 1 };
+  s.map.tiles = s.map.tiles || {};
+  s.map.tiles['5,5'] = { terrain: 'plains' };
+  assert.strictEqual(part(rollOf(s, A, 'defender', D), /^Mountain Passes/), 0, 'plains');
+  for (const t of [{ terrain: 'forest' }, { terrain: 'rocky' }, { terrain: 'plains', overlays: ['hill'] }, { terrain: 'plains', overlays: ['trees'] }]) {
+    s.map.tiles['5,5'] = t;
+    assert.strictEqual(part(rollOf(s, A, 'defender', D), /^Mountain Passes/), 1, JSON.stringify(t));
+    assert.strictEqual(part(rollOf(s, A, 'defender', D, { ranged: true }), /^Mountain Passes/), 1, 'ranged too');
+  }
+  assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Mountain Passes/), 0, 'not when attacking');
+});

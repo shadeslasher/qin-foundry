@@ -369,6 +369,14 @@ const holdingNow = (u) => !!(u && u.round && u.round.holding) && !suppressed(u);
 const tierVal = (tier, vals) => (tier ? vals[Math.min(tier, vals.length) - 1] : 0);
 /** Lasting per-unit battle effects (poison, sunder, reload, slowed, stood still last turn). */
 function fx(u) { if (!u.fx) u.fx = {}; return u.fx; }
+/** A hill, forest (or Trees) or rocky square, as it stands now (burnt forest no longer counts): Mountain Passes. */
+function mountainGround(s, x, y) {
+  let t = s.map && s.map.tiles && s.map.tiles[x + ',' + y];
+  if (!t) return false;
+  t = burnState(s, x, y, t);
+  const o = t.overlays || [];
+  return t.terrain === 'forest' || t.terrain === 'rocky' || o.includes('hill') || o.includes('trees');
+}
 /** Scholar's Peace (Liu Biao, David 2026-11-01): while above 50 morale, the first morale loss each round is 3 smaller. */
 function peaceCut(s, u, n) {
   if (!(n > 0) || !trait(u, "scholar's peace") || !(u.morale > 50)) return n;
@@ -928,6 +936,8 @@ function buildRoll(s, unit, role, ctx) {
     if (ctx.ranged && !fx(unit).paleFired) parts.push(['Pale Thunder (ranged)', 2]);
     if (ctx.charge && fx(unit).paleFired) parts.push(['Pale Thunder (charge after a volley)', 2]);
   }
+  // Mountain Passes (Liu Yan, David 2026-11-01): melee and ranged defense +1 on a hill, forest (or Trees) or rocky ground
+  if (role === 'defender' && trait(unit, 'mountain passes') && mountainGround(s, unit.x, unit.y)) parts.push(['Mountain Passes (hill, forest or rocky ground)', 1]);
   // Pretender's Guard (Yuan Shu, David 2026-11-01): melee defense +2 while next to an allied unit led by an officer
   if (role === 'defender' && !ctx.ranged && trait(unit, "pretender's guard") && liveUnits(s).some(f => f.id !== unit.id && friendly(f, unit) && f.officerId && manhattan(f, unit) === 1))
     parts.push(["Pretender's Guard (next to an officer's unit)", 2]);
