@@ -971,9 +971,9 @@ function buildRoll(s, unit, role, ctx) {
   // Strength penalties follow the soldier figures on the token (one per 20% of full strength):
   // 2 soldiers left (21-40%) -1, 1 soldier left (1-20%) -2
   const figures = soldierFigures(unit.men, full);
-  const grit = trait(unit, 'northern steel'); // Northern Steel (David 2026-11-01): ignores the strength penalties
-  if (figures === 1) parts.push(['One soldier left (1-20% strength)' + (grit ? ' (ignored: Northern Steel)' : ''), grit ? 0 : -2]);
-  else if (figures === 2) parts.push(['Two soldiers left (21-40% strength)' + (grit ? ' (ignored: Northern Steel)' : ''), grit ? 0 : -1]);
+  // (Northern Steel no longer ignores these: David, 2026-11-01)
+  if (figures === 1) parts.push(['One soldier left (1-20% strength)', -2]);
+  else if (figures === 2) parts.push(['Two soldiers left (21-40% strength)', -1]);
   // terrain of the square the unit stands on
   const tr = tileRules(s, unit.x, unit.y);
   if (tr) {

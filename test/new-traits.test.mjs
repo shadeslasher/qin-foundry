@@ -457,16 +457,16 @@ test('Ruthless Pursuit: Attack +2 against an enemy at 50 morale or less, only wh
   assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Ruthless Pursuit/), 0, 'not above 50');
 });
 
-test('Northern Steel: no strength penalty and no morale loss from casualties', () => {
+test('Northern Steel: no morale loss from casualties; strength penalties still apply (2026-11-01)', () => {
   const s = setup(); s.library.unitTypes.push(unitType('a'), unitType('d'));
   const A = R.unitById(s, add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 5, y: 5 }));
   const D = R.unitById(s, add(s, { typeId: 'd', side: 'enemy', x: 5, y: 4 }));
   A.men = 15; A.maxMen = 100;
   assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^One soldier left/), -2, 'penalty without the trait');
   A.traitTiers = { 'northern steel': 1 };
-  assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^One soldier left/), 0, 'ignored with Northern Steel');
+  assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^One soldier left/), -2, 'no longer ignored with Northern Steel');
   A.men = 30;
-  assert.strictEqual(part(rollOf(s, A, 'defender', D), /^Two soldiers left/), 0);
+  assert.strictEqual(part(rollOf(s, A, 'defender', D), /^Two soldiers left/), -1);
   A.fx = {}; A.men = 50;
   assert.strictEqual(R.checkpointMorale(A), 0, 'no checkpoint morale');
   D.fx = {}; D.men = 50; D.maxMen = 100;
