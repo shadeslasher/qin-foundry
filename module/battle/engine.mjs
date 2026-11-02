@@ -1109,7 +1109,7 @@ function resolveAttack(s, attacker, defender, opts) {
     if (winner === 'attacker') {
       mult = 1; // charges and rear attacks don't multiply morale loss
       moraleLoss = base * mult + (passive(s, attacker).extraMoraleLossOnWin || 0);
-      const terror = trait(defender, 'four generations') ? 0 : trait(attacker, 'terror'); // Terror: +2 morale loss; Terror+: double it. Four Generations (Song): immune
+      const terror = trait(defender, 'four generations') || trait(defender, 'confucian discipline') ? 0 : trait(attacker, 'terror'); // Terror: +2 morale loss; Terror+: double it. Four Generations (Song) and Confucian Discipline (Kong Rong): immune
       if (terror === 1) moraleLoss += 2; else if (terror >= 2) moraleLoss *= 2;
       if (ranged && trait(attacker, 'fire arrows')) moraleLoss += 3; // Fire Arrows: a hit costs 3 more morale
       // Trample: a winning charge against infantry costs the defender 5 more morale
@@ -1122,6 +1122,8 @@ function resolveAttack(s, attacker, defender, opts) {
     }
     // Fragile -5 / Fragile- -4 / Fragile-- -3 extra morale on losing a contested roll (the strongest one counts)
     { const fr = trait(loser, 'fragile') ? 5 : trait(loser, 'fragile-') ? 4 : trait(loser, 'fragile--') ? 3 : 0; moraleLoss += fr; }
+    // Confucian Discipline (Kong Rong, David 2026-11-02): no morale lost for losing a ranged exchange
+    if (ranged && trait(loser, 'confucian discipline')) moraleLoss = 0;
   }
 
   // Apply simultaneously

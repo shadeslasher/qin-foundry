@@ -441,3 +441,17 @@ test("Scholar's Peace: above 50 morale, the first morale loss each round is 3 sm
   const used = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], (a, d) => { d.morale = 60; d.traitTiers = { "scholar's peace": 1 }; d.fx = { peaceRound: 1 }; });
   if (used.s.turn.round === 1) assert.strictEqual(used.r.moraleLoss, plain.r.moraleLoss, 'once a round');
 });
+
+test('Confucian Discipline: immune to Terror; no morale lost for losing a ranged exchange (Kong Rong, 2026-11-02)', () => {
+  const plain = duel(unitType('t'), unitType('d'), [9, 0, 0, 0], (a) => { a.traitTiers = { terror: 1 }; });
+  const cd = duel(unitType('t'), unitType('d'), [9, 0, 0, 0], (a, d) => { a.traitTiers = { terror: 1 }; d.traitTiers = { 'confucian discipline': 1 }; });
+  assert.strictEqual(plain.r.moraleLoss - 2, cd.r.moraleLoss, 'Terror ignored in melee; the melee loss itself stays');
+  assert.ok(cd.r.moraleLoss > 0);
+  const bow = () => unitType('b', { weapon: 'ranged', rangeMax: 3 });
+  const shot = duel(bow(), unitType('d'), [9, 0, 0, 0]);
+  assert.ok(shot.r.moraleLoss > 0, 'a normal unit loses morale when shot');
+  const shotCd = duel(bow(), unitType('d'), [9, 0, 0, 0], (a, d) => { d.traitTiers = { 'confucian discipline': 1 }; });
+  assert.strictEqual(shotCd.r.moraleLoss, 0, 'shot: no morale lost');
+  const lostShot = duel(bow(), unitType('d', { weapon: 'ranged', rangeMax: 3 }), [0, 0, 9, 0], (a) => { a.traitTiers = { 'confucian discipline': 1 }; });
+  assert.strictEqual(lostShot.r.moraleLoss, 0, 'losing its own shooting exchange: no morale lost');
+});
