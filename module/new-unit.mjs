@@ -38,57 +38,65 @@ export function factionGroup(f) {
 
 /** Units to start from: the units in Actor compendiums (e.g. Three Kingdoms Battle Units). */
 export async function templates() {
-  const info = (sys) => ({ category: sys?.category ?? "infantry", tier: Number(sys?.tier) || 99, faction: factionGroup(sys?.faction), cost: Number(sys?.cost) || 0 });
+  const info = (sys) => ({ category: sys?.category ?? "infantry", tier: Number(sys?.tier) || 99, faction: factionGroup(sys?.faction), cost: Number(sys?.cost) || 0,
+    damage: Number(sys?.damage) || 0, pen: Number(sys?.armorPen) || 0, armor: Number(sys?.armor) || 0 });
   const out = []; // compendium units only (copies already in the world aren't offered as templates)
   for (const pack of game.packs ?? []) {
     if (pack.documentName !== "Actor") continue;
     let index;
-    try { index = await pack.getIndex({ fields: ["type", "img", "system.category", "system.tier", "system.faction", "system.cost"] }); } catch { continue; }
-    for (const e of index) if (e.type === "unit") out.push({ id: e.uuid ?? `Compendium.${pack.collection}.Actor.${e._id}`, name: e.name, img: e.img, world: false, ...info(e.system) });
+    try { index = await pack.getIndex({ fields: ["type", "img", "prototypeToken.texture.src", "system.category", "system.tier", "system.faction", "system.cost", "system.damage", "system.armorPen", "system.armor"] }); } catch { continue; }
+    for (const e of index) if (e.type === "unit") out.push({ id: e.uuid ?? `Compendium.${pack.collection}.Actor.${e._id}`, name: e.name, img: e.prototypeToken?.texture?.src || e.img, world: false, ...info(e.system) });
   }
   return out;
 }
 
-/** The form's contents (unit list, owners, officers). */
-async function formHTML() {
+const TYPES = [["infantry", "Infantry", "Inf"], ["ranged", "Ranged", "Rng"], ["cavalry", "Cavalry", "Cav"]];
+const typeKey = (t) => (TYPES.some(([k]) => k === t.category) ? t.category : "infantry");
+export const DRAG_TYPE = "QinNewUnit";
+
+/** The window's frame; the list, chips and selected card are filled in by the app (2026-11-02 redesign: layout C). */
+function shellHTML(armies) {
   const players = game.users.filter(u => !u.isGM);
-  const list = await templates();
-  // grouped by army (Han, Bandits, Yellow Turbans) and then type (Infantry, Ranged Infantry, Cavalry), then by tier and name;
-  // units made in this world are marked
-  const TYPES = [["infantry", "Infantry"], ["ranged", "Ranged Infantry"], ["cavalry", "Cavalry"]];
-  const typeOf = (t) => (TYPES.some(([k]) => k === t.category) ? t.category : "infantry");
-  const unitOpts = `<option value="">Blank unit</option>` + ARMIES.flatMap(army => TYPES.map(([k, label]) => {
-    const ts = list.filter(t => typeOf(t) === k && t.faction === army).sort((a, b) => a.tier - b.tier || a.name.localeCompare(b.name) || (a.world ? -1 : 1));
-    if (!ts.length) return "";
-    return `<optgroup label="${army} · ${label}">${ts.map(t => `<option value="${esc(t.id)}">${t.tier < 99 ? `T${t.tier} · ` : ""}${esc(t.name)}${t.world ? " (this world)" : ""}</option>`).join("")}</optgroup>`;
-  })).join("");
-  const ownerOpts = `<option value="">No player (GM only)</option>` + players.map(u => `<option value="${u.id}">${esc(u.name)}${u.character ? ` (${esc(u.character.name)})` : ""}</option>`).join("");
+  const ownerOpts = `<option value="">GM only</option>` + players.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join("");
   const chars = (game.actors?.contents ?? []).filter(a => a.type === "character").sort((a, b) => a.name.localeCompare(b.name));
-  const officerOpts = `<option value="">No officer</option>` + chars.map(a => `<option value="${esc(a.uuid)}">${esc(a.name)}</option>`).join("");
+  const officerOpts = `<option value="">None</option>` + chars.map(a => `<option value="${esc(a.uuid)}">${esc(a.name)}</option>`).join("");
   const sideOpts = Object.entries(SIDES).map(([k, l]) => `<option value="${k}">${l}</option>`).join("");
-  return `<form class="dialog-form standard-form qin-newunit">
-    <div class="dialog-content">
-      <div class="form-group"><label>Unit</label><select name="template">${unitOpts}</select></div>
-      <div class="form-group"><label>Name</label><input type="text" name="name" placeholder="Same as the unit"></div>
-      <div class="form-group"><label>Owner</label><select name="owner">${ownerOpts}</select></div>
-      <div class="form-group"><label>Side</label><select name="side">${sideOpts}</select></div>
-      <div class="form-group"><label>Officer</label><select name="officer">${officerOpts}</select></div>
-      <p class="qin-muted">The unit goes in the Actors directory: player units in a folder for their owner under "Player Units" (or "No owner" there if nobody owns them); enemy, ally and neutral units in "Enemy Units", "Ally Units" or "Neutral Units". Drag it onto a scene when it's needed. This window stays open, so you can make several units in a row.</p>
+  const armyOpts = armies.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join("");
+  return `<form class="qin-nu">
+    <div class="qin-nu-top">
+      <div class="qin-nu-row">
+        <select name="army" aria-label="Army" class="qin-nu-army">${armyOpts}</select>
+        <label class="qin-nu-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" name="search" placeholder="Search" aria-label="Search units" autocomplete="off"></label>
+      </div>
+      <div class="qin-nu-chips" data-chips></div>
     </div>
-    <footer class="form-footer">
-      <button type="submit" data-create><i class="fa-solid fa-check"></i> Create unit</button>
-      <button type="button" data-close><i class="fa-solid fa-xmark"></i> Close</button>
-    </footer>
+    <div class="qin-nu-list" data-list></div>
+    <div class="qin-nu-foot">
+      <div class="qin-nu-sel">
+        <img data-sel-img src="icons/svg/combat.svg" alt="">
+        <div class="qin-nu-sel-text">
+          <input type="text" name="name" aria-label="Name" placeholder="Pick a unit, or drag one onto the map">
+          <div class="qin-nu-traits" data-sel-traits></div>
+        </div>
+      </div>
+      <div class="qin-nu-grid">
+        <label>Owner<select name="owner">${ownerOpts}</select></label>
+        <label>Side<select name="side">${sideOpts}</select></label>
+        <label>Officer<select name="officer">${officerOpts}</select></label>
+      </div>
+      <button type="submit" data-create class="qin-nu-create"><i class="fa-solid fa-check"></i> Create unit</button>
+      <p class="qin-nu-hint" data-tooltip="Player units go in &quot;Player Units&quot; under their owner (or &quot;No owner&quot;); enemy, ally and neutral units go in &quot;Enemy Units&quot;, &quot;Ally Units&quot; or &quot;Neutral Units&quot;. Dragging a unit onto the map makes it with these settings and places it there.">Drag a unit onto the map to place it there <i class="fa-regular fa-circle-question"></i></p>
+    </div>
   </form>`;
 }
 
-/** The New unit window (GM). Stays open after each unit is created. */
+/** The New unit window (GM). Stays open after each unit is created; units can be dragged straight onto the map. */
 export class NewUnitApp extends foundry.applications.api.ApplicationV2 {
   static #inst = null;
   static DEFAULT_OPTIONS = {
-    id: "qin-new-unit", classes: ["dialog", "qin-newunit-app"],
-    window: { title: "New unit", icon: "fa-solid fa-people-group", resizable: false },
-    position: { width: 440, height: "auto" },
+    id: "qin-new-unit", classes: ["qin-newunit-app"],
+    window: { title: "New unit", icon: "fa-solid fa-people-group", resizable: true },
+    position: { width: 480, height: 720 },
   };
   /** Open it, or bring it to the front if it's already open. */
   static open() {
@@ -98,33 +106,146 @@ export class NewUnitApp extends foundry.applications.api.ApplicationV2 {
     app.render({ force: true });
     return app;
   }
-  async _renderHTML() { return formHTML(); }
+  /** The open window, if any (the map drop reads its Owner / Side / Officer). */
+  static get instance() { return this.#inst?.rendered ? this.#inst : null; }
+
+  state = { army: null, search: "", tier: 0, type: "", selected: "" };
+
+  async _renderHTML() {
+    this.list = await templates();
+    const have = new Set(this.list.map(t => t.faction));
+    this.armies = ARMIES.filter(a => have.has(a));
+    if (!this.state.army || !have.has(this.state.army)) this.state.army = this.armies[0] ?? "Other";
+    return shellHTML(this.armies);
+  }
+
+  /** The current Owner / Side / Officer / Name choices. */
+  settings() {
+    const form = this.element?.querySelector("form.qin-nu"); if (!form) return {};
+    const f = Object.fromEntries(new FormData(form).entries());
+    return { owner: f.owner || "", side: f.side || "player", officer: f.officer || "", name: f.name || "" };
+  }
+
   _replaceHTML(result, content) {
     content.innerHTML = result;
-    const form = content.querySelector("form");
-    const owner = form.querySelector("[name=owner]"), off = form.querySelector("[name=officer]"), side = form.querySelector("[name=side]");
-    owner?.addEventListener("change", () => {
-      if (off) off.value = ""; // picking an owner starts with no officer; choose one if the unit has one
-      if (side && game.users.get(owner.value)) side.value = "player";
-    });
-    form.querySelector("[data-close]")?.addEventListener("click", () => this.close());
+    const form = content.querySelector("form.qin-nu");
+    this.form = form;
+    form.army.value = this.state.army;
+    form.search.value = this.state.search;
+    form.army.addEventListener("change", () => { this.state.army = form.army.value; this.state.tier = 0; this.#draw(); });
+    form.search.addEventListener("input", () => { this.state.search = form.search.value; this.#draw(); });
+    const owner = form.owner, side = form.side, off = form.officer;
+    owner.addEventListener("change", () => { off.value = ""; if (game.users.get(owner.value)) side.value = "player"; });
     form.addEventListener("submit", async (ev) => {
       ev.preventDefault();
+      if (!this.state.selected) return ui.notifications.warn("Pick a unit first (or drag one onto the map).");
       const btn = form.querySelector("[data-create]");
-      if (btn?.disabled) return;
-      if (btn) btn.disabled = true;
+      if (btn.disabled) return;
+      btn.disabled = true;
       try {
-        const actor = await createUnit(Object.fromEntries(new FormData(form).entries()));
-        if (actor) { const name = form.querySelector("[name=name]"); if (name) name.value = ""; } // keep the other choices for the next one
+        const actor = await createUnit({ template: this.state.selected, ...this.settings() });
+        if (actor) form.name.value = ""; // keep the other choices for the next one
       } catch (err) {
         console.error("Qin | New unit failed", err);
         ui.notifications.error(`The unit couldn't be created: ${err.message}`);
-      } finally { if (btn) btn.disabled = false; }
+      } finally { btn.disabled = false; }
     });
+    this.#draw();
+    this.#showSelected();
+  }
+
+  /** Units of the chosen army that pass the search and the tier / type chips. */
+  #visible() {
+    const q = this.state.search.trim().toLowerCase();
+    return this.list.filter(t => t.faction === this.state.army
+      && (!this.state.tier || t.tier === this.state.tier)
+      && (!this.state.type || typeKey(t) === this.state.type)
+      && (!q || t.name.toLowerCase().includes(q)));
+  }
+
+  #draw() {
+    const form = this.form; if (!form) return;
+    const inArmy = this.list.filter(t => t.faction === this.state.army);
+    const tiers = [...new Set(inArmy.map(t => t.tier).filter(t => t < 99))].sort((a, b) => a - b);
+    const types = TYPES.filter(([k]) => inArmy.some(t => typeKey(t) === k));
+    const chip = (label, on, attrs, aria = "") => `<button type="button" class="qin-nu-chip${on ? " on" : ""}" ${attrs}${aria ? ` aria-label="${aria}"` : ""} aria-pressed="${on}">${label}</button>`;
+    form.querySelector("[data-chips]").innerHTML =
+      chip("All tiers", !this.state.tier, `data-tier="0"`) + tiers.map(t => chip(`T${t}`, this.state.tier === t, `data-tier="${t}"`)).join("") +
+      `<span class="qin-nu-gap"></span>` + types.map(([k, label, short]) => chip(short, this.state.type === k, `data-type="${k}"`, label)).join("");
+    for (const b of form.querySelectorAll("[data-tier]")) b.addEventListener("click", () => { this.state.tier = Number(b.dataset.tier); this.#draw(); });
+    for (const b of form.querySelectorAll("[data-type]")) b.addEventListener("click", () => { this.state.type = this.state.type === b.dataset.type ? "" : b.dataset.type; this.#draw(); });
+
+    const vis = this.#visible();
+    const rows = TYPES.flatMap(([k, label]) => {
+      const ts = vis.filter(t => typeKey(t) === k).sort((a, b) => a.tier - b.tier || a.name.localeCompare(b.name));
+      if (!ts.length) return [];
+      return [`<div class="qin-nu-head">${label}<span>dmg / pen / armor · cost</span></div>`, ...ts.map(t => `
+        <button type="button" class="qin-nu-unit${t.id === this.state.selected ? " on" : ""}" draggable="true" data-uuid="${esc(t.id)}" data-tooltip="Click to pick · drag onto the map to place">
+          <img src="${esc(t.img)}" alt="">
+          <span class="qin-nu-name">${esc(t.name)}</span>
+          ${t.tier < 99 ? `<span class="qin-nu-tier t${t.tier}">T${t.tier}</span>` : ""}
+          <span class="qin-nu-stats">${t.damage} / ${t.pen} / ${t.armor}</span>
+          <span class="qin-nu-cost">${t.cost || "–"}</span>
+        </button>`)];
+    });
+    const list = form.querySelector("[data-list]");
+    list.innerHTML = rows.length ? rows.join("") : `<p class="qin-nu-empty">No units match.</p>`;
+    for (const el of list.querySelectorAll(".qin-nu-unit")) {
+      el.addEventListener("click", () => this.#select(el.dataset.uuid));
+      el.addEventListener("dragstart", (ev) => {
+        this.#select(el.dataset.uuid);
+        ev.dataTransfer.setData("text/plain", JSON.stringify({ type: DRAG_TYPE, template: el.dataset.uuid }));
+        const img = el.querySelector("img"); if (img) ev.dataTransfer.setDragImage(img, 18, 18);
+      });
+    }
+  }
+
+  async #select(uuid) {
+    if (this.state.selected === uuid) return;
+    this.state.selected = uuid;
+    for (const el of this.form?.querySelectorAll(".qin-nu-unit") ?? []) el.classList.toggle("on", el.dataset.uuid === uuid);
+    if (this.form?.name) this.form.name.value = "";
+    this.#showSelected();
+  }
+
+  async #showSelected() {
+    const form = this.form; if (!form) return;
+    const t = this.list.find(x => x.id === this.state.selected);
+    form.querySelector("[data-sel-img]").src = t?.img || "icons/svg/combat.svg";
+    form.name.placeholder = t ? t.name : "Pick a unit, or drag one onto the map";
+    const tr = form.querySelector("[data-sel-traits]");
+    if (!t) { tr.textContent = ""; return; }
+    tr.textContent = `${t.faction} · ${t.tier < 99 ? `Tier ${t.tier} · ` : ""}${t.cost || 0}`;
+    const doc = await fromUuid(t.id).catch(() => null);
+    if (this.state.selected !== t.id || !doc) return;
+    const names = (doc.system?.traitList ?? []).filter(x => !x.equip && (x.level ?? 1) <= 1 && !(x.options?.length)).map(x => x.name).filter(Boolean);
+    if (names.length) tr.textContent = `${t.faction} · ${t.tier < 99 ? `Tier ${t.tier} · ` : ""}${t.cost || 0} · ${names.join(", ")}`;
   }
 }
 
 export function newUnitDialog() { return NewUnitApp.open(); }
+
+/** Make a unit from the template with the window's choices and put its token where it was dropped. */
+export async function placeNewUnit(template, scene, x, y) {
+  const opts = NewUnitApp.instance?.settings() ?? {};
+  const actor = await createUnit({ template, ...opts });
+  if (!actor) return;
+  const tl = canvas.grid?.getTopLeftPoint?.({ x, y }) ?? { x: Math.floor(x / scene.grid.size) * scene.grid.size, y: Math.floor(y / scene.grid.size) * scene.grid.size };
+  const td = await actor.getTokenDocument({ x: tl.x, y: tl.y });
+  await scene.createEmbeddedDocuments("Token", [td.toObject()]);
+  const form = NewUnitApp.instance?.form; if (form?.name) form.name.value = "";
+  return actor;
+}
+
+/** GM: a unit dragged from the New unit window onto the map. */
+export function registerNewUnitDrop() {
+  Hooks.on("dropCanvasData", (cv, data) => {
+    if (data?.type !== DRAG_TYPE) return;
+    if (!game.user.isGM || !cv.scene) return false;
+    placeNewUnit(data.template, cv.scene, data.x, data.y).catch(err => { console.error("Qin | New unit drop failed", err); ui.notifications.error(`The unit couldn't be placed: ${err.message}`); });
+    return false;
+  });
+}
 
 const findFolder = (name, parent) => game.folders.find(f => f.type === "Actor" && f.name === name && (f.folder?.id ?? null) === (parent?.id ?? null));
 

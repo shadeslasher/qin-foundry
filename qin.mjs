@@ -32,7 +32,7 @@ import { registerNameLabels, toggleNameLabels } from "./module/battle/name-label
 import { registerEquipment } from "./module/equipment.mjs";
 import { registerTurnBanner, renderTurnBanner } from "./module/battle/turn-banner.mjs";
 import { registerObjectives, refreshObjectives, setObjectivesChangeHandler } from "./module/battle/objectives-ui.mjs";
-import { NEW_UNIT_TOOL, newUnitDialog } from "./module/new-unit.mjs";
+import { NEW_UNIT_TOOL, newUnitDialog, registerNewUnitDrop } from "./module/new-unit.mjs";
 import { UNIT_EDITOR_TOOL, UnitEditorApp, registerUnitEditor, reapplyUnitEdits } from "./module/unit-editor.mjs";
 import { registerMapRenderer, syncBattleMap, initBattleMapSync, redrawScene, MapEditorApp } from "./module/battle/maprender.mjs";
 import { importBattleMap } from "./module/battle/battlemap.mjs";
@@ -219,6 +219,7 @@ Hooks.once("init", () => {
 
   registerBattleQuery();
   registerDeployDrop();
+  registerNewUnitDrop();
   registerRecruitQuery();
   registerCombatQuery();
 });

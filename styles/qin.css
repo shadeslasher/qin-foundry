@@ -1,5 +1,5 @@
 /* Qin: The Warring States — sheet and chat styles */
-.qin {
+.qin, .qin-newunit-app {
   --qin-red: #9b2c22;
   --qin-gold: #b8862b;
   --qin-ink: #231c14;
@@ -570,9 +570,6 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin-deploy-card a[data-action] { color: var(--qin-red, #9b2c22); cursor: pointer; text-decoration: underline; }
 .qin-deploy-chip { display: inline-block; width: 0.9em; height: 0.9em; background: #e6f1ff; border: 2px solid #9fb8d6; vertical-align: -0.1em; margin-right: 3px; }
 /* New unit window (stays open between units) */
-.qin-newunit-app .qin-newunit { display: flex; flex-direction: column; gap: 6px; }
-.qin-newunit-app .form-footer { display: flex; gap: 8px; margin-top: 6px; }
-.qin-newunit-app .form-footer button { flex: 1; }
 
 /* ------------------------------------------------------------ victory and defeat */
 @font-face { font-family: "Qin Cinzel"; src: url("fonts/cinzel-latin-900-normal.woff2") format("woff2"); font-weight: 900; font-display: swap; } /* Cinzel, SIL Open Font License (fonts/Cinzel-OFL.txt) */
@@ -980,3 +977,43 @@ details.qin-recent[open] > summary { margin-bottom: 4px; }
 .qin-gm-sel b { flex: 1; }
 .qin-gm-lv { display: inline-flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
 .qin-gm-panel .qin-btns button[disabled] { opacity: .45; }
+
+/* New unit window (2026-11-02 redesign, layout C: army dropdown, search, chips, draggable list, settings pinned at the bottom) */
+.qin-newunit-app .window-content { padding: 0; overflow: hidden; background: var(--qin-paper); color: var(--qin-ink); }
+.qin-nu { display: flex; flex-direction: column; height: 100%; font-size: 14px; }
+.qin-nu-top { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--qin-line); }
+.qin-nu-row { display: flex; gap: 6px; }
+.qin-nu select, .qin-nu input[type=text], .qin-nu input[type=search] { color: var(--qin-ink); }
+.qin-nu-army { height: 36px; font-weight: 600; background: #fffaf0; border: 1px solid var(--qin-line); border-radius: 4px; max-width: 170px; }
+.qin-nu-search { flex: 1; display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 10px; background: #fffaf0; border: 1px solid var(--qin-line); border-radius: 4px; color: var(--qin-muted); }
+.qin-nu-search input { flex: 1; border: 0 !important; background: none !important; box-shadow: none !important; height: 32px; font-size: 14px; }
+.qin-nu-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.qin-nu-gap { width: 8px; }
+.qin-nu-chip { flex: none; width: auto; height: 28px; line-height: 26px; padding: 0 10px; border-radius: 14px; border: 1px solid var(--qin-line); background: #fffaf0; color: var(--qin-ink); font-size: 12px; cursor: pointer; }
+.qin-nu-chip.on { background: var(--qin-ink); border-color: var(--qin-ink); color: var(--qin-paper); }
+.qin-nu-list { flex: 1; overflow-y: auto; min-height: 0; }
+.qin-nu-head { position: sticky; top: 0; z-index: 1; display: flex; justify-content: space-between; padding: 6px 12px 4px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--qin-muted); background: #ebe0c8; }
+.qin-nu-head span { font-weight: 400; text-transform: none; letter-spacing: 0; }
+.qin-nu-unit { display: flex; align-items: center; gap: 10px; width: 100%; height: auto; margin: 0; padding: 5px 12px; border: 0; border-bottom: 1px solid #e2d4b3; border-radius: 0; background: #fffaf0; color: var(--qin-ink); text-align: left; cursor: grab; line-height: 1.2; }
+.qin-nu-unit:hover { background: #fff; }
+.qin-nu-unit.on { background: #f6dcd6; box-shadow: inset 3px 0 0 var(--qin-red); }
+.qin-nu-unit:active { cursor: grabbing; }
+.qin-nu-unit img { width: 36px; height: 36px; border-radius: 50%; border: 0; flex: none; object-fit: cover; }
+.qin-nu-name { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qin-nu-tier { flex: none; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 3px; background: #e2d4b3; }
+.qin-nu-tier.t5 { background: var(--qin-red); color: #fff; }
+.qin-nu-stats { flex: none; width: 74px; text-align: right; font-size: 12px; color: #4a3f31; }
+.qin-nu-cost { flex: none; width: 44px; text-align: right; font-weight: 600; }
+.qin-nu-empty { padding: 16px 12px; color: var(--qin-muted); }
+.qin-nu-foot { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-top: 2px solid var(--qin-red); background: #fffaf0; }
+.qin-nu-sel { display: flex; align-items: center; gap: 8px; }
+.qin-nu-sel img { width: 40px; height: 40px; border-radius: 50%; border: 0; flex: none; object-fit: cover; }
+.qin-nu-sel-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.qin-nu-sel-text input { height: 32px; font-size: 14px; font-weight: 600; background: #fff; }
+.qin-nu-traits { font-size: 12px; color: #4a3f31; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qin-nu-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.qin-nu-grid label { display: flex; flex-direction: column; gap: 2px; font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--qin-muted); }
+.qin-nu-grid select { height: 32px; background: #fff; text-transform: none; font-weight: 400; font-size: 13px; }
+.qin-nu-create { height: 44px; border: 0; border-radius: 4px; background: var(--qin-red); color: #fff; font-size: 15px; font-weight: 700; }
+.qin-nu-create:hover { background: #7f241b; }
+.qin-nu-hint { margin: 0; text-align: center; font-size: 12px; color: var(--qin-muted); }
