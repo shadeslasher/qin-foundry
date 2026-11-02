@@ -24,6 +24,7 @@ import { registerPreBattleCover } from "./module/battle/cover.mjs";
 import { registerReinforcements, drawReinforceZones, setReinforceChangeHandler } from "./module/battle/reinforce.mjs";
 import { registerTileTip, toggleTileTip } from "./module/battle/tile-tip.mjs";
 import { registerDeployDrawing, syncDeployDrawing } from "./module/battle/deploy-draw.mjs";
+import { panToActiveOfficer } from "./module/battle/turn-pan.mjs";
 import { HotkeyGuide } from "./module/hotkeys.mjs";
 import { registerSounds, registerSoundPack, onBattleSetting, primeBattleSounds, primeTokenPositions, onUnitTokenMoved, SoundPanel, playMoment } from "./module/sound.mjs";
 import { registerNameLabels, toggleNameLabels } from "./module/battle/name-labels.mjs";
@@ -92,6 +93,7 @@ Hooks.once("init", () => {
       try { onBattleSetting(getBattle(), (id) => canvas?.scene?.tokens.get(id)?.actor?.system?.side ?? null); } catch (e) { console.warn("Qin | turn sounds", e); }
       syncBattleMap();
       syncDeployDrawing(getBattle()).catch(e => console.warn("Qin | deployment drawing", e));
+      try { panToActiveOfficer(getBattle()); } catch (e) { console.warn("Qin | follow officer", e); }
       if (getBattle().active && !BattlePanel.instance?.rendered && game.settings.get(SYSTEM_ID, "autoOpenBattle")) BattlePanel.open();
     },
   });
