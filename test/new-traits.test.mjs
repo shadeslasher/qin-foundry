@@ -457,7 +457,7 @@ test('Ruthless Pursuit: Attack +2 against an enemy at 50 morale or less, only wh
   assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Ruthless Pursuit/), 0, 'not above 50');
 });
 
-test('Northern Steel: no morale loss from casualties; strength penalties still apply (2026-11-01)', () => {
+test('Northern Steel: half morale loss from casualties; strength penalties still apply (2026-11-01)', () => {
   const s = setup(); s.library.unitTypes.push(unitType('a'), unitType('d'));
   const A = R.unitById(s, add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 5, y: 5 }));
   const D = R.unitById(s, add(s, { typeId: 'd', side: 'enemy', x: 5, y: 4 }));
@@ -468,9 +468,9 @@ test('Northern Steel: no morale loss from casualties; strength penalties still a
   A.men = 30;
   assert.strictEqual(part(rollOf(s, A, 'defender', D), /^Two soldiers left/), -1);
   A.fx = {}; A.men = 50;
-  assert.strictEqual(R.checkpointMorale(A), 0, 'no checkpoint morale');
+  assert.strictEqual(R.checkpointMorale(A), 10, 'half checkpoint morale (2 checkpoints x 10 / 2)');
   D.fx = {}; D.men = 50; D.maxMen = 100;
-  assert.strictEqual(R.checkpointMorale(D), 16, 'normal unit loses 8 per checkpoint (80% and 60% passed)');
+  assert.strictEqual(R.checkpointMorale(D), 20, 'normal unit loses 10 per checkpoint (80% and 60% passed)');
 });
 
 test('Opportunists: Attack +2 against an enemy already next to another friendly unit, only when attacking', () => {

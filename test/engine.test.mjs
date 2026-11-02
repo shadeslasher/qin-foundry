@@ -753,15 +753,15 @@ test('Evasion / Evasion EX tiers and the Disciplined start bonus', () => {
   assert.strictEqual(R.disciplinedBonus({ traitTiers: { disciplined: 2 } }), 10);
 });
 
-test('casualty checkpoints: -8 morale for each fifth of health lost, once per battle', () => {
+test('casualty checkpoints: -10 morale for each fifth of health lost, once per battle', () => {
   const u = { men: 100, maxMen: 100, fx: {} };
   u.men = 85; assert.strictEqual(R.checkpointMorale(u), 0);
-  u.men = 79; assert.strictEqual(R.checkpointMorale(u), 8, 'past 80%');
-  u.men = 39; assert.strictEqual(R.checkpointMorale(u), 16, 'past 60% and 40% in one hit');
+  u.men = 79; assert.strictEqual(R.checkpointMorale(u), 10, 'past 80%');
+  u.men = 39; assert.strictEqual(R.checkpointMorale(u), 20, 'past 60% and 40% in one hit');
   u.men = 90; assert.strictEqual(R.checkpointMorale(u), 0, 'healed');
   u.men = 70; assert.strictEqual(R.checkpointMorale(u), 0, 'checkpoints already passed this battle cost nothing again');
   u.men = 0; assert.strictEqual(R.checkpointMorale(u), 0, 'wiped out: nothing more');
-  const c = { men: 50, maxMen: 50, fx: {} }; c.men = 40; assert.strictEqual(R.checkpointMorale(c), 8, 'same for 50-health units');
+  const c = { men: 50, maxMen: 50, fx: {} }; c.men = 40; assert.strictEqual(R.checkpointMorale(c), 10, 'same for 50-health units');
 });
 
 test('Imperial Solidarity: allies within 2 tiles (not itself) get melee defense +2 and +4 morale at round end, once however many', () => {

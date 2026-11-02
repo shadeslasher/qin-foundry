@@ -765,7 +765,7 @@ function rangeOk(s, attacker, defender) {
  * per checkpoint (80%, 60%, 40%, 20%; a unit wiped out loses nothing more). Call after its health has changed;
  * returns the morale to take off and remembers the checkpoints passed (fx.checkpoints).
  */
-const CHECKPOINT_MORALE = 8; // 8 per fifth of health lost (David, 2026-11-01; was 5)
+const CHECKPOINT_MORALE = 10; // 10 per fifth of health lost (David, 2026-11-01; was 5, then 8)
 /** Morale lost when surrounded by four enemy units; 10 less for each side closed by impassable ground instead
  * (David, 2026-10-27; 50 until v0.53.0, 25 with four enemy units only until v0.79.0). */
 const SURROUND_MORALE = 40;
@@ -780,8 +780,9 @@ function checkpointMorale(u) {
   if (now <= before) return 0;
   fx(u).checkpoints = now;
   if (trait(u, 'disciplined') >= 4) return 0; // Disciplined EX: no morale loss from casualties (David, 2026-10-29)
-  if (trait(u, 'northern steel')) return 0; // Northern Steel (Northern army, David 2026-11-01): no morale loss from casualties
-  return u.men > 0 ? (now - before) * CHECKPOINT_MORALE : 0;
+  if (u.men <= 0) return 0;
+  const loss = (now - before) * CHECKPOINT_MORALE;
+  return trait(u, 'northern steel') ? Math.floor(loss / 2) : loss; // Northern Steel (David 2026-11-01): half morale loss from casualties
 }
 
 /**
