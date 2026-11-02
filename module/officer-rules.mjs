@@ -25,7 +25,9 @@ export function officerWeaponSkill(officer, unit) {
  *  Any character can lead any unit (David, 2026-10-28); his matching weapon skill gives the unit Attack +1 per level above 2 instead. */
 export function officerEligibility(officer, unit, unitId = null) {
   if (!officer || officer.type !== "character") return { ok: false, reason: "not a character" };
-  const other = playerOfficerConflict(officer, unitId);
+  // the one-unit check is for choosing an officer (pickers pass the unit's id); in battle the unit is a token copy
+  // that would clash with its own actor, so the battle passes no id and skips it
+  const other = unitId ? playerOfficerConflict(officer, unitId) : null;
   if (other) return { ok: false, reason: `leads ${other.name}` };
   return { ok: true, reason: "" };
 }

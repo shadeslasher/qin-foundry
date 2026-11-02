@@ -60,3 +60,10 @@ test("a player's officer leads one unit; GM-only characters can lead several", a
     assert.strictEqual(officerEligibility(npcOfficer, {}, 'uC').ok, true, "a GM's officer can lead several");
   } finally { delete globalThis.game; }
 });
+
+test("in battle (no unit id) a player's officer still leads his unit", async () => {
+  const { officerEligibility } = await import('../module/officer-rules.mjs');
+  const pcOfficer = { type: 'character', uuid: 'Actor.pc', name: 'Li Shi', testUserPermission: (u) => u.id === 'p1' };
+  globalThis.game = { users: { contents: [{ id: 'p1', isGM: false }] }, actors: { contents: [{ id: 'uA', type: 'unit', name: 'Archers', system: { officer: 'Actor.pc' } }] } };
+  try { assert.strictEqual(officerEligibility(pcOfficer, {}).ok, true); } finally { delete globalThis.game; }
+});
