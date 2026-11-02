@@ -36,6 +36,22 @@ export function tileTipLines(rules) {
   return { title: rules.names.join(" · ") || "Open ground", lines };
 }
 
+/** A city gate on this square: owner, state and health (from the running battle, or a fresh gate before one starts). */
+export function gateInfo(siege, x, y, tile) {
+  if (!(tile?.overlays ?? []).includes("city-gate")) return null;
+  const g = (siege?.gates ?? []).find(q => q.squares.some(([gx, gy]) => gx === x && gy === y));
+  const maxHp = g?.maxHp ?? 80 * (g?.squares?.length ?? 1), hp = g ? (g.hp ?? maxHp) : maxHp;
+  return { owner: g?.owner ?? "friendly", state: g?.state ?? "locked", hp, maxHp };
+}
+const OWNER_NAME = { friendly: "Player side", enemy: "Enemy side" };
+const STATE_NAME = { locked: "locked", open: "open", broken: "broken open", burned: "burned" };
+function gateHtml(g) {
+  const p = Math.max(0, Math.min(1, g.maxHp ? g.hp / g.maxHp : 0));
+  const col = p > 0.5 ? "#3f9b4a" : p > 0.25 ? "#d4a017" : "#c0392b";
+  return `<div class="qin-tip-gate">${esc(OWNER_NAME[g.owner] ?? g.owner)} gate, ${esc(STATE_NAME[g.state] ?? g.state)}</div>`
+    + `<div class="qin-tip-hp"><span style="width:${(p * 100).toFixed(0)}%;background:${col}"></span></div><div class="qin-tip-hpn">${g.hp} / ${g.maxHp} health</div>`;
+}
+
 function tilesFor(scene) {
   const flag = scene?.getFlag?.(SYSTEM_ID, MAP_FLAG);
   if (!flag) return null;
@@ -56,10 +72,12 @@ function show(ev) {
   if (!tiles[key]) return hide();
   if (key !== last) {
     let tip = null;
-    try { tip = tileTipLines(E.tileRules({ map: { tiles }, siege: getBattle().siege ?? {} }, x, y)); } catch { tip = null; }
+    const siege = getBattle().siege ?? {};
+    try { tip = tileTipLines(E.tileRules({ map: { tiles }, siege }, x, y)); } catch { tip = null; }
+    const gate = tip ? gateInfo(siege, x, y, tiles[key]) : null;
     if (!tip) return hide();
     if (!el) { el = document.createElement("div"); el.className = "qin-tile-tip"; document.body.appendChild(el); }
-    el.innerHTML = `<b>${esc(tip.title)}</b>${tip.lines.length ? `<ul>${tip.lines.map(l => `<li>${esc(l)}</li>`).join("")}</ul>` : `<div class="qin-muted">No effects</div>`}`;
+    el.innerHTML = `<b>${esc(tip.title)}</b>${gate ? gateHtml(gate) : ""}${tip.lines.length ? `<ul>${tip.lines.map(l => `<li>${esc(l)}</li>`).join("")}</ul>` : `<div class="qin-muted">No effects</div>`}`;
     el.style.display = "";
     last = key;
   }

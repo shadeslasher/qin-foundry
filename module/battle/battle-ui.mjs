@@ -371,6 +371,7 @@ function renderMenu(sub = null) {
     if (flags.takeBack) html += b("takeBack", "↶ Take back turn", true, "Not this unit after all: give the turn back (only before it does anything)");
     html += b("move", "Move", flags.move, flags.move ? "" : "Already moved or can't move");
     if (flags.openGate) html += b("openGate", "Open gate", true, "Unbar the gate next to this unit (owners from either side, anyone from inside the city). Ends the turn.");
+    if (flags.attackGate) html += b("attackGate", "Attack gate", true, "Batter the enemy's gate next to this unit: Yin/Yang + Command + the unit's damage off its health (doubled with a siege engine). At 0 it breaks open. Ends the turn.");
     if (flags.closeGate) html += b("closeGate", "Shut gate", true, "Shut and bar the gate next to this unit (the gateway must be empty). Ends the turn.");
     if (flags.pickUp) html += b("pickUp", "Pick up", true, "Take up the siege equipment lying here. Ends the turn.");
     if (flags.placeLadder) html += b("placeLadder", "Place Ladder", true, "Set siege ladders against a city wall square next to this unit. Ends the turn.");
@@ -421,6 +422,7 @@ function onMenuClick(ev) {
     case "placeLadder": return enterLadder();
     case "openGate": return send({ type: "openGate", unitId: id });
     case "closeGate": return send({ type: "closeGate", unitId: id });
+    case "attackGate": return send({ type: "attackGate", unitId: id });
     case "pickUp": return send({ type: "pickUpEquipment", unitId: id });
     case "drop": return send({ type: "dropEquipment", unitId: id });
     case "setFire": return enterSetFire();

@@ -788,6 +788,10 @@ details.qin-recent[open] > summary { margin-bottom: 4px; }
   font-size: 12px; line-height: 1.3; backdrop-filter: blur(2px); }
 .qin-tile-tip b { display: block; font-family: "Qin Cinzel", Georgia, serif; font-size: 12.5px; letter-spacing: .03em; color: #ffe9b0; margin-bottom: 2px; }
 .qin-tile-tip ul { margin: 0; padding-left: 12px; }
+.qin-tile-tip .qin-tip-gate { font-size: 11px; color: #e8dcc0; margin: 1px 0 3px; }
+.qin-tile-tip .qin-tip-hp { height: 6px; border-radius: 3px; background: rgba(0,0,0,.55); border: 1px solid rgba(255,233,176,.35); overflow: hidden; }
+.qin-tile-tip .qin-tip-hp span { display: block; height: 100%; }
+.qin-tile-tip .qin-tip-hpn { font-size: 10.5px; color: #cfc4a8; margin: 1px 0 3px; }
 .qin-tile-tip li { margin: 0; }
 .qin-tile-tip .qin-muted { opacity: .7; }
 

@@ -237,6 +237,16 @@ function burnRound(s) {
 /** City gates: { id, squares: [[x, y]...], owner: 'friendly' | 'enemy', state: 'locked' | 'open' | 'broken' | 'burned' }. */
 const gateAt = (s, x, y) => (s.siege && s.siege.gates ? s.siege.gates.find(g => g.squares.some(([gx, gy]) => gx === x && gy === y)) : null) || null;
 const gateBlocks = (g) => !g || g.state === 'locked';
+/** A gate's hit points (David, 2026-11-01): 80 per gate square, so a double gate has 160. Set on first use. */
+const GATE_HP = 80;
+function gateHp(g) { if (!g) return null; if (!(g.maxHp > 0)) g.maxHp = GATE_HP * (g.squares ? g.squares.length : 1); if (g.hp == null) g.hp = g.maxHp; return g; }
+/** May this unit attack that gate? Only units of the other side, while the gate still stands (locked or open). */
+function gateHostile(u, g) {
+  if (!g || !(g.state === 'locked' || g.state === 'open')) return false;
+  const side = alliance(u.side);
+  return g.owner === 'enemy' ? side === 'player' : side === 'enemy';
+}
+const gateTargets = (s, u) => gatesNear(s, u).filter(g => gateHostile(u, g));
 /** Gates next to the unit. */
 const gatesNear = (s, u) => (s.siege && s.siege.gates ? s.siege.gates.filter(g => g.squares.some(([x, y]) => Math.abs(x - u.x) + Math.abs(y - u.y) === 1)) : []);
 /** May this unit open or close that gate? Its owners from either side; anyone from inside the city. */
@@ -246,6 +256,8 @@ function gateKeyHolder(s, u, g) {
   return g.owner === 'enemy' ? side === 'enemy' : side === 'player' || side === 'ally';
 }
 const hasLadder = (s, x, y) => !!(s.siege && s.siege.ladders.includes(x + ',' + y));
+/** Stairs (David, 2026-11-01): a square beside a wall that units walk up from, onto the wall and back down. */
+const stairsAt = (s, x, y) => overlaysAt(s, x, y).includes('stairs');
 /** Squares inside the city walls: everything the map edge can't reach without crossing a wall, gate or tower. */
 function insideSet(s) {
   if (s._inside) return s._inside;
@@ -272,7 +284,7 @@ function meleeLevelOk(s, a, b) {
   const wa = onWall(s, a), wb = onWall(s, b);
   if (wa === wb) return true;
   const g = wa ? b : a, w = wa ? a : b;
-  return insideCity(s, g.x, g.y) || hasLadder(s, w.x, w.y);
+  return insideCity(s, g.x, g.y) || hasLadder(s, w.x, w.y) || stairsAt(s, g.x, g.y);
 }
 /** A ranged shot from the ground stops at the walls: any wall, gate or tower between the two squares blocks it. */
 function wallBlocksShot(s, a, d) {
@@ -474,8 +486,8 @@ function yinYang() { const yin = d10(), yang = d10(); return { yin, yang, value:
  * and to and from the city inside (not down to the outside); camp ramparts only from inside the camp. */
 function terrainStep(s, u, x, y, nx, ny) {
   const fromWall = isWallTop(s, x, y), toWall = isWallTop(s, nx, ny);
-  const ok = fromWall && toWall ? true : fromWall ? insideCity(s, nx, ny) && passable(s, nx, ny, u)
-    : toWall ? insideCity(s, x, y) : passable(s, nx, ny, u) || campEdgeStep(s, x, y, nx, ny);
+  const ok = fromWall && toWall ? true : fromWall ? (insideCity(s, nx, ny) || stairsAt(s, nx, ny)) && passable(s, nx, ny, u)
+    : toWall ? insideCity(s, x, y) || stairsAt(s, x, y) : passable(s, nx, ny, u) || campEdgeStep(s, x, y, nx, ny);
   return ok && !campEdgeDrop(s, x, y, nx, ny);
 }
 
@@ -626,6 +638,7 @@ function actionMenu(s, u) {
     pickUp: canStillAct && !carrying(u) && !!(s.siege && s.siege.dropped.some(d => d.x === u.x && d.y === u.y)),
     openGate: canStillAct && gatesNear(s, u).some(g => g.state === 'locked' && gateKeyHolder(s, u, g)),
     closeGate: canStillAct && gatesNear(s, u).some(g => g.state === 'open' && gateKeyHolder(s, u, g) && !g.squares.some(([x, y]) => unitAt(s, x, y))),
+    attackGate: canStillAct && gateTargets(s, u).length > 0,
     setFire: canStillAct && pendingTactic(s, u, 'setFire'),
     hold: canStillAct,
     duel: canStillAct && duelTargets(s, u).length > 0,
@@ -2261,11 +2274,31 @@ const ACTIONS = {
     finishActivation(s, u);
   },
   openGate(s, actor, a) { return gateAction(s, actor, a, 'open'); },
+  attackGate(s, actor, a) { // a unit of the other side batters an adjacent gate: its action for the turn
+    const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
+    const { u, act: ac } = r;
+    if (u.round.attacked || ac.forcedMarched) return err("Attacking a gate is the unit's action for the turn");
+    const g = gateTargets(s, u).find(x => !a.gateId || x.id === a.gateId);
+    if (!g) return err('No gate of the other side next to this unit');
+    gateHp(g);
+    // an uncontested roll: Yin/Yang + the officer's Command + the unit's damage; a siege engine doubles it
+    const dice = yinYang(), o = officerOf(s, u), t = typeOf(s, u) || {};
+    const cmd = o ? o.command || 0 : 0, dmgBase = t.damage || 0;
+    let dmg = Math.max(0, dice.value + cmd + dmgBase);
+    if (carrying(u) === 'engine') dmg *= 2;
+    g.hp = Math.max(0, g.hp - dmg);
+    log(s, u.name + ' batters the gate for ' + dmg + ' (Yin/Yang ' + dice.value + (cmd ? ' + Command ' + cmd : '') + ' + damage ' + dmgBase + (carrying(u) === 'engine' ? ', doubled by the siege engine' : '') + '): ' + g.hp + '/' + g.maxHp + ' left.',
+      { type: 'gateHit', gate: g.id, by: u.id, damage: dmg, hp: g.hp, maxHp: g.maxHp, dice });
+    if (g.hp <= 0) { g.state = 'broken'; log(s, 'The gate gives way and breaks open!', { type: 'gate', gate: g.id, state: 'broken', by: u.id }); }
+    u.round.attacked = true;
+    finishActivation(s, u);
+  },
   closeGate(s, actor, a) { return gateAction(s, actor, a, 'locked'); },
   setGate(s, actor, a) { // GM: who owns a gate, and its state (locked, open, broken, burned)
     const g = s.siege && s.siege.gates.find(x => x.id === a.gateId); if (!g) return err('No such gate');
     if (a.owner) { if (!['friendly', 'enemy'].includes(a.owner)) return err('Bad owner'); g.owner = a.owner; }
-    if (a.state) { if (!['locked', 'open', 'broken', 'burned'].includes(a.state)) return err('Bad state'); g.state = a.state; }
+    if (a.state) { if (!['locked', 'open', 'broken', 'burned'].includes(a.state)) return err('Bad state'); const was = g.state; g.state = a.state; gateHp(g); if ((was === 'broken' || was === 'burned') && (a.state === 'locked' || a.state === 'open')) g.hp = g.maxHp; if (a.state === 'broken' || a.state === 'burned') g.hp = 0; }
+    if (a.hp !== undefined) { gateHp(g); g.hp = clamp(Math.round(Number(a.hp) || 0), 0, g.maxHp); if (g.hp <= 0 && (g.state === 'locked' || g.state === 'open')) g.state = 'broken'; }
     log(s, 'GM: gate ' + g.id + ' is ' + g.state + ' (' + g.owner + ').', { type: 'gate', gate: g.id, state: g.state });
     settle(s);
   },
@@ -2527,7 +2560,7 @@ function viewFor(s, viewer) {
 }
 
 export { endRound as _endRound, imperialAura as _imperialAura, hidesIn as _hidesIn, officerWeaponLevel, casualtiesOf, evasionOf, evadeCasualties, disciplinedBonus, warDrumsBonus, hornReady, hornTargets, checkpointMorale, checkpointsPassed, overwatchFire as _overwatchFire, surroundAfterTurn as _surroundAfterTurn,
-  moveOptions, attackTargets, actionMenu, threatArea, TACTIC_SIDES, tileRules, ladderTiles, climbTiles, insideCity, isWallTop, gateAt,
+  moveOptions, attackTargets, actionMenu, threatArea, TACTIC_SIDES, tileRules, ladderTiles, climbTiles, insideCity, isWallTop, gateAt, gateHp, gateTargets, stairsAt,
   newState, act, viewFor, prompt, reachable, duelTargets, movementOf, moraleState, visibleTo, rangeOk,
   resolveAttack, buildRoll, skillCheck, setRng, yinYang, typeOf, officerOf, unitById, SIDES, settle, advance,
 };

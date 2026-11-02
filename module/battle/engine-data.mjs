@@ -166,6 +166,7 @@ const MAP_OVERLAYS = {
   'command-tent': { name: 'Command tent', moraleTurn: 3, high: true, noSurround: true, hp: 25, flammable: true, fireRes: 0, burnTime: 2, burnsInto: 'scorched' },
   'city-wall': { name: 'City wall', meleeDef: 2, rangedDef: 2, range: 1, wall: true, high: true, hp: 100 },
   // units in a gateway are under the gate (ground level): its defense, no range; locked gates can't be entered
+  stairs: { name: 'Stairs' }, // units walk up from here onto an adjacent wall, and back down (David, 2026-11-01)
   'city-gate': { name: 'City gate', meleeDef: 2, rangedDef: 2, gate: true, hp: 80, flammable: true, fireRes: 4, burnTime: 2, burnsInto: 'ruins' },
   'fortress-tower': { name: 'Fortress tower', meleeDef: 3, rangedDef: 3, range: 1, wall: true, high: true, hp: 120 },
   'small-fort': { name: 'Small fort', meleeDef: 1, rangedDef: 1, command: 1, high: true, noSurround: true, hp: 60, flammable: true, fireRes: 2, burnTime: 3, burnsInto: 'ruins' },

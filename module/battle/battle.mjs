@@ -298,8 +298,8 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
       gmFireOn: !!gmFire,
       canDeclare: game.user.isGM && !s.outcome && !["setup", "over"].includes(t.phase),
       tacticsWaiting: game.user.isGM && s.tactics?.phase === "battle" ? s.tactics.placed.filter(t => t.state === "hidden" && !["raiseFlag", "setAflame"].includes(t.key)).length : 0,
-      gates: game.user.isGM ? (s.siege?.gates ?? []).map(g => ({ id: g.id, where: g.squares.map(([x, y]) => `${x},${y}`).join(" + "),
-        owners: [["friendly", "Friendly (player & ally)"], ["enemy", "Enemy"]].map(([v, l]) => ({ v, l, sel: v === g.owner })),
+      gates: game.user.isGM ? (s.siege?.gates ?? []).map(g => ({ id: g.id, where: g.squares.map(([x, y]) => `${x},${y}`).join(" + "), hp: g.hp ?? g.maxHp ?? 80 * g.squares.length, maxHp: g.maxHp ?? 80 * g.squares.length,
+        owners: [["friendly", "Player side (player & ally)"], ["enemy", "Enemy side"]].map(([v, l]) => ({ v, l, sel: v === g.owner })),
         states: [["locked", "Locked"], ["open", "Open"], ["broken", "Broken open"], ["burned", "Burned (ruins)"]].map(([v, l]) => ({ v, l, sel: v === g.state })) })) : [],
     });
     return ctx;

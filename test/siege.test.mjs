@@ -191,3 +191,48 @@ test('gates from the map file: double gates share one entry; older files pair ga
   flag.structures = [{ type: 'city-gate', size: 2, squares: [[1, 0], [2, 0]] }];
   assert.strictEqual(B.gatesFromMap(flag).length, 1);
 });
+
+test('attacking gates: only the other side, Yin/Yang + Command + damage off 80 health per square; at 0 it breaks open', () => {
+  const s = city();
+  const g = s.siege.gates[0];
+  const foe = add(s, { typeId: 'inf', side: 'enemy', x: 6, y: 10 });        // damage 6, outside the friendly gate
+  const friend = add(s, { typeId: 'inf', side: 'player', owner: 'p1', x: 5, y: 10 });
+  add(s, { typeId: 'arch', side: 'enemy', x: 12, y: 12 });
+  must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'skipTactics' }));
+  dice([0, 0]); must(R.act(s, HOST, { type: 'startRound' }));
+  friend.x = 6; friend.y = 8; // inside, next to the gate: its own side can't attack it
+  s.turn.activation = { unitId: friend.id, step: 'move', started: true };
+  assert.ok(!R.actionMenu(s, friend).attackGate, 'owners cannot attack their own gate');
+  assert.ok(!R.act(s, HOST, { type: 'attackGate', unitId: friend.id }).ok);
+  s.turn.activation = { unitId: foe.id, step: 'move', started: true };
+  assert.ok(R.actionMenu(s, foe).attackGate);
+  dice([9, 2]); // Yin/Yang 7
+  must(R.act(s, HOST, { type: 'attackGate', unitId: foe.id }));
+  assert.strictEqual(g.maxHp, 80);
+  assert.strictEqual(g.hp, 80 - 13, '7 + damage 6');
+  assert.ok(s.log.some(e => e.detail && e.detail.type === 'gateHit'));
+  g.hp = 5; foe.round.attacked = false;
+  s.turn.activation = { unitId: foe.id, step: 'move', started: true };
+  dice([9, 2]); must(R.act(s, HOST, { type: 'attackGate', unitId: foe.id }));
+  assert.strictEqual(g.hp, 0); assert.strictEqual(g.state, 'broken');
+  assert.ok(R.reachable(s, foe, 3).has('6,9'), 'broken open: walk through');
+  // GM repairs it by setting it back to locked
+  must(R.act(s, HOST, { type: 'setGate', gateId: 'g1', state: 'locked' }));
+  assert.strictEqual(g.hp, 80);
+  must(R.act(s, HOST, { type: 'setGate', gateId: 'g1', owner: 'enemy' }));
+  foe.round.attacked = false; s.turn.activation = { unitId: foe.id, step: 'move', started: true };
+  assert.ok(!R.actionMenu(s, foe).attackGate, 'now it is their own gate');
+});
+
+test('stairs: units walk up from a stairs square onto the wall and back down; melee from the stairs reaches the wall', () => {
+  const s = city();
+  s.map.tiles['6,2'].overlays = ['stairs']; // outside the north wall
+  const u = add(s, { typeId: 'inf', side: 'player', owner: 'p1', x: 6, y: 1 });
+  assert.ok(R.reachable(s, u, 3).has('6,3'), 'up the stairs onto the wall');
+  const top = add(s, { typeId: 'inf', side: 'player', owner: 'p1', x: 8, y: 3 });
+  assert.ok(R.reachable(s, top, 3).has('6,2'), 'down the stairs from the wall');
+  assert.ok(!R.reachable(s, top, 3).has('8,2'), 'but not down the plain wall face');
+  const foe = add(s, { typeId: 'inf', side: 'enemy', x: 6, y: 3 });
+  const atStairs = add(s, { typeId: 'inf', side: 'player', owner: 'p1', x: 6, y: 2 });
+  assert.ok(R.rangeOk(s, atStairs, foe) && R.rangeOk(s, foe, atStairs), 'stairs <-> wall melee');
+});

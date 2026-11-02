@@ -76,7 +76,7 @@ export function gatesFromMap(flag) {
       groups.push(sq);
     });
   }
-  return groups.map((squares, n) => ({ id: `g${n + 1}`, squares, owner: "friendly", state: squares.some(([x, y]) => openAt(x, y)) ? "open" : "locked" }));
+  return groups.map((squares, n) => ({ id: `g${n + 1}`, squares, owner: "friendly", state: squares.some(([x, y]) => openAt(x, y)) ? "open" : "locked", maxHp: 80 * squares.length, hp: 80 * squares.length }));
 }
 
 /* ------------------------------------------------------------ Foundry: import a file as a new scene */

@@ -485,6 +485,20 @@ export function drawSiegeOverlays() {
   const bm = canvas.scene?.getFlag?.(game.system?.id ?? "qin", "battlemap");
   const wallAt = (x, y) => !!bm && x >= 0 && y >= 0 && x < bm.cols && y < bm.rows && (bm.overlays?.[y * bm.cols + x] ?? []).some(o => o === "city-wall" || o === "city-gate" || o === "fortress-tower");
   for (const g of gates) c.addChild(drawGate(g, size, wallAt));
+  // a damaged gate shows a health bar over it (David, 2026-11-01)
+  for (const g of gates) {
+    const max = g.maxHp ?? 80 * g.squares.length, hp = g.hp ?? max;
+    if (!(hp < max) || !(g.state === "locked" || g.state === "open")) continue;
+    const xs = g.squares.map(([x]) => x), ys = g.squares.map(([, y]) => y);
+    const gx = Math.min(...xs) * size, gy = Math.min(...ys) * size, gw = (Math.max(...xs) - Math.min(...xs) + 1) * size;
+    const w = gw * 0.8, h = Math.max(4, size * 0.09), p = Math.max(0, Math.min(1, hp / max));
+    const col = p > 0.5 ? 0x3f9b4a : p > 0.25 ? 0xd4a017 : 0xc0392b;
+    const bar = new PIXI.Graphics();
+    bar.lineStyle(Math.max(1, size * 0.015), 0x000000, 0.85).beginFill(0x1a1410, 0.85).drawRoundedRect(0, 0, w, h, h / 2).endFill();
+    if (p > 0) bar.lineStyle(0).beginFill(col, 1).drawRoundedRect(1, 1, Math.max(0, (w - 2) * p), h - 2, (h - 2) / 2).endFill();
+    bar.position.set(gx + (gw - w) / 2, gy + size * 0.06);
+    c.addChild(bar);
+  }
   for (const k of ladders) {
     const [x, y] = k.split(",").map(Number);
     const l = drawLadder(size * 0.95);
