@@ -180,6 +180,12 @@ test('take back: a turn started by mistake can be given back until the unit does
   must(R.act(s, P1, { type: 'begin', unitId: b }));
   must(R.act(s, P1, { type: 'moveTo', unitId: b, x: 3, y: 2 }));
   assert.ok(!R.act(s, P1, { type: 'takeBack', unitId: b }).ok, 'not after moving');
+  // ...but Undo move brings it back (David, 2026-11-01)
+  must(R.act(s, P1, { type: 'undoMove', unitId: b }));
+  assert.ok(R.actionMenu(s, R.unitById(s, b)).takeBack, 'take back is offered again after the move is undone');
+  must(R.act(s, P1, { type: 'takeBack', unitId: b }));
+  assert.strictEqual(R.prompt(s).kind, 'claim');
+  assert.strictEqual(R.unitById(s, b).x, 3); assert.strictEqual(R.unitById(s, b).y, 1);
 });
 
 test('conditions name a unit by its officer when it has one', async () => {

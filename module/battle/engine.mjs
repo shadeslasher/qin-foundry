@@ -1678,10 +1678,16 @@ function act(s, actor, a) {
     // Take back: starting a unit's turn (Take turn, or Act for an officer) can be taken back until the unit does anything
     const starting = a.type === 'begin' || (a.type === 'decide' && a.choice === 'act');
     const snap = starting ? takeBackSnapshot(s) : null;
+    // Take back survives a move that is then undone (David, 2026-11-01): the move keeps it, Undo move gives it back
+    const acBefore = s.turn.activation;
+    const tbBefore = acBefore && acBefore.takeBack;
+    const tbFromUndo = a.type === 'undoMove' && acBefore && acBefore.undo ? acBefore.undo.takeBack : null;
     const res = fn(s, actor, a) || ok();
     if (res.ok && s.turn.activation && a.type !== 'moveTo' && a.type !== 'undoMove') delete s.turn.activation.undo;
     if (res.ok && s.turn.activation && a.type !== 'takeBack') delete s.turn.activation.takeBack;
     if (res.ok && snap && s.turn.activation) s.turn.activation.takeBack = snap;
+    if (res.ok && a.type === 'moveTo' && tbBefore && s.turn.activation && s.turn.activation.undo) s.turn.activation.undo.takeBack = tbBefore;
+    if (res.ok && tbFromUndo && s.turn.activation) s.turn.activation.takeBack = tbFromUndo;
     // A unit that died during its own turn still hands the turn on.
     if (s.turn.pendingFinish) {
       const u = unitById(s, s.turn.pendingFinish); s.turn.pendingFinish = null;
