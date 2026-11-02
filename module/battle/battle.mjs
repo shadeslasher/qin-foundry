@@ -209,6 +209,8 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
         prompt.text += zones ? `<br><span class="qin-muted">Deployment: press Deploy below, or drag your units onto the blue-white squares. Deployment locks when tactics are finished.</span>`
           : `<br><span class="qin-muted">No deployment zones on this map: units stay where the GM placed them.</span>`;
         btn("Open tactics", "openTactics", { primary: true });
+        btn("Draw on the map", "drawFreehand"); // deployment sketches; cleared when the battle starts (David, 2026-11-01)
+        prompt.text += `<br><span class="qin-muted">Anyone can draw on the map until deployment ends; the drawings are cleared then.</span>`;
         break;
       }
       case "over": {
@@ -336,6 +338,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
   static async #do(event, target) {
     const d = target.dataset;
     if (d.type === "openTactics") return TacticsApp.open();
+    if (d.type === "drawFreehand") return (await import("./deploy-draw.mjs")).startFreehand();
     const action = { type: d.type };
     for (const k of ["unitId", "choice", "index", "result"]) if (d[k] !== undefined) action[k] = k === "index" ? Number(d[k]) : d[k];
     await battleRequest(action);

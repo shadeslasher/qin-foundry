@@ -22,6 +22,7 @@ import { registerDeployZones, drawDeployZones, setDeployChangeHandler } from "./
 import { registerPreBattleCover } from "./module/battle/cover.mjs";
 import { registerReinforcements, drawReinforceZones, setReinforceChangeHandler } from "./module/battle/reinforce.mjs";
 import { registerTileTip, toggleTileTip } from "./module/battle/tile-tip.mjs";
+import { registerDeployDrawing, syncDeployDrawing } from "./module/battle/deploy-draw.mjs";
 import { HotkeyGuide } from "./module/hotkeys.mjs";
 import { registerSounds, registerSoundPack, onBattleSetting, primeBattleSounds, primeTokenPositions, onUnitTokenMoved, SoundPanel, playMoment } from "./module/sound.mjs";
 import { registerNameLabels, toggleNameLabels } from "./module/battle/name-labels.mjs";
@@ -89,6 +90,7 @@ Hooks.once("init", () => {
       renderTurnBanner();
       try { onBattleSetting(getBattle(), (id) => canvas?.scene?.tokens.get(id)?.actor?.system?.side ?? null); } catch (e) { console.warn("Qin | turn sounds", e); }
       syncBattleMap();
+      syncDeployDrawing(getBattle()).catch(e => console.warn("Qin | deployment drawing", e));
       if (getBattle().active && !BattlePanel.instance?.rendered && game.settings.get(SYSTEM_ID, "autoOpenBattle")) BattlePanel.open();
     },
   });
@@ -97,6 +99,7 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: Boolean, default: true,
   });
   registerUnitEditor();
+  registerDeployDrawing();
   game.settings.register(SYSTEM_ID, "compactUnits", { // the Battle panel's "Less info" button, per player
     scope: "client", config: false, type: Boolean, default: false,
   });
@@ -215,6 +218,7 @@ Hooks.once("init", () => {
 });
 
 Hooks.once("ready", () => {
+  syncDeployDrawing(getBattle()).catch(e => console.warn("Qin | deployment drawing", e)); // catch up if deployment started or ended while no GM was on
   reapplyUnitEdits();
   removeFormationItems();
   registerAttackFxSocket();
