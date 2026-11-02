@@ -593,3 +593,15 @@ test('Cornered Tiger: Attack +2 while below half health, only when attacking (Ya
   assert.strictEqual(part(rollOf(s, A, 'attacker', D, { ranged: true }), /^Cornered Tiger/), 2, 'ranged attacks too');
   assert.strictEqual(part(rollOf(s, A, 'defender', D), /^Cornered Tiger/), 0, 'not when defending');
 });
+
+test('Deterrence: a unit hit by its ranged attack has Attack -2 on its next attack, then it is spent (Liu Chong, 2026-11-02)', () => {
+  const bow = unitType('a', { weapon: 'ranged', rangeMax: 3 });
+  const { s, A, D, r } = duel(bow, unitType('d', { armor: 0 }), [9, 0, 0, 0], traits({ deterrence: 1 }));
+  assert.ok(r.casualtiesDefender > 0);
+  assert.strictEqual(part(rollOf(s, D, 'attacker', A), /^Deterrence/), -2);
+  assert.strictEqual(part(rollOf(s, D, 'defender', A), /^Deterrence/), 0, 'only its attacks');
+  R.resolveAttack(s, D, A, { movedThisActivation: false, tilesMoved: 0 });
+  assert.strictEqual(part(rollOf(s, D, 'attacker', A), /^Deterrence/), 0, 'spent after one attack');
+  const melee = duel(unitType('m'), unitType('d', { armor: 0 }), [9, 0, 0, 0], traits({ deterrence: 1 }));
+  assert.strictEqual(part(rollOf(melee.s, melee.D, 'attacker', melee.A), /^Deterrence/), 0, 'melee hits do not deter');
+});

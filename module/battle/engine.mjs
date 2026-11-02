@@ -961,6 +961,8 @@ function buildRoll(s, unit, role, ctx) {
   if (trait(unit, 'imperial mandate') && imperialMandate(s, unit)) parts.push(['Imperial Mandate (near a Han or Imperial ally)', 1]);
   // Cornered Tiger (Yan Baihu, David 2026-11-02): Attack +2 while below half health
   if (role === 'attacker' && trait(unit, 'cornered tiger') && unit.maxMen > 0 && unit.men < unit.maxMen / 2) parts.push(['Cornered Tiger (below half health)', 2]);
+  // Deterrence (Liu Chong, David 2026-11-02): a unit hit by a Deterrence unit's ranged attack has Attack -2 on its next attack
+  if (role === 'attacker' && fx(unit).deterred) parts.push(['Deterrence (hit by Chen crossbows)', -2]);
   // Pretender's Guard (Yuan Shu, David 2026-11-01): melee defense +2 while next to an allied unit led by an officer
   if (role === 'defender' && !ctx.ranged && trait(unit, "pretender's guard") && liveUnits(s).some(f => f.id !== unit.id && friendly(f, unit) && f.officerId && manhattan(f, unit) === 1))
     parts.push(["Pretender's Guard (next to an officer's unit)", 2]);
@@ -1053,6 +1055,7 @@ function resolveAttack(s, attacker, defender, opts) {
 
   const A = buildRoll(s, attacker, 'attacker', ctx);
   if (fx(attacker).avenge) delete fx(attacker).avenge; // Avenge the Fallen: the bonus is spent on this attack
+  if (fx(attacker).deterred) delete fx(attacker).deterred; // Deterrence: spent on this attack
   { // remember whom this unit attacked this round (Bonds of Brotherhood)
     const f = fx(attacker); if (!f.struck || f.struck.round !== s.turn.round) f.struck = { round: s.turn.round, hits: [] };
     f.struck.hits.push({ id: defender.id, side: defender.side });
@@ -1108,6 +1111,7 @@ function resolveAttack(s, attacker, defender, opts) {
   // Repeating: the attack lands as two hits of half damage (and half pen) each; armor counts against each hit. Evasion then takes its share of the total.
   const repeating = !!trait(attacker, 'repeating') && dmgToDef > 0;
   const casDef = evadeCasualties(repeating ? hitDef(Math.ceil(dmgToDef / 2), Math.ceil(penOf(s, at, attacker) / 2)) + hitDef(Math.floor(dmgToDef / 2), Math.floor(penOf(s, at, attacker) / 2)) : hitDef(dmgToDef, penOf(s, at, attacker)), evDef);
+  if (ranged && casDef > 0 && trait(attacker, 'deterrence') && alive(defender)) fx(defender).deterred = true; // Deterrence (Liu Chong)
   const casAtt = casualtiesOf(dmgToAtt, armorOf(at, attacker, trait(defender, 'shield breaker')), penOf(s, dt, defender), 0, evAtt);
 
   // Morale loss for the loser
