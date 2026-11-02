@@ -16,11 +16,33 @@ export function healthV2(men) {
 
 export function registerHealthV2() {
   game.settings.register(SYSTEM_ID, KEY, { scope: "world", config: false, type: Boolean, default: false });
+  game.settings.register(SYSTEM_ID, KEY + "b", { scope: "world", config: false, type: Boolean, default: false });
+}
+
+/** Protectors of Heaven: 60 → 50 health (David, 2026-11-01), once, keeping the share left. */
+async function protectorsTo50() {
+  if (game.settings.get(SYSTEM_ID, KEY + "b")) return;
+  const fix = (men) => (Number(men?.max) === 60 ? { value: Math.max(0, Math.min(50, Math.round((Number(men.value) || 0) * 50 / 60))), max: 50 } : null);
+  const up = [];
+  for (const a of game.actors) if (a.type === "unit" && a.name === "Protectors of Heaven") { const to = fix(a.system.men); if (to) up.push({ _id: a.id, "system.men.value": to.value, "system.men.max": to.max }); }
+  if (up.length) await Actor.updateDocuments(up);
+  for (const scene of game.scenes) {
+    const tu = [];
+    for (const t of scene.tokens) {
+      if (t.actorLink || t.actor?.name !== "Protectors of Heaven") continue;
+      const own = foundry.utils.getProperty(t, "delta.system.men"); const to = own ? fix(own) : null;
+      if (to) tu.push({ _id: t.id, "delta.system.men.value": to.value, "delta.system.men.max": to.max });
+    }
+    if (tu.length) { try { await scene.updateEmbeddedDocuments("Token", tu, { qinBattle: true }); } catch (e) { console.warn("Qin | Protectors health", e); } }
+  }
+  await game.settings.set(SYSTEM_ID, KEY + "b", true);
 }
 
 export async function migrateHealthV2() {
-  if (!game.user.isGM || game.settings.get(SYSTEM_ID, KEY)) return;
+  if (!game.user.isGM) return;
   if (game.users.activeGM && game.users.activeGM !== game.user) return;
+  await protectorsTo50();
+  if (game.settings.get(SYSTEM_ID, KEY)) return;
   let n = 0;
   const updates = [];
   for (const a of game.actors) {
