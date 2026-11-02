@@ -44,3 +44,19 @@ test('attacking: the officer adds Attack +1 per level of the unit weapon above C
   assert.strictEqual(roll(5), 3, 'Legendary +3');
   assert.strictEqual(roll(5, 'defender'), 0, 'not when defending');
 });
+
+test("a player's officer leads one unit; GM-only characters can lead several", async () => {
+  const { officerEligibility, playerOfficerConflict } = await import('../module/officer-rules.mjs');
+  const player = { id: 'p1', isGM: false }, gm = { id: 'gm', isGM: true };
+  const pcOfficer = { type: 'character', uuid: 'Actor.pc', name: 'Li Shi', testUserPermission: (u) => u.id === 'p1' || u.isGM };
+  const npcOfficer = { type: 'character', uuid: 'Actor.npc', name: 'Zhang Liao', testUserPermission: (u) => u.isGM };
+  const unitA = { id: 'uA', type: 'unit', name: 'Archers', system: { officer: 'Actor.pc' } };
+  const unitB = { id: 'uB', type: 'unit', name: 'Spears', system: { officer: 'Actor.npc' } };
+  globalThis.game = { users: { contents: [player, gm] }, actors: { contents: [unitA, unitB] } };
+  try {
+    assert.strictEqual(playerOfficerConflict(pcOfficer, 'uC').name, 'Archers');
+    assert.strictEqual(playerOfficerConflict(pcOfficer, 'uA'), null, 'the unit he already leads is fine');
+    assert.deepStrictEqual(officerEligibility(pcOfficer, {}, 'uC'), { ok: false, reason: 'leads Archers' });
+    assert.strictEqual(officerEligibility(npcOfficer, {}, 'uC').ok, true, "a GM's officer can lead several");
+  } finally { delete globalThis.game; }
+});

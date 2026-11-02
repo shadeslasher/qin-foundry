@@ -1,4 +1,5 @@
 import { PartyPanel, registerParty } from "./module/party.mjs";
+import { registerOfficerLimit } from "./module/officer-rules.mjs";
 import { registerRecruitQuery } from "./module/recruit.mjs";
 import * as CFG from "./module/config.mjs";
 import { CharacterData, HenchmanData, UnitData } from "./module/data/actor-models.mjs";
@@ -187,6 +188,7 @@ Hooks.once("init", () => {
     onDown: () => { PartyPanel.toggle(); return true; },
   });
   registerParty();
+  registerOfficerLimit();
   game.keybindings.register(SYSTEM_ID, "tileTip", {
     name: "Tile info", hint: "Show a small tooltip by the cursor describing the square under it (terrain, buildings and their effects). Press again to turn it off.",
     editable: [{ key: "KeyV" }], precedence: CONST.KEYBINDING_PRECEDENCE?.NORMAL,

@@ -23,7 +23,41 @@ export function officerWeaponSkill(officer, unit) {
 
 /** { ok, reason } for `officer` (a character actor) leading a unit with this system data.
  *  Any character can lead any unit (David, 2026-10-28); his matching weapon skill gives the unit Attack +1 per level above 2 instead. */
-export function officerEligibility(officer, unit) {
+export function officerEligibility(officer, unit, unitId = null) {
   if (!officer || officer.type !== "character") return { ok: false, reason: "not a character" };
+  const other = playerOfficerConflict(officer, unitId);
+  if (other) return { ok: false, reason: `leads ${other.name}` };
   return { ok: true, reason: "" };
+}
+
+/** Does a player own this character? (Not counting the GM.) */
+export function playerOwned(officer) {
+  const users = globalThis.game?.users; if (!users) return false;
+  return (users.contents ?? [...users]).some(u => !u.isGM && officer?.testUserPermission?.(u, "OWNER"));
+}
+/**
+ * A player's officer leads one unit at a time (David, 2026-11-01): the other unit he already leads, or null.
+ * GM-only characters (NPC officers) can still lead several.
+ */
+export function playerOfficerConflict(officer, unitId) {
+  if (!officer || officer.type !== "character" || !playerOwned(officer)) return null;
+  return (globalThis.game?.actors?.contents ?? []).find(a => a.type === "unit" && a.id !== unitId && a.system?.officer === officer.uuid) ?? null;
+}
+
+/** Refuse a change that gives a player's officer a second unit (whatever window it comes from). */
+export function registerOfficerLimit() {
+  const check = (doc, officerUuid) => {
+    if (!officerUuid) return;
+    let off = null; try { off = fromUuidSync(officerUuid); } catch { off = null; }
+    const other = playerOfficerConflict(off, doc.id);
+    if (!other) return;
+    ui.notifications.warn(`${off.name} already leads ${other.name}. A player's officer can lead only one unit; take him off that unit first.`);
+    return false;
+  };
+  Hooks.on("preUpdateActor", (doc, change) => {
+    if (doc.type !== "unit") return;
+    const v = foundry.utils.getProperty(change, "system.officer");
+    if (v !== undefined) return check(doc, v);
+  });
+  Hooks.on("preCreateActor", (doc, data) => { if (doc.type === "unit") return check(doc, foundry.utils.getProperty(data, "system.officer")); });
 }

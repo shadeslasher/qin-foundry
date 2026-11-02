@@ -528,9 +528,9 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
       } : null,
       // characters that can be picked as officer: any for the GM, a player's own characters for them
       officerChoices: this.isEditable ? (game.actors?.contents ?? []).filter(a => a.type === "character" && (game.user.isGM || a.isOwner))
-        .sort((a, b) => a.name.localeCompare(b.name)).map(a => { const e = officerEligibility(a, system);
+        .sort((a, b) => a.name.localeCompare(b.name)).map(a => { const e = officerEligibility(a, system, this.document.id);
           return { uuid: a.uuid, name: a.name, selected: a.uuid === system.officer, disabled: !e.ok && a.uuid !== system.officer, reason: e.reason }; }) : [],
-      officerProblem: officer ? (officerEligibility(officer, system).ok ? "" : officerEligibility(officer, system).reason) : "",
+      officerProblem: officer ? (officerEligibility(officer, system, this.document.id).ok ? "" : officerEligibility(officer, system, this.document.id).reason) : "",
       menPct: Math.min(100, Math.round(100 * system.men.value / (system.men.max || 100))),
       healthColor: hex(healthColor(system.men.value / (system.men.max || 100))), moraleColor: hex(moraleColor(system.morale ?? 0)),
       tierN: Math.max(1, Math.min(5, Number(system.tier) || 1)), icons: TT_ICONS,

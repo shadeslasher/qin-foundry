@@ -64,6 +64,7 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
       heal: PartyPanel.#act, morale: PartyPanel.#act, open: PartyPanel.#open,
       recruit: PartyPanel.#recruit, armies: PartyPanel.#armies, coin: PartyPanel.#coin,
       equip: (ev, el) => EquipmentPicker.open(game.actors.get(el.dataset.id)),
+      fold: (ev, el) => { const f = folded(); f.has(el.dataset.id) ? f.delete(el.dataset.id) : f.add(el.dataset.id); saveFolded(f); PartyPanel.refresh(); },
     },
   };
   static open() { (this.instance ??= new PartyPanel()).render({ force: true }); return this.instance; }
@@ -114,7 +115,7 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
       const s = a.system, chars = (game.actors?.contents ?? []).filter(c => c.type === "character" && c.testUserPermission(g.user, "OWNER"));
       const cur = s.officerActor;
       if (cur && !chars.includes(cur)) chars.unshift(cur);
-      const opts = chars.sort((x, y) => x.name.localeCompare(y.name)).map(c => { const e = officerEligibility(c, s), sel = c.uuid === s.officer;
+      const opts = chars.sort((x, y) => x.name.localeCompare(y.name)).map(c => { const e = officerEligibility(c, s, a.id), sel = c.uuid === s.officer;
         return `<option value="${esc(c.uuid)}" ${sel ? "selected" : ""} ${!e.ok && !sel ? "disabled" : ""}>${esc(c.name)}${e.ok ? "" : ` (${esc(e.reason)})`}</option>`; }).join("");
       return `<label class="qin-party-off"><i class="fa-solid fa-user-shield" data-tooltip="Officer"></i><select data-officer-for="${a.id}" ${a.isOwner ? "" : "disabled"}><option value="">No officer</option>${opts}</select></label>`;
     };
@@ -147,11 +148,12 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
         <span class="qin-muted">${armies.length ? esc(armies.join(", ")) : "No armies allowed yet"}</span>
         ${gm ? `<button type="button" class="qin-party-armies" data-action="armies" data-id="${g.user.id}" data-tooltip="Choose which armies ${esc(g.user.name)} can recruit from"><i class="fa-solid fa-chess-rook"></i></button>` : ""}</div>`;
     };
-    const body = groups.length ? groups.map(g => `<section class="qin-party-player">
-        <h3><span class="qin-party-dot" style="background:${esc(g.user.color?.css ?? g.user.color ?? "#888")}"></span>${esc(g.user.name)}
+    const fold = folded();
+    const body = groups.length ? groups.map(g => `<section class="qin-party-player${fold.has(g.user.id) ? " folded" : ""}">
+        <h3><a class="qin-party-fold" data-action="fold" data-id="${g.user.id}" data-tooltip="${fold.has(g.user.id) ? "Show" : "Hide"} ${esc(g.user.name)}'s units"><i class="fa-solid fa-chevron-${fold.has(g.user.id) ? "right" : "down"}"></i></a><span class="qin-party-dot" style="background:${esc(g.user.color?.css ?? g.user.color ?? "#888")}"></span>${esc(g.user.name)}
           <small>${g.units.length} unit${g.units.length === 1 ? "" : "s"}</small>${money(g)}${btns("player", g.user.id)}</h3>
-        <ul>${g.units.map(a => unit(a, g)).join("") || `<li class="qin-muted qin-party-none">No units yet.</li>`}</ul>
-        ${recruitRow(g)}</section>`).join("")
+        ${fold.has(g.user.id) ? "" : `<ul>${g.units.map(a => unit(a, g)).join("") || `<li class="qin-muted qin-party-none">No units yet.</li>`}</ul>
+        ${recruitRow(g)}`}</section>`).join("")
       : `<p class="qin-muted">There are no player accounts yet.</p>`;
     const top = gm && groups.length ? `<div class="qin-party-all"><b>Whole party <span class="qin-party-money"><i class="fa-solid fa-coins"></i> ${upkeep(groups.flatMap(g => g.units))}/mo</span></b>
         <button type="button" data-action="heal" data-scope="all"><i class="fa-solid fa-heart-pulse"></i> Heal all</button>
@@ -165,6 +167,11 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
       sel.addEventListener("change", () => game.actors.get(sel.dataset.officerFor)?.update({ "system.officer": sel.value }));
   }
 }
+
+/** Players whose units are folded away in this browser (David, 2026-11-01). */
+const FOLD_KEY = "qin.partyFolded";
+function folded() { try { return new Set(JSON.parse(localStorage.getItem(FOLD_KEY) ?? "[]")); } catch { return new Set(); } }
+function saveFolded(set) { try { localStorage.setItem(FOLD_KEY, JSON.stringify([...set])); } catch { /* fine */ } }
 
 /** Keep the panel live as units change. */
 export function registerParty() {
