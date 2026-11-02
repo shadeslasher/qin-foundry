@@ -187,7 +187,7 @@ test('Charge Reflection (2026-10-30): only while holding; adds the charge bonus 
   must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: a }));
   s.freeMovement = false;
   must(R.act(s, P1, { type: 'moveTo', unitId: a, x: 5, y: 4 })); // 3 tiles: charge +1
-  if (holding) R.unitById(s, d).round.holding = true;
+  if (holding) { R.unitById(s, d).round.holding = true; R.unitById(s, d).fx = { holdRound: s.turn.round }; }
   dice(win ? [0, 0, 9, 0] : [9, 0, 0, 0]);
   must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
   const r = s.log.filter(e => e.detail && e.detail.type === 'attack').pop().detail.result;
@@ -196,6 +196,23 @@ test('Charge Reflection (2026-10-30): only while holding; adds the charge bonus 
   // the strike back carries the charge bonus (2) only while holding, win or lose
   else assert.strictEqual(r.damageToAttacker, 6 + 2, 'lost the roll: base damage 6 + charge bonus 2');
  }
+});
+
+test("Charge Reflection: a Hold carried over from last round doesn't count", () => {
+  const s = setup();
+  s.library.unitTypes.push(unitType('cav', { category: 'cavalry' }), unitType('d'));
+  const a = add(s, { typeId: 'cav', side: 'player', owner: 'p1', x: 5, y: 1 });
+  const d = add(s, { typeId: 'd', side: 'enemy', x: 5, y: 5 });
+  R.unitById(s, d).traitTiers = { 'charge reflection': 1, 'anti-cavalry': 1 };
+  must(R.act(s, HOST, { type: 'startBattle' })); dice([0, 0]); must(R.act(s, HOST, { type: 'startRound' }));
+  must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: a }));
+  s.freeMovement = false;
+  must(R.act(s, P1, { type: 'moveTo', unitId: a, x: 5, y: 4 }));
+  R.unitById(s, d).round.holding = true; R.unitById(s, d).fx = { holdRound: s.turn.round - 1 }; // held last round
+  dice([0, 0, 9, 0]);
+  must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
+  assert.strictEqual(R.unitById(s, a).men, 90, 'Hold still gives +1 melee defense, but no charge bonus on the strike back (88 with it)');
+  assert.ok(!s.log.some(e => /Charge Reflection/.test(e.text || '')));
 });
 
 test('Inspiration: allies next to it gain 2 morale at the end of the round, not the end of its turn', () => {

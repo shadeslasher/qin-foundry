@@ -1078,10 +1078,10 @@ function resolveAttack(s, attacker, defender, opts) {
   if (winner === 'defender' && dmgToAtt > 0) {
     dmgToAtt += tierVal(trait(defender, 'counter-attack'), [2, 4]);
   }
-  // Charge Reflection (David, 2026-10-30): a holding unit charged by cavalry adds the charge bonus to its strike back, win or lose,
+  // Charge Reflection (David, 2026-10-30; this round's Hold only since 2026-11-01): a holding unit charged by cavalry adds the charge bonus to its strike back, win or lose,
   // whenever it can strike back at all (never in the rear; Anti-Cavalry needed to strike back at a charge; not while Suppressed)
   let reflected = 0;
-  if (charge && at.category === 'cavalry' && canCounter && dmgToAtt > 0 && holdingNow(defender) && trait(defender, 'charge reflection')) { dmgToAtt += chargeBonus; reflected = chargeBonus; }
+  if (charge && at.category === 'cavalry' && canCounter && dmgToAtt > 0 && holdingNow(defender) && fx(defender).holdRound === s.turn.round && trait(defender, 'charge reflection')) { dmgToAtt += chargeBonus; reflected = chargeBonus; }
   if (trait(attacker, 'duelist')) { dmgToAtt = 0; canCounter = false; } // Duelist: ignores counter-strike damage
 
   // Casualties = armor pen + what the damage leaves after armor, less Evasion in melee.
@@ -1225,7 +1225,7 @@ function resolveAttack(s, attacker, defender, opts) {
     '. Casualties: ' + defender.name + ' -' + casDef + ', ' + attacker.name + ' -' + casAtt +
     (loser ? '. ' + loser.name + ' loses ' + moraleLoss + ' morale' + (mult > 1 ? ' (x' + mult + ')' : '') : '') +
     (cmD || cmA ? '. Losses cost morale: ' + [cmD && defender.name + ' -' + cmD, cmA && attacker.name + ' -' + cmA].filter(Boolean).join(', ') : '') +
-    (reflected ? '. Charge Reflection (holding): +' + reflected + ' to the strike back' : '') + '.',
+    (reflected ? '. Charge Reflection (held this round): +' + reflected + ' to the strike back' : '') + '.',
     { type: 'attack', result });
 
   // XP: casualties inflicted x (enemy tier / own tier), rounded down
@@ -2183,6 +2183,7 @@ const ACTIONS = {
     const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
     if (r.u.round.attacked || r.act.forcedMarched) return err('Too late to hold this turn');
     r.u.round.holding = true;
+    fx(r.u).holdRound = s.turn.round; // Charge Reflection counts only a Hold made this round (David, 2026-11-01)
     log(s, r.u.name + ' holds position (+1 melee defense until its next turn).');
     for (const tc of fireTactics(s, 'hold', r.u)) tc.anchor = r.u.id; // Hold the Line: this unit and adjacent holders
     finishActivation(s, r.u);
