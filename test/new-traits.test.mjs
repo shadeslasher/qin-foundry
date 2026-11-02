@@ -470,7 +470,7 @@ test('Northern Steel: no strength penalty and no morale loss from casualties', (
   A.fx = {}; A.men = 50;
   assert.strictEqual(R.checkpointMorale(A), 0, 'no checkpoint morale');
   D.fx = {}; D.men = 50; D.maxMen = 100;
-  assert.strictEqual(R.checkpointMorale(D), 10, 'normal unit loses 5 per checkpoint (80% and 60% passed)');
+  assert.strictEqual(R.checkpointMorale(D), 16, 'normal unit loses 8 per checkpoint (80% and 60% passed)');
 });
 
 test('Opportunists: Attack +2 against an enemy already next to another friendly unit, only when attacking', () => {

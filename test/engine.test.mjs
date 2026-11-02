@@ -156,7 +156,7 @@ test('cavalry charge scales with distance; one tile is no charge', () => {
   }
 });
 
-test('Fierce Charge tiers: +2 / +4 / +4 on a charge attack; ++ also hits the enemy behind for half', () => {
+test('Fierce Charge tiers: +4 / +6 / +8 on a charge attack (2026-11-01); ++ also hits the enemy behind for half', () => {
   const run = (fierce, startY, behind = false) => {
     const s = setup();
     const a = add(s, { typeId: 'han_lancer_cav', side: 'player', owner: 'p1', x: 5, y: startY });
@@ -173,15 +173,15 @@ test('Fierce Charge tiers: +2 / +4 / +4 on a charge attack; ++ also hits the ene
     const sum = (re) => r.attackRoll.parts.filter(([l]) => re.test(l)).reduce((t, [, v]) => t + v, 0);
     return { r, s, b, charge: sum(/Cavalry charge/), fierce: sum(/^Fierce Charge/) };
   };
-  let x = run(1, 2); assert.deepStrictEqual([x.charge, x.fierce], [1, 2]);   // 2 tiles: +1, Fierce +2
+  let x = run(1, 2); assert.deepStrictEqual([x.charge, x.fierce], [1, 4]);   // 2 tiles: +1, Fierce +4
   x = run(1, 3); assert.deepStrictEqual([x.charge, x.fierce], [0, 0]);       // 1 tile: no charge, no Fierce
-  x = run(2, 1); assert.deepStrictEqual([x.charge, x.fierce], [2, 4]);       // 3 tiles: +2, Fierce+ +4
+  x = run(2, 1); assert.deepStrictEqual([x.charge, x.fierce], [2, 6]);       // 3 tiles: +2, Fierce+ +6
   x = run(3, 0, true);                                                       // 4 tiles: +3, Fierce++ +4, and the unit behind
-  assert.deepStrictEqual([x.charge, x.fierce], [3, 4]);
+  assert.deepStrictEqual([x.charge, x.fierce], [3, 8]);
   assert.ok(x.s.log.some(e => e.detail && e.detail.type === 'trample'), 'the enemy behind takes half damage');
   const half = x.s.log.find(e => e.detail && e.detail.type === 'trample').detail.casualties;
   x = run(4, 0, true);                                                       // Fierce Charge EX: +4, the unit behind takes full damage
-  assert.deepStrictEqual([x.charge, x.fierce], [3, 4]);
+  assert.deepStrictEqual([x.charge, x.fierce], [3, 8]);
   assert.ok(x.r.attackRoll.parts.some(([l]) => l === 'Fierce Charge EX'));
   const full = x.s.log.find(e => e.detail && e.detail.type === 'trample').detail.casualties;
   assert.ok(full > half, 'full damage beats half (' + full + ' vs ' + half + ')');
@@ -753,15 +753,15 @@ test('Evasion / Evasion EX tiers and the Disciplined start bonus', () => {
   assert.strictEqual(R.disciplinedBonus({ traitTiers: { disciplined: 2 } }), 10);
 });
 
-test('casualty checkpoints: -5 morale for each fifth of health lost, once per battle', () => {
+test('casualty checkpoints: -8 morale for each fifth of health lost, once per battle', () => {
   const u = { men: 100, maxMen: 100, fx: {} };
   u.men = 85; assert.strictEqual(R.checkpointMorale(u), 0);
-  u.men = 79; assert.strictEqual(R.checkpointMorale(u), 5, 'past 80%');
-  u.men = 39; assert.strictEqual(R.checkpointMorale(u), 10, 'past 60% and 40% in one hit');
+  u.men = 79; assert.strictEqual(R.checkpointMorale(u), 8, 'past 80%');
+  u.men = 39; assert.strictEqual(R.checkpointMorale(u), 16, 'past 60% and 40% in one hit');
   u.men = 90; assert.strictEqual(R.checkpointMorale(u), 0, 'healed');
   u.men = 70; assert.strictEqual(R.checkpointMorale(u), 0, 'checkpoints already passed this battle cost nothing again');
   u.men = 0; assert.strictEqual(R.checkpointMorale(u), 0, 'wiped out: nothing more');
-  const c = { men: 50, maxMen: 50, fx: {} }; c.men = 40; assert.strictEqual(R.checkpointMorale(c), 5, 'same for 50-health units');
+  const c = { men: 50, maxMen: 50, fx: {} }; c.men = 40; assert.strictEqual(R.checkpointMorale(c), 8, 'same for 50-health units');
 });
 
 test('Imperial Solidarity: allies within 2 tiles (not itself) get melee defense +2 and +4 morale at round end, once however many', () => {
@@ -797,7 +797,7 @@ test('Inspiration from two neighbours counts once (same-name traits do not stack
 });
 
 test('Fierce Charge: a winning charge shocks foot defenders (no move on their next activation); a lost charge shocks nothing and spares the unit behind', () => {
-  const run = (rolls, startY = 0) => {
+  const run = (rolls, startY = 0, defBonus = 0) => {
     const s = setup();
     const a = add(s, { typeId: 'han_lancer_cav', side: 'player', owner: 'p1', x: 5, y: startY });
     const d = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 5 });
@@ -807,6 +807,7 @@ test('Fierce Charge: a winning charge shocks foot defenders (no move on their ne
     must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: a }));
     s.freeMovement = false;
     must(R.act(s, P1, { type: 'moveTo', unitId: a, x: 5, y: 4 }));
+    if (defBonus) { const D = R.unitById(s, d); D.round.holding = true; D.traitTiers = { ...(D.traitTiers || {}), brace: 3 }; } // Hold +1, Brace++ +3
     dice(rolls);
     must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
     return { s, d: R.unitById(s, d) };
@@ -827,7 +828,7 @@ test('Fierce Charge: a winning charge shocks foot defenders (no move on their ne
     assert.ok(R.unitById(s, d).fx.shocked, 'shocked without Fierce Charge');
   }
   assert.ok(x.s.log.some(e => e.detail && e.detail.type === 'trample'));
-  x = run([0, 0, 9, 0], 2);                        // short charge (+1, Fierce +4): the defender wins the roll
+  x = run([0, 0, 9, 0], 2, 1);                     // short charge (+1, Fierce++ +8) into a braced unit: the defender wins the roll
   assert.ok(x.s.log.some(e => e.detail && e.detail.type === 'attack' && e.detail.result.winner === 'defender'), 'defender won');
   assert.ok(!(x.d.fx && x.d.fx.shocked), 'a lost charge shocks nothing');
   assert.ok(!x.s.log.some(e => e.detail && e.detail.type === 'trample'), 'a lost charge spares the unit behind');

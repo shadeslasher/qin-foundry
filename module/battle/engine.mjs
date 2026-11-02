@@ -765,7 +765,7 @@ function rangeOk(s, attacker, defender) {
  * per checkpoint (80%, 60%, 40%, 20%; a unit wiped out loses nothing more). Call after its health has changed;
  * returns the morale to take off and remembers the checkpoints passed (fx.checkpoints).
  */
-const CHECKPOINT_MORALE = 5;
+const CHECKPOINT_MORALE = 8; // 8 per fifth of health lost (David, 2026-11-01; was 5)
 /** Morale lost when surrounded by four enemy units; 10 less for each side closed by impassable ground instead
  * (David, 2026-10-27; 50 until v0.53.0, 25 with four enemy units only until v0.79.0). */
 const SURROUND_MORALE = 40;
@@ -1017,10 +1017,10 @@ function resolveAttack(s, attacker, defender, opts) {
   const ranged = at.weapon === 'ranged' && !hybridMelee;
   // Charge: a cavalry unit's melee attack gains +1 for every tile it moved this turn past the first (2 tiles = +1)
   const tilesMoved = opts.movedThisActivation ? (opts.tilesMoved || 0) : 0;
-  // Fierce Charge trait on a charge attack: Fierce Charge +2, Fierce Charge+ +4, Fierce Charge++ +4 and the enemy behind takes half damage
+  // Fierce Charge trait on a charge attack: Fierce Charge +4, Fierce Charge+ +6, Fierce Charge++ +8 and the enemy behind takes half damage
   const fierce = attacker.fierceCharge || 0;
   const chargeBase = !ranged && at.category === 'cavalry' ? Math.max(0, tilesMoved - 1) : 0;
-  const fierceBonus = chargeBase > 0 ? [0, 2, 4, 4, 4][Math.min(4, fierce)] : 0; // EX: +4, and the unit behind takes full damage
+  const fierceBonus = chargeBase > 0 ? [0, 4, 6, 8, 8][Math.min(4, fierce)] : 0; // +4 / +6 / +8, EX +8 and the unit behind takes full damage (David, 2026-11-01; was +2 / +4 / +4)
   const rawCharge = chargeBase + fierceBonus;
   const chargeBonus = rawCharge;
   const charge = chargeBonus > 0;
