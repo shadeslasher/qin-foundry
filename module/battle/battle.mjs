@@ -189,6 +189,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
     const mine = (u) => u && (u.owner === game.user.id || (game.user.isGM && !u.owner));
     const unit = (id) => E.unitById(s, id);
     const tokenImg = (id) => scene?.tokens.get(id)?.texture?.src;
+    const officerImg = (o) => { if (!o?.id) return null; try { const act = fromUuidSync(o.id); return act?.prototypeToken?.texture?.src || act?.img || null; } catch { return null; } };
     const a = t.activation;
     const au = a ? unit(a.unitId) : null;
     const prompt = { kind: p.kind, text: "", buttons: [] };
@@ -255,7 +256,8 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
     const blocked = a && a.started;
     const shown = (u) => game.user.isGM || (u && u.owner === game.user.id); // players see only their own units
     const held = t.held.map(id => unit(id)).filter(u => u && u.status === "active" && shown(u)).map(u => ({
-      id: u.id, name: E.officerOf(s, u)?.name || u.name, img: tokenImg(u.id), init: t.init[u.id]?.total,
+      // the officer's portrait for officer units (David, 2026-11-01), else the unit's token
+      id: u.id, name: E.officerOf(s, u)?.name || u.name, img: officerImg(E.officerOf(s, u)) || tokenImg(u.id), init: t.init[u.id]?.total,
       mine: mine(u), can: mine(u) && !blocked && t.order.indexOf(u.id) < (p.rank ?? Infinity) && !(a && a.unitId === u.id),
     }));
 

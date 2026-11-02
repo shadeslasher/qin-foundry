@@ -1080,7 +1080,8 @@ function resolveAttack(s, attacker, defender, opts) {
   }
   // Charge Reflection (David, 2026-10-30): a holding unit charged by cavalry adds the charge bonus to its strike back, win or lose,
   // whenever it can strike back at all (never in the rear; Anti-Cavalry needed to strike back at a charge; not while Suppressed)
-  if (charge && at.category === 'cavalry' && canCounter && dmgToAtt > 0 && holdingNow(defender) && trait(defender, 'charge reflection')) dmgToAtt += chargeBonus;
+  let reflected = 0;
+  if (charge && at.category === 'cavalry' && canCounter && dmgToAtt > 0 && holdingNow(defender) && trait(defender, 'charge reflection')) { dmgToAtt += chargeBonus; reflected = chargeBonus; }
   if (trait(attacker, 'duelist')) { dmgToAtt = 0; canCounter = false; } // Duelist: ignores counter-strike damage
 
   // Casualties = armor pen + what the damage leaves after armor, less Evasion in melee.
@@ -1223,7 +1224,8 @@ function resolveAttack(s, attacker, defender, opts) {
   log(s, attacker.name + ' attacks ' + defender.name + ' (' + tags + '): ' + A.total + ' vs ' + D.total + '. ' + wtxt +
     '. Casualties: ' + defender.name + ' -' + casDef + ', ' + attacker.name + ' -' + casAtt +
     (loser ? '. ' + loser.name + ' loses ' + moraleLoss + ' morale' + (mult > 1 ? ' (x' + mult + ')' : '') : '') +
-    (cmD || cmA ? '. Losses cost morale: ' + [cmD && defender.name + ' -' + cmD, cmA && attacker.name + ' -' + cmA].filter(Boolean).join(', ') : '') + '.',
+    (cmD || cmA ? '. Losses cost morale: ' + [cmD && defender.name + ' -' + cmD, cmA && attacker.name + ' -' + cmA].filter(Boolean).join(', ') : '') +
+    (reflected ? '. Charge Reflection (holding): +' + reflected + ' to the strike back' : '') + '.',
     { type: 'attack', result });
 
   // XP: casualties inflicted x (enemy tier / own tier), rounded down
