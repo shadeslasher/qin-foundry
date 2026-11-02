@@ -455,3 +455,19 @@ test('Confucian Discipline: immune to Terror; no morale lost for losing a ranged
   const lostShot = duel(bow(), unitType('d', { weapon: 'ranged', rangeMax: 3 }), [0, 0, 9, 0], (a) => { a.traitTiers = { 'confucian discipline': 1 }; });
   assert.strictEqual(lostShot.r.moraleLoss, 0, 'losing its own shooting exchange: no morale lost');
 });
+
+test('Defend the Homeland: as the defender, melee defense +1 and the strike back deals +1 damage (Tao Qian, 2026-11-02)', () => {
+  const plain = duel(unitType('a'), unitType('d'), [0, 0, 9, 0]);
+  const dh = duel(unitType('a'), unitType('d'), [0, 0, 9, 0], (a, d) => { d.traitTiers = { 'defend the homeland': 1 }; });
+  assert.strictEqual(dh.r.defendRoll.total, plain.r.defendRoll.total + 1);
+  assert.ok(dh.r.defendRoll.parts.some(([l]) => /^Defend the Homeland/.test(l)));
+  assert.strictEqual(dh.r.damageToAttacker, plain.r.damageToAttacker + 1 + 1, '+1 strike back, +1 more from the wider winning margin');
+  const att = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], (a) => { a.traitTiers = { 'defend the homeland': 1 }; });
+  const attPlain = duel(unitType('a'), unitType('d'), [9, 0, 0, 0]);
+  assert.strictEqual(att.r.attackRoll.total, attPlain.r.attackRoll.total, 'nothing when attacking');
+  assert.strictEqual(att.r.damageToDefender, attPlain.r.damageToDefender);
+  const bow = (id) => unitType(id, { weapon: 'ranged', rangeMax: 3 });
+  const sb = duel(bow('a'), bow('d'), [0, 0, 9, 0], (a, d) => { d.traitTiers = { 'defend the homeland': 1 }; });
+  const sbPlain = duel(bow('a'), bow('d'), [0, 0, 9, 0]);
+  assert.strictEqual(sb.r.damageToAttacker, sbPlain.r.damageToAttacker + 1, 'shooting back: +1 damage, no defense bonus');
+});

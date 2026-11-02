@@ -952,6 +952,7 @@ function buildRoll(s, unit, role, ctx) {
   }
   // Mountain Passes (Liu Yan, David 2026-11-01): melee and ranged defense +1 on a hill, forest (or Trees) or rocky ground
   if (role === 'defender' && trait(unit, 'mountain passes') && mountainGround(s, unit.x, unit.y)) parts.push(['Mountain Passes (hill, forest or rocky ground)', 1]);
+  if (role === 'defender' && !ctx.ranged && trait(unit, 'defend the homeland')) parts.push(['Defend the Homeland: melee defense', 1]); // Tao Qian (David, 2026-11-02)
   // Pretender's Guard (Yuan Shu, David 2026-11-01): melee defense +2 while next to an allied unit led by an officer
   if (role === 'defender' && !ctx.ranged && trait(unit, "pretender's guard") && liveUnits(s).some(f => f.id !== unit.id && friendly(f, unit) && f.officerId && manhattan(f, unit) === 1))
     parts.push(["Pretender's Guard (next to an officer's unit)", 2]);
@@ -1079,6 +1080,8 @@ function resolveAttack(s, attacker, defender, opts) {
   if (winner === 'defender' && dmgToAtt > 0) {
     dmgToAtt += tierVal(trait(defender, 'counter-attack'), [2, 4]);
   }
+  // Defend the Homeland (Tao Qian, David 2026-11-02): the defender's strike back (melee or shooting back) deals +1 damage
+  if (dmgToAtt > 0 && trait(defender, 'defend the homeland')) dmgToAtt += 1;
   // Charge Reflection (David, 2026-10-30; this round's Hold only since 2026-11-01): a holding unit charged by cavalry adds the charge bonus to its strike back, win or lose,
   // whenever it can strike back at all (never in the rear; Anti-Cavalry needed to strike back at a charge; not while Suppressed)
   let reflected = 0;
