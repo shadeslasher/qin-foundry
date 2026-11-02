@@ -582,3 +582,14 @@ test('Imperial Mandate: attack and defense +1 within 2 tiles of an allied Han or
   I.side = 'enemy';
   assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Imperial Mandate/), 0, 'enemy Han units do not count');
 });
+
+test('Cornered Tiger: Attack +2 while below half health, only when attacking (Yan Baihu, 2026-11-02)', () => {
+  const s = setup(); s.library.unitTypes.push(unitType('a'), unitType('d'));
+  const A = R.unitById(s, add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 5, y: 5 }));
+  const D = R.unitById(s, add(s, { typeId: 'd', side: 'enemy', x: 5, y: 4 }));
+  A.traitTiers = { 'cornered tiger': 1 }; A.maxMen = 100;
+  A.men = 50; assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Cornered Tiger/), 0, 'exactly half: no');
+  A.men = 49; assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Cornered Tiger/), 2);
+  assert.strictEqual(part(rollOf(s, A, 'attacker', D, { ranged: true }), /^Cornered Tiger/), 2, 'ranged attacks too');
+  assert.strictEqual(part(rollOf(s, A, 'defender', D), /^Cornered Tiger/), 0, 'not when defending');
+});

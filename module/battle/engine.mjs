@@ -959,6 +959,8 @@ function buildRoll(s, unit, role, ctx) {
   if (role === 'defender' && !ctx.ranged && trait(unit, 'defend the homeland')) parts.push(['Defend the Homeland: melee defense', 1]); // Tao Qian (David, 2026-11-02)
   // Imperial Mandate (Lu Zhi, David 2026-11-02): attack and defense +1 within 2 tiles of an allied Han or Imperial unit
   if (trait(unit, 'imperial mandate') && imperialMandate(s, unit)) parts.push(['Imperial Mandate (near a Han or Imperial ally)', 1]);
+  // Cornered Tiger (Yan Baihu, David 2026-11-02): Attack +2 while below half health
+  if (role === 'attacker' && trait(unit, 'cornered tiger') && unit.maxMen > 0 && unit.men < unit.maxMen / 2) parts.push(['Cornered Tiger (below half health)', 2]);
   // Pretender's Guard (Yuan Shu, David 2026-11-01): melee defense +2 while next to an allied unit led by an officer
   if (role === 'defender' && !ctx.ranged && trait(unit, "pretender's guard") && liveUnits(s).some(f => f.id !== unit.id && friendly(f, unit) && f.officerId && manhattan(f, unit) === 1))
     parts.push(["Pretender's Guard (next to an officer's unit)", 2]);
