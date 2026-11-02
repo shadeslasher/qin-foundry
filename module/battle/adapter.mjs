@@ -334,6 +334,11 @@ function animateChanges(scene, before, s, entries, actionType = null) {
     // a tactic plays where it fired: before the attack that set it off
     if (e.detail?.type === "tactic") { steps.push({ kind: "tactic", tactic: e.detail.tactic }); continue; }
     if (e.detail?.type === "setFire") { steps.push({ kind: "setFire", x: e.detail.x, y: e.detail.y }); continue; }
+    if (e.detail?.type === "gateHit") { // a unit batters a gate: lunge, impact on the gate, the damage over it
+      const g = (s.siege?.gates ?? []).find(q => q.id === e.detail.gate);
+      if (g) steps.push({ kind: "gateHit", unit: e.detail.by, squares: g.squares, damage: e.detail.damage, broken: e.detail.hp <= 0 });
+      continue;
+    }
     if (e.detail?.type === "overwatch" && e.detail.fired) { overwatchShot = true; continue; }
     const r = e.detail?.type === "attack" ? e.detail.result : null;
     if (!r) continue;

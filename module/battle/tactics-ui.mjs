@@ -496,7 +496,8 @@ export function drawSiegeOverlays() {
     const bar = new PIXI.Graphics();
     bar.lineStyle(Math.max(1, size * 0.015), 0x000000, 0.85).beginFill(0x1a1410, 0.85).drawRoundedRect(0, 0, w, h, h / 2).endFill();
     if (p > 0) bar.lineStyle(0).beginFill(col, 1).drawRoundedRect(1, 1, Math.max(0, (w - 2) * p), h - 2, (h - 2) / 2).endFill();
-    bar.position.set(gx + (gw - w) / 2, gy + size * 0.06);
+    const gh = (Math.max(...ys) - Math.min(...ys) + 1) * size;
+    bar.position.set(gx + (gw - w) / 2, gy + gh - h - size * 0.06); // along the bottom of the gate (David, 2026-11-01)
     c.addChild(bar);
   }
   for (const k of ladders) {

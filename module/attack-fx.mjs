@@ -933,6 +933,47 @@ function volley(from, to, count = 12) {
 }
 
 /** Shift a token part of the way toward a point and back (visual only). */
+/**
+ * A unit batters a gate (David, 2026-11-01): it lunges at the gate, the gate shudders with a burst of dust and
+ * splinters, and the damage floats over it. A gate that gives way bursts bigger.
+ */
+async function playGateHit(token, st) {
+  const size = canvas.grid?.size ?? 100;
+  const xs = st.squares.map(([x]) => x), ys = st.squares.map(([, y]) => y);
+  const at = { x: (Math.min(...xs) + Math.max(...xs) + 1) / 2 * size, y: (Math.min(...ys) + Math.max(...ys) + 1) / 2 * size };
+  const go = token ? lunge(token, at) : Promise.resolve();
+  await wait(240);
+  playMoment(st.damage > 0 ? "Melee hit" : "Miss or blocked", { minGap: 0 });
+  const big = !!st.broken, g = new PIXI.Graphics(); g.eventMode = "none";
+  (canvas.interface ?? canvas.stage).addChild(g);
+  const chips = Array.from({ length: big ? 26 : 12 }, () => { const a = Math.random() * Math.PI * 2, v = size * (0.35 + Math.random() * (big ? 0.9 : 0.5));
+    return { a, v, r: size * (0.02 + Math.random() * 0.03), rot: Math.random() * 6, col: Math.random() < 0.5 ? 0x6e4a26 : 0x9a7046 }; });
+  const ms = big ? 1100 : 750;
+  floatLocal(at, "unitDamage", `\u2212${st.damage}`);
+  if (big) setTimeout(() => floatLocal({ x: at.x, y: at.y - size * 0.35 }, "moraleDown", "Gate broken!"), 250);
+  await new Promise(resolve => {
+    let t = 0;
+    const tick = () => {
+      t += canvas.app.ticker.deltaMS; const k = Math.min(1, t / ms);
+      g.clear();
+      // shudder: the impact ring
+      const ring = size * (0.25 + (big ? 0.9 : 0.5) * k);
+      g.lineStyle(Math.max(2, size * 0.05 * (1 - k)), 0xf0d9a0, 0.8 * (1 - k)).drawCircle(at.x, at.y, ring);
+      // dust
+      g.lineStyle(0).beginFill(0xcdb894, 0.35 * (1 - k)).drawCircle(at.x, at.y + size * 0.1, size * (0.3 + 0.4 * k)).endFill();
+      // splinters
+      for (const c of chips) {
+        const d = c.v * (1 - (1 - k) * (1 - k)), x = at.x + Math.cos(c.a) * d, y = at.y + Math.sin(c.a) * d + size * 0.25 * k * k;
+        g.beginFill(c.col, 1 - k).drawRect(x - c.r, y - c.r * 0.4, c.r * 2, c.r * 0.8).endFill();
+      }
+      if (k >= 1) { canvas.app.ticker.remove(tick); g.destroy(); resolve(); }
+    };
+    canvas.app.ticker.add(tick);
+  });
+  await go;
+  await wait(250);
+}
+
 function lunge(token, toward, ms = 520) {
   if (!token || token.destroyed) return Promise.resolve();
   const c = token.center, dx = toward.x - c.x, dy = toward.y - c.y, d = Math.hypot(dx, dy) || 1;
@@ -1034,6 +1075,8 @@ export async function playBattleAnim({ sceneId, steps }) {
         await playTacticTrigger(st.tactic);
       } else if (st.kind === "setFire") {
         await playSetFire(st.x, st.y);
+      } else if (st.kind === "gateHit") {
+        await playGateHit(tok(st.unit), st);
       } else if (st.kind === "suppressed") {
         suppressedLocal(tok(st.unit));
         await wait(1100);
