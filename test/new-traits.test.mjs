@@ -605,3 +605,22 @@ test('Deterrence: a unit hit by its ranged attack has Attack -2 on its next atta
   const melee = duel(unitType('m'), unitType('d', { armor: 0 }), [9, 0, 0, 0], traits({ deterrence: 1 }));
   assert.strictEqual(part(rollOf(melee.s, melee.D, 'attacker', melee.A), /^Deterrence/), 0, 'melee hits do not deter');
 });
+
+test('Jungle Warriors / + / ++: forest and marsh cost no extra movement; melee defense +1/+2/+3 there (Nanman, 2026-11-02)', () => {
+  const s = setup(); plains(s, { '5,4': { terrain: 'forest' }, '5,3': { terrain: 'marsh' } });
+  s.library.unitTypes.push(unitType('j', { move: 2 }), unitType('d'));
+  const u = R.unitById(s, add(s, { typeId: 'j', side: 'player', owner: 'p1', x: 5, y: 5 }));
+  const D = R.unitById(s, add(s, { typeId: 'd', side: 'enemy', x: 6, y: 4 }));
+  assert.ok(!R.reachable(s, u, 2).has('5,3'), 'forest + marsh cost 5 normally');
+  u.traitTiers = { 'jungle warriors': 1 };
+  assert.strictEqual(R.reachable(s, u, 2).get('5,3'), 2);
+  assert.strictEqual(part(rollOf(s, u, 'defender', D), /^Jungle Warriors/), 0, 'plains: no bonus');
+  u.x = 5; u.y = 4;
+  assert.strictEqual(part(rollOf(s, u, 'defender', D), /^Jungle Warriors/), 1, 'forest');
+  u.traitTiers = { 'jungle warriors': 3 };
+  assert.strictEqual(part(rollOf(s, u, 'defender', D), /^Jungle Warriors/), 3, '++');
+  u.traitTiers = { 'jungle warriors': 2 }; u.y = 3;
+  assert.strictEqual(part(rollOf(s, u, 'defender', D), /^Jungle Warriors/), 2, '+ in marsh');
+  assert.strictEqual(part(rollOf(s, u, 'defender', D, { ranged: true }), /^Jungle Warriors/), 0, 'melee only');
+  assert.strictEqual(part(rollOf(s, u, 'attacker', D), /^Jungle Warriors/), 0, 'only when attacked');
+});

@@ -145,7 +145,11 @@ function surcharge(s, x, y, u) {
   let move = r.move;
   const tile = s.map.tiles && s.map.tiles[x + ',' + y];
   if (u && tile && trait(u, 'frontier riders')) { const f = frontierRules(tile); return Math.max(0, f.move) + (f.rough && isCavalry(s, u) ? 1 : 0); }
-  if (u && tile && trait(u, 'woodsmen')) {
+  if (u && tile && trait(u, 'jungle warriors')) { // Jungle Warriors (Nanman, David 2026-11-02): forest, trees and marsh cost no extra movement
+    if (tile.terrain === 'forest') move -= (data.MAP_TERRAIN.forest.move || 0);
+    if (tile.terrain === 'marsh') move -= (data.MAP_TERRAIN.marsh.move || 0);
+    if (tile.overlays?.includes('trees')) move -= (data.MAP_OVERLAYS.trees.move || 0);
+  } else if (u && tile && trait(u, 'woodsmen')) {
     if (tile.terrain === 'forest') move -= (data.MAP_TERRAIN.forest.move || 0);
     if (tile.overlays?.includes('trees')) move -= (data.MAP_OVERLAYS.trees.move || 0);
   }
@@ -382,6 +386,13 @@ const tierVal = (tier, vals) => (tier ? vals[Math.min(tier, vals.length) - 1] : 
 /** Lasting per-unit battle effects (poison, sunder, reload, slowed, stood still last turn). */
 function fx(u) { if (!u.fx) u.fx = {}; return u.fx; }
 /** A hill, forest (or Trees) or rocky square, as it stands now (burnt forest no longer counts): Mountain Passes. */
+/** Jungle Warriors ground: forest, Trees or marsh. */
+function jungleGround(s, x, y) {
+  let t = s.map && s.map.tiles && s.map.tiles[x + ',' + y];
+  if (!t) return false;
+  t = burnState(s, x, y, t);
+  return t.terrain === 'forest' || t.terrain === 'marsh' || (t.overlays || []).includes('trees');
+}
 function mountainGround(s, x, y) {
   let t = s.map && s.map.tiles && s.map.tiles[x + ',' + y];
   if (!t) return false;
@@ -957,6 +968,8 @@ function buildRoll(s, unit, role, ctx) {
   // Mountain Passes (Liu Yan, David 2026-11-01): melee and ranged defense +1 on a hill, forest (or Trees) or rocky ground
   if (role === 'defender' && trait(unit, 'mountain passes') && mountainGround(s, unit.x, unit.y)) parts.push(['Mountain Passes (hill, forest or rocky ground)', 1]);
   if (role === 'defender' && !ctx.ranged && trait(unit, 'defend the homeland')) parts.push(['Defend the Homeland: melee defense', 1]); // Tao Qian (David, 2026-11-02)
+  // Jungle Warriors / + / ++ (Nanman, David 2026-11-02): melee defense +1 / +2 / +3 on forest, Trees or marsh
+  if (role === 'defender' && !ctx.ranged && trait(unit, 'jungle warriors') && jungleGround(s, unit.x, unit.y)) parts.push(['Jungle Warriors' + '+'.repeat(Math.min(2, trait(unit, 'jungle warriors') - 1)) + ' (forest or marsh)', tierVal(trait(unit, 'jungle warriors'), [1, 2, 3])]);
   // Imperial Mandate (Lu Zhi, David 2026-11-02): attack and defense +1 within 2 tiles of an allied Han or Imperial unit
   if (trait(unit, 'imperial mandate') && imperialMandate(s, unit)) parts.push(['Imperial Mandate (near a Han or Imperial ally)', 1]);
   // Cornered Tiger (Yan Baihu, David 2026-11-02): Attack +2 while below half health

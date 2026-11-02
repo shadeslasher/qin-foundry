@@ -5,7 +5,7 @@ const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? ""
 const SIDES = { player: "Player", ally: "Ally", enemy: "Enemy", neutral: "Neutral" };
 
 /** The battle units' three armies (anything else is listed after them as "Other"). */
-export const ARMIES = ["Han", "Bandits", "Yellow Turbans", "Qiang", "Northern", "Cao Cao", "Wei", "Xiongnu", "Xianbei", "Song", "Xiliang", "Mercenary", "Wu", "Yuan Shu", "Gongsun Zan", "Lu Bu", "Liu Bei", "Liu Biao", "Liu Yan", "Kong Rong", "Tao Qian", "Lu Zhi", "Yan Baihu", "Liu Chong", "Imperial", "Other"];
+export const ARMIES = ["Han", "Bandits", "Yellow Turbans", "Qiang", "Northern", "Cao Cao", "Wei", "Xiongnu", "Xianbei", "Song", "Xiliang", "Mercenary", "Wu", "Yuan Shu", "Gongsun Zan", "Lu Bu", "Liu Bei", "Liu Biao", "Liu Yan", "Kong Rong", "Tao Qian", "Lu Zhi", "Yan Baihu", "Liu Chong", "Nanman", "Imperial", "Other"];
 export function factionGroup(f) {
   const k = String(f ?? "").toLowerCase();
   if (/yellow|turban/.test(k)) return "Yellow Turbans";
@@ -31,6 +31,7 @@ export function factionGroup(f) {
   if (/\blu.?zhi|destroyer|defenders.of.the.empire/.test(k)) return "Lu Zhi"; // Lu Zhi's units (David, 2026-11-02)
   if (/yan.?baihu|^yue\b/.test(k)) return "Yan Baihu"; // Yan Baihu's units (David, 2026-11-02)
   if (/liu.?chong|^chen\b/.test(k)) return "Liu Chong"; // Liu Chong's units (David, 2026-11-02)
+  if (/nanman|nanzhong/.test(k)) return "Nanman"; // Nanman units (David, 2026-11-02)
   if (/^imperial$|imperial-guard|imperial-army/.test(k)) return "Imperial"; // the Imperial units, recruited only with explicit leave (David, 2026-11-01)
   if (/^han\b|han-empire|^han$/.test(k)) return "Han";
   return "Other";
