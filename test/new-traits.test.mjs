@@ -563,3 +563,22 @@ test('Mountain Passes: melee and ranged defense +1 on a hill, forest, Trees or r
   }
   assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Mountain Passes/), 0, 'not when attacking');
 });
+
+test('Imperial Mandate: attack and defense +1 within 2 tiles of an allied Han or Imperial unit (Lu Zhi, 2026-11-02)', () => {
+  const s = setup(); s.library.unitTypes.push(unitType('a', { faction: 'lu-zhi' }), unitType('d'), unitType('h', { faction: 'han-empire' }), unitType('i', { faction: 'imperial' }), unitType('x', { faction: 'wei' }));
+  const A = R.unitById(s, add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 5, y: 5 }));
+  const D = R.unitById(s, add(s, { typeId: 'd', side: 'enemy', x: 5, y: 4 }));
+  A.traitTiers = { 'imperial mandate': 1 };
+  const X = R.unitById(s, add(s, { typeId: 'x', side: 'player', owner: 'p1', x: 6, y: 5 }));
+  assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Imperial Mandate/), 0, 'a non-Han ally does not count');
+  const H = R.unitById(s, add(s, { typeId: 'h', side: 'player', owner: 'p1', x: 7, y: 5 }));
+  assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Imperial Mandate/), 1, 'Han ally 2 tiles away');
+  assert.strictEqual(part(rollOf(s, A, 'defender', D), /^Imperial Mandate/), 1, 'defense too');
+  assert.strictEqual(part(rollOf(s, A, 'defender', D, { ranged: true }), /^Imperial Mandate/), 1, 'ranged defense too');
+  H.x = 8;
+  assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Imperial Mandate/), 0, '3 tiles: too far');
+  const I = R.unitById(s, add(s, { typeId: 'i', side: 'player', owner: 'p1', x: 5, y: 6 }));
+  assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Imperial Mandate/), 1, 'Imperial ally');
+  I.side = 'enemy';
+  assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Imperial Mandate/), 0, 'enemy Han units do not count');
+});

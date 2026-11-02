@@ -822,6 +822,10 @@ function warDrumsBonus(s, u) {
 function imperialAura(s, u) {
   return liveUnits(s).find(o => o !== u && friendly(o, u) && trait(o, 'imperial solidarity') && manhattan(o, u) <= 2) || null;
 }
+/** Imperial Mandate: an allied Han or Imperial unit within 2 tiles (not the unit itself). */
+function imperialMandate(s, u) {
+  return liveUnits(s).some(o => o !== u && friendly(o, u) && manhattan(o, u) <= 2 && /^(han|imperial)\b/i.test(String(typeOf(s, o)?.faction || '')));
+}
 const penOf = (s, t, u) => (t.armorPen || 0) + (imperialAura(s, u) ? 1 : 0);
 
 function rallyingBanner(s, u) {
@@ -953,6 +957,8 @@ function buildRoll(s, unit, role, ctx) {
   // Mountain Passes (Liu Yan, David 2026-11-01): melee and ranged defense +1 on a hill, forest (or Trees) or rocky ground
   if (role === 'defender' && trait(unit, 'mountain passes') && mountainGround(s, unit.x, unit.y)) parts.push(['Mountain Passes (hill, forest or rocky ground)', 1]);
   if (role === 'defender' && !ctx.ranged && trait(unit, 'defend the homeland')) parts.push(['Defend the Homeland: melee defense', 1]); // Tao Qian (David, 2026-11-02)
+  // Imperial Mandate (Lu Zhi, David 2026-11-02): attack and defense +1 within 2 tiles of an allied Han or Imperial unit
+  if (trait(unit, 'imperial mandate') && imperialMandate(s, unit)) parts.push(['Imperial Mandate (near a Han or Imperial ally)', 1]);
   // Pretender's Guard (Yuan Shu, David 2026-11-01): melee defense +2 while next to an allied unit led by an officer
   if (role === 'defender' && !ctx.ranged && trait(unit, "pretender's guard") && liveUnits(s).some(f => f.id !== unit.id && friendly(f, unit) && f.officerId && manhattan(f, unit) === 1))
     parts.push(["Pretender's Guard (next to an officer's unit)", 2]);
