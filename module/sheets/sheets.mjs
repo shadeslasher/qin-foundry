@@ -7,6 +7,7 @@ import { officerEligibility, officerWeaponSkill } from "../officer-rules.mjs";
 import { TT_ICONS } from "../icons.mjs";
 import { EquipmentPicker, unequipUnit, equipmentOf } from "../equipment.mjs";
 import { healthColor, moraleColor } from "../unit-bars.mjs";
+import { officesForViewer, currentYear } from "../game-year.mjs";
 const hex = (n) => "#" + Number(n).toString(16).padStart(6, "0");
 
 const { api, sheets } = foundry.applications;
@@ -245,6 +246,8 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
         .filter(s => !s.extra || s.item || s.extra <= extraActivesForTier(system.details?.tier)),
       taoLibrary: await QinActorSheetBase.#library(actor, "taos", "tao"),
       techniqueLibrary: await QinActorSheetBase.#library(actor, "techniques", "technique"),
+      gameYear: currentYear(),
+      offices: officesForViewer(system.offices, currentYear(), game.user.isGM),
     });
     if (system.bol?.levels) {
       context.bol = system.bol.levels.map(l => ({

@@ -185,16 +185,24 @@
 
     <section class="qin-tab" data-tab="bio">
       <h3>Offices held {{#if editable}}<a class="qin-office-add" data-action="officeAdd" title="Add an office"><i class="fa-solid fa-plus"></i></a>{{/if}}</h3>
+      {{#if isGM}}<p class="qin-muted">Game year {{gameYear}}. Faded offices haven't started yet; players can't see them.</p>{{/if}}
       <div class="qin-offices">
-        {{#each system.offices}}
-        <div class="qin-office-card" data-office="{{@index}}">
+        {{#each offices}}
+        <div class="qin-office-card{{#if future}} qin-office-future{{/if}}" data-office="{{index}}">
           <input type="text" data-office-field="title" value="{{title}}" placeholder="Office or rank" {{#unless ../editable}}disabled{{/unless}}>
           <input type="text" data-office-field="when" value="{{when}}" placeholder="When" {{#unless ../editable}}disabled{{/unless}}>
           <input type="text" data-office-field="grantedBy" value="{{grantedBy}}" placeholder="Granted by" {{#unless ../editable}}disabled{{/unless}}>
-          {{#if ../editable}}<a data-action="officeRemove" data-office="{{@index}}" title="Remove"><i class="fa-solid fa-xmark"></i></a>{{/if}}
+          {{#if ../editable}}<a data-action="officeRemove" data-office="{{index}}" title="Remove"><i class="fa-solid fa-xmark"></i></a>{{/if}}
         </div>
         {{else}}<p class="qin-muted">None recorded.</p>{{/each}}
       </div>
+      {{#if isGM}}
+      <div class="qin-death">
+        <h3>Death <span class="qin-muted">(GM only)</span></h3>
+        <label>Year <input type="text" name="system.death.year" value="{{system.death.year}}" placeholder="e.g. 219"></label>
+        <textarea name="system.death.how" rows="2" placeholder="How they die">{{system.death.how}}</textarea>
+      </div>
+      {{/if}}
       <h3>Defining deeds</h3>
       <textarea name="system.deeds" rows="5">{{system.deeds}}</textarea>
       <h3>Biography</h3>

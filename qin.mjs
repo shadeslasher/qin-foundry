@@ -49,6 +49,7 @@ function applyTextScale() {
 
 import { registerCompendiumSync } from "./module/compendium-sync.mjs";
 import { registerPlacedTag } from "./module/placed-tag.mjs";
+import { registerGameYear } from "./module/game-year.mjs";
 import { DuelScenesConfig } from "./module/battle/duel-scene.mjs";
 registerCompendiumSync();
 registerPlacedTag();
@@ -74,6 +75,7 @@ Hooks.once("init", () => {
   };
 
   const { Actors, Items } = foundry.documents.collections;
+  registerGameYear();
   Actors.registerSheet(SYSTEM_ID, CharacterSheet, { types: ["character"], makeDefault: true, label: "Qin character" });
   Actors.registerSheet(SYSTEM_ID, HenchmanSheet, { types: ["henchman"], makeDefault: true, label: "Qin henchman" });
   Actors.registerSheet(SYSTEM_ID, UnitSheet, { types: ["unit"], makeDefault: true, label: "Battlefield unit" });

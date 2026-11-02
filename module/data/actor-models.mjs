@@ -83,6 +83,8 @@ export class CharacterData extends QinBaseActor {
       offices: new fields.ArrayField(new fields.SchemaField({
         title: new fields.StringField({ initial: "" }), when: new fields.StringField({ initial: "" }), grantedBy: new fields.StringField({ initial: "" }),
       }), { initial: [] }),
+      // GM only: when and how the character dies (David, 2026-11-02)
+      death: new fields.SchemaField({ year: new fields.StringField({ initial: "" }), how: new fields.StringField({ initial: "" }) }),
     };
   }
 
