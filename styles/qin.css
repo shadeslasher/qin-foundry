@@ -139,6 +139,8 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin-pname { font-size: calc(11px * var(--qin-scale, 1.15)); line-height: 1.1; }
 .qin-order, .qin-units, .qin-log { list-style: none; padding: 0; margin: 0; }
 .qin-order li { display: flex; justify-content: space-between; padding: 1px 4px; border-radius: 3px; }
+.qin-goto { cursor: pointer; }
+.qin-order li.qin-goto:hover, .qin-uinfo .qin-goto:hover b { text-decoration: underline; text-decoration-color: rgba(255,233,176,.5); }
 .qin-order li.now { background: rgba(184, 134, 43, 0.25); }
 .qin-units li { display: flex; gap: 6px; align-items: center; padding: 3px 0; border-bottom: 1px dotted #7a6a52; }
 .qin-units li img { width: calc(34px * var(--qin-scale, 1.15)); height: calc(34px * var(--qin-scale, 1.15)); border: 2px solid #3d7fd6; border-radius: 50%; object-fit: cover; cursor: pointer; }

@@ -280,7 +280,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
       if (!u || !shown(u)) return null;
       const st = u.status !== "active" ? u.status : u.round.activated ? "done" : t.held.includes(id) ? "holding" : (a?.unitId === id ? "acting" : "waiting");
       const off = E.officerOf(s, u)?.name; // officer units go by their officer, with the unit alongside
-      return { name: off || u.name, unit: off ? u.name : null, init: t.init[id]?.total, state: st, now: p.unitId === id };
+      return { id, name: off || u.name, unit: off ? u.name : null, init: t.init[id]?.total, state: st, now: p.unitId === id };
     }).filter(Boolean);
 
     const units = s.units.filter(shown).map(u => ({
@@ -361,7 +361,10 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
   }
   static async #setHidden(event, target) { await setHiddenSelected(target.dataset.hidden === "1"); }
   static async #selectUnit(event, target) {
+    // click a unit in the lists (picture, name or initiative row): go to it on the map, and select it if it's yours
     const tok = canvas.tokens?.get(target.dataset.unitId);
-    if (tok) { tok.control({ releaseOthers: true }); canvas.animatePan({ x: tok.center.x, y: tok.center.y }); }
+    if (!tok || (!game.user.isGM && (tok.document.hidden || !tok.visible))) return;
+    if (tok.isOwner) tok.control({ releaseOthers: true });
+    canvas.animatePan({ x: tok.center.x, y: tok.center.y, duration: 450 });
   }
 }

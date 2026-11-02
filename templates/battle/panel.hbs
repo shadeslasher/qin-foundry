@@ -58,7 +58,7 @@
       <p class="qin-muted">Different sides fight each other; units on the same side never do.</p>
       <ul class="qin-units">
         {{#each sceneUnits}}
-        <li class="qin-side-{{side}}"><img src="{{img}}" data-action="selectUnit" data-unit-id="{{id}}" title="Select token">
+        <li class="qin-side-{{side}}"><img src="{{img}}" data-action="selectUnit" data-unit-id="{{id}}" title="Go to this unit">
           <div class="qin-uinfo"><b>{{name}}</b></div>
           {{#if @root.isGM}}<select data-side-unit="{{id}}">{{#each ../sideChoices}}<option value="{{@key}}" {{#if (eq @key ../side)}}selected{{/if}}>{{this}}</option>{{/each}}</select>{{/if}}
         </li>
@@ -132,7 +132,7 @@
 
     {{#if order.length}}
     <div class="qin-card"><h4>Initiative</h4>
-      <ul class="qin-order">{{#each order}}<li class="{{#if now}}now{{/if}}"><span>{{init}} · {{name}}{{#if unit}} <span class="qin-muted">({{unit}})</span>{{/if}}</span><span class="qin-muted">{{state}}</span></li>{{/each}}</ul>
+      <ul class="qin-order">{{#each order}}<li class="{{#if now}}now{{/if}} qin-goto" data-action="selectUnit" data-unit-id="{{id}}" title="Go to this unit"><span>{{init}} · {{name}}{{#if unit}} <span class="qin-muted">({{unit}})</span>{{/if}}</span><span class="qin-muted">{{state}}</span></li>{{/each}}</ul>
     </div>
     {{/if}}
 
@@ -141,9 +141,9 @@
       <ul class="qin-units {{#if compactUnits}}compact{{/if}}">
         {{#each units}}
         <li class="qin-side-{{side}} {{#if done}}done{{/if}} {{#unless (eq status "active")}}out{{/unless}}">
-          <img src="{{img}}" data-action="selectUnit" data-unit-id="{{id}}" title="Select token">
+          <img src="{{img}}" data-action="selectUnit" data-unit-id="{{id}}" title="Go to this unit">
           <div class="qin-uinfo">
-            <div><b>{{name}}</b>{{#if officer}} <span class="qin-muted">({{officer}})</span>{{/if}}</div>
+            <div class="qin-goto" data-action="selectUnit" data-unit-id="{{id}}" title="Go to this unit"><b>{{name}}</b>{{#if officer}} <span class="qin-muted">({{officer}})</span>{{/if}}</div>
             <div class="qin-muted qin-udetail">{{men}}/{{maxMen}} health · {{morale}} morale{{#if (eq side "player")}} · {{xp}} XP{{/if}} ({{moraleState}}){{#unless (eq status "active")}} · {{status}}{{/unless}}</div>
             <div class="qin-udetail">
             {{#if sideEditable}}<select data-side-unit="{{id}}" title="Side (can change before initiative)">{{#each ../sideChoices}}<option value="{{@key}}" {{#if (eq @key ../side)}}selected{{/if}}>{{this}}</option>{{/each}}</select>{{/if}}
