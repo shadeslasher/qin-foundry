@@ -382,6 +382,8 @@ const suppressed = (u) => !!(u && u.fx && u.fx.suppressed);
 /** Hybrid, or Throwing Axes (Hybrid without the melee Attack -2: David, 2026-10-29): a ranged unit that also fights adjacent enemies in melee. */
 const hybridOf = (u) => !!(trait(u, 'hybrid') || trait(u, 'throwing axes') || trait(u, 'spear crossbow'));
 const holdingNow = (u) => !!(u && u.round && u.round.holding) && !suppressed(u);
+/** Colossal (War Elephants, David 2026-11-03): the unit loses at most 1 health to any one attack (or other hit). */
+const colossalCap = (u, n) => (n > 0 && trait(u, 'colossal') ? 1 : n);
 const tierVal = (tier, vals) => (tier ? vals[Math.min(tier, vals.length) - 1] : 0);
 /** Lasting per-unit battle effects (poison, sunder, reload, slowed, stood still last turn). */
 function fx(u) { if (!u.fx) u.fx = {}; return u.fx; }
@@ -1123,9 +1125,10 @@ function resolveAttack(s, attacker, defender, opts) {
   const hitDef = (dmg, pen) => casualtiesOf(dmg, armorOf(dt, defender, trait(attacker, 'shield breaker')), pen, 0, 0);
   // Repeating: the attack lands as two hits of half damage (and half pen) each; armor counts against each hit. Evasion then takes its share of the total.
   const repeating = !!trait(attacker, 'repeating') && dmgToDef > 0;
-  const casDef = evadeCasualties(repeating ? hitDef(Math.ceil(dmgToDef / 2), Math.ceil(penOf(s, at, attacker) / 2)) + hitDef(Math.floor(dmgToDef / 2), Math.floor(penOf(s, at, attacker) / 2)) : hitDef(dmgToDef, penOf(s, at, attacker)), evDef);
+  let casDef = evadeCasualties(repeating ? hitDef(Math.ceil(dmgToDef / 2), Math.ceil(penOf(s, at, attacker) / 2)) + hitDef(Math.floor(dmgToDef / 2), Math.floor(penOf(s, at, attacker) / 2)) : hitDef(dmgToDef, penOf(s, at, attacker)), evDef);
   if (ranged && casDef > 0 && trait(attacker, 'deterrence') && alive(defender)) fx(defender).deterred = true; // Deterrence (Liu Chong)
-  const casAtt = casualtiesOf(dmgToAtt, armorOf(at, attacker, trait(defender, 'shield breaker')), penOf(s, dt, defender), 0, evAtt);
+  let casAtt = casualtiesOf(dmgToAtt, armorOf(at, attacker, trait(defender, 'shield breaker')), penOf(s, dt, defender), 0, evAtt);
+  casDef = colossalCap(defender, casDef); casAtt = colossalCap(attacker, casAtt); // Colossal (War Elephants): at most 1 per attack
 
   // Morale loss for the loser
   // An attacker that can't be struck back (ranged out of reach, charges, Duelist, ambushes...) loses no morale for losing the roll
@@ -1174,7 +1177,7 @@ function resolveAttack(s, attacker, defender, opts) {
     if (b && b !== attacker && alive(b) && hostile(attacker, b)) {
       const bt = typeOf(s, b);
       const full = fierce >= 4; // Fierce Charge EX (David, 2026-10-31): full damage instead of half; armor and Evasion still apply
-      const cas = casualtiesOf(full ? dmgToDef : Math.floor(dmgToDef / 2), armorOf(bt, b, false), full ? penOf(s, at, attacker) : Math.floor(penOf(s, at, attacker) / 2), 0, evasionOf(b));
+      const cas = colossalCap(b, casualtiesOf(full ? dmgToDef : Math.floor(dmgToDef / 2), armorOf(bt, b, false), full ? penOf(s, at, attacker) : Math.floor(penOf(s, at, attacker) / 2), 0, evasionOf(b)));
       b.men = Math.max(0, b.men - cas);
       b.morale = clamp(b.morale - checkpointMorale(b), 0, 100);
       trample = { unit: b.id, casualties: cas };
@@ -1189,7 +1192,7 @@ function resolveAttack(s, attacker, defender, opts) {
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const b = unitAt(s, defender.x + dx, defender.y + dy);
       if (!b || b === attacker || b === defender || !alive(b) || !hostile(attacker, b)) continue;
-      const cas = Math.min(n, b.men);
+      const cas = colossalCap(b, Math.min(n, b.men));
       b.men = Math.max(0, b.men - cas);
       b.morale = clamp(b.morale - checkpointMorale(b), 0, 100);
       log(s, ('Splash Attack' + '+'.repeat(Math.min(2, splash - 1)) + ': ') + b.name + ', next to ' + defender.name + ', takes ' + cas + ' casualties.', { type: 'splash', unit: b.id, casualties: cas });
@@ -1641,7 +1644,7 @@ function finishActivation(s, u, opts) {
   const tr = alive(u) ? tileRules(s, u.x, u.y) : null;
   if (tr && (tr.moraleTurn || tr.healthTurn)) {
     if (tr.moraleTurn) u.morale = clamp(u.morale + tr.moraleTurn, 0, 100);
-    if (tr.healthTurn) u.men = Math.max(0, u.men + tr.healthTurn);
+    if (tr.healthTurn) u.men = Math.max(0, u.men - colossalCap(u, -tr.healthTurn));
     log(s, u.name + ' ends its turn on ' + tr.names.join(', ') + ':' + (tr.moraleTurn ? ' ' + (tr.moraleTurn > 0 ? '+' : '') + tr.moraleTurn + ' morale' : '') +
       (tr.healthTurn ? ' ' + tr.healthTurn + ' troops' : '') + '.');
   }

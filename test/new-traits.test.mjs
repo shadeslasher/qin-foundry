@@ -624,3 +624,12 @@ test('Jungle Warriors / + / ++: forest and marsh cost no extra movement; melee d
   assert.strictEqual(part(rollOf(s, u, 'defender', D, { ranged: true }), /^Jungle Warriors/), 0, 'melee only');
   assert.strictEqual(part(rollOf(s, u, 'attacker', D), /^Jungle Warriors/), 0, 'only when attacked');
 });
+
+test('Colossal: loses at most 1 health to any one attack (War Elephants, 2026-11-03)', () => {
+  const big = duel(unitType('a', { damage: 20 }), unitType('d', { armor: 0 }), [9, 0, 0, 0], (a, d) => { d.traitTiers = { colossal: 1 }; });
+  assert.strictEqual(big.r.casualtiesDefender, 1);
+  const plain = duel(unitType('a', { damage: 20 }), unitType('d', { armor: 0 }), [9, 0, 0, 0]);
+  assert.ok(plain.r.casualtiesDefender > 1);
+  const back = duel(unitType('a', { armor: 0 }), unitType('d', { damage: 20 }), [0, 0, 9, 0], (a) => { a.traitTiers = { colossal: 1 }; });
+  assert.ok(back.r.casualtiesAttacker <= 1, 'strike back capped too');
+});
