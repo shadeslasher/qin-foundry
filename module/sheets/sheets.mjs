@@ -204,7 +204,7 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
   _getHeaderControls() {
     const controls = super._getHeaderControls();
     if (game.user.isGM && sourceUuid(this.actor)) controls.push({ icon: "fa-solid fa-cloud-arrow-down", label: "Update from compendium", action: "syncCompendium" });
-    if (game.user.isGM && ["character", "henchman"].includes(this.actor.type)) controls.push({ icon: "fa-solid fa-user-plus", label: "Add to Officers", action: "addToOfficers" });
+    if (game.user.isGM && ["character", "henchman"].includes(this.actor.type)) controls.push({ icon: "fa-solid fa-user-plus", label: "Add to Party Officers", action: "addToOfficers" });
     return controls;
   }
   static async #syncCompendium() {
