@@ -1,5 +1,6 @@
-// Follow the officers (David, 2026-11-01): when a unit led by an officer starts its turn, every client's view
-// pans to it. Watches the battle setting; each new activation pans once.
+// Follow the active unit (David, 2026-11-01; units without an officer too since 2026-11-03): when a unit starts its
+// turn, every client's view pans to it. Watches the battle setting; each new activation pans once. A hidden unit
+// (hidden token, or concealed in the battle) never pans a player's view unless that player owns it.
 let lastKey = null;
 
 export function panToActiveOfficer(battle) {
@@ -10,8 +11,12 @@ export function panToActiveOfficer(battle) {
   if (key === lastKey) return;
   lastKey = key;
   const tok = canvas.tokens?.get(ac.unitId);
-  if (!tok || !tok.actor?.system?.officer) return; // officer-led units only
-  if (tok.document?.hidden && !game.user.isGM) return; // don't give away a hidden unit
+  if (!tok) return;
+  if (!game.user.isGM && !tok.isOwner) {
+    if (tok.document?.hidden) return; // don't give away a hidden unit
+    const bu = (battle.units ?? []).find(u => u.id === ac.unitId);
+    if (bu?.hidden) return; // concealed (forest, tall grass, ambush)
+  }
   const c = tok.center;
   canvas.animatePan?.({ x: c.x, y: c.y, duration: 600 });
 }
