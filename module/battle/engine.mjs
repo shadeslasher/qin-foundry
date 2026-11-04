@@ -2606,4 +2606,5 @@ export { endRound as _endRound, imperialAura as _imperialAura, hidesIn as _hides
   moveOptions, attackTargets, actionMenu, threatArea, TACTIC_SIDES, tileRules, ladderTiles, climbTiles, insideCity, isWallTop, gateAt, gateHp, gateTargets, stairsAt,
   newState, act, viewFor, prompt, reachable, duelTargets, movementOf, moraleState, visibleTo, rangeOk,
   resolveAttack, buildRoll, skillCheck, setRng, yinYang, typeOf, officerOf, unitById, SIDES, settle, advance,
+  liveUnits, hostile, alliance, manhattan, unitAt, alive, trait as unitTrait, TAKE_BACK_KEYS, damageValue,
 };

@@ -10,6 +10,7 @@ import { TacticsApp } from "./tactics-ui.mjs";
 import { levelChevronsSVG } from "../icons.mjs";
 import { broadcastBattleAnim } from "../attack-fx.mjs";
 import { pickRandomChoices } from "./traits.mjs";
+import { aiSettings, setAI, aiLevels } from "./ai-driver.mjs";
 
 const { api } = foundry.applications;
 const MAX_LEVEL = E.MAX_LEVEL ?? 5;
@@ -55,6 +56,8 @@ export class GmPanel extends api.HandlebarsApplicationMixin(api.Application ?? a
       setHidden: async (ev, el) => { await setHiddenSelected(el.dataset.hidden === "1"); GmPanel.refresh(); },
       level: (ev, el) => stepLevel(Number(el.dataset.step) || 0),
       gmFire: () => toggleGmFire(),
+      aiSide: async (ev, el) => { const side = el.dataset.side; await setAI({ [side]: !aiSettings()[side] }); GmPanel.refresh(); },
+      aiPause: async () => { await setAI({ paused: !aiSettings().paused }); GmPanel.refresh(); },
       endBattle: () => confirmEndBattle(),
       do: async (ev, el) => {
         const d = el.dataset;
@@ -86,6 +89,8 @@ export class GmPanel extends api.HandlebarsApplicationMixin(api.Application ?? a
   async _prepareContext() {
     const battle = getBattle();
     const ctx = { isGM: game.user.isGM, active: battle.active, gmFireOn: gmFireActive() };
+    const ai = aiSettings(), lv = aiLevels();
+    ctx.ai = { enemy: ai.enemy, ally: ai.ally, paused: ai.paused, enemyLv: lv.enemy, allyLv: lv.ally, any: ai.enemy || ai.ally };
     const sel = selectedUnits();
     ctx.selected = sel.map(t => { const lv = Math.max(1, Math.min(MAX_LEVEL, Number(t.actor.system.level) || 1));
       return { name: t.name, img: t.actor.img, level: lv, chev: levelChevronsSVG(lv, 13) }; });

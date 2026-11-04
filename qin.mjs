@@ -26,6 +26,7 @@ import { registerTileTip, toggleTileTip } from "./module/battle/tile-tip.mjs";
 import { registerDeployDrawing, syncDeployDrawing } from "./module/battle/deploy-draw.mjs";
 import { panToActiveOfficer } from "./module/battle/turn-pan.mjs";
 import { registerHealthV2, migrateHealthV2 } from "./module/health-v2.mjs";
+import { registerBattleAI } from "./module/battle/ai-driver.mjs";
 import { HotkeyGuide } from "./module/hotkeys.mjs";
 import { registerSounds, registerSoundPack, onBattleSetting, primeBattleSounds, primeTokenPositions, onUnitTokenMoved, SoundPanel, playMoment } from "./module/sound.mjs";
 import { registerNameLabels, toggleNameLabels } from "./module/battle/name-labels.mjs";
@@ -107,6 +108,7 @@ Hooks.once("init", () => {
   registerUnitEditor();
   registerDeployDrawing();
   registerHealthV2();
+  registerBattleAI();
   game.settings.register(SYSTEM_ID, "compactUnits", { // the Battle panel's "Less info" button, per player
     scope: "client", config: false, type: Boolean, default: false,
   });

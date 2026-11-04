@@ -1,4 +1,12 @@
 <div class="qin-battle-scroll qin-gm">
+  <div class="qin-card qin-gm-ai"><h4>Battle AI</h4>
+    <p class="qin-muted">Plays a side's units on its turns. It plays as well as that side's tactician (Art of War); without one, as Art of War 1.</p>
+    <div class="qin-btns">
+      <button type="button" data-action="aiSide" data-side="enemy" class="{{#if ai.enemy}}active{{/if}}" title="Let the AI play the enemy side"><i class="fa-solid fa-{{#if ai.enemy}}toggle-on{{else}}toggle-off{{/if}}"></i> Enemy <small>AoW {{ai.enemyLv}}</small></button>
+      <button type="button" data-action="aiSide" data-side="ally" class="{{#if ai.ally}}active{{/if}}" title="Let the AI play the allied side"><i class="fa-solid fa-{{#if ai.ally}}toggle-on{{else}}toggle-off{{/if}}"></i> Ally <small>AoW {{ai.allyLv}}</small></button>
+    </div>
+    {{#if ai.any}}<div class="qin-btns"><button type="button" data-action="aiPause" title="Stop or restart the AI">{{#if ai.paused}}<i class="fa-solid fa-play"></i> Resume AI{{else}}<i class="fa-solid fa-pause"></i> Pause AI{{/if}}</button></div>{{/if}}
+  </div>
   <div class="qin-card"><h4>Selected units</h4>
     {{#if selected.length}}
       <ul class="qin-gm-sel">{{#each selected}}<li><img src="{{img}}" alt=""><b>{{name}}</b><span class="qin-gm-lv">{{{chev}}} Lv {{level}}</span></li>{{/each}}</ul>
