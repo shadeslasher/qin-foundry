@@ -24,7 +24,7 @@ import { registerPreBattleCover } from "./module/battle/cover.mjs";
 import { registerReinforcements, drawReinforceZones, setReinforceChangeHandler } from "./module/battle/reinforce.mjs";
 import { registerTileTip, toggleTileTip } from "./module/battle/tile-tip.mjs";
 import { registerDeployDrawing, syncDeployDrawing } from "./module/battle/deploy-draw.mjs";
-import { panToActiveOfficer } from "./module/battle/turn-pan.mjs";
+import { panToActiveOfficer, registerTurnPan } from "./module/battle/turn-pan.mjs";
 import { registerHealthV2, migrateHealthV2 } from "./module/health-v2.mjs";
 import { registerBattleAI } from "./module/battle/ai-driver.mjs";
 import { HotkeyGuide } from "./module/hotkeys.mjs";
@@ -109,6 +109,7 @@ Hooks.once("init", () => {
   registerDeployDrawing();
   registerHealthV2();
   registerBattleAI();
+  registerTurnPan();
   game.settings.register(SYSTEM_ID, "compactUnits", { // the Battle panel's "Less info" button, per player
     scope: "client", config: false, type: Boolean, default: false,
   });
