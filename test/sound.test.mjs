@@ -75,8 +75,8 @@ test("sounds: player and enemy turns share Turn start; move sounds repeat once p
   assert.deepEqual(moveSoundTimes(4), [0, 167, 333, 500].map(Math.round).map((v, i) => i * 167));
   assert.equal(moveSoundTimes(40).length, 12);
   assert.deepEqual(moveSoundTimes(3, 10), [0, 160, 320]);
-  assert.deepEqual(moveSoundTimes(5, 6, 12, 2), [0, 334, 668]); // cavalry: one gallop stride per 2 squares
-  assert.deepEqual(moveSoundTimes(1, 6, 12, 2), [0, 334]);
+  assert.deepEqual(moveSoundTimes(7, 6, 12, 3), [0, 501, 1002]); // cavalry: one gallop stride per 3 squares (every 0.5 s)
+  assert.deepEqual(moveSoundTimes(1, 6, 12, 3), [0, 501]);
 });
 
 test("sounds: every hit shares Melee hit, and a surrender plays Unit destroyed", () => {
