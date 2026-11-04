@@ -46,7 +46,11 @@ export async function templates() {
     if (pack.documentName !== "Actor") continue;
     let index;
     try { index = await pack.getIndex({ fields: ["type", "img", "prototypeToken.texture.src", "system.category", "system.tier", "system.faction", "system.cost", "system.damage", "system.armorPen", "system.armor"] }); } catch { continue; }
-    for (const e of index) if (e.type === "unit") out.push({ id: e.uuid ?? `Compendium.${pack.collection}.Actor.${e._id}`, name: e.name, img: e.prototypeToken?.texture?.src || e.img, world: false, ...info(e.system) });
+    for (const e of index) {
+      if (e.type !== "unit") continue;
+      try { out.push({ id: e.uuid ?? `Compendium.${pack.collection}.Actor.${e._id}`, name: String(e.name ?? "Unit"), img: e.prototypeToken?.texture?.src || e.img, world: false, ...info(e.system) }); }
+      catch (err) { console.warn("Qin | New unit: skipped", e?.name, err); }
+    }
   }
   return out;
 }
@@ -59,7 +63,7 @@ export const DRAG_TYPE = "QinNewUnit";
 function shellHTML(armies) {
   const players = game.users.filter(u => !u.isGM);
   const ownerOpts = `<option value="">GM only</option>` + players.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join("");
-  const chars = (game.actors?.contents ?? []).filter(a => a.type === "character").sort((a, b) => a.name.localeCompare(b.name));
+  const chars = (game.actors?.contents ?? []).filter(a => a.type === "character").sort((a, b) => String(a.name ?? "").localeCompare(String(b.name ?? "")));
   const officerOpts = `<option value="">None</option>` + chars.map(a => `<option value="${esc(a.uuid)}">${esc(a.name)}</option>`).join("");
   const sideOpts = Object.entries(SIDES).map(([k, l]) => `<option value="${k}">${l}</option>`).join("");
   const armyOpts = armies.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join("");
@@ -102,9 +106,14 @@ export class NewUnitApp extends foundry.applications.api.ApplicationV2 {
   /** Open it, or bring it to the front if it's already open. */
   static open() {
     if (!game.user.isGM) return ui.notifications.warn("Only the GM can create units this way.");
-    const app = (this.#inst ??= new NewUnitApp());
-    if (app.rendered) { app.bringToFront?.(); return app; }
-    app.render({ force: true });
+    if (this.#inst?.rendered) { this.#inst.bringToFront?.(); return this.#inst; }
+    // a fresh window each time it opens: a window whose last opening failed can get stuck and never open again
+    const app = (this.#inst = new NewUnitApp());
+    Promise.resolve().then(() => app.render({ force: true })).catch(err => {
+      console.error("Qin | New unit window failed to open", err);
+      ui.notifications.error(`The New unit window couldn't open: ${err?.message ?? err}`);
+      this.#inst = null;
+    });
     return app;
   }
   /** The open window, if any (the map drop reads its Owner / Side / Officer). */
