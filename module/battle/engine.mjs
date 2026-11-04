@@ -876,9 +876,9 @@ function buildRoll(s, unit, role, ctx) {
   if (role === 'attacker') {
     if (ctx.ranged && unit.round.moved && !trait(unit, 'moving shot')) parts.push(['Attacker bonus (lost: moved before shooting)', 0]);
     else parts.push(['Attacker bonus', 2]);
-    // Officer leading with his own weapon (David, 2026-10-28): Attack +1 per level of the unit's weapon skill above Competent (2):
-    // Expert +1, Master +2, Legendary +3, Godlike +4. Two-weapon units use his higher skill. Only on the unit's own attacks.
-    if (o) { const lv = officerWeaponLevel(o, t); if (lv > 2) parts.push(["Officer's weapon (" + (lv === officerWeaponLevel(o, { skill: t.skill }) ? t.skill : t.skill2) + ' ' + lv + ')', lv - 2]); }
+    // Officer leading with his own weapon (David, 2026-10-28; above Apprentice since 2026-11-03): Attack +1 per level of the unit's weapon skill above Apprentice (1):
+    // Competent +1, Expert +2, Master +3, Legendary +4, Godlike +5. Two-weapon units use his higher skill. Only on the unit's own attacks.
+    if (o) { const lv = officerWeaponLevel(o, t); if (lv > 1) parts.push(["Officer's weapon (" + (lv === officerWeaponLevel(o, { skill: t.skill }) ? t.skill : t.skill2) + ' ' + lv + ')', lv - 1]); }
     if (ctx.charge) parts.push(['Cavalry charge (' + ctx.tilesMoved + ' tiles moved)', ctx.chargeBase]);
     if (ctx.charge && ctx.fierceBonus) parts.push([FIERCE_NAMES[Math.min(4, ctx.fierce)], ctx.fierceBonus]);
     if (ctx.charge && p.chargeAttackBonus) parts.push(['Officer passive: charge', p.chargeAttackBonus]);

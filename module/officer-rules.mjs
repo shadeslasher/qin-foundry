@@ -1,5 +1,5 @@
 // Officers and their units' weapons. Since 2026-10-28 any character can lead any unit (no weapon or Horsemanship minimum);
-// the officer's skill in the unit's weapon gives Attack +1 per level above 2 (engine buildRoll). A unit with two weapons
+// the officer's skill in the unit's weapon gives Attack +1 per level above 1 (engine buildRoll; above 2 until 2026-11-03). A unit with two weapons
 // (weaponSkill2, e.g. Azure Dragons' spear and bow) counts the officer's higher of the two skills.
 
 import { SKILLS } from "./config.mjs";
@@ -22,7 +22,7 @@ export function officerWeaponSkill(officer, unit) {
 }
 
 /** { ok, reason } for `officer` (a character actor) leading a unit with this system data.
- *  Any character can lead any unit (David, 2026-10-28); his matching weapon skill gives the unit Attack +1 per level above 2 instead. */
+ *  Any character can lead any unit (David, 2026-10-28); his matching weapon skill gives the unit Attack +1 per level above 1 instead. */
 export function officerEligibility(officer, unit, unitId = null) {
   if (!officer || officer.type !== "character") return { ok: false, reason: "not a character" };
   // the one-unit check is for choosing an officer (pickers pass the unit's id); in battle the unit is a token copy

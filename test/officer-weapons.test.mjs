@@ -26,7 +26,7 @@ test('engine: the officer weapon level for a unit type is the higher of its two 
   assert.strictEqual(officerWeaponLevel(null, { skill: 'qiangshu' }), 0);
 });
 
-test('attacking: the officer adds Attack +1 per level of the unit weapon above Competent; defending, nothing', async () => {
+test('attacking: the officer adds Attack +1 per level of the unit weapon above Apprentice; defending, nothing', async () => {
   const R = await import('../module/battle/engine.mjs');
   const roll = (lv, role = 'attacker') => {
     const s = R.newState();
@@ -38,10 +38,12 @@ test('attacking: the officer adds Attack +1 per level of the unit weapon above C
     const r = R.buildRoll(s, role === 'attacker' ? A : A, role, { attacker: role === 'attacker' ? A : D, defender: role === 'attacker' ? D : A });
     return (r.parts.find(p => /^Officer's weapon/.test(p[0])) || [, 0])[1];
   };
-  assert.strictEqual(roll(2), 0, 'Competent: nothing');
-  assert.strictEqual(roll(3), 1, 'Expert +1');
-  assert.strictEqual(roll(4), 2, 'Master +2');
-  assert.strictEqual(roll(5), 3, 'Legendary +3');
+  assert.strictEqual(roll(1), 0, 'Apprentice: nothing');
+  assert.strictEqual(roll(2), 1, 'Competent +1');
+  assert.strictEqual(roll(3), 2, 'Expert +2');
+  assert.strictEqual(roll(4), 3, 'Master +3');
+  assert.strictEqual(roll(5), 4, 'Legendary +4');
+  assert.strictEqual(roll(6), 5, 'Godlike +5');
   assert.strictEqual(roll(5, 'defender'), 0, 'not when defending');
 });
 
