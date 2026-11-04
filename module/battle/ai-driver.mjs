@@ -5,6 +5,7 @@
 import { SYSTEM_ID } from "../config.mjs";
 import { getBattle, buildState, runAction } from "./adapter.mjs";
 import { aiStep, sideLevel } from "./ai.mjs";
+import { atSpeed } from "./battle-speed.mjs";
 
 const KEY = "battleAI";
 const DEFAULTS = { enemy: false, ally: false, paused: false, delay: 900 };
@@ -34,7 +35,7 @@ function schedule() {
   clearTimeout(timer);
   const cfg = aiSettings();
   if (cfg.paused || (!cfg.enemy && !cfg.ally)) return;
-  timer = setTimeout(() => tick().catch(e => console.warn("Qin | battle AI", e)), Math.max(150, Number(cfg.delay) || 900));
+  timer = setTimeout(() => tick().catch(e => console.warn("Qin | battle AI", e)), atSpeed(Math.max(150, Number(cfg.delay) || 900)));
 }
 
 async function tick() {

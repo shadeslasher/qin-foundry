@@ -3,6 +3,7 @@
 // (hidden token, or concealed in the battle) never pans a player's view unless that player owns it.
 // Each person can turn it off for themselves (client setting "Follow the active unit", David 2026-11-04).
 import { SYSTEM_ID } from "../config.mjs";
+import { atSpeed } from "./battle-speed.mjs";
 let lastKey = null;
 
 export function registerTurnPan() {
@@ -29,5 +30,5 @@ export function panToActiveOfficer(battle) {
     if (bu?.hidden) return; // concealed (forest, tall grass, ambush)
   }
   const c = tok.center;
-  canvas.animatePan?.({ x: c.x, y: c.y, duration: 600 });
+  canvas.animatePan?.({ x: c.x, y: c.y, duration: atSpeed(600) });
 }

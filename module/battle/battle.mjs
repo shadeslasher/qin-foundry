@@ -1,4 +1,5 @@
 // Battle panel (all clients) and the player -> GM request channel.
+import { atSpeed } from "./battle-speed.mjs";
 import { SYSTEM_ID, systemPath, SIDES } from "../config.mjs";
 import * as E from "./engine.mjs";
 import { getBattle, buildState, runAction, unitTokens } from "./adapter.mjs";
@@ -367,6 +368,6 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
     const tok = canvas.tokens?.get(target.dataset.unitId);
     if (!tok || (!game.user.isGM && (tok.document.hidden || !tok.visible))) return;
     if (tok.isOwner) tok.control({ releaseOthers: true });
-    canvas.animatePan({ x: tok.center.x, y: tok.center.y, duration: 450 });
+    canvas.animatePan({ x: tok.center.x, y: tok.center.y, duration: atSpeed(450) });
   }
 }

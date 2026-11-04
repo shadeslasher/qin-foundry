@@ -1,6 +1,7 @@
 // Attack targeting (click a hex in reach) and attack animations.
 // Animations use Sequencer + JB2A when both modules are active, otherwise built-in PIXI effects
 // that are broadcast to every client over the system socket.
+import { atSpeed } from "./battle/battle-speed.mjs";
 import { playTacticTrigger, playSetFire } from "./battle/tactics-ui.mjs";
 import { SYSTEM_ID } from "./config.mjs";
 import { playStepSounds, attackSounds, playMoment } from "./sound.mjs";
@@ -284,7 +285,7 @@ function floatLocal(at, style, text) {
   try {
     canvas.interface?.createScrollingText?.(at, text ?? st.text, {
       anchor: CONST.TEXT_ANCHOR_POINTS?.TOP ?? 1, direction: CONST.TEXT_ANCHOR_POINTS?.TOP ?? 1,
-      fontSize: st.fontSize, fill: st.fill, stroke: 0x000000, strokeThickness: 5, jitter: 0.2, duration: 2000,
+      fontSize: st.fontSize, fill: st.fill, stroke: 0x000000, strokeThickness: 5, jitter: 0.2, duration: atSpeed(2000),
     });
   } catch { /* cosmetic only */ }
 }
@@ -403,6 +404,7 @@ const seg = (t, a, b) => clamp01((t - a) / (b - a));
  * opts.setup(container) may add sprites and return anything (passed as `extras`); opts.cleanup(extras) runs at the end.
  */
 function animate(ms, draw, opts = {}) {
+  ms = atSpeed(ms); // battle speed ×2 (F)
   return new Promise(resolve => {
     const box = new PIXI.Container();
     const g = new PIXI.Graphics();
@@ -789,7 +791,7 @@ function burst(at, size) {
 
 /* ---------------------------------------- Battle (unit) combat choreography */
 
-const wait = (ms) => new Promise(r => setTimeout(r, ms));
+const wait = (ms) => new Promise(r => setTimeout(r, atSpeed(ms)));
 
 /** Send a battle animation script to everyone (the battle runs on the GM's client). */
 export function broadcastBattleAnim(sceneId, steps) {
