@@ -139,7 +139,7 @@ export class NewUnitApp extends foundry.applications.api.ApplicationV2 {
   _replaceHTML(result, content) {
     content.innerHTML = result;
     const form = content.querySelector("form.qin-nu");
-    this.form = form;
+    this.nuForm = form;
     form.army.value = this.state.army;
     form.search.value = this.state.search;
     form.army.addEventListener("change", () => { this.state.army = form.army.value; this.state.tier = 0; this.#draw(); });
@@ -174,7 +174,7 @@ export class NewUnitApp extends foundry.applications.api.ApplicationV2 {
   }
 
   #draw() {
-    const form = this.form; if (!form) return;
+    const form = this.nuForm; if (!form) return;
     const inArmy = this.list.filter(t => t.faction === this.state.army);
     const tiers = [...new Set(inArmy.map(t => t.tier).filter(t => t < 99))].sort((a, b) => a - b);
     const types = TYPES.filter(([k]) => inArmy.some(t => typeKey(t) === k));
@@ -213,13 +213,13 @@ export class NewUnitApp extends foundry.applications.api.ApplicationV2 {
   async #select(uuid) {
     if (this.state.selected === uuid) return;
     this.state.selected = uuid;
-    for (const el of this.form?.querySelectorAll(".qin-nu-unit") ?? []) el.classList.toggle("on", el.dataset.uuid === uuid);
-    if (this.form?.name) this.form.name.value = "";
+    for (const el of this.nuForm?.querySelectorAll(".qin-nu-unit") ?? []) el.classList.toggle("on", el.dataset.uuid === uuid);
+    if (this.nuForm?.name) this.nuForm.name.value = "";
     this.#showSelected();
   }
 
   async #showSelected() {
-    const form = this.form; if (!form) return;
+    const form = this.nuForm; if (!form) return;
     const t = this.list.find(x => x.id === this.state.selected);
     form.querySelector("[data-sel-img]").src = t?.img || "icons/svg/combat.svg";
     form.name.placeholder = t ? t.name : "Pick a unit, or drag one onto the map";
@@ -243,7 +243,7 @@ export async function placeNewUnit(template, scene, x, y) {
   const tl = canvas.grid?.getTopLeftPoint?.({ x, y }) ?? { x: Math.floor(x / scene.grid.size) * scene.grid.size, y: Math.floor(y / scene.grid.size) * scene.grid.size };
   const td = await actor.getTokenDocument({ x: tl.x, y: tl.y });
   await scene.createEmbeddedDocuments("Token", [td.toObject()]);
-  const form = NewUnitApp.instance?.form; if (form?.name) form.name.value = "";
+  const form = NewUnitApp.instance?.nuForm; if (form?.name) form.name.value = "";
   return actor;
 }
 
