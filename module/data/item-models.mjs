@@ -132,6 +132,11 @@ export class SignatureData extends foundry.abstract.TypeDataModel {
       slot: new fields.StringField({ initial: "passive", choices: ["passive", "active", "active2", "active3", "active4", "battlePassive", "battleActive"] }),
       chiCost: int(0, { min: 0 }),
       moraleCost: int(0, { min: 0 }),
+      // Actives: rounds (in person) or turns (battlefield) to wait after a use, or once per fight/battle; last use for the timer
+      recharge: int(0, { min: 0 }),
+      perScene: new fields.BooleanField({ initial: false }),
+      lastStand: new fields.BooleanField({ initial: false }),
+      lastUse: new fields.SchemaField({ combat: new fields.StringField({ initial: "" }), round: int(0) }),
       effects: new fields.SchemaField({
         ignoreMoralePenalty: new fields.BooleanField({ initial: false }),
         noRearAgainst: new fields.BooleanField({ initial: false }),

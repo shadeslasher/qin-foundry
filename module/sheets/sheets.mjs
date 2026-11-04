@@ -22,6 +22,21 @@ const ITEM_GROUPS = {
 const TAO_LEVELS = { 0: "0", 1: "1", 2: "2", 3: "3", 4: "4" };
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
 
+/** Hover box for a signature skill on the character sheet: name, cost and recharge, then the description (David, 2026-11-04). */
+function signatureTooltip(item, key) {
+  if (!item) return "";
+  const s = item.system ?? {}, meta = [];
+  if (s.chiCost) meta.push(`${s.chiCost} Chi`);
+  if (s.moraleCost) meta.push(`${s.moraleCost} morale`);
+  if (key === "battleActive") {
+    if (s.lastStand) meta.push("Last stand");
+    if (s.perScene) meta.push("Once per battle");
+    else if (Number(s.recharge) > 0) meta.push(`${s.recharge}-turn cooldown`);
+  } else if (isActiveSlot(key)) { const r = rechargeLabel(s); if (r) meta.push(r); }
+  const body = String(s.description ?? "").trim() || "<i>No description.</i>";
+  return `<div class="qin-sig-tip"><b>${esc(item.name)}</b>${meta.length ? `<div class="qin-sig-meta">${esc(meta.join(" · "))}</div>` : ""}<div class="qin-sig-tip-body">${body}</div></div>`;
+}
+
 /** The fight running on the combat tracker ({ id, round }), or null when none has started. */
 function runningFight() {
   const c = game.combat;
@@ -242,7 +257,7 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
       weapons: (items.weapon || []).map(w => ({ item: w, skill: actor.getSkill(w.system.skill), ranged: w.system.isRanged })),
       magicWays: MAGIC_WAYS, officerKinds: OFFICER_ABILITY_KINDS, taoLevels: TAO_LEVELS,
       // extra in-person actives show when the tier allows them, or when one is already filled
-      signature: Object.entries(SIGNATURE_SLOTS).map(([key, s]) => { const item = (items.signature || []).find(i => i.system.slot === key) ?? null; return { key, label: s.label, extra: s.extra ?? 0, item, cooldown: item && isActiveSlot(key) ? rechargeStatus(item.system, runningFight()).text : "" }; })
+      signature: Object.entries(SIGNATURE_SLOTS).map(([key, s]) => { const item = (items.signature || []).find(i => i.system.slot === key) ?? null; return { key, label: s.label, extra: s.extra ?? 0, item, cooldown: item && isActiveSlot(key) ? rechargeStatus(item.system, runningFight()).text : "", tip: signatureTooltip(item, key) }; })
         .filter(s => !s.extra || s.item || s.extra <= extraActivesForTier(system.details?.tier)),
       taoLibrary: await QinActorSheetBase.#library(actor, "taos", "tao"),
       techniqueLibrary: await QinActorSheetBase.#library(actor, "techniques", "technique"),
