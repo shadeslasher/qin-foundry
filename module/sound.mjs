@@ -164,9 +164,9 @@ export function onBattleSetting(b, sideOf = () => null) {
 
 /** When a move sound plays, in ms from the start (pure; exported for tests): once per square the unit travels (at
  *  least twice, so a one-square step still reads as walking), spaced to match the token's slide (speed: squares/s). */
-export function moveSoundTimes(squares, speed = 6, max = 12) {
-  const n = Math.max(2, Math.min(max, Math.round(squares) || 0));
-  const gap = Math.max(160, Math.round(1000 / (speed || 6)));
+export function moveSoundTimes(squares, speed = 6, max = 12, per = 1) {
+  const n = Math.max(2, Math.min(max, Math.ceil((Math.round(squares) || 0) / per)));
+  const gap = Math.max(160, Math.round(1000 / (speed || 6))) * per; // per: squares one sound covers (a gallop stride is 2)
   return Array.from({ length: n }, (_, i) => i * gap);
 }
 const lastPos = new Map(); // token id -> {x, y}: where it stood before this move (every client keeps its own)
@@ -191,7 +191,7 @@ export function onUnitTokenMoved(doc, change, battle) {
   const moment = doc.actor.system.category === "cavalry" ? "Cavalry moves" : "Infantry moves";
   let speed = 6; try { speed = Number(CONFIG.Token?.movement?.defaultSpeed) || 6; } catch { /* default */ }
   for (const t of moving.get(doc.id) ?? []) clearTimeout(t);
-  moving.set(doc.id, moveSoundTimes(squares, speed).map(ms => setTimeout(() => playMoment(moment, { minGap: 0 }), ms)));
+  moving.set(doc.id, moveSoundTimes(squares, speed, 12, moment === "Cavalry moves" ? 2 : 1).map(ms => setTimeout(() => playMoment(moment, { minGap: 0 }), ms)));
 }
 
 /* ---------------------------------------- the panel */
