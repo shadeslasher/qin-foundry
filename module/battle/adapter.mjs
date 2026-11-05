@@ -142,6 +142,7 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
   s.tactics = battle.tactics ?? null;
   s.siege = battle.siege ?? null;
   s.skillsBegun = !!battle.skillsBegun; // officers' battlefield skills: battle-start effects done
+  s.skillInterjects = battle.skillInterjects ?? []; s.skillExtra = battle.skillExtra ?? []; // short extra turns skills hand out
   s.deployZones = scene?.getFlag?.(SYSTEM_ID, DEPLOY_FLAG) ?? []; // deployment squares, saved with the scene
   s.objectives = foundry.utils.deepClone(scene?.getFlag?.(SYSTEM_ID, OBJECTIVES_FLAG) ?? emptyObjectives()); // victory / defeat conditions
   s.objState = battle.objState ?? freshObjState();
@@ -294,6 +295,7 @@ async function writeBack(battle, s, scene) {
   battle.tactics = s.tactics ?? null;
   battle.siege = s.siege ?? null;
   battle.skillsBegun = !!s.skillsBegun;
+  battle.skillInterjects = s.skillInterjects ?? []; battle.skillExtra = s.skillExtra ?? [];
   battle.objState = s.objState ?? null;
   battle.objEval = s.objEval ?? null;
   battle.outcome = s.outcome ?? null;

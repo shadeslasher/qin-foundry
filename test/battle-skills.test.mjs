@@ -165,3 +165,36 @@ test('spec data: found by item id, else by the item text however its HTML is wri
   assert.strictEqual(D.specForItem({ _id: 'zzz', system: { description: 'Something else' } }), null);
   D.setSpecData(null);
 });
+
+test('a trigger\'s free move is a short extra turn after the current one: the player moves or passes', () => {
+  const o = officer('a', { passive: { triggers: [{ on: 'enemyEndsAdjacent', do: [{ move: 2, who: { self: true }, mode: 'away' }, { morale: 5, who: { self: true } }] }] } });
+  const { s, u, ids } = setup([{ side: 'player', x: 5, y: 5, officerId: 'a' }, { side: 'enemy', x: 7, y: 5 }, { side: 'enemy', x: 10, y: 10 }], [o]);
+  s.turn.activation = null;
+  // the enemy ends its turn next to him
+  u(1).x = 6; u(0).morale = 50;
+  s.turn.activation = { unitId: ids[1], step: 'move', started: true, tilesMoved: 0, from: { x: 6, y: 5 } };
+  must(R.act(s, HOST, { type: 'endTurn', unitId: ids[1] }));
+  assert.strictEqual(s.turn.activation?.unitId, ids[0], 'his short turn');
+  assert.ok(s.turn.activation.skillOnly && SK.pendingChoice(s).kind === 'move');
+  assert.strictEqual(u(0).morale, 50, 'the rest of the trigger waits');
+  assert.ok(!R.act(s, HOST, { type: 'skillChoose', x: 6, y: 6 }).ok, 'not away from the enemy');
+  must(R.act(s, HOST, { type: 'skillChoose', skip: true }));
+  assert.deepStrictEqual([u(0).x, u(0).y], [5, 5], 'stayed');
+  assert.strictEqual(u(0).morale, 55, 'then the rest of the trigger');
+  assert.ok(!s.turn.activation || s.turn.activation.unitId !== ids[0] || !s.turn.activation.skillOnly, 'back to the battle');
+  assert.ok(!u(0).round.moved, 'his own turn is untouched');
+});
+
+test('a trigger\'s free attack: taken in a short turn, without using up the unit\'s own attack; the AI answers it', async () => {
+  const AI = await import('../module/battle/ai.mjs');
+  const o = officer('a', { passive: { triggers: [{ on: 'roundStart', do: [{ attack: { mods: [{ stat: 'attack', value: 2 }] }, who: { self: true } }] }] } });
+  const { s, u, ids } = setup([{ side: 'enemy', x: 5, y: 5, officerId: 'a' }, { side: 'player', x: 6, y: 5 }], [o]);
+  R._endRound(s); must(R.act(s, HOST, { type: 'startRound' }));
+  assert.strictEqual(s.turn.activation?.unitId, ids[0]);
+  assert.strictEqual(SK.pendingChoice(s).kind, 'attack');
+  const a = AI.nextAction(s, ids[0], { level: 3 });
+  assert.strictEqual(a.type, 'skillChoose');
+  must(R.act(s, HOST, { type: 'skillChoose', targetId: ids[1] }));
+  assert.ok(!u(0).round.attacked, 'its own attack is still there');
+  assert.ok(!SK.pendingChoice(s));
+});

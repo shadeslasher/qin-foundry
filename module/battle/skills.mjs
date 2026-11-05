@@ -489,21 +489,28 @@ function step(s, st, ctx, rest) {
     const after = {}; let skip = 0;
     for (const r of rest) { if (r.onKill || r.onWin || r.onLose) { for (const k of ['onKill', 'onWin', 'onLose']) if (r[k]) after[k] = [...(after[k] || []), ...r[k]]; skip++; } else break; }
     if (ctx.picks) after.picks = ctx.picks;
-    for (const u of units(st.who)) {
+    const who = units(st.who);
+    for (const u of who) {
       addBuff(s, u, src, ctx.name || 'skill', { mods: st.attack.mods, flags: st.attack.flags, target: st.attack.target, after: Object.keys(after).length ? after : undefined }, 'nextAttack', ctx);
       if (u.id === src.id && !ctx.auto) { if (u.round) u.round.attacked = false; }
-      else if (ctx.auto) autoAttack(s, u);
-      else (s.turn.activation ? (s.turn.activation.skillQueue ||= []) : []).push({ kind: 'attack', unitId: u.id });
+      else if (!ctx.auto) (s.turn.activation ? (s.turn.activation.skillQueue ||= []) : []).push({ kind: 'attack', unitId: u.id });
     }
-    say(s, label + ': ' + units(st.who).map(nm).join(', ') + ' — ' + (st.moveFirst ? 'may move ' + st.moveFirst + ' and ' : '') + 'attacks' + (st.attack.mods?.length ? ' (' + describeBuff(st.attack) + ')' : '') + '.', { type: 'skillBuff', unit: src.id });
-    if (st.moveFirst && !ctx.auto) { queueMove(s, src, st.moveFirst, 'any', null); return wait(s, rest.slice(skip), ctx); }
+    say(s, label + ': ' + who.map(nm).join(', ') + ' — ' + (st.moveFirst ? 'may move ' + st.moveFirst + ' and ' : '') + 'may attack' + (st.attack.mods?.length ? ' (' + describeBuff(st.attack) + ')' : '') + '.', { type: 'skillBuff', unit: src.id });
+    if (ctx.auto) { // from a trigger: each unit gets a short extra turn of its own for it, and may pass
+      if (!who.length) return;
+      return interject(s, who.map(u => [...(st.moveFirst && u.id === src.id ? [{ kind: 'move', unitId: u.id, budget: st.moveFirst, mode: 'any', toward: null }] : []), { kind: 'attack', unitId: u.id }]), rest.slice(skip), ctx);
+    }
+    if (st.moveFirst) { queueMove(s, src, st.moveFirst, 'any', null); return wait(s, rest.slice(skip), ctx); }
     if (skip) return runSteps(s, rest.slice(skip), ctx) === 'wait' ? 'wait' : 'stop';
     return;
   }
   if (st.move !== undefined) {
     const list = units(st.who);
     const toward = st.toward ? units(st.toward)[0] : null;
-    if (ctx.auto) { for (const u of list) autoMove(s, u, st.move, st.mode || 'any', toward); return; }
+    if (ctx.auto) { // from a trigger: a short extra turn for each unit, limited to this move (it may stay)
+      if (!list.length) return;
+      return interject(s, list.map(u => [{ kind: 'move', unitId: u.id, budget: st.move, mode: st.mode || 'any', toward: toward ? toward.id : null }]), rest, ctx);
+    }
     for (const u of list) queueMove(s, u, st.move, st.mode || 'any', toward);
     if (list.length) return wait(s, rest, ctx);
     return;
@@ -519,22 +526,26 @@ function wait(s, rest, ctx) {
   ac.skillRun = { rest, ctx: { src: ctx.src.id, target: ctx.target ? ctx.target.id : null, picks: ctx.picks || {}, name: ctx.name } };
   return 'wait';
 }
-/** A trigger's free move, decided at once (no one to ask mid-turn): away = farthest from enemies, toward = closest; "any" = stay. */
-function autoMove(s, u, n, mode, toward) {
-  if (mode === 'any' || !E.alive(u)) return;
-  const sq = choiceSquares(s, { unitId: u.id, budget: n, mode, toward: toward ? toward.id : null });
-  if (!sq.length) return;
-  const foes = live(s).filter(o => E.hostile(o, u));
-  const score = ([x, y]) => mode === 'toward' && toward ? -E.manhattan({ x, y }, toward) : Math.min(99, ...foes.map(e => E.manhattan(e, { x, y })));
-  sq.sort((a, b) => score(b) - score(a));
-  const [x, y] = sq[0]; u.x = x; u.y = y;
-  say(s, nm(u) + ' moves to ' + x + ',' + y + ' (battlefield skill).', { type: 'skillMove', unit: u.id });
+/**
+ * A trigger gave units a free move or attack (David, 2026-11-05): instead of making it for them, each unit gets a short
+ * extra turn of its own once the current turn is over, limited to what the skill allows; its player (or the AI) makes
+ * the move or attack, or passes. The trigger's remaining steps follow the last unit's choice.
+ */
+function interject(s, perUnit, rest, ctx) {
+  const q = (s.skillInterjects ||= []);
+  perUnit.forEach((choices, i) => q.push({ unitId: choices[0].unitId, name: ctx.name || 'skill', choices,
+    run: i === perUnit.length - 1 && rest.length ? { rest, ctx: { src: ctx.src.id, target: ctx.target ? ctx.target.id : null, picks: ctx.picks || {}, name: ctx.name } } : null }));
+  return 'wait';
 }
-/** A trigger's free attack, made at once against the weakest enemy in reach. */
-function autoAttack(s, u) {
-  if (!E.alive(u)) return;
-  const ts = E.attackTargets(s, u).sort((a, b) => (a.men + a.morale) - (b.men + b.morale));
-  if (ts.length) E.resolveAttack(s, u, ts[0], { movedThisActivation: false, tilesMoved: 0, free: true });
+/** Can this choice be made at all (a square to move to, an enemy in reach)? */
+export function choiceOpen(s, ch) {
+  const u = E.unitById(s, ch.unitId); if (!u || !E.alive(u)) return false;
+  return ch.kind === 'move' ? choiceSquares(s, ch).length > 0 : E.attackTargets(s, u).length > 0;
+}
+/** Drop pending choices nothing can answer (no square, no enemy in reach). */
+export function pruneChoices(s) {
+  const ac = s.turn && s.turn.activation; if (!ac || !ac.skillQueue) return;
+  while (ac.skillQueue.length && !choiceOpen(s, ac.skillQueue[0])) ac.skillQueue.shift();
 }
 
 /** The next choice an active is waiting for, if any: { kind: 'move'|'attack', unitId, budget, mode, toward }. */
@@ -574,10 +585,13 @@ export function answer(s, a) {
     } else if (ch.kind === 'attack') {
       const t = E.unitById(s, a.targetId);
       if (!t || !E.hostile(t, u) || !E.rangeOk(s, u, t) || cantAttackReason(s, u, t)) return 'Pick an enemy in reach';
+      const had = !!(u.round && u.round.attacked); // a skill's attack doesn't use up the unit's own attack this round
       E.resolveAttack(s, u, t, { movedThisActivation: false, tilesMoved: 0 });
+      if (u.round) u.round.attacked = had;
     }
   }
   ac.skillQueue.shift();
+  pruneChoices(s);
   if (!ac.skillQueue.length) {
     delete ac.skillQueue;
     const run = ac.skillRun; delete ac.skillRun;
@@ -587,6 +601,8 @@ export function answer(s, a) {
     }
   }
   E.settle(s);
+  // a skill's short extra turn is over: back to the battle (more of them, or whoever is next)
+  if (!pendingChoice(s) && ac.skillOnly && s.turn.activation === ac) { E._endInterject(s); return null; }
   // the turn was waiting on this follow-up after its attack: it ends now
   if (!pendingChoice(s) && ac.skillResume && s.turn.activation === ac) {
     delete ac.skillResume;

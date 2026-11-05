@@ -999,19 +999,34 @@ function pickCombos(s, u, picks, k) {
   }
   return out;
 }
-/** Answer a battlefield skill's pending choice: a free move toward the nearest enemy (away: as far as it can), a free attack on the weakest in reach. */
+/**
+ * Answer a battlefield skill's pending choice, or pass: a free attack is made only when playing it out comes out
+ * ahead; a free move goes where the unit stands best (toward the fight for melee, at range for archers, away when
+ * the skill says so), and the unit stays put when no square is better than where it is.
+ */
 function skillAnswer(s, side) {
   const ch = SK.pendingChoice(s); const u = ch && E.unitById(s, ch.unitId);
-  if (!u) return { type: 'skillChoose', skip: true };
+  const pass = { type: 'skillChoose', skip: true };
+  if (!u) return pass;
+  const S = strategy(s, u.side);
   if (ch.kind === 'attack') {
-    const ts = E.attackTargets(s, u).sort((a, b) => a.men / mx(a) - b.men / mx(b));
-    return ts.length ? { type: 'skillChoose', targetId: ts[0].id } : { type: 'skillChoose', skip: true };
+    let best = null;
+    for (const d of E.attackTargets(s, u)) {
+      const f = fork(s); E.setRng(seeded(hashStr(u.id + d.id + s.turn.round)));
+      E.act(f, HOST, { type: 'skillChoose', targetId: d.id });
+      const v = outcomeScore(s, f, u.side, S, {});
+      if (!best || v > best.v) best = { v, id: d.id };
+    }
+    E.setRng(Math.random);
+    return best && best.v > 0 ? { type: 'skillChoose', targetId: best.id } : pass;
   }
-  const sq = SK.choiceSquares(s, ch); if (!sq.length) return { type: 'skillChoose', skip: true };
+  const sq = SK.choiceSquares(s, ch); if (!sq.length) return pass;
   const foes = E.liveUnits(s).filter(e => E.hostile(e, u));
   const d = ([x, y]) => Math.min(99, ...foes.map(e => E.manhattan(e, { x, y })));
   const ranged = (E.typeOf(s, u) || {}).weapon === 'ranged';
-  sq.sort((a, b) => ch.mode === 'away' ? d(b) - d(a) : ranged ? Math.abs(d(a) - 3) - Math.abs(d(b) - 3) : d(a) - d(b));
+  const cost = (p) => ch.mode === 'away' ? -d(p) : ranged ? Math.abs(d(p) - 3) : d(p) <= 1 ? 1 : d(p);
+  sq.sort((a, b) => cost(a) - cost(b));
+  if (cost(sq[0]) >= cost([u.x, u.y])) return pass; // nothing better than where it stands
   return { type: 'skillChoose', x: sq[0][0], y: sq[0][1] };
 }
 

@@ -1800,16 +1800,49 @@ function finishActivation(s, u, opts) {
   trackEndOfTurn(s, u); // seizing squares, escaping
   settle(s);
   if (alive(u)) surroundAfterTurn(s, u); // enemies it leaves surrounded lose morale
-  // a battlefield skill gave a unit another turn (or move) at once
-  while (s.skillExtra && s.skillExtra.length && s.turn.phase !== 'over' && !(opts && opts.noAdvance)) {
+  if (opts && opts.noAdvance) return;
+  if (skillTurns(s)) return; // a battlefield skill gave a unit a short extra turn, or another turn
+  advance(s);
+}
+
+/**
+ * Turns that battlefield skills hand out between the normal ones (David, 2026-11-05), in order:
+ *  - a trigger's free move or attack: a short turn for that unit, limited to the skill's move / attack; it may pass
+ *  - an active's "takes another turn": a full fresh turn (or a free move)
+ * Returns true when one has started (the battle waits on it).
+ */
+function skillTurns(s) {
+  if (s.turn.phase === 'over' || s.outcome) return false;
+  while (s.skillInterjects && s.skillInterjects.length) {
+    const x = s.skillInterjects.shift(), v = unitById(s, x.unitId);
+    if (!v || !alive(v)) continue;
+    s.turn.activation = { unitId: v.id, step: 'skill', skillOnly: true, started: true, movedThisActivation: false, tilesMoved: 0,
+      from: { x: v.x, y: v.y }, skillQueue: x.choices.map(c => ({ ...c })), skillRun: x.run || undefined };
+    SK.pruneChoices(s);
+    if (!s.turn.activation.skillQueue.length) { // nothing it could do: the rest of the skill still happens
+      const run = s.turn.activation.skillRun; s.turn.activation = null;
+      if (run && run.rest.length) { const src = unitById(s, run.ctx.src); if (src) SK.runSteps(s, run.rest, { src, target: run.ctx.target ? unitById(s, run.ctx.target) : null, picks: run.ctx.picks, name: run.ctx.name, auto: true }); settle(s); }
+      continue;
+    }
+    const first = s.turn.activation.skillQueue[0];
+    log(s, v.name + ' may ' + (first.kind === 'attack' ? 'attack' : 'move up to ' + first.budget + (first.mode === 'away' ? ' away from the enemy' : first.mode === 'toward' ? ' toward its target' : '')) + ' (' + x.name + '), or pass.', { type: 'skillTurn', unit: v.id });
+    return true;
+  }
+  while (s.skillExtra && s.skillExtra.length) {
     const x = s.skillExtra.shift(), v = unitById(s, x.unitId);
     if (!v || !alive(v)) continue;
     v.round = Object.assign(newRoundFlags(), { wasAttacked: v.round.wasAttacked, activated: v.round.activated });
     startActivation(s, v, { interject: true, noAttack: !!x.moveOnly });
     log(s, v.name + ' takes ' + (x.moveOnly ? 'a free move' : 'another turn') + ' (battlefield skill).', { type: 'skill', unit: v.id });
-    return;
+    return true;
   }
-  if (!(opts && opts.noAdvance)) advance(s);
+  return false;
+}
+/** A skill's short extra turn is over: the next one, or back to the normal order. */
+function endInterject(s) {
+  s.turn.activation = null;
+  settle(s);
+  if (!skillTurns(s)) advance(s);
 }
 
 // Mark a unit's turn as used and move the rotation on.
@@ -1995,7 +2028,7 @@ const ACTIONS = {
     s.tactics = null;
     s.objState = freshObjState(); s.outcome = null; s.objEval = null;
     for (const u of s.units) u.round = newRoundFlags();
-    delete s.skillsBegun; delete s.skillExtra; for (const u of s.units) SK.resetUnit(u);
+    delete s.skillsBegun; delete s.skillExtra; delete s.skillInterjects; for (const u of s.units) SK.resetUnit(u);
     log(s, 'Host returned to setup.');
   },
   startRound(s, actor) {
@@ -2006,7 +2039,8 @@ const ACTIONS = {
     if (!s.skillsBegun) { s.skillsBegun = true; SK.onBattleStart(s); } // officers' battlefield skills
     SK.onRoundStart(s);
     settle(s);
-    rollInitiative(s); advance(s);
+    rollInitiative(s);
+    if (!skillTurns(s)) advance(s);
   },
   gmSetFire(s, actor, a) { // GM test control: set any flammable square alight
     if (!actor.host) return err('Only the GM can start a fire');
@@ -2790,5 +2824,5 @@ export { endRound as _endRound, imperialAura as _imperialAura, hidesIn as _hides
   newState, act, viewFor, prompt, reachable, duelTargets, movementOf, moraleState, visibleTo, rangeOk,
   resolveAttack, buildRoll, skillCheck, setRng, yinYang, typeOf, officerOf, unitById, SIDES, settle, advance,
   liveUnits, hostile, alliance, manhattan, unitAt, alive, trait as unitTrait, TAKE_BACK_KEYS, damageValue,
-  log as _log, igniteTile as _ignite, inBounds as _inBounds, passable as _passable, endAfterAttack as _endAfterAttack, finishActivation as _finishActivation,
+  log as _log, igniteTile as _ignite, inBounds as _inBounds, passable as _passable, endAfterAttack as _endAfterAttack, finishActivation as _finishActivation, endInterject as _endInterject,
 };
