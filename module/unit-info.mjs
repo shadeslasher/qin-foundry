@@ -2,6 +2,7 @@
 // and a read-only "Info" window (portrait, stats, officer, traits).
 import * as E from "./battle/engine.mjs";
 import { getBattle, buildState, emptyBattle } from "./battle/adapter.mjs";
+import { describeBuff } from "./battle/skills.mjs";
 import { factionOf } from "./factions.mjs";
 import { SKILLS } from "./config.mjs";
 import { healthColor, moraleColor } from "./unit-bars.mjs";
@@ -40,6 +41,16 @@ function officerOf(sys) {
 
 const hex = (n) => "#" + Number(n).toString(16).padStart(6, "0");
 
+/** Effects of officers' battlefield skills on this unit in the running battle: [{ name, text, until }]. */
+function skillEffectsOf(tokenId) {
+  const b = getBattle();
+  if (!b?.active) return [];
+  const list = b.meta?.[tokenId]?.fx?.buffs ?? [];
+  const DUR = { round: "until the end of the round", actEnd: "until the end of its next turn", actStart: "until its next turn", attack: "its next attack", roll: "its next roll", battle: "the rest of the battle" };
+  return list.map(x => ({ name: x.name, text: describeBuff(x) || (x.triggers ? "a lasting effect" : ""), until: x.until?.kind === "round" ? (x.until.round > (b.turn?.round ?? 0) ? `until the end of round ${x.until.round}` : DUR.round) : DUR[x.until?.kind] ?? "" }));
+}
+const skillEffectsHTML = (tokenId, cls) => { const fx = skillEffectsOf(tokenId); return fx.length ? fx.map(f => `<div class="${cls}"><b><i class="fa-solid fa-wand-sparkles"></i> ${esc(f.name)}</b><span>${esc(f.text)}${f.until ? ` (${esc(f.until)})` : ""}</span></div>`).join("") : ""; };
+
 export function unitTooltipHTML(token) {
   const sys = token.actor.system, officer = officerOf(sys);
   const unitName = token.document.name;
@@ -69,6 +80,7 @@ export function unitTooltipHTML(token) {
   html += `<div class="qin-tt-chips">${chip("dmg", sys.damage ?? 0, "Dmg")}${chip("pen", sys.armorPen ?? 0, "Pierce")}${chip("armor", sys.armor ?? 0, "Armor")}${chip("move", sys.move ?? 0, "Move")}</div>`;
   const w = weaponLine(sys);
   if (w) html += `<div class="qin-tt-weapon">${w}<small>Unit type</small></div>`;
+  html += skillEffectsHTML(token.id, "qin-tt-sub qin-tt-skillfx");
   return html + `</div></div>`;
 }
 
@@ -306,6 +318,7 @@ export class UnitInfoApp extends Base {
         </a>` : `<p class="qin-muted">No officer. The unit rolls with Command, Fire and Skill at 0.</p>`}
       </section>
       ${(() => { const eq = equipmentOf(actor); return eq.length ? `<section class="qin-ui-sec"><div class="qin-ui-sech">Equipment</div><div class="qin-ui-traits">${eq.map(e => `<div class="qin-ui-trait equip"><b><i class="fa-solid fa-shield-halved"></i> ${esc(e.name)}</b>${e.desc ? `<span>${esc(e.desc)}</span>` : ""}</div>`).join("")}</div></section>` : ""; })()}
+      ${(() => { const h = skillEffectsHTML(tok.id, "qin-ui-trait skillfx"); return h ? `<section class="qin-ui-sec"><div class="qin-ui-sech">Battlefield skill effects</div><div class="qin-ui-traits">${h}</div></section>` : ""; })()}
       <section class="qin-ui-sec"><div class="qin-ui-sech">Traits</div>${traitsHTML(sys.traits, new Set(equipmentOf(actor).map(e => e.name)))}</section>
     </div>`;
   }

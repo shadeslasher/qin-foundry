@@ -61,6 +61,7 @@ registerCombatPanel();
 import { registerPlacedTag } from "./module/placed-tag.mjs";
 import { registerGameYear } from "./module/game-year.mjs";
 import { DuelScenesConfig } from "./module/battle/duel-scene.mjs";
+import { loadSpecData, specCount } from "./module/battle/skill-data.mjs";
 registerCompendiumSync();
 registerPlacedTag();
 Hooks.once("init", () => {
@@ -247,6 +248,8 @@ Hooks.once("init", () => {
 });
 
 Hooks.once("ready", () => {
+  // officers' battlefield skills: the private specs in Data/qin-data (none = skills stay GM-applied, as before)
+  loadSpecData().then(ok => console.log("Qin | battlefield skill specs: " + (ok ? specCount() + " loaded" : "none found"))).catch(() => {});
   syncDeployDrawing(getBattle()).catch(e => console.warn("Qin | deployment drawing", e)); // catch up if deployment started or ended while no GM was on
   reapplyUnitEdits();
   removeFormationItems();

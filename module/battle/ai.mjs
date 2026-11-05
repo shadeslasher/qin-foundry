@@ -59,6 +59,7 @@
 // fire spreads to neighbours) and to the side's own goals (a square it must burn), minus what it threatens of its own.
 // Officer skills aren't automated in the engine (the GM applies them), so the AI doesn't use them yet.
 import * as E from './engine.mjs';
+import * as SK from './skills.mjs';
 import { tacticsStep } from './ai-tactics.mjs';
 import { hasWalls, moverKind, routeField, routeAt, siegeRoles } from './ai-siege.mjs';
 
@@ -923,6 +924,10 @@ export function nextAction(s, unitId, opts = {}) {
     }
     return best ? { type: 'reposition', unitId, x: best.x, y: best.y } : { type: 'reposition', unitId };
   }
+  // a battlefield skill waits for a choice (a free move or a free attack)
+  if (SK.pendingChoice(s)) return skillAnswer(s, side);
+  // an officer's battlefield active: weighed at the start of the turn (before moving)
+  if (!opts.noSkill && ac.step === 'move' && !u.round.moved && !u.round.skillUsed) { const sk = skillOption(s, unitId, opts, P); if (sk) return sk; }
   // an officer who goes his own way says so in the log, once a round, before he acts
   if (ac.step === 'move' && !(u.round && u.round.aiNoted)) {
     const M = mind(s, u, strategy(s, side), P);
@@ -930,6 +935,84 @@ export function nextAction(s, unitId, opts = {}) {
   }
   const list = plans(s, unitId, opts);
   return list.length ? list[0].actions[0] : { type: 'endTurn', unitId };
+}
+
+/**
+ * Battlefield actives (David, 2026-11-05). The AI tries the officer's active with a few likely picks, plays the rest
+ * of the turn out after it, and uses it when that beats the best turn without it (the morale it costs counts, and
+ * effects that last beyond this turn add a little). Higher Art of War levels try more picks; level 0-1 tacticians
+ * use skills on a whim now and then rather than when they help most.
+ */
+function skillOption(s, unitId, opts, P) {
+  const u = E.unitById(s, unitId), o = E.officerOf(s, u), act = o && o.battle && o.battle.active;
+  if (!act || !E.skillCheck(s, u, o).ok) return null;
+  if (act.manual && !act.do) return null; // nothing the engine does: the GM plays it
+  const combos = pickCombos(s, u, act.pick || [], P.level >= 3 ? 3 : P.level >= 2 ? 2 : 1);
+  if (!combos.length) return null;
+  const rand = seeded(hashStr(unitId + ':skill:' + s.turn.round));
+  const S = strategy(s, u.side);
+  if (P.naive) return rand() < 0.35 ? { type: 'useSkill', unitId, picks: combos[0] } : null; // on a whim
+  const best0 = (plans(s, unitId, { ...opts, noSkill: true })[0] || { score: -Infinity }).score;
+  let best = null;
+  for (const picks of combos) {
+    const g = fork(s);
+    const before = buffCount(g);
+    if (!E.act(g, HOST, { type: 'useSkill', unitId, picks }).ok) continue;
+    for (let i = 0; i < 4 && SK.pendingChoice(g); i++) E.act(g, HOST, skillAnswer(g, u.side));
+    const ac = g.turn.activation;
+    const lasting = buffCount(g) - before;
+    // what the skill itself did (plans() scores from its own starting state), then the best rest of the turn
+    let score = outcomeScore(s, g, u.side, S, {}) + (ac && ac.unitId === unitId ? (plans(g, unitId, { ...opts, noSkill: true })[0] || { score: 0 }).score : 0);
+    score += 0.12 * worth(s, u) * lasting;
+    if (!best || score > best.score) best = { score, picks };
+  }
+  E.setRng(Math.random);
+  return best && best.score > best0 + 0.05 * worth(s, u) ? { type: 'useSkill', unitId, picks: best.picks } : null;
+}
+const buffCount = (s) => s.units.reduce((n, x) => n + ((x.fx && x.fx.buffs) || []).filter(b => b.until.kind !== 'round' || b.until.round > s.turn.round).length, 0);
+/** A few likely choices for an active's picks: enemies near and weak, allies hurt or in the fight, squares by enemies. */
+function pickCombos(s, u, picks, k) {
+  if (!picks.length) return [{}];
+  const foes = E.liveUnits(s).filter(e => E.hostile(e, u));
+  const near = (p) => Math.min(99, ...foes.map(e => E.manhattan(e, p)));
+  const rank = (pk) => {
+    const c = SK.pickCandidates(s, u, pk);
+    const val = (id) => {
+      if (Array.isArray(id)) return -near({ x: id[0], y: id[1] });
+      const x = E.unitById(s, id);
+      return pk.side === 'enemies' ? -(x.men / mx(x)) * 2 - x.morale / 50 - E.manhattan(u, x) / 4 + (x.officerId ? 0.5 : 0)
+        : -(x.morale / 50) - near(x) / 3 + (x.id === u.id ? 0.2 : 0);
+    };
+    return c.sort((a, b) => val(b) - val(a));
+  };
+  const lists = picks.map(rank);
+  if (lists.some((l, i) => !l.length && !picks[i].upTo)) return [];
+  const out = [];
+  for (let i = 0; i < Math.max(1, Math.min(k, lists[0].length)); i++) {
+    const combo = {}, used = new Set();
+    picks.forEach((pk, j) => {
+      const l = j === 0 ? [...lists[0].slice(i), ...lists[0].slice(0, i)] : lists[j];
+      combo[pk.id] = l.filter(c => !used.has(String(c))).slice(0, pk.count || 1);
+      combo[pk.id].forEach(c => used.add(String(c)));
+    });
+    out.push(combo);
+  }
+  return out;
+}
+/** Answer a battlefield skill's pending choice: a free move toward the nearest enemy (away: as far as it can), a free attack on the weakest in reach. */
+function skillAnswer(s, side) {
+  const ch = SK.pendingChoice(s); const u = ch && E.unitById(s, ch.unitId);
+  if (!u) return { type: 'skillChoose', skip: true };
+  if (ch.kind === 'attack') {
+    const ts = E.attackTargets(s, u).sort((a, b) => a.men / mx(a) - b.men / mx(b));
+    return ts.length ? { type: 'skillChoose', targetId: ts[0].id } : { type: 'skillChoose', skip: true };
+  }
+  const sq = SK.choiceSquares(s, ch); if (!sq.length) return { type: 'skillChoose', skip: true };
+  const foes = E.liveUnits(s).filter(e => E.hostile(e, u));
+  const d = ([x, y]) => Math.min(99, ...foes.map(e => E.manhattan(e, { x, y })));
+  const ranged = (E.typeOf(s, u) || {}).weapon === 'ranged';
+  sq.sort((a, b) => ch.mode === 'away' ? d(b) - d(a) : ranged ? Math.abs(d(a) - 3) - Math.abs(d(b) - 3) : d(a) - d(b));
+  return { type: 'skillChoose', x: sq[0][0], y: sq[0][1] };
 }
 
 /** Best score this unit could get if it acted now (used for Hold decisions and for picking which unit goes). */

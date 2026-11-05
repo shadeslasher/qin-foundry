@@ -81,6 +81,7 @@ async function tick() {
     fails++;
     console.warn("Qin | battle AI action refused", action, res?.error);
     // don't get stuck: end the unit's turn if it can't do what it planned
+    if (getBattle().turn?.activation?.skillQueue?.length) await runAction(game.user.id, { type: "skillChoose", skip: true }); // a skill's choice first
     if (action.unitId && getBattle().turn?.activation?.unitId === action.unitId) await runAction(game.user.id, { type: "endTurn", unitId: action.unitId });
     if (fails >= 3) {
       fails = 0;

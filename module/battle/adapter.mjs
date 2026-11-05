@@ -11,6 +11,7 @@ import { officerEligibility } from "../officer-rules.mjs";
 export { traitTiersOf, shieldArmorOf };
 import { HEROIC_ACTIONS } from "./engine-data.mjs";
 import { SYSTEM_ID } from "../config.mjs";
+import { specForItem } from "./skill-data.mjs";
 import { decodeTiles, gatesFromMap, FLAG as MAP_FLAG } from "./battlemap.mjs";
 import { DEPLOY_FLAG } from "./deploy-rules.mjs";
 import { OBJECTIVES_FLAG, emptyObjectives, freshObjState } from "./objectives.mjs";
@@ -45,6 +46,13 @@ function ownerUserId(actor) {
   return user?.id ?? null;
 }
 
+/** The automated battlefield passive / active of an officer, when a spec exists for his items (skill-data.mjs). */
+function battleSpecs(pItem, aItem) {
+  const passive = specForItem(pItem), active = specForItem(aItem);
+  if (!passive && !active) return null;
+  return { passive, active, passiveName: pItem?.name ?? "", activeName: aItem?.name ?? "" };
+}
+
 function officerLibraryEntry(officer) {
   const skills = {};
   for (const [k, v] of Object.entries(officer.system.skills ?? {})) skills[k] = v.value;
@@ -63,15 +71,19 @@ function officerLibraryEntry(officer) {
   }
   const skill = abilities.find(a => a.system.kind === "skill");
   const art = abilities.find(a => a.system.kind === "battleArt");
+  const battle = battleSpecs(sig("battlePassive"), sig("battleActive"));
+  if (battle?.passive) for (const k of Object.keys(effects)) delete effects[k]; // the automated passive replaces the old effect flags (no double bonus)
   return {
     id: officer.uuid, name: officer.name,
     ctype: String(officer.system.details?.characterType ?? ""), style: String(officer.system.details?.battleStyle ?? ""), // how the battle AI plays him
     fire: officer.system.aspects.fire, command: officer.system.skills.command?.value ?? 0, skills,
     passive: { name: abilities.filter(a => a.system.kind === "passive").map(a => a.name).join(", "), text: abilities.filter(a => a.system.kind === "passive").map(a => stripHtml(a.system.description)).filter(Boolean).join(" "), effects },
     skill: skill ? { name: skill.name, text: stripHtml(skill.system.description), moraleCost: skill.system.moraleCost,
-      recharge: skill.system.recharge ?? 0, perBattle: !!skill.system.perScene, lastStand: !!skill.system.lastStand } : null,
+      recharge: skill.system.recharge ?? 0, perBattle: !!skill.system.perScene || !!battle?.active?.oncePerBattle, lastStand: !!skill.system.lastStand } : null,
     heroicActions: HEROIC_ACTIONS.map(h => ({ name: h.name, text: h.text })), // every officer may use the heroic action list
     battleArt: art ? { name: art.name, text: stripHtml(art.system.description) } : null,
+    tier: parseInt(String(officer.system.details?.tier ?? "").match(/\d+/)?.[0] ?? "0", 10) || 0,
+    battle, // officers' battlefield skills, automated (skills.mjs)
   };
 }
 
@@ -129,6 +141,7 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
   s.log = battle.log ?? [];
   s.tactics = battle.tactics ?? null;
   s.siege = battle.siege ?? null;
+  s.skillsBegun = !!battle.skillsBegun; // officers' battlefield skills: battle-start effects done
   s.deployZones = scene?.getFlag?.(SYSTEM_ID, DEPLOY_FLAG) ?? []; // deployment squares, saved with the scene
   s.objectives = foundry.utils.deepClone(scene?.getFlag?.(SYSTEM_ID, OBJECTIVES_FLAG) ?? emptyObjectives()); // victory / defeat conditions
   s.objState = battle.objState ?? freshObjState();
@@ -280,6 +293,7 @@ async function writeBack(battle, s, scene) {
   battle.turn = s.turn;
   battle.tactics = s.tactics ?? null;
   battle.siege = s.siege ?? null;
+  battle.skillsBegun = !!s.skillsBegun;
   battle.objState = s.objState ?? null;
   battle.objEval = s.objEval ?? null;
   battle.outcome = s.outcome ?? null;

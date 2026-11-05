@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { skillCheck } from "../module/battle/engine.mjs";
 
 const st = (round) => ({ turn: { round } });
-const unit = (morale, last, used = false) => ({ morale, skillLastRound: last, round: { skillUsed: used } });
+const unit = (morale, last, used = false) => ({ morale, fx: { skillLast: last ?? undefined }, round: { skillUsed: used } }); // the last use lives in fx (saved with the battle)
 const off = (skill) => ({ skill: { name: "S", moraleCost: 20, ...skill } });
 
 test("battle skills: must have more morale than the cost (no paying down to 0)", () => {

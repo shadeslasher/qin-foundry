@@ -1,6 +1,7 @@
 // Fire Emblem-style battle controls on the canvas: an action menu beside the active unit,
 // blue/red movement squares, attack target highlights, and a "which unit is this" highlight.
 import * as E from "./engine.mjs";
+import * as SK from "./skills.mjs";
 import { getBattle, buildState, isWritingBack } from "./adapter.mjs";
 import { SYSTEM_ID } from "../config.mjs";
 import { playMoment } from "../sound.mjs";
@@ -124,6 +125,8 @@ function cancelMode() {
   playMoment("Cancel / back");
   if (mode === "reposition" && current) return send({ type: "reposition", unitId: current.u.id });
   if (mode === "second" && current) return send({ type: "secondAttack", unitId: current.u.id });
+  if (mode === "skillChoice") return send({ type: "skillChoose", skip: true });
+  skillPick = null;
   mode = null;
   clearSquares();
   renderMenu();
@@ -237,6 +240,67 @@ function enterSecond() {
     const d = targets.find(o => o.x === x && o.y === y);
     if (!d) return pickWarn("Click an enemy marked in red, or press Skip.");
     send({ type: "secondAttack", unitId: current.u.id, targetId: d.id });
+  });
+}
+
+/**
+ * A battlefield active with picks (David, 2026-11-05): choose its units or squares one pick at a time (green: allies,
+ * red: enemies, orange: squares), then it is used. A pick of "up to N" can be finished early with Done.
+ */
+let skillPick = null; // { picks: [PICK], i, chosen: { id: [...] } }
+function enterSkillPick() {
+  const { s, u, officer } = current;
+  const list = officer?.battle?.active?.pick ?? [];
+  if (!skillPick) skillPick = { picks: list, i: 0, chosen: {} };
+  const pk = skillPick.picks[skillPick.i];
+  if (!pk) { const picks = skillPick.chosen; skillPick = null; mode = null; clearSquares(); return send({ type: "useSkill", unitId: u.id, picks }); }
+  const cands = SK.pickCandidates(s, u, pk);
+  const chosen = (skillPick.chosen[pk.id] ||= []);
+  const key = (c) => (Array.isArray(c) ? c.join(",") : c);
+  if (!cands.length) { skillPick.i++; return enterSkillPick(); } // nothing to choose: go on without
+  mode = "skillPick";
+  clearSquares();
+  overlay = new PIXI.Graphics(); overlay.eventMode = "none"; layer().addChild(overlay);
+  const color = pk.side === "tile" ? 0xe08a2e : pk.side === "allies" ? 0x3fbf5f : 0xd63c3c;
+  for (const c of cands) {
+    const [x, y] = Array.isArray(c) ? c : [E.unitById(s, c).x, E.unitById(s, c).y];
+    const on = chosen.some(o => key(o) === key(c));
+    drawSquare(overlay, x, y, on ? 0xffd34d : color, on ? 0.55 : 0.3, 1);
+  }
+  renderMenu();
+  startPicking((x, y) => {
+    const c = cands.find(o => Array.isArray(o) ? o[0] === x && o[1] === y : (E.unitById(s, o).x === x && E.unitById(s, o).y === y));
+    if (c === undefined) return pickWarn(pk.side === "tile" ? "Click one of the orange squares." : "Click one of the marked units.");
+    const at = chosen.findIndex(o => key(o) === key(c));
+    if (at >= 0) chosen.splice(at, 1); else chosen.push(c);
+    playMoment("Select / confirm");
+    if (chosen.length >= Math.min(pk.count || 1, cands.length)) skillPick.i++;
+    enterSkillPick();
+  });
+}
+const pickWord = (pk) => `${pk.upTo ? "up to " : ""}${pk.count || 1} ${pk.side === "tile" ? "square" : pk.side === "allies" ? "allied unit" : "enemy unit"}${(pk.count || 1) > 1 ? "s" : ""}${pk.range === "any" ? "" : ` within ${pk.range}`}`;
+
+/** A battlefield skill waits for a choice: a free move (green squares) or a free attack (red enemies); or skip it. */
+function enterSkillChoice() {
+  const { s } = current;
+  const ch = SK.pendingChoice(s); if (!ch) return;
+  mode = "skillChoice";
+  clearSquares();
+  overlay = new PIXI.Graphics(); overlay.eventMode = "none"; layer().addChild(overlay);
+  const mover = E.unitById(s, ch.unitId);
+  const sq = ch.kind === "move" ? SK.choiceSquares(s, ch) : [];
+  const ts = ch.kind === "attack" && mover ? E.attackTargets(s, mover) : [];
+  for (const [x, y] of sq) drawSquare(overlay, x, y, 0x3fbf5f, 0.3, 1);
+  for (const d of ts) drawSquare(overlay, d.x, d.y, 0xd63c3c, 0.35, 1);
+  renderMenu();
+  startPicking((x, y) => {
+    if (ch.kind === "move") {
+      if (!sq.some(([a, b]) => a === x && b === y)) return pickWarn("Click a green square, or press Skip.");
+      return send({ type: "skillChoose", x, y });
+    }
+    const d = ts.find(o => o.x === x && o.y === y);
+    if (!d) return pickWarn("Click an enemy marked in red, or press Skip.");
+    send({ type: "skillChoose", targetId: d.id });
   });
 }
 
@@ -370,6 +434,15 @@ function renderMenu(sub = null) {
     `<button type="button" data-fe="${act}" ${enabled && !busy ? "" : "disabled"} ${tip ? `data-tooltip="${esc(tip)}"` : ""} ${extra}>${label}</button>`;
   let html = `<div class="qin-fe-title">${esc(u.name)}</div>`;
   if (mode === "second") html += `<div class="qin-fe-hint">Dual Weapons: strike another enemy marked in red (Attack −2), or skip.</div>` + b("skipSecond", "Skip", true);
+  else if (mode === "skillPick" && skillPick) {
+    const pk = skillPick.picks[skillPick.i];
+    html += `<div class="qin-fe-hint">${esc(officer?.skill?.name ?? "Skill")}: choose ${esc(pickWord(pk))} (${skillPick.i + 1}/${skillPick.picks.length}).</div>`;
+    if (pk.upTo) html += b("pickDone", "Done", true);
+    html += b("cancel", "Cancel", true);
+  } else if (mode === "skillChoice") {
+    const ch = SK.pendingChoice(current.s), who = ch && E.unitById(current.s, ch.unitId);
+    html += `<div class="qin-fe-hint">${ch?.kind === "attack" ? `${esc(who?.name ?? "")} may attack an enemy marked in red.` : `${esc(who?.name ?? "")} may move ${ch?.budget ?? ""} (green squares)${ch?.mode === "away" ? ", away from the enemy" : ch?.mode === "toward" ? ", toward its target" : ""}.`}</div>` + b("skipChoice", "Skip", true);
+  }
   else if (mode === "reposition") html += (current?.s?.turn?.activation?.reposition?.outrider
     ? `<div class="qin-fe-hint">Outrider: ride on to a green tile, or stay.</div>`
     : current?.s?.turn?.activation?.reposition?.skirmish
@@ -455,6 +528,8 @@ function onMenuClick(ev) {
     case "setFire": return enterSetFire();
     case "extinguish": return enterExtinguish();
     case "skipSecond": return send({ type: "secondAttack", unitId: id });
+    case "skipChoice": return send({ type: "skillChoose", skip: true });
+    case "pickDone": if (skillPick) { skillPick.i++; return enterSkillPick(); } return;
     case "back": return renderMenu();
     case "hold": return send({ type: "holdPosition", unitId: id });
     case "outrider": return send({ type: "outrider", unitId: id });
@@ -468,13 +543,20 @@ function onMenuClick(ev) {
     case "heroicPick": return send({ type: "heroic", unitId: id, index: Number(btn.dataset.index) });
     case "ability": {
       const { officer, flags } = current;
-      if (flags.skill && !(officer.battleArt && flags.art)) return send({ type: "useSkill", unitId: id });
+      if (flags.skill && !(officer.battleArt && flags.art)) return useSkillUI();
       if (flags.art && !(officer.skill && flags.skill)) return send({ type: "battleArt", unitId: id });
       return renderMenu("ability");
     }
-    case "skill": return send({ type: "useSkill", unitId: id });
+    case "skill": return useSkillUI();
     case "art": return send({ type: "battleArt", unitId: id });
   }
+}
+
+/** Use the officer's battlefield active: straight away, or first choose its units / squares. */
+function useSkillUI() {
+  const pk = current?.officer?.battle?.active?.pick;
+  if (pk?.length) { skillPick = null; return enterSkillPick(); }
+  return send({ type: "useSkill", unitId: current.u.id });
 }
 
 /** Rebuild the menu from the current battle state (call whenever the battle changes). */
@@ -502,6 +584,9 @@ export function refreshBattleUI() {
   if (ac.step === "duel") { mode = null; clearSquares(); return hideMenu(); } // waiting on the duel
   if (ac.step === "reposition") { if (mode !== "reposition") enterReposition(); return; }
   if (ac.step === "second") { if (mode !== "second") enterSecond(); return; }
+  if (SK.pendingChoice(s)) { enterSkillChoice(); return; }
+  if (mode === "skillChoice") { mode = null; clearSquares(); }
+  if (mode === "skillPick") return;
   if (!mode) renderMenu();
 }
 
