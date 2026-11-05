@@ -35,6 +35,15 @@
 //     Champions and Sentinels take risks; and by Battle style (sheet field): Rash, Glory-seeking, Cautious,
 //     Steadfast, Cunning, Protective. Rash and glory-seeking officers sometimes ignore the plan (said in the log)
 //   - mistakes: tacticians of Art of War 0-2 often chase, blunder into reach, dawdle or ignore the ground
+//
+// Traits (David, 2026-11-04): attacks are always played out with the real rules (levels 2+). The danger to a
+// unit from each enemy is played out with the real rules too at levels 3+ (all traits on both sides: armor,
+// Anti-Cavalry, Brace, charges, Terror, Fire Arrows, officer passives...); level 2 uses a quicker estimate that
+// knows the main defensive and charge traits; levels 0-1 stay with the raw numbers. Positioning traits
+// (traitPosition): staying still for Shield Battery / Range Up, staying hidden (Ambusher, Stalk), home ground
+// (Jungle Warriors, Mountain Passes, Woodsmen), standing in allies' auras (War Drums, Imperial Solidarity,
+// Imperial Mandate, Inspiration, Hold the Line, Rallying Banner), setting up Swarm / Opportunists attacks,
+// Suppressing Fire on holding spears before a charge, and Cornered Tiger fighting on below half health.
 import * as E from './engine.mjs';
 
 const HOST = { id: 'host', host: true };
@@ -115,6 +124,51 @@ function naiveHit(s, att, def, tiles) {
   return E.casualtiesOf((ta.damage || 0) + 2 + charge, td.armor || 0, ta.armorPen || 0, 0, 0);
 }
 
+/** Level 2's quicker guess: the raw numbers plus the main defensive and charge traits. */
+function traitHit(s, att, def, tiles, holding) {
+  const ta = E.typeOf(s, att), td = E.typeOf(s, def);
+  const cav = ta.category === 'cavalry' && ta.weapon !== 'ranged';
+  const charge = cav && tiles >= 2 ? Math.max(0, tiles - 1) + [0, 4, 6, 8, 10][att.fierceCharge || 0] : 0;
+  let armor = (td.armor || 0) + [0, 1, 2, 3][Math.min(3, E.unitTrait(def, 'reinforced armor'))];
+  if (td.shield && E.unitTrait(att, 'shield breaker')) armor -= [0, 1, 2, 3, 4][Math.min(4, E.unitTrait(att, 'shield breaker'))];
+  if (cav && E.unitTrait(def, 'anti-cavalry')) armor += 2 * Math.min(3, E.unitTrait(def, 'anti-cavalry'));
+  if (holding && ta.weapon !== 'ranged') armor += 1 + (E.unitTrait(def, 'brace') ? Math.min(3, E.unitTrait(def, 'brace')) : 0);
+  let dmg = (ta.damage || 0) + 2 + charge + (E.unitTrait(att, 'sharpened weapons') ? 1 : 0);
+  if (E.unitTrait(def, 'colossal')) return 1;
+  return E.casualtiesOf(dmg, Math.max(0, armor), ta.armorPen || 0, 0, 0);
+}
+
+/**
+ * Levels 3+: what this enemy really does to the unit, played out with the full rules (both sides' traits,
+ * officers, holds), net of what it loses itself; as a share of the unit's health. Cached per plan.
+ */
+function simThreat(base, uid, e, holding, samples) {
+  const u = E.unitById(base, uid); if (!u) return null;
+  const te = E.typeOf(base, e), ranged = te.weapon === 'ranged', cav = te.category === 'cavalry' && !ranged;
+  // where it strikes from: in range for archers, next to the unit otherwise
+  let spot = null;
+  const want = ranged ? Math.max(te.rangeMin || 1, Math.min(te.rangeMax || 1, E.manhattan(e, u))) : 1;
+  for (const [dx, dy] of [[0, 1], [1, 0], [0, -1], [-1, 0]]) {
+    const x = u.x + dx * want, y = u.y + dy * want, o = E.unitAt(base, x, y);
+    if (!o || o.id === e.id) { spot = { x, y }; break; }
+  }
+  if (!spot) return null;
+  const tiles = cav ? Math.min(E.movementOf(base, e), 4) : 0;
+  let tot = 0, n = 0;
+  for (let i = 0; i < samples; i++) {
+    const f = fork(base); E.setRng(seeded(hashStr('sim' + uid + e.id + i + (holding ? 'h' : ''))));
+    const fe = E.unitById(f, e.id), fu = E.unitById(f, uid);
+    fe.x = spot.x; fe.y = spot.y;
+    fu.round = { ...fu.round, holding: !!holding };
+    try { E.resolveAttack(f, fe, fu, { movedThisActivation: tiles > 0, tilesMoved: tiles }); } catch { continue; }
+    const d = Math.max(0, u.men - fu.men) / mx(u) + 0.3 * Math.max(0, (u.morale ?? 50) - (fu.morale ?? 50)) / 100 + (fu.status !== 'active' ? 0.4 : 0);
+    const back = Math.max(0, e.men - fe.men) / mx(e) + (fe.status !== 'active' ? 0.4 : 0);
+    tot += d - 0.5 * back * worth(base, e) / worth(base, u); n++;
+  }
+  E.setRng(Math.random);
+  return n ? { harm: tot / n, tiles } : null;
+}
+
 /** Enemy units that could strike this unit before it acts again, with a guess at the harm, as a score (negative). */
 function threatOf(s, u, side, P, areas, S, M) {
   if (!u || u.status !== 'active') return 0;
@@ -125,10 +179,22 @@ function threatOf(s, u, side, P, areas, S, M) {
     const ar = areas.get(e.id); if (!ar || !(ar.attack.has(k) || ar.move.has(k) || E.manhattan(e, u) <= 1)) continue;
     const te = E.typeOf(s, e);
     const cav = te.category === 'cavalry' && te.weapon !== 'ranged';
-    let harm = naiveHit(s, e, u, cav ? Math.min(E.movementOf(s, e), E.manhattan(e, u)) : 0) / mx(u);
-    // what a skilled side knows: spears that hold make charging cavalry pay
-    if (!P.naive && cav && holding && (E.unitTrait(u, 'charge reflection') || E.unitTrait(u, 'brace'))) harm = -0.5 * harm * worth(s, e) / w;
-    else if (!P.naive && cav && E.unitTrait(u, 'anti-cavalry')) harm *= 0.6;
+    const dist = cav ? Math.min(E.movementOf(s, e), E.manhattan(e, u)) : 0;
+    let harm;
+    const sim = P.level >= 3 && M && M.sim ? M.sim(e, holding) : null;
+    if (sim) {
+      // the real fight, scaled for a charge from closer or further than the playout's
+      const scale = cav && sim.tiles ? naiveHit(s, e, u, dist) / Math.max(1, naiveHit(s, e, u, sim.tiles)) : 1;
+      harm = sim.harm * (sim.harm > 0 ? scale : 1);
+    } else if (P.level === 2) {
+      harm = traitHit(s, e, u, dist, holding) / mx(u);
+      if (cav && holding && E.unitTrait(u, 'charge reflection')) harm = -0.5 * harm * worth(s, e) / w;
+    } else {
+      harm = naiveHit(s, e, u, dist) / mx(u);
+      // what a skilled side knows: spears that hold make charging cavalry pay
+      if (!P.naive && cav && holding && (E.unitTrait(u, 'charge reflection') || E.unitTrait(u, 'brace'))) harm = -0.5 * harm * worth(s, e) / w;
+      else if (!P.naive && cav && E.unitTrait(u, 'anti-cavalry')) harm *= 0.6;
+    }
     hits.push(harm);
   }
   hits.sort((x, y) => y - x);
@@ -320,10 +386,12 @@ export function mind(s, u, S, P) {
   if (st.has('glory-seeking')) { M.glory = 1.6; M.kill *= 1.5; }
   if (st.has('cautious')) { M.threat *= 1.4; M.close *= 0.6; }
   if (st.has('cunning')) { M.flank = 1.6; M.ground = 1.4; }
+  const tiger = E.unitTrait(u, 'cornered tiger') && u.men < mx(u) / 2; // fights harder below half health
   // shaken or battered: wants to step back and recover (skilled sides see it sooner)
   const mo = Number(u.morale ?? 50), hp = u.men / mx(u);
   const line = P.level >= 2 ? (mo < 40 || hp < 0.35) : mo < 20;
-  if (line && !st.has('steadfast')) { M.shaken = true; M.recover = P.level >= 2 ? 1 : 0.5; }
+  if (line && !st.has('steadfast') && !tiger) { M.shaken = true; M.recover = P.level >= 2 ? 1 : 0.5; }
+  if (tiger && P.level >= 2) { M.threat *= 0.7; M.close *= 1.2; }
   // dice for this round: mistakes (poor tacticians), disobedience (rash and glory-seeking officers)
   const r = seeded(hashStr(u.id + ':mind:' + (s.turn?.round ?? 0)));
   const r1 = r(), r2 = r(), r3 = r();
@@ -363,6 +431,79 @@ function closedSides(s, e, al) {
   return n;
 }
 const cantBeRinged = (s, e) => E.unitTrait(e, 'stalwart') || E.unitTrait(e, "pretender's guard") || !!E.tileRules(s, e.x, e.y)?.noSurround;
+
+// ---------------------------------------------------------------- positioning traits (David, 2026-11-04)
+
+const tileOf = (s, x, y) => s.map && s.map.tiles && s.map.tiles[x + ',' + y];
+const jungle = (s, x, y) => { const t = tileOf(s, x, y); return !!t && (t.terrain === 'forest' || t.terrain === 'marsh' || (t.overlays || []).includes('trees')); };
+const mountain = (s, x, y) => { const t = tileOf(s, x, y); const o = (t && t.overlays) || []; return !!t && (t.terrain === 'forest' || t.terrain === 'rocky' || o.includes('hill') || o.includes('trees')); };
+const forest = (s, x, y) => { const t = tileOf(s, x, y); return !!t && (t.terrain === 'forest' || (t.overlays || []).includes('trees')); };
+
+/** Allied auras covering a square for this unit (War Drums, Imperial Solidarity, Imperial Mandate, Inspiration, Hold the Line, Rallying Banner). */
+function aurasAt(s, u, x, y) {
+  const p = { x, y }, t = E.typeOf(s, u); let n = 0;
+  for (const o of E.liveUnits(s)) {
+    if (o.id === u.id || E.alliance(o.side) !== E.alliance(u.side)) continue;
+    const d = E.manhattan(o, p), wd = E.unitTrait(o, 'war drums');
+    if (wd && d <= (wd >= 2 ? 3 : 2)) n += wd >= 3 ? 2 : 1;
+    if (E.unitTrait(o, 'imperial solidarity') && d <= 2) n += 1;
+    if (E.unitTrait(u, 'imperial mandate') && d <= 2 && /^(han|imperial)\b/i.test(String(E.typeOf(s, o)?.faction || ''))) n += 1;
+    if (d === 1 && (E.unitTrait(o, 'inspiration') || E.unitTrait(o, 'rallying banner'))) n += 1;
+    if (d === 1 && t.category === 'infantry' && E.unitTrait(o, 'hold the line') && o.round && o.round.holding) n += 1;
+  }
+  return n;
+}
+/** Allies a unit with an aura covers from a square. */
+function coveredBy(s, u, x, y) {
+  const p = { x, y }, wd = E.unitTrait(u, 'war drums');
+  const r = wd ? (wd >= 2 ? 3 : 2) : E.unitTrait(u, 'imperial solidarity') ? 2 : (E.unitTrait(u, 'inspiration') || E.unitTrait(u, 'rallying banner')) ? 1 : 0;
+  if (!r) return 0;
+  return E.liveUnits(s).filter(o => o.id !== u.id && E.alliance(o.side) === E.alliance(u.side) && E.manhattan(o, p) <= r).length;
+}
+
+/** What the unit's own traits make of where it ends its turn (levels 2+). */
+function traitPosition(s0, s1, u0, u1, P, S) {
+  const lw = [0, 0, 0.6, 0.85, 1, 1.1][P.level]; if (!lw || !u1 || u1.status !== 'active') return 0;
+  const w = worth(s0, u0), tr = (k) => E.unitTrait(u0, k);
+  let v = 0;
+  // Shield Battery / Range Up: their bonuses need a turn ended without moving
+  const still = (tr('shield battery') ? 1 : 0) + (tr('range up') ? tr('range up') : 0);
+  if (still) {
+    // finished turn: the engine's own record; turn still under way: whether it has moved yet
+    const going = s1.turn && s1.turn.activation && s1.turn.activation.unitId === u0.id;
+    const stayed = going ? !(u1.round && u1.round.moved) : !!(u1.fx && u1.fx.stillLast);
+    if (stayed) v += 0.05 * w * still;
+  }
+  // staying hidden (hidden units strike from hiding; Ambusher doubles that)
+  const hideW = (tr('ambusher') ? 2 : 1) * (tr('stalk') ? 1.3 : 1) * (S.posture === 'defensive' || S.posture === 'stall' ? 1.3 : 1);
+  v += 0.06 * w * hideW * ((u1.hidden ? 1 : 0) - (u0.hidden ? 1 : 0));
+  // home ground
+  if (tr('jungle warriors')) v += 0.04 * w * Math.min(3, tr('jungle warriors')) * ((jungle(s0, u1.x, u1.y) ? 1 : 0) - (jungle(s0, u0.x, u0.y) ? 1 : 0));
+  if (tr('mountain passes')) v += 0.04 * w * ((mountain(s0, u1.x, u1.y) ? 1 : 0) - (mountain(s0, u0.x, u0.y) ? 1 : 0));
+  if (tr('woodsmen')) v += 0.02 * w * ((forest(s0, u1.x, u1.y) ? 1 : 0) - (forest(s0, u0.x, u0.y) ? 1 : 0));
+  // allies' auras over it, and its own aura over allies
+  v += 0.02 * w * (aurasAt(s1, u0, u1.x, u1.y) - aurasAt(s0, u0, u0.x, u0.y));
+  v += 0.012 * w * (coveredBy(s1, u0, u1.x, u1.y) - coveredBy(s0, u0, u0.x, u0.y));
+  // Swarm / Opportunists: an ally next to their target makes their attack stronger
+  const al = E.alliance(u0.side);
+  for (const e of E.liveUnits(s1)) {
+    if (E.alliance(e.side) === al || E.manhattan(e, u1) !== 1 || E.manhattan(e, u0) === 1) continue;
+    const helpers = E.liveUnits(s1).filter(o => o.id !== u0.id && E.alliance(o.side) === al && !(o.round && o.round.activated)
+      && (E.unitTrait(o, 'swarm') || E.unitTrait(o, 'opportunists')) && E.manhattan(o, e) <= E.movementOf(s1, o) + 1).length;
+    v += 0.025 * worth(s0, e) * Math.min(2, helpers);
+  }
+  return lw * v;
+}
+
+/** Suppressing Fire on a unit whose stand (Hold, Brace, Anti-Cavalry, Charge Reflection) is in the way of a charge. */
+function suppressValue(s, att, target) {
+  if (!E.unitTrait(att, 'suppressing fire')) return 0;
+  const stand = (target.round && target.round.holding) || E.unitTrait(target, 'brace') || E.unitTrait(target, 'anti-cavalry') || E.unitTrait(target, 'charge reflection');
+  if (!stand) return 0;
+  const cav = E.liveUnits(s).filter(o => E.alliance(o.side) === E.alliance(att.side) && !(o.round && o.round.activated)
+    && E.typeOf(s, o).category === 'cavalry' && E.typeOf(s, o).weapon !== 'ranged' && E.manhattan(o, target) <= E.movementOf(s, o) + 2);
+  return cav.length ? 0.12 * worth(s, target) * Math.min(2, cav.length) : 0.04 * worth(s, target);
+}
 
 /** Where the unit stands at the end of its turn: its job, closing on enemies, good ground, and (level 5) next round's strikes. */
 function positionScore(s0, s1, u0, u1, side, P, S, M) {
@@ -516,11 +657,13 @@ export function plans(s, unitId, opts = {}) {
   const areas = new Map(E.liveUnits(base).filter(e => E.hostile(e, u0)).map(e => [e.id, E.threatArea(base, e)]));
   const S = opts.strategy || strategy(base, side), M = opts.mind || mind(base, u0, S, P);
   M.areas = areas;
+  { const cache = new Map(), n = P.level >= 4 ? 3 : 2;
+    M.sim = (e, holding) => { const k = e.id + (holding ? '|h' : ''); if (!cache.has(k)) cache.set(k, simThreat(base, unitId, E.unitById(base, e.id) || e, holding, n)); return cache.get(k); }; }
   const job = M.ignoreJob ? null : S.jobs.get(unitId);
   const out = [];
   const consider = (actions, f) => {
     const u1 = E.unitById(f, unitId);
-    const o1 = outcomeScore(base, f, side, S, M), p1 = positionScore(base, f, u0, u1, side, P, S, M), t1 = threatOf(f, u1, side, P, areas, S, M) + pressureOf(f, u1, P);
+    const o1 = outcomeScore(base, f, side, S, M), p1 = positionScore(base, f, u0, u1, side, P, S, M) + traitPosition(base, f, u0, u1, P, S), t1 = threatOf(f, u1, side, P, areas, S, M) + pressureOf(f, u1, P);
     let sc = o1 + p1 + t1;
     out.push({ actions, score: sc, state: f });
   };
@@ -579,8 +722,9 @@ export function plans(s, unitId, opts = {}) {
       }
       if (!runs.length) continue;
       // average the playouts' scores; keep one of them as the representative end state
-      const scores = runs.map(g => { const u1 = E.unitById(g, unitId); return outcomeScore(base, g, side, S, M) + positionScore(base, g, u0, u1, side, P, S, M) + threatOf(g, u1, side, P, areas, S, M) + pressureOf(g, u1, P); });
-      out.push({ actions: [...pre, act], score: scores.reduce((t, x) => t + x, 0) / scores.length, state: runs[0] });
+      const scores = runs.map(g => { const u1 = E.unitById(g, unitId); return outcomeScore(base, g, side, S, M) + positionScore(base, g, u0, u1, side, P, S, M) + traitPosition(base, g, u0, u1, P, S) + threatOf(g, u1, side, P, areas, S, M) + pressureOf(g, u1, P); });
+      const sup = P.level >= 2 ? suppressValue(f, u, target) * [0, 0, 0.6, 0.85, 1, 1.1][P.level] : 0;
+      out.push({ actions: [...pre, act], score: scores.reduce((t, x) => t + x, 0) / scores.length + sup, state: runs[0] });
     }
     // hold position (defensive stance)
     if (!u.round.attacked && !acf.forcedMarched) {
@@ -677,7 +821,12 @@ export function pickUnit(s, side, opts = {}) {
   if (!mine.length) return null;
   if (P.naive) return { type: 'begin', unitId: mine[Math.floor(seeded(hashStr(side + s.turn.round + mine.length))() * mine.length)].id };
   let best = mine[0], bestV = -Infinity;
-  for (const u of mine) { const v = bestScore(s, u.id, { ...opts, level: Math.min(P.level, 3) }); if (v > bestV) { bestV = v; best = u; } }
+  for (const u of mine) {
+    let v = bestScore(s, u.id, { ...opts, level: Math.min(P.level, 3) });
+    // thinking a move ahead: Suppressing Fire goes before the charge it opens up
+    if (P.level >= 3) for (const e of E.liveUnits(s)) if (E.hostile(e, u) && E.manhattan(e, u) <= E.movementOf(s, u) + (E.typeOf(s, u).rangeMax || 1)) v = Math.max(v, v + 3 * suppressValue(s, u, e));
+    if (v > bestV) { bestV = v; best = u; }
+  }
   return { type: 'begin', unitId: best.id };
 }
 
@@ -697,3 +846,6 @@ export function aiStep(s, sides, opts = {}) {
   if (p.kind === 'host-pick' && on(p.side)) return pickUnit(s, p.side, opts);
   return null;
 }
+
+/** For the tests. */
+export { simThreat as _simThreat, traitHit as _traitHit, traitPosition as _traitPosition };

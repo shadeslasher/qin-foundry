@@ -275,3 +275,64 @@ test('AI: a shaken unit with an officer steps out of reach to recover instead of
   }
   assert.ok(dist.true > dist.false, JSON.stringify(dist));
 });
+
+// ---- traits (David, 2026-11-04)
+test('AI: levels 3+ play the danger out with the real rules: holding braced spears are safe from a cavalry charge', () => {
+  const spear = unitType('spear', { damage: 4, armor: 5, armorPen: 5 });
+  const cav = unitType('cav', { category: 'cavalry', move: 5, damage: 6, armor: 4, armorPen: 5 });
+  const inf = unitType('inf2', { damage: 6, armor: 3, armorPen: 3 });
+  const { s, ids } = battle([spear, cav, inf], [
+    { typeId: 'spear', side: 'enemy', x: 5, y: 5 }, { typeId: 'cav', side: 'player', owner: 'p1', x: 5, y: 9 }, { typeId: 'inf2', side: 'player', owner: 'p1', x: 9, y: 5 },
+  ]);
+  const sp = R.unitById(s, ids[0]); sp.traitTiers = { 'anti-cavalry': 2, 'charge reflection': 1, brace: 1 };
+  R.unitById(s, ids[1]).fierceCharge = 1;
+  const open = AI._simThreat(s, ids[0], R.unitById(s, ids[1]), false, 3), held = AI._simThreat(s, ids[0], R.unitById(s, ids[1]), true, 3);
+  assert.ok(open && held && held.harm <= open.harm, 'holding helps: ' + open.harm + ' -> ' + held.harm);
+  // the raw numbers (what levels 0-1 believe): a 4-square Fierce Charge, damage 6 + 2 + 3 + 4 against armor 5
+  const raw = R.casualtiesOf(15, 5, 5, 0, 0) / 100;
+  assert.ok(held.harm < raw * 0.6, 'the real rules see the spears are much safer than the raw numbers say: ' + raw + ' vs ' + held.harm);
+  // level 2's quick guess knows armor traits too
+  sp.traitTiers['reinforced armor'] = 3;
+  assert.ok(AI._traitHit(s, R.unitById(s, ids[2]), sp, 0, false) < R.casualtiesOf(8, 5, 3, 0, 0));
+});
+
+test('AI: Shield Battery / Range Up archers keep still when they can', () => {
+  const bow = unitType('bow', { category: 'ranged', weapon: 'ranged', rangeMin: 2, rangeMax: 4, damage: 4, armor: 2 });
+  const moved = {};
+  for (const still of [true, false]) {
+    const { s, ids } = battle([bow, unitType('slow', { move: 1 })], [
+      { typeId: 'slow', side: 'player', owner: 'p1', x: 5, y: 2 },
+      { typeId: 'bow', side: 'enemy', x: 5, y: 5 },
+    ]);
+    if (still) R.unitById(s, ids[1]).traitTiers = { 'shield battery': 1, 'range up': 1 };
+    must(R.act(s, P1, { type: 'begin', unitId: ids[0] })); must(R.act(s, P1, { type: 'endTurn', unitId: ids[0] }));
+    const acts = runAI(s, { enemy: true }, 4);
+    moved[still] = acts.some(a => a.type === 'moveTo');
+  }
+  assert.deepStrictEqual(moved, { true: false, false: true }, 'stays put with the traits, steps back to full range without');
+});
+
+test('AI: Suppressing Fire goes for the braced spears when its cavalry is waiting to charge', () => {
+  const bow = unitType('sup', { category: 'ranged', weapon: 'ranged', rangeMin: 2, rangeMax: 4, damage: 4, armor: 2 });
+  const spear = unitType('spear', { damage: 4, armor: 4, armorPen: 4 });
+  const cav = unitType('cav', { category: 'cavalry', move: 6, damage: 6, armor: 4, armorPen: 5 });
+  let spearHits = 0;
+  for (let t = 0; t < 4; t++) {
+    const { s, ids } = battle([bow, spear, foe, cav], [
+      { typeId: 'spear', side: 'player', owner: 'p1', x: 4, y: 2 },
+      { typeId: 'foe', side: 'player', owner: 'p1', x: 7, y: 2 },
+      { typeId: 'sup', side: 'enemy', x: 5 + (t % 2), y: 5 },
+      { typeId: 'cav', side: 'enemy', x: 3, y: 8 },
+    ]);
+    R.unitById(s, ids[0]).traitTiers = { brace: 1, 'anti-cavalry': 1 }; R.unitById(s, ids[0]).round.holding = true;
+    R.unitById(s, ids[2]).traitTiers = { 'suppressing fire': 1 };
+    const S = AI.strategy(s, 'enemy');
+    const f = AI.fork(s); f.turn.activation = { unitId: ids[2], step: 'move' };
+    void S; void f;
+    must(R.act(s, P1, { type: 'begin', unitId: ids[1] })); must(R.act(s, P1, { type: 'endTurn', unitId: ids[1] }));
+    const acts = runAI(s, { enemy: true }, 4);
+    const shot = acts.find(a => a.type === 'attack' && a.unitId === ids[2]);
+    if (shot && shot.targetId === ids[0]) spearHits++;
+  }
+  assert.ok(spearHits >= 3, 'shoots the spears: ' + spearHits + '/4');
+});
