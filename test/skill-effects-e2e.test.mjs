@@ -147,9 +147,11 @@ const SKILLS_UNDER_TEST = [
       effect: { target: "enemies", test: VS_RES, duration: { rounds: 1 }, note: "each opponent within 10 yards; only their next Attack Test", onFail: [{ stat: "attack", value: -2, mode: "always" }] } },
     expect: { attack: -2, vsSource: false, lastsRounds: 1 } },
   { who: "Dong Zhuo", aspects: { earth: 5, fire: 5, metal: 4, water: 2, wood: 3 }, intimidation: 6,
+    // The Battle Sheets don't store this passive's bonus yet (read 2026-11-05): mocked as schema v2.1 would have it
+    passive: { name: "Rule by Terror", bonuses: [{ stat: "skillTest", value: 3, mode: "always", skills: ["intimidation"] }] },
     skill: { name: "Banquet of Blood", chi: 5, perScene: true, desc: "Once per scene, one action. He makes a Fire + Intimidation Test opposed by the Resistance of everyone who can see him. Those who lose can't attack him or openly defy his orders for the rest of the scene.",
       effect: { target: "enemies", test: VS_RES, duration: { scene: true }, note: "everyone who can see him; can't attack him or openly defy his orders", onFail: [] } },
-    expect: { noteOnly: true, restOfFight: true } },
+    expect: { noteOnly: true, restOfFight: true, userSkillBonus: { label: "Rule by Terror", value: 3 } } },
   { who: "Chunyu Qiong", aspects: { earth: 4, fire: 4, metal: 4, water: 2, wood: 3 }, intimidation: 3,
     skill: { name: "Old Colonel's Bluster", chi: 2, recharge: 3, desc: "One action. He makes a Fire + Intimidation Test against one opponent's Earth + Resistance. If he wins, that opponent takes −2 on Attack Tests against him until the end of the round.",
       effect: { target: "enemy", test: VS_RES, duration: { round: true }, note: "one opponent", onFail: [{ stat: "attack", value: -2, mode: "always", vsSource: true }] } },
@@ -227,13 +229,17 @@ for (const s of SKILLS_UNDER_TEST) {
     game.combat.scene = canvas.scene;
     game.combat.combatants = [{ actor: user, actorId: user.id }];
 
-    // 1. The user's Test: Fire + Intimidation + Yin 6 / Yang 0
+    // 1. The user's Test: Fire + Intimidation (+ his passive's Intimidation bonus) + Yin 6 / Yang 0
+    // (with a passive Intimidation bonus the die is lower by as much, so the targets below still lose / win)
     const chiBefore = user.system.chi.value;
-    diceQueue.push([6, 0]);
+    const sb = s.expect.userSkillBonus;
+    const yin = 6 - (sb?.value ?? 0);
+    diceQueue.push([yin, 0]);
     const card = await cs.useActive(user, user.items.get("sk"));
-    const userTotal = s.aspects.fire + s.intimidation + 6;
+    const userTotal = s.aspects.fire + s.intimidation + yin + (sb?.value ?? 0);
     assert.equal(card.flags.qin.kind, "effect");
     assert.equal(card.flags.qin.total, userTotal, "user's Test total");
+    if (sb) assert.match(card.content, new RegExp(`${sb.label}`), "the passive's Intimidation bonus is tagged on the card");
     assert.equal(card.flags.qin.user, user.uuid);
     assert.equal(user.system.chi.value, chiBefore - (s.skill.chi ?? 0), "Chi spent");
     assert.deepEqual(user.items.get("sk").system.lastUse, { combat: "fight1", round: 1 }, "recharge started");
@@ -472,6 +478,93 @@ test("buffs: one GM-only Apply; hidden from players, refused for players, applie
   await fx.EffectTargetPicker.DEFAULT_OPTIONS.actions.apply.call(p2);
   assert.equal(p2.results, null);
   asGM();
+  game.combat = null;
+});
+
+/* ---------------------------------------- skillTest bonuses (schema v2.1 §4) on the holder's own Tests */
+
+const silver = { name: "Silver Tongue", slot: "passive", desc: "+2 on Eloquence and Diplomacy Tests to persuade someone to change sides.",
+  bonuses: [{ stat: "skillTest", value: 2, mode: "situational", skills: ["eloquence", "diplomacy"], condition: "to persuade someone to change sides" }] };
+const terror = { name: "Rule by Terror", slot: "passive", desc: "His Intimidation Tests get +3.", bonuses: [{ stat: "skillTest", value: 3, mode: "always", skills: ["intimidation"] }] };
+const nimble = { name: "Nimble", slot: "passive", desc: "+1 on Dodging and Jianshu.", bonuses: [{ stat: "skillTest", value: 1, mode: "always", skills: ["dodging", "jianshu"] }] };
+const persuader = () => actor({ name: "Li Su test", aspects: { metal: 2, water: 3, fire: 4, wood: 4, earth: 3 }, skills: { eloquence: 4, diplomacy: 4, intimidation: 2, dodging: 2, jianshu: 3 },
+  items: [sig("p1", silver.name, silver), sig("p2", terror.name, terror), sig("p3", nimble.name, nimble), dao()] });
+const uniq = (card) => card.parts.filter(p => p.kind === "unique").map(p => [p.label, p.value, !!p.situational]);
+
+test("skillTest: rollTest applies always-on bonuses for the listed skill only, with source tags", async () => {
+  asGM();
+  const a = persuader();
+  dialogAnswers.push({ aspect: "fire", skill: "intimidation", st: "", modifier: 0 });
+  diceQueue.push([4, 0]);
+  const r = await a.rollTest({});
+  const dlg = lastTemplate("dialog/test.hbs");
+  assert.deepEqual(dlg.always, ["Rule by Terror: Intimidation Tests +3", "Nimble: Dodging / Jianshu Tests +1"], "the dialog lists the always-on ones");
+  assert.deepEqual(dlg.sitOpts.map(o => o.text), ["Silver Tongue: Eloquence / Diplomacy Tests +2"], "and offers the situational one");
+  assert.equal(r.total, 4 + 2 + 4 + 3);
+  assert.deepEqual(uniq(lastTemplate("chat/roll.hbs")), [["Rule by Terror", 3, false]]);
+  // another skill: nothing from Rule by Terror
+  dialogAnswers.push({ aspect: "fire", skill: "eloquence", st: "", modifier: 0 });
+  diceQueue.push([4, 0]);
+  assert.equal((await a.rollTest({})).total, 4 + 4 + 4);
+  const card = lastTemplate("chat/roll.hbs");
+  assert.deepEqual(uniq(card), []);
+  assert.deepEqual(card.situational.map(x => x.ticked), [false], "the situational one shows as not ticked");
+});
+
+test("skillTest: situational ones are tick boxes in the Test dialog; without a dialog the Combat panel's ticks count", async () => {
+  asGM();
+  const a = persuader();
+  dialogAnswers.push({ aspect: "fire", skill: "diplomacy", st: 9, modifier: 0, sit_0: true });
+  diceQueue.push([2, 0]);
+  const r = await a.rollTest({});
+  assert.equal(r.total, 4 + 4 + 2 + 2);
+  assert.equal(r.success, true);
+  assert.deepEqual(uniq(lastTemplate("chat/roll.hbs")), [["Silver Tongue (to persuade someone to change sides)", 2, true]]);
+  // the Combat panel's Situational section lists it; ticking it there applies it to a roll without a dialog
+  const ctx = await CombatPanel.prototype._prepareContext.call({ actor: a });
+  const row = ctx.situational.find(x => x.text.startsWith("Silver Tongue"));
+  assert.ok(row, "in the panel's Situational section");
+  assert.equal(row.text, "Silver Tongue: Eloquence / Diplomacy Tests +2");
+  diceQueue.push([2, 0]);
+  assert.equal((await a.rollTest({ prompt: false, aspect: "fire", skill: "eloquence" })).total, 4 + 4 + 2, "not ticked in the panel");
+  await cs.setSituational(a, row.key, true);
+  diceQueue.push([2, 0]);
+  assert.equal((await a.rollTest({ prompt: false, aspect: "fire", skill: "eloquence" })).total, 4 + 4 + 2 + 2, "ticked in the panel");
+  // and the dialog starts with the panel's tick
+  dialogAnswers.push({ aspect: "fire", skill: "eloquence", st: "", modifier: 0 });
+  diceQueue.push([2, 0]);
+  await a.rollTest({});
+  assert.equal(lastTemplate("dialog/test.hbs").sitOpts[0].checked, true);
+});
+
+test("skillTest: Dodging (non-martial) gets it; martial attack and Block rolls don't", async () => {
+  asGM();
+  game.combat = null;
+  const a = persuader();
+  const foe = actor({ name: "Foe skilltest", aspects: { metal: 3, water: 3, fire: 3, wood: 3, earth: 3 }, items: [dao()] });
+  const d = await dodge(a, foe, 30);
+  assert.deepEqual(uniq(d), [["Nimble", 1, false]]);
+  assert.equal(d.total, 3 + 2 + 4 + 1);
+  const atk = await attack(a, foe);
+  assert.deepEqual(uniq(atk), [], "a martial skill's attack uses attack bonuses, not skillTest");
+  // a pure Test with Jianshu (martial) gets nothing either
+  diceQueue.push([1, 0]);
+  assert.equal((await a.rollTest({ prompt: false, aspect: "metal", skill: "jianshu" })).total, 2 + 3 + 1);
+});
+
+test("skillTest: the effect flow asks for situational ticks before the user's Test", async () => {
+  asGM();
+  fight(1);
+  const s = SKILLS_UNDER_TEST.find(x => x.who === "Dong Zhuo");
+  const fierce = { name: "Fearsome at Feasts", slot: "passive", desc: "", bonuses: [{ stat: "skillTest", value: 2, mode: "situational", skills: ["intimidation"], condition: "at a banquet" }] };
+  const dz = actor({ name: "Dong Zhuo feast", aspects: s.aspects, skills: { intimidation: 6 },
+    items: [sig("sk", s.skill.name, s.skill), sig("pa", s.passive.name, { ...s.passive, slot: "passive", desc: "" }), sig("pb", fierce.name, fierce)] });
+  dialogAnswers.push({ sit_0: true });
+  diceQueue.push([1, 0]);
+  const card = await cs.useActive(dz, dz.items.get("sk"));
+  assert.equal(card.flags.qin.total, 5 + 6 + 1 + 3 + 2, "always-on +3 and the ticked +2");
+  assert.match(card.content, /Fearsome at Feasts \(at a banquet\)/);
+  assert.match(card.content, /· applied/);
   game.combat = null;
 });
 

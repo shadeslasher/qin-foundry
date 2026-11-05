@@ -4,7 +4,7 @@ import { ASPECTS, SKILLS, SKILL_LEVELS } from "../config.mjs";
 import * as Q from "../rules/qin-rules.mjs";
 import { rollYinYang, renderTemplate, formDialog, Chat } from "../dice.mjs";
 import { part, sumParts } from "../rules/sources.mjs";
-import { pdBreakdown, collectBonuses, attackerSideBonuses, targetAdParts } from "../rules/bonuses.mjs";
+import { pdBreakdown, collectBonuses, attackerSideBonuses, targetAdParts, skillTestParts, skillTestBonuses, appliesToSkill } from "../rules/bonuses.mjs";
 import { damageAfterReductions, isFirstHitThisRound, resolveTao } from "../rules/tao-rules.mjs";
 import { getState, tickedOf, queuedFor, consumeUpdate, currentFight, taoOf, activateTao, markActiveUsed, rollBonuses, afterAttackStacks, stackEventFor } from "../combat-state.mjs";
 import { stackDefs, stackEvent, droppedLevel } from "../rules/stacks.mjs";
@@ -186,15 +186,24 @@ export class QinActor extends foundry.documents.Actor {
   async rollTest(opts = {}) {
     if (this.isUnit) return;
     let o = { aspect: "metal", skill: "", st: "", modifier: 0, inner: 0, physical: false, ...opts };
+    // Unique skills' "Tests with given skills" bonuses (schema v2.1): always-on ones count when the skill matches;
+    // situational ones are tick boxes here (pre-ticked from the Combat panel), or the panel's ticks without a dialog
+    const ticked = tickedOf(this);
+    const skillBs = skillTestBonuses(rollBonuses(this, opts.vs ?? null));
+    const sitOpts = skillBs.filter(b => b.mode === "situational").map((b, i) => ({ i, b, checked: !!ticked[b.key], text: `${b.label}: ${b.text}`, condition: b.condition }));
+    let sitTicked = { ...ticked };
     if (opts.prompt !== false) {
       const content = await renderTemplate("templates/dialog/test.hbs", {
         aspects: Object.entries(ASPECTS).map(([k, v]) => ({ value: k, label: `${v.label} (${this.system.aspects[k]})`, selected: k === o.aspect })),
         skills: [{ value: "", label: "— none (pure Aspect) —" }, ...this.skillOptions()].map(s => ({ ...s, selected: s.value === o.skill })),
         o, earth: this.system.aspects.earth, isCharacter: this.isCharacter,
+        always: skillBs.filter(b => b.mode !== "situational").map(b => `${b.label}: ${b.text}`), sitOpts,
       });
       const fd = await formDialog({ title: `${this.name}: Test`, content });
       if (!fd) return;
       o = { ...o, ...fd };
+      sitTicked = {};
+      for (const s of sitOpts) if (fd[`sit_${s.i}`]) sitTicked[s.b.key] = true;
     }
     const aspect = Number(this.system.aspects[o.aspect] ?? 0);
     const sk = this.getSkill(o.skill);
@@ -207,10 +216,12 @@ export class QinActor extends foundry.documents.Actor {
     if (inner) await this.spendChi(inner * 2, "inner strength");
     const { roll, dice } = await rollYinYang({ beginner });
     const mod = Number(o.modifier) || 0;
+    const uniq = skillTestParts(skillBs, o.skill, { ticked: sitTicked, martial: sk.martial });
     const parts = [
       part("aspect", ASPECTS[o.aspect].label, aspect, { aspect: o.aspect }),
       o.skill ? part("skill", `${sk.label} (${SKILL_LEVELS[sk.value]})`, sk.value) : null,
       part("dice", `Yin / Yang ${dice.yin} / ${dice.yang}${dice.double && !dice.critFail ? (beginner ? ", double: Beginner counts 0" : ", double") : ""}`, dice.value),
+      ...uniq.parts,
       mod ? part("modifier", "Modifier", mod) : null,
       inner ? part("modifier", `Inner strength (−${inner * 2} Chi)`, inner) : null,
       ...this._penaltyParts(!!o.physical),
@@ -219,7 +230,8 @@ export class QinActor extends foundry.documents.Actor {
     const st = o.st === "" || o.st == null ? null : Number(o.st);
     const success = dice.critFail ? false : st == null ? null : total >= st;
     await this._afterDice(dice);
-    await this._postRoll({ title: o.label || (o.skill ? `${ASPECTS[o.aspect].label} + ${sk.label}` : `${ASPECTS[o.aspect].label} Test`), roll, dice, parts, total, st, success });
+    const situational = uniq.situational.map(b => ({ kind: "unique", situational: true, ticked: b.ticked, text: `${b.label}: ${b.text}${b.condition ? ` (${b.condition})` : ""}` }));
+    await this._postRoll({ title: o.label || (o.skill ? `${ASPECTS[o.aspect].label} + ${sk.label}` : `${ASPECTS[o.aspect].label} Test`), roll, dice, parts, total, st, success, situational });
     return { total, dice, success };
   }
 
@@ -407,8 +419,10 @@ export class QinActor extends foundry.documents.Actor {
     const qStrong = qDef.find(q => q.key === "invisibleShield.3"), qChiBlock = qDef.find(q => q.key === "invisibleShield.4");
     const ticked = tickedOf(this);
     const list = rollBonuses(this, attack.attacker ?? null);
-    const sitOpts = list.filter(b => b.stat === "ad" && b.mode === "situational").map((b, i) => ({ i, b, checked: !!ticked[b.key], text: `${b.label}: ${b.text}`, condition: b.condition }));
-    const alwaysAD = list.filter(b => b.stat === "ad" && b.mode !== "situational");
+    // Active Defense bonuses, plus "Tests with given skills" bonuses when the skill is a non-martial one (Dodging)
+    const forDef = (b) => b.stat === "ad" || (!skPre.martial && appliesToSkill(b, skillKey));
+    const sitOpts = list.filter(b => forDef(b) && b.mode === "situational").map((b, i) => ({ i, b, checked: !!ticked[b.key], text: `${b.label}: ${b.text}`, condition: b.condition }));
+    const alwaysAD = list.filter(b => forDef(b) && b.mode !== "situational");
     const techniques = this.items.filter(i => i.type === "technique" && i.system.roll === "defense" && (i.system.skill === skillKey || i.system.skill === "any"));
     const combatant = activeCombatantFor(this);
     const content = await renderTemplate("templates/dialog/defense.hbs", {

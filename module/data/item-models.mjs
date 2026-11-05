@@ -162,6 +162,8 @@ export class SignatureData extends foundry.abstract.TypeDataModel {
         // bonuses an effect puts on someone else
         stack: new fields.ObjectField({ required: false, nullable: true, initial: null }),
         vsSource: new fields.BooleanField({ initial: false }),
+        // Schema v2.1 (David, 2026-11-05): skillTest bonuses name the skills whose Tests they add to
+        skills: new fields.ArrayField(new fields.StringField(), { initial: [] }),
       }), { initial: [] }),
       // Actives only: what the skill does to others { target, test, onFail, onSuccess, duration, note } (schema v2 §2)
       effect: new fields.ObjectField({ required: false, nullable: true, initial: null }),

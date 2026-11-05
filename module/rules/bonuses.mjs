@@ -2,6 +2,7 @@
 // A bonus is { stat, value, aspect, mode, condition, label } on a signature item's system.bonuses.
 import { part } from "./sources.mjs";
 import { normalizeStack, stackSteps } from "./stacks.mjs";
+import { SKILLS } from "../config.mjs";
 
 export const BONUS_STATS = {
   pd: "Passive Defense",
@@ -14,11 +15,12 @@ export const BONUS_STATS = {
   initiative: "Initiative",
   targetAd: "Opponents' Active Defense against his attacks",
   armorPierce: "Target's armour counts less against his hits",
+  skillTest: "Tests with given skills",
 };
 export const BONUS_SHORT = {
   pd: "Passive Defense", ad: "Active Defense", attack: "Attack", damage: "damage",
   attackersPenalty: "attackers", firstHitReduction: "first hit each round", hitReduction: "every hit", initiative: "Initiative",
-  targetAd: "opponents' Active Defense", armorPierce: "target's armour",
+  targetAd: "opponents' Active Defense", armorPierce: "target's armour", skillTest: "Tests",
 };
 export const BONUS_MODES = { always: "Always on", situational: "Situational" };
 const ASPECT_KEYS = ["metal", "water", "fire", "wood", "earth"];
@@ -27,8 +29,35 @@ const ASPECT_LABEL = { metal: "Metal", water: "Water", fire: "Fire", wood: "Wood
 /** Stats where the number is taken away (from damage, or from the attacker). */
 export const REDUCING_STATS = new Set(["attackersPenalty", "firstHitReduction", "hitReduction", "targetAd", "armorPierce"]);
 
+const SKILL_BY_NAME = new Map();
+for (const [k, v] of Object.entries(SKILLS)) {
+  SKILL_BY_NAME.set(k.toLowerCase(), k);
+  SKILL_BY_NAME.set(v.label.toLowerCase(), k);
+  SKILL_BY_NAME.set(v.label.replace(/\s*\(.*\)\s*$/, "").toLowerCase(), k);
+}
+
+/**
+ * Skill keys for a skillTest bonus (schema v2.1 §4): an array or a comma list of keys or names ("intimidation",
+ * "Art of War", "Jianshu"). Built-in skills become their keys; anything else (a custom skill item's id) is kept as is.
+ */
+export function parseSkillList(v) {
+  const raw = Array.isArray(v) ? v : String(v ?? "").split(/[,;]/);
+  const out = [];
+  for (const r of raw) {
+    const t = String(r ?? "").trim();
+    if (!t) continue;
+    const k = SKILL_BY_NAME.get(t.toLowerCase()) ?? SKILL_BY_NAME.get(t.replace(/[\s-]+/g, "").toLowerCase()) ?? t;
+    if (!out.includes(k)) out.push(k);
+  }
+  return out;
+}
+const skillName = (k) => SKILLS[k]?.label.replace(/\s*\(.*\)\s*$/, "") ?? k;
+/** "Intimidation", "Eloquence / Diplomacy". */
+export const skillListText = (skills) => (skills ?? []).map(skillName).join(" / ");
+
 export function normalizeBonus(b = {}, fallbackLabel = "") {
   const stat = BONUS_STATS[b.stat] ? b.stat : "pd";
+  const extra = stat === "skillTest" ? { skills: parseSkillList(b.skills) } : {};
   return {
     stat,
     value: Math.trunc(Number(b.value) || 0),
@@ -38,7 +67,15 @@ export function normalizeBonus(b = {}, fallbackLabel = "") {
     label: String(b.label ?? "").trim() || fallbackLabel,
     stack: normalizeStack(b.stack, b),
     vsSource: !!b.vsSource,
+    ...extra,
   };
+}
+
+/** True when the bonus is a skillTest bonus covering `skill` (a skill key). */
+export function appliesToSkill(b, skill) {
+  if (!skill || (b?.stat ?? b?.bonus?.stat) !== "skillTest") return false;
+  const list = b.skills ?? b.bonus?.skills ?? [];
+  return parseSkillList(list).includes(skill);
 }
 
 /** The bonus's number: its value, plus an Aspect when it names one ("reduced by his Metal"). */
@@ -48,15 +85,16 @@ export function bonusValue(b, aspects = {}) {
 
 /** "Passive Defense +1", "first hit each round −Metal 5", "+2 damage". `steps` (growing bonuses) multiplies the value. */
 export function describeBonus(b, aspects = {}, steps = null) {
+  const short = b.stat === "skillTest" ? `${skillListText(parseSkillList(b.skills)) || "Skill"} Tests` : BONUS_SHORT[b.stat];
   if (steps != null) {
     const per = bonusValue(b, aspects), v = per * steps, sign = REDUCING_STATS.has(b.stat) ? "−" : v < 0 ? "−" : "+";
-    return `${BONUS_SHORT[b.stat]} ${sign}${Math.abs(v)} (${steps}/${b.stack?.max ?? "?"})`;
+    return `${short} ${sign}${Math.abs(v)} (${steps}/${b.stack?.max ?? "?"})`;
   }
   const v = bonusValue(b, aspects);
   const asp = b.aspect ? `${ASPECT_LABEL[b.aspect]}${b.value ? (b.value > 0 ? ` +${b.value}` : ` −${-b.value}`) : ""}` : "";
-  if (REDUCING_STATS.has(b.stat)) return `${BONUS_SHORT[b.stat]} −${asp ? `${asp} (${v})` : v}`;
+  if (REDUCING_STATS.has(b.stat)) return `${short} −${asp ? `${asp} (${v})` : v}`;
   const sign = v < 0 ? "−" : "+";
-  return `${BONUS_SHORT[b.stat]} ${sign}${asp ? `${asp} (${Math.abs(v)})` : Math.abs(v)}`;
+  return `${short} ${sign}${asp ? `${asp} (${Math.abs(v)})` : Math.abs(v)}`;
 }
 
 /** Signature items whose bonuses are standing (the in-person Passive slot): actives apply only when used, battle slots belong to the battlefield. */
@@ -93,7 +131,7 @@ export function collectBonuses(sources, { aspects = {}, stacks = [], engaged = n
       out.push({ key, stat: b.stat, value: b.stack ? per * steps : per, mode: b.mode, condition: b.condition,
         label: b.stack ? `${b.label} (${steps}/${b.stack.max})` : b.label, baseLabel: b.label,
         sourceId: s.id, sourceName: s.name, bonus: b, text: describeBonus(b, aspects, steps), fromEffect: !!s.fromEffect,
-        stack: b.stack, steps, perStep: per,
+        stack: b.stack, steps, perStep: per, ...(b.skills ? { skills: b.skills } : {}),
         vsSourceActor: b.vsSource && s.sourceActor ? s.sourceActor : null, sourceActorName: s.sourceActorName ?? "" });
     });
   }
@@ -140,6 +178,19 @@ export function bonusParts(list, stat, { ticked = {}, sign = 1, prefix = "" } = 
   }
   return { parts, total: parts.reduce((t, p) => t + p.value, 0), always, situational };
 }
+
+/**
+ * skillTest bonuses (schema v2.1 §4) on a Test with `skill`, as tagged parts: always-on ones, plus situational ones
+ * that are ticked (ticked = { [key]: true }). Martial skills are left to the attack and defense rolls' own stats, so
+ * pass `martial: true` to get nothing. Returns { parts, total, always, situational (each with .ticked) }.
+ */
+export function skillTestParts(list, skill, { ticked = {}, martial = false } = {}) {
+  if (martial || !skill) return { parts: [], total: 0, always: [], situational: [] };
+  return bonusParts((list ?? []).filter(b => appliesToSkill(b, skill)), "skillTest", { ticked });
+}
+
+/** Every skillTest bonus on the list, for dialogs where the skill is still to be chosen. */
+export const skillTestBonuses = (list) => (list ?? []).filter(b => b.stat === "skillTest");
 
 /**
  * Passive Defense with every part tagged: Water + Wood + 2, sheet bonus, armour modifiers, unique bonuses (always on,

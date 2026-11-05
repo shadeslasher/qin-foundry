@@ -6,10 +6,10 @@
 // round, expired by the GM's client). A player's resist that lands on an actor they can't update goes through a query.
 import { SYSTEM_ID, SKILLS, SKILL_LEVELS } from "./config.mjs";
 import { normalizeEffect, durationText, testText, testSideParts, resistOutcome, appliedEffect, withEffect, appliedText, sortForPicker, EFFECT_TARGETS, effectButtons, effectAction, playerMayLand } from "./rules/skill-effects.mjs";
-import { collectBonuses } from "./rules/bonuses.mjs";
+import { collectBonuses, skillTestParts, skillTestBonuses, appliesToSkill } from "./rules/bonuses.mjs";
 import { part, sumParts, partRowHTML } from "./rules/sources.mjs";
-import { rollYinYang, Chat } from "./dice.mjs";
-import { getState, saveState, currentFight } from "./combat-state.mjs";
+import { rollYinYang, Chat, formDialog } from "./dice.mjs";
+import { getState, saveState, currentFight, rollBonuses, tickedOf } from "./combat-state.mjs";
 import { attackerToken } from "./attack-fx.mjs";
 
 const QUERY = `${SYSTEM_ID}.skillEffect`;
@@ -17,19 +17,44 @@ const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? ""
 const uid = () => foundry.utils.randomID?.() ?? Math.random().toString(36).slice(2, 12);
 const skillLabel = (k) => SKILLS[k]?.label ?? k;
 const parts = (list) => `<ul class="qin-parts">${list.map(partRowHTML).join("")}</ul>`;
+/** Situational bonuses offered on a roll, ticked or not (like the roll card's list). */
+const sitList = (list) => list?.length ? `<div class="qin-situational"><span class="qin-muted">Situational bonuses</span><ul>${list.map(b => `<li class="${b.ticked ? "on" : ""}"><span class="qin-src qin-src-unique qin-src-situational">Unique</span> ${esc(`${b.label}: ${b.text}${b.condition ? ` (${b.condition})` : ""}`)} ${b.ticked ? "<b>· applied</b>" : '<span class="qin-muted">· not ticked</span>'}</li>`).join("")}</ul></div>` : "";
 
-/** Roll one side of an effect's Test for an actor: { total, parts, dice, roll }. */
-export async function rollTestSide(actor, sideDef) {
+/**
+ * The actor's "Tests with given skills" bonuses (schema v2.1) that match a Test side's skill: always-on ones apply;
+ * situational ones use the Combat panel's ticks, or (ask: true, the user's own roll) a tick-box dialog pre-ticked
+ * from the panel. Returns { parts, situational }.
+ */
+export async function skillTestSide(actor, skillKey, { ask = false, title = "" } = {}) {
+  const sk = skillKey ? actor.getSkill?.(skillKey) : null;
+  if (!sk || sk.martial) return { parts: [], situational: [] };
+  const list = skillTestBonuses(rollBonuses(actor)).filter(b => appliesToSkill(b, skillKey));
+  let ticked = tickedOf(actor);
+  const sit = list.filter(b => b.mode === "situational");
+  if (ask && sit.length) {
+    const rows = sit.map((b, i) => `<label class="qin-inline"><input type="checkbox" name="sit_${i}"${ticked[b.key] ? " checked" : ""}> <span class="qin-src qin-src-unique qin-src-situational">Unique</span> ${esc(`${b.label}: ${b.text}`)}${b.condition ? ` <span class="qin-muted">(${esc(b.condition)})</span>` : ""}</label>`).join("");
+    const fd = await formDialog({ title: title || `${actor.name}: ${sk.label} Test`, okLabel: "Roll",
+      content: `<div class="qin-dialog"><div class="qin-dlg-bonuses"><span class="qin-muted">Situational: tick the ones that apply</span>${rows}</div></div>` });
+    if (fd) { ticked = {}; sit.forEach((b, i) => { if (fd[`sit_${i}`]) ticked[b.key] = true; }); }
+  }
+  const u = skillTestParts(list, skillKey, { ticked });
+  return { parts: u.parts, situational: u.situational };
+}
+
+/** Roll one side of an effect's Test for an actor: { total, parts, dice, roll, situational }. ask: tick boxes for situational skill bonuses. */
+export async function rollTestSide(actor, sideDef, { ask = false, title = "" } = {}) {
   const sys = actor.system;
   const sk = sideDef.skill ? actor.getSkill(sideDef.skill) : null;
+  const uniq = await skillTestSide(actor, sideDef.skill, { ask, title });
   const { roll, dice } = await rollYinYang({ beginner: !!sk && sk.value === 0 });
   const list = [
     ...testSideParts(sideDef, { aspects: sys.aspects, resistance: sys.resistance, skill: sk ? { label: `${sk.label} (${SKILL_LEVELS[sk.value] ?? sk.value})`, value: sk.value } : null }),
     part("dice", `Yin / Yang ${dice.yin} / ${dice.yang}${dice.double && !dice.critFail ? ", double" : ""}`, dice.value),
+    ...uniq.parts,
     ...(actor._penaltyParts?.(false) ?? []),
   ];
   await actor._afterDice?.(dice);
-  return { total: sumParts(list), parts: list, dice, roll };
+  return { total: sumParts(list), parts: list, dice, roll, situational: uniq.situational };
 }
 
 const bonusLine = (bonuses, aspects, who) => collectBonuses([{ id: "x", name: "", bonuses }], { aspects })
@@ -41,7 +66,7 @@ export async function postEffectCard(actor, item, { selfApplied = false } = {}) 
   if (!eff) return null;
   const fight = currentFight();
   let roll = null;
-  if (eff.test) roll = await rollTestSide(actor, eff.test.user);
+  if (eff.test) roll = await rollTestSide(actor, eff.test.user, { ask: true, title: `${actor.name}: ${item.name}` });
   const aspects = actor.system.aspects;
   const fail = bonusLine(eff.onFail, aspects, actor.name), succ = bonusLine(eff.onSuccess, aspects, actor.name);
   const buttons = effectButtons(eff);
@@ -51,7 +76,7 @@ export async function postEffectCard(actor, item, { selfApplied = false } = {}) 
     fail ? `<p><b>${eff.test ? "If they lose:" : "Effect:"}</b> ${esc(fail)}</p>` : "",
     eff.note ? `<p><b>${fail ? "Also" : eff.test ? "If they lose" : "Effect"}:</b> ${esc(eff.note)}</p>` : "",
     succ ? `<p><b>If they resist:</b> ${esc(succ)}</p>` : eff.test ? `<p class="qin-muted">Resisted: no effect. Ties go to the target.</p>` : "",
-    roll ? `<div class="qin-effect-roll"><span class="qin-muted">${esc(actor.name)}'s Test</span>${parts(roll.parts)}<div class="qin-total">Total <b>${roll.total}</b>${roll.dice.critFail ? " · critical failure: everyone resists" : ""}</div></div>` : "",
+    roll ? `<div class="qin-effect-roll"><span class="qin-muted">${esc(actor.name)}'s Test</span>${parts(roll.parts)}<div class="qin-total">Total <b>${roll.total}</b>${roll.dice.critFail ? " · critical failure: everyone resists" : ""}</div>${sitList(roll.situational)}</div>` : "",
   ];
   const content = `<div class="qin-chat qin-effect-card"><h3><span class="qin-src qin-src-unique">Unique</span> ${esc(item.name)}</h3>
     <p class="qin-muted">Used by <b>${esc(actor.name)}</b>${item.system.chiCost ? ` · ${item.system.chiCost} Chi` : ""}</p>${lines.join("")}

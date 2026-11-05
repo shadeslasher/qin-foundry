@@ -5,5 +5,8 @@
   <div class="form-group"><label>Modifier</label><input type="number" name="modifier" value="{{o.modifier}}"></div>
   {{#if isCharacter}}<div class="form-group"><label>Inner strength (max {{earth}}, 2 Chi each)</label><input type="number" name="inner" value="0" min="0" max="{{earth}}"></div>{{/if}}
   <div class="form-group"><label>Physical action (armor penalty)</label><input type="checkbox" name="physical" {{#if o.physical}}checked{{/if}}></div>
+  {{#if always.length}}<div class="qin-dlg-bonuses"><span class="qin-muted">Applied automatically (with the skills named)</span>{{#each always}}<div><span class="qin-src qin-src-unique">Unique</span> {{this}}</div>{{/each}}</div>{{/if}}
+  {{#if sitOpts.length}}<div class="qin-dlg-bonuses"><span class="qin-muted">Situational: tick the ones that apply (only count with the skills named)</span>
+    {{#each sitOpts}}<label class="qin-inline"><input type="checkbox" name="sit_{{i}}" {{#if checked}}checked{{/if}}> <span class="qin-src qin-src-unique qin-src-situational">Unique</span> {{text}}{{#if condition}} <span class="qin-muted">({{condition}})</span>{{/if}}</label>{{/each}}</div>{{/if}}
   <p class="qin-muted">Common STs: Easy 5, Average 6, Difficult 9, Very difficult 11, Heroic 13, Legendary 15.</p>
 </div>
