@@ -33,6 +33,26 @@ export function normalizeEffect(e) {
 
 export const isFriendlyTarget = (eff) => ["self", "ally", "allies"].includes(eff?.target);
 
+/**
+ * The effect card's buttons (David, 2026-11-05: buffs are GM-only). Enemy effects with a Test: "Resist" (a player
+ * rolls their own character's resist; the GM picks who resists). Everything else (self / ally / allies, and enemy
+ * effects without a Test): one GM-only "Apply" that opens the scene picker. [{ action, label, gmOnly }].
+ */
+export function effectButtons(eff) {
+  if (!eff) return [];
+  if (!isFriendlyTarget(eff) && eff.test) return [{ action: "effectResist", label: "Resist", gmOnly: false }];
+  return [{ action: "effectApply", label: "Apply", gmOnly: true }];
+}
+
+/** Older cards' buttons ("Take it", "Apply to me", "Apply (GM)") are all the GM's Apply now. */
+export const effectAction = (action) => (action === "effectResist" ? "effectResist" : "effectApply");
+
+/**
+ * May a player (not the GM) land this effect? Only the outcome of their own resist roll against an enemy effect
+ * with a Test. via = "resist" | "apply".
+ */
+export const playerMayLand = (eff, via) => via === "resist" && !!eff?.test && !isFriendlyTarget(eff);
+
 /** "2 rounds", "until the end of this round", "this scene", "the rest of the fight". */
 export function durationText(duration) {
   if (!duration) return "";
@@ -87,7 +107,7 @@ export function outcomeFor(eff, outcome) {
 
 /**
  * The entry put on the target's combat state (flags.qin.combatState.effects) for an outcome.
- * src = { itemId, itemName, actorUuid, actorName }. Same skill from the same user replaces the old entry (same key).
+ * src = { itemId, itemName, actorUuid, actorName, messageId }. Same skill from the same user replaces the old entry (same key).
  */
 export function appliedEffect(eff, outcome, src, fight, id) {
   const o = outcomeFor(eff, outcome);
@@ -95,7 +115,7 @@ export function appliedEffect(eff, outcome, src, fight, id) {
   const sourceId = `fx-${String(src.itemId ?? "x")}-${String(src.actorUuid ?? "").replace(/[^\w]/g, "")}`.slice(0, 80);
   return {
     id, key: sourceId, sourceId, kind: "skillEffect", label: src.itemName, source: src.actorName ?? "",
-    sourceActor: src.actorUuid ?? "", outcome, note: o.note, bonuses: o.bonuses.map(b => ({ ...b })),
+    sourceActor: src.actorUuid ?? "", messageId: src.messageId ?? "", outcome, note: o.note, bonuses: o.bonuses.map(b => ({ ...b })),
     ...durationFields(eff.duration, fight),
   };
 }

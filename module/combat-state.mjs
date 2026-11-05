@@ -7,6 +7,7 @@ import { collectBonuses, bonusesVs } from "./rules/bonuses.mjs";
 import { stackDefs, stackEvent, adjustSteps, roundAlreadyCounted, attackedLastRound, countEngaged, engagedWithAdjust } from "./rules/stacks.mjs";
 import { attackerToken } from "./attack-fx.mjs";
 import { postEffectCard } from "./skill-effects.mjs";
+import { normalizeEffect, isFriendlyTarget, durationFields } from "./rules/skill-effects.mjs";
 import * as Q from "./rules/qin-rules.mjs";
 import { Chat } from "./dice.mjs";
 
@@ -235,7 +236,15 @@ export async function plainTaoUse(actor, item, lvl) {
 /* ---------------------------------------- unique actives */
 
 const ATTACK_STATS = new Set(["attack", "damage"]);
-export const activeHasAttackBonus = (item) => (item.system.bonuses ?? []).some(b => ATTACK_STATS.has(b.stat));
+/**
+ * An attack active: attack / damage bonuses, and no buff for allies. A buff's own bonuses (Attack +2 for him and his
+ * allies...) are his share of the buff, not an attack (Zhang Ji, Strike Before They Gather: fixed 2026-11-05).
+ */
+export const activeHasAttackBonus = (item) => {
+  const eff = normalizeEffect(item.system.effect);
+  if (eff && isFriendlyTarget(eff)) return false;
+  return (item.system.bonuses ?? []).some(b => ATTACK_STATS.has(b.stat));
+};
 
 /** Spend an active's Chi and start its recharge. Returns false (with a warning) while it recharges. */
 export async function markActiveUsed(actor, item) {
@@ -262,17 +271,22 @@ export async function useActive(actor, item) {
   }
   if (!(await markActiveUsed(actor, item))) return;
   const fight = currentFight();
-  const others = (item.system.bonuses ?? []).filter(b => !ATTACK_STATS.has(b.stat));
+  const eff = normalizeEffect(item.system.effect);
+  const buff = !!eff && isFriendlyTarget(eff);
+  // His own bonuses from the active: all of them for a buff (his share, for the buff's duration); otherwise the
+  // non-attack ones, for the rest of the fight if once per fight, else the recharge's rounds (1 when there is none)
+  const others = (item.system.bonuses ?? []).filter(b => buff || !ATTACK_STATS.has(b.stat));
   if (others.length) {
     const st = getState(actor);
     st.effects = st.effects.filter(e => e.sourceId !== item.id);
     const n = Number(item.system.recharge) || 0;
-    st.effects.push({ id: uid(), key: `sig.${item.id}`, sourceId: item.id, label: item.name, kind: "unique", bonuses: others.map(b => ({ ...b })),
-      combat: fight?.id ?? "", round: fight?.round ?? 0, rounds: item.system.perScene ? 0 : Math.max(1, n), restOfFight: !!item.system.perScene });
+    const timing = buff ? durationFields(eff.duration, fight)
+      : { combat: fight?.id ?? "", round: fight?.round ?? 0, rounds: item.system.perScene ? 0 : Math.max(1, n), restOfFight: !!item.system.perScene };
+    st.effects.push({ id: uid(), key: `sig.${item.id}`, sourceId: item.id, label: item.name, kind: "unique", bonuses: others.map(b => ({ ...b })), ...timing });
     await saveState(actor, st);
   }
   // An active that acts on others (schema v2 effect) posts its effect card (with the user's Test) instead
-  if (item.system.effect?.target) return postEffectCard(actor, item);
+  if (eff) return postEffectCard(actor, item, { selfApplied: buff && others.length > 0 });
   const rl = rechargeLabel(item.system);
   const fx = others.length ? `<p>${collectBonuses([{ id: item.id, name: item.name, bonuses: others }], { aspects: actor.system.aspects }).map(b => esc(b.text + (b.condition ? ` (${b.condition})` : ""))).join(" · ")}</p>` : "";
   await Chat().create({

@@ -1,9 +1,11 @@
 // Unique-skill effects on others (David, 2026-11-05, skill-effects schema v2 §2). Using an active with an `effect`
-// posts an effect card. Allies click "Take it"; enemies click "Resist" (or the GM picks who it lands on in a scene
-// selection dialog). What lands is a timed effect on the target's combat state (shown in its Combat panel, counted
-// down by combat round, expired by the GM's client). Players' clicks that need the GM go through a query.
+// posts an effect card. Buffs (self / ally / allies) and enemy effects without a Test are GM-only: one "Apply" button,
+// hidden from players, opens the scene picker (David, 2026-11-05). Enemy effects with a Test have "Resist": a player
+// rolls their own character's resist; the GM's Resist opens the picker and rolls for every ticked actor at once.
+// What lands is a timed effect on the target's combat state (shown in its Combat panel, counted down by combat
+// round, expired by the GM's client). A player's resist that lands on an actor they can't update goes through a query.
 import { SYSTEM_ID, SKILLS, SKILL_LEVELS } from "./config.mjs";
-import { normalizeEffect, isFriendlyTarget, durationText, testText, testSideParts, resistOutcome, appliedEffect, withEffect, appliedText, sortForPicker, EFFECT_TARGETS } from "./rules/skill-effects.mjs";
+import { normalizeEffect, durationText, testText, testSideParts, resistOutcome, appliedEffect, withEffect, appliedText, sortForPicker, EFFECT_TARGETS, effectButtons, effectAction, playerMayLand } from "./rules/skill-effects.mjs";
 import { collectBonuses } from "./rules/bonuses.mjs";
 import { part, sumParts, partRowHTML } from "./rules/sources.mjs";
 import { rollYinYang, Chat } from "./dice.mjs";
@@ -34,18 +36,15 @@ const bonusLine = (bonuses, aspects, who) => collectBonuses([{ id: "x", name: ""
   .map((b, i) => `${b.text}${bonuses[i]?.vsSource ? ` against ${who}` : ""}`).join(", ");
 
 /** Post the effect card for an active (its Chi and recharge already taken). Rolls the user's Test if there is one. */
-export async function postEffectCard(actor, item) {
+export async function postEffectCard(actor, item, { selfApplied = false } = {}) {
   const eff = normalizeEffect(item.system.effect);
   if (!eff) return null;
   const fight = currentFight();
   let roll = null;
   if (eff.test) roll = await rollTestSide(actor, eff.test.user);
   const aspects = actor.system.aspects;
-  const friendly = isFriendlyTarget(eff);
   const fail = bonusLine(eff.onFail, aspects, actor.name), succ = bonusLine(eff.onSuccess, aspects, actor.name);
-  const buttons = friendly ? [["effectTake", "Take it"]]
-    : eff.test ? [["effectResist", "Resist"]]
-      : [["effectApply", "Apply (GM)"], ["effectApplyMe", "Apply to me"]];
+  const buttons = effectButtons(eff);
   const lines = [
     `<p class="qin-sig-meta">${esc(EFFECT_TARGETS[eff.target])} · ${esc(durationText(eff.duration))}${eff.test ? ` · ${esc(testText(eff.test, skillLabel))}` : ""}</p>`,
     item.system.description ? `<div class="qin-effect-text">${item.system.description}</div>` : "",
@@ -56,23 +55,31 @@ export async function postEffectCard(actor, item) {
   ];
   const content = `<div class="qin-chat qin-effect-card"><h3><span class="qin-src qin-src-unique">Unique</span> ${esc(item.name)}</h3>
     <p class="qin-muted">Used by <b>${esc(actor.name)}</b>${item.system.chiCost ? ` · ${item.system.chiCost} Chi` : ""}</p>${lines.join("")}
-    <div class="qin-buttons">${buttons.map(([a, l]) => `<button type="button" data-qin-action="${a}">${l}</button>`).join("")}</div></div>`;
+    <div class="qin-buttons">${buttons.map(b => `<button type="button" data-qin-action="${b.action}"${b.gmOnly ? " data-qin-gm-only" : ""}>${b.label}</button>`).join("")}</div></div>`;
   const tok = attackerToken(actor);
+  // "Against him" bonuses are matched by uuid: use the token's actor (an unlinked token's own actor) when there is one
+  const src = tok?.actor ?? actor;
   return Chat().create({
     speaker: Chat().getSpeaker({ actor }), content, rolls: roll ? [roll.roll] : [],
-    flags: { [SYSTEM_ID]: { kind: "effect", user: actor.uuid, userName: actor.name, itemId: item.id, itemName: item.name, effect: eff,
-      total: roll?.total ?? null, critFail: !!roll?.dice.critFail, disposition: tok?.document?.disposition ?? 1, fight } },
+    flags: { [SYSTEM_ID]: { kind: "effect", user: src.uuid, userName: actor.name, itemId: item.id, itemName: item.name, effect: eff,
+      total: roll?.total ?? null, critFail: !!roll?.dice.critFail, disposition: tok?.document?.disposition ?? 1, fight, selfApplied } },
   });
 }
 
 /* ---------------------------------------- landing an effect */
 
-const srcOf = (flags) => ({ itemId: flags.itemId, itemName: flags.itemName, actorUuid: flags.user, actorName: flags.userName });
+const srcOf = (flags, messageId = "") => ({ itemId: flags.itemId, itemName: flags.itemName, actorUuid: flags.user, actorName: flags.userName, messageId });
 
-/** Put an outcome of the card's effect on a target actor (through the GM if the user can't update it). Returns the entry. */
-export async function landEffect(message, target, outcome) {
+/**
+ * Put an outcome of the card's effect on a target actor (through the GM if the user can't update it). Returns the entry.
+ * via: "apply" (the GM's Apply) or "resist" (a resist roll). Players may only land their own resist roll's outcome.
+ */
+export async function landEffect(message, target, outcome, { via = "apply" } = {}) {
   const flags = message.flags[SYSTEM_ID];
-  const entry = appliedEffect(flags.effect, outcome, srcOf(flags), currentFight(), uid());
+  const eff = normalizeEffect(flags.effect);
+  if (!eff) return null;
+  if (!game.user.isGM && !playerMayLand(eff, via)) { ui.notifications.warn("Only the GM can apply that."); return null; }
+  const entry = appliedEffect(eff, outcome, srcOf(flags, message.id), currentFight(), uid());
   if (!entry) return null;
   if (target.isOwner) {
     const st = getState(target);
@@ -83,7 +90,7 @@ export async function landEffect(message, target, outcome) {
   const gm = game.users.activeGM;
   if (!gm) { ui.notifications.warn("The GM needs to be connected to apply that."); return null; }
   try {
-    const r = await gm.query(QUERY, { userId: game.user.id, targetUuid: target.uuid, outcome, messageId: message.id }, { timeout: 15000 });
+    const r = await gm.query(QUERY, { userId: game.user.id, targetUuid: target.uuid, outcome, via, messageId: message.id }, { timeout: 15000 });
     return r?.ok ? entry : null;
   } catch (e) { ui.notifications.warn(e.message); return null; }
 }
@@ -110,29 +117,33 @@ async function resistRoll(flags, target) {
 
 export function onRenderEffectCard(message, html, flags) {
   html.querySelectorAll("[data-qin-action]").forEach((btn) => {
-    const a = btn.dataset.qinAction;
+    // Older cards: "Take it" / "Apply to me" / "Apply (GM)" are the GM's Apply now
+    const a = effectAction(btn.dataset.qinAction);
     if (a === "effectApply" && !game.user.isGM) return btn.remove();
-    if (a === "effectApplyMe" && game.user.isGM) return btn.remove();
+    if (a === "effectApply" && btn.textContent !== "Apply") btn.textContent = "Apply";
     btn.addEventListener("click", (ev) => { ev.preventDefault(); onEffectClick(a, message, flags).catch(e => { console.error(e); ui.notifications.error(e.message); }); });
   });
 }
 
-async function onEffectClick(action, message, flags) {
-  if (!normalizeEffect(flags.effect)) return;
-  if (game.user.isGM && action !== "effectApplyMe") return new EffectTargetPicker({ message, mode: action === "effectResist" ? "resist" : "apply" }).render({ force: true });
+/** A click on an effect card's button: the GM gets the scene picker; a player can only Resist with their own character. */
+export async function onEffectClick(action, message, flags) {
+  const eff = normalizeEffect(flags.effect);
+  if (!eff) return;
+  action = effectAction(action);
+  if (action === "effectResist" && !eff.test) action = "effectApply";
+  if (game.user.isGM) return new EffectTargetPicker({ message, mode: action === "effectResist" ? "resist" : "apply" }).render({ force: true });
+  if (action !== "effectResist") return ui.notifications.warn("Only the GM can apply that.");
   const me = myCharacter();
   if (!me) return ui.notifications.warn("Select your token (or have a character assigned) first.");
-  if (action === "effectResist") {
-    const r = await resistRoll(flags, me);
-    const entry = await landEffect(message, me, r.outcome);
-    return Chat().create({
-      speaker: Chat().getSpeaker({ actor: me }), rolls: [r.roll],
-      content: `<div class="qin-chat"><h3>${esc(me.name)} resists ${esc(flags.itemName)}</h3>${parts(r.parts)}<div class="qin-total">Total <b>${r.total}</b> vs <b>${flags.total}</b> (${esc(flags.userName)})</div>
-        <div class="qin-result ${r.outcome === "success" ? "ok" : "fail"}">${r.outcome === "success" ? "Resisted" : "Fails to resist"}</div><p>${landedLine(me, entry)}</p></div>`,
-    });
-  }
-  const entry = await landEffect(message, me, "fail");
-  if (entry) await Chat().create({ speaker: Chat().getSpeaker({ actor: me }), content: `<div class="qin-chat"><p><span class="qin-src qin-src-unique">Unique</span> ${esc(flags.itemName)} (from ${esc(flags.userName)}): ${landedLine(me, entry)}</p></div>` });
+  // One resist per card: a character who already failed this card's Test can't roll again to shake it off
+  if (getState(me).effects.some(e => e.messageId && e.messageId === message.id)) return ui.notifications.info(`${me.name} has already rolled against this.`);
+  const r = await resistRoll(flags, me);
+  const entry = await landEffect(message, me, r.outcome, { via: "resist" });
+  return Chat().create({
+    speaker: Chat().getSpeaker({ actor: me }), rolls: [r.roll],
+    content: `<div class="qin-chat"><h3>${esc(me.name)} resists ${esc(flags.itemName)}</h3>${parts(r.parts)}<div class="qin-total">Total <b>${r.total}</b> vs <b>${flags.total}</b> (${esc(flags.userName)})</div>
+      <div class="qin-result ${r.outcome === "success" ? "ok" : "fail"}">${r.outcome === "success" ? "Resisted" : "Fails to resist"}</div><p>${landedLine(me, entry)}</p></div>`,
+  });
 }
 
 /* ---------------------------------------- GM: pick targets on the scene */
@@ -193,15 +204,21 @@ export class EffectTargetPicker extends (api?.ApplicationV2 ?? class {}) {
   }
 
   static async #onApply() {
+    if (!game.user.isGM) return ui.notifications.warn("Only the GM can apply that.");
     const ids = [...this.element.querySelectorAll('input[name="t"]:checked')].map(cb => cb.value);
     const byId = new Map(this.tokens().map(t => [t.id, t]));
     const results = [], rolls = [];
     for (const id of ids) {
       const t = byId.get(id);
       if (!t) continue;
+      // The user already has his share of a buff from using it (his own bonuses): don't stack a second copy
+      if (this.mode === "apply" && this.flags.selfApplied && t.actor.uuid === this.flags.user) {
+        results.push({ name: t.name, total: null, line: `${esc(t.name)}: already has it (used the skill)` });
+        continue;
+      }
       if (this.mode === "resist") {
         const r = await resistRoll(this.flags, t.actor);
-        const entry = await landEffect(this.message, t.actor, r.outcome);
+        const entry = await landEffect(this.message, t.actor, r.outcome, { via: "resist" });
         rolls.push(r.roll);
         results.push({ name: t.name, total: r.total, outcome: r.outcome, parts: r.parts, line: landedLine(t.actor, entry) });
       } else {
@@ -225,22 +242,27 @@ export class EffectTargetPicker extends (api?.ApplicationV2 ?? class {}) {
 
 export function registerSkillEffects() {
   Hooks.once("init", () => {
-    CONFIG.queries[QUERY] = async ({ userId, targetUuid, outcome, messageId }) => {
-      if (!game.user.isGM) return { ok: false };
-      const user = game.users.get(userId);
-      const flags = game.messages.get(messageId)?.flags?.[SYSTEM_ID];
-      if (flags?.kind !== "effect") return { ok: false };
-      const target = targetUuid ? await fromUuid(targetUuid) : null;
-      const caster = flags?.user ? await fromUuid(flags.user) : null;
-      if (!user || !target || !normalizeEffect(flags?.effect)) return { ok: false };
-      // The player owns the target (their own character) or the actor who used the skill
-      if (!target.testUserPermission(user, "OWNER") && !caster?.testUserPermission(user, "OWNER")) return { ok: false };
-      const entry = appliedEffect(normalizeEffect(flags.effect), outcome === "success" ? "success" : "fail", srcOf(flags), currentFight(), uid());
-      if (!entry) return { ok: true };
-      const st = getState(target);
-      st.effects = withEffect(st.effects, entry);
-      await saveState(target, st);
-      return { ok: true };
-    };
+    CONFIG.queries[QUERY] = skillEffectQuery;
   });
+}
+
+/**
+ * The GM's side of a player's request to land an effect. Refused unless it is the player's own resist roll against
+ * an enemy effect with a Test, on a character they own (buffs and Test-less effects are the GM's: David, 2026-11-05).
+ */
+export async function skillEffectQuery({ userId, targetUuid, outcome, via, messageId }) {
+  if (!game.user.isGM) return { ok: false };
+  const user = game.users.get(userId);
+  const flags = game.messages.get(messageId)?.flags?.[SYSTEM_ID];
+  if (flags?.kind !== "effect") return { ok: false };
+  const eff = normalizeEffect(flags.effect);
+  const target = targetUuid ? await fromUuid(targetUuid) : null;
+  if (!user || !target || !eff) return { ok: false };
+  if (!user.isGM && (!playerMayLand(eff, via) || !target.testUserPermission(user, "OWNER"))) return { ok: false, refused: true };
+  const entry = appliedEffect(eff, outcome === "success" ? "success" : "fail", srcOf(flags, messageId), currentFight(), uid());
+  if (!entry) return { ok: true };
+  const st = getState(target);
+  st.effects = withEffect(st.effects, entry);
+  await saveState(target, st);
+  return { ok: true };
 }
