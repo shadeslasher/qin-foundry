@@ -357,3 +357,21 @@ test('AI: puts out a fire next to a square it must keep, leaves a harmless one a
   assert.ok(acts.true.includes('extinguish'), 'guards the square the players must burn: ' + acts.true);
   assert.ok(!acts.false.includes('extinguish'), 'nothing at stake: ' + acts.false);
 });
+
+test('AI: with Set Aflame, it sets the grass alight next to enemies when the fire is worth more than its attack', () => {
+  const still = unitType('still', { move: 0 });
+  const s = R.newState(); s.players.p1 = { name: 'Alice' };
+  s.map.cols = 12; s.map.rows = 12; s.map.tiles = {};
+  for (let x = 0; x < 12; x++) for (let y = 0; y < 12; y++) s.map.tiles[x + ',' + y] = { terrain: 'plains' };
+  for (const k of ['6,5', '7,5', '7,4', '7,6', '8,5']) s.map.tiles[k] = { terrain: 'tall-grass' };
+  s.library.unitTypes.push(still, foe);
+  const ids = [{ typeId: 'foe', side: 'player', owner: 'p1', x: 7, y: 5 }, { typeId: 'still', side: 'enemy', x: 5, y: 5 }]
+    .map(o => must(R.act(s, HOST, { type: 'addUnit', ...o })).unitId);
+  must(R.act(s, HOST, { type: 'startBattle' })); R.setRng(() => 0.3); must(R.act(s, HOST, { type: 'startRound' }));
+  s.tactics = { phase: 'battle', sides: { player: null, ally: null, enemy: { name: 'Cao Cao', aow: 3 } }, placed: [{ id: 't1', key: 'setAflame', side: 'enemy', x: 5, y: 5, size: 1, state: 'hidden' }], nextId: 2 };
+  must(R.act(s, P1, { type: 'begin', unitId: ids[0] })); must(R.act(s, P1, { type: 'endTurn', unitId: ids[0] }));
+  const acts = runAI(s, { enemy: true }, 3);
+  const set = acts.find(a => a.type === 'setFire');
+  assert.ok(set && set.x === 6 && set.y === 5, 'sets the grass next to the enemy alight: ' + JSON.stringify(acts));
+  assert.ok(s.siege.fires['6,5']);
+});

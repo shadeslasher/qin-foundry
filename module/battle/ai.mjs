@@ -49,6 +49,10 @@
 // puts a fire out (Extinguish, instead of attacking) when it threatens a square that matters to the side: a square
 // it keeps (worst of all when that square itself burns), any unit's job square, a building that helps its side
 // (morale squares, defensive buildings), or allies standing next to the flames (see fireDanger).
+// Starting fires (fireValue): the Set Fire action (Set Aflame tactic) and Fire Arrows hits that light a square are
+// worth what the fire does to the enemy (units on it lose troops and morale if they stay, lose cover, and the
+// fire spreads to neighbours) and to the side's own goals (a square it must burn), minus what it threatens of its own.
+// Officer skills aren't automated in the engine (the GM applies them), so the AI doesn't use them yet.
 import * as E from './engine.mjs';
 
 const HOST = { id: 'host', host: true };
@@ -251,6 +255,7 @@ export function strategy(s, side) {
   const round = Number(s.turn?.round) || 0, done = Number(st.roundsDone) || 0;
   const keep = new Map(), take = new Map(), protect = new Set(), hunt = new Set(), why = [];
   const escapeTake = new Map(); // unitId -> extraction squares it heads for (ally side)
+  const burn = []; // squares the side wants burnt (allies of the players with a Burn objective)
   let aggr = 0;
   const left = (c) => Math.max(0, (Number(c.rounds) || 0) - done);
   const pairedHold = new Set((o.victory || []).filter(c => c.type === 'hold').map(c => c.id));
@@ -265,7 +270,7 @@ export function strategy(s, side) {
       case 'routUnit': for (const id of c.unitIds || []) protect.add(id); break;
       case 'escape': for (const id of c.unitIds || []) hunt.add(id); for (const e of o.extraction || []) keep.set(e, 'extraction'); aggr += 0.2; break;
     } else switch (c.type) {
-      case 'seize': case 'burn': if (k) take.set(k, c.type); aggr += 0.2; break;
+      case 'seize': case 'burn': if (k) take.set(k, c.type); if (k && c.type === 'burn') burn.push(ptOf(k)); aggr += 0.2; break;
       case 'hold': if (k) keep.set(k, 'hold'); aggr -= 0.3; break;
       case 'survive': aggr -= 0.5; why.push('play for time: survive'); break;
       case 'routUnit': for (const id of c.unitIds || []) hunt.add(id); break;
@@ -332,7 +337,7 @@ export function strategy(s, side) {
     }
   }
   const reinforceSquares = coming.filter(r => Number.isFinite(r.x) && Number.isFinite(r.y)).map(r => ({ x: r.x, y: r.y }));
-  return { posture, ...POSTURE[posture], aggr, reinforceSquares, keep: [...keep.keys()].map(ptOf), take: [...take.keys()].map(ptOf), jobs, protect, hunt, reinforceRound, why };
+  return { posture, ...POSTURE[posture], aggr, reinforceSquares, burn, keep: [...keep.keys()].map(ptOf), take: [...take.keys()].map(ptOf), jobs, protect, hunt, reinforceRound, why };
 }
 
 /** How good this square is to stand on for this unit (defense, command, height, cover; fire and fords hurt). */
@@ -440,7 +445,7 @@ const cantBeRinged = (s, e) => E.unitTrait(e, 'stalwart') || E.unitTrait(e, "pre
 // ---------------------------------------------------------------- fire (David, 2026-11-04)
 
 /** How much a burning square threatens what matters to this side, as a score (0 = leave it). */
-export function fireDanger(s, side, S, fx, fy, w) {
+export function fireDanger(s, side, S, fx, fy, w, selfId = null) {
   const al = E.alliance(side), cheb = (p) => Math.max(Math.abs(p.x - fx), Math.abs(p.y - fy));
   const reach = [1, 0.55, 0.25];
   const flammable = (p) => { const r = E.tileRules(s, p.x, p.y); return !!(r && r.flammable) || (p.x === fx && p.y === fy); };
@@ -448,13 +453,30 @@ export function fireDanger(s, side, S, fx, fy, w) {
   const weigh = (p, wt, maxD = 2) => { const d = cheb(p); if (d <= maxD && flammable(p)) v += wt * reach[d]; };
   for (const p of S.keep) weigh(p, cheb(p) === 0 ? 1.4 : 0.9);
   for (const [, j] of S.jobs) weigh(j.pt, 0.5);
-  for (const o of E.liveUnits(s)) if (E.alliance(o.side) === al && cheb(o) <= 1) v += 0.25 * reach[cheb(o)];
+  for (const o of E.liveUnits(s)) if (o.id !== selfId && E.alliance(o.side) === al && cheb(o) <= 1) v += 0.25 * reach[cheb(o)];
   // buildings that help the side: morale squares (command tent, supply depot) and defensive ones (forts, towers)
   for (let dx = -2; dx <= 2; dx++) for (let dy = -2; dy <= 2; dy++) {
     const p = { x: fx + dx, y: fy + dy }, r = E.tileRules(s, p.x, p.y);
     if (r && r.flammable && (r.moraleTurn > 0 || r.meleeDef > 0 || r.command > 0)) weigh(p, 0.3);
   }
   return v * w;
+}
+/** What setting this square alight would be worth to this side (can be negative: leave it). */
+export function fireValue(s, side, S, x, y, w, selfId = null) {
+  const al = E.alliance(side), sg = s.siege || {};
+  if (sg.fires && sg.fires[x + ',' + y]) return 0;
+  const r = E.tileRules(s, x, y); if (!r || !r.flammable) return 0;
+  const cheb = (p) => Math.max(Math.abs(p.x - x), Math.abs(p.y - y));
+  let v = 0;
+  for (const o of E.liveUnits(s)) {
+    const d = cheb(o); if (d > 1 || o.id === selfId) continue; // the unit setting it walks away from it
+    const ow = worth(s, o) * (d === 0 ? 0.35 : 0.12);
+    v += E.alliance(o.side) === al ? -ow * 1.2 : ow; // its own count a little more: no one likes burning his own men
+  }
+  for (const p of S.burn || []) { const d = cheb(p); if (d <= 1) v += w * (d === 0 ? 1.5 : 0.4); } // a square it must burn
+  // what it might spread to of the side's own
+  v -= 0.6 * fireDanger(s, side, S, x, y, w, selfId);
+  return v;
 }
 /** Burning squares worth putting out for this side (with their danger), from the state the side knows. */
 function dangerousFires(s, side, S, w) {
@@ -762,7 +784,15 @@ export function plans(s, unitId, opts = {}) {
       }
       if (!runs.length) continue;
       // average the playouts' scores; keep one of them as the representative end state
-      const scores = runs.map(g => { const u1 = E.unitById(g, unitId); return outcomeScore(base, g, side, S, M) + positionScore(base, g, u0, u1, side, P, S, M) + traitPosition(base, g, u0, u1, P, S) + threatOf(g, u1, side, P, areas, S, M) + pressureOf(g, u1, P); });
+      // fires its arrows started (or brought closer), at what they're worth to the side
+      const fw = [0.5, 0.5, 0.8, 1, 1, 1][P.level], before = (f.siege && f.siege.fires) || {}, scBefore = (f.siege && f.siege.scorch) || {};
+      const fireGain = (g) => {
+        let v = 0;
+        for (const k of Object.keys((g.siege && g.siege.fires) || {})) if (!before[k]) { const [x, y] = k.split(',').map(Number); v += fireValue(f, side, S, x, y, worth(base, u0), unitId); }
+        for (const [k, n] of Object.entries((g.siege && g.siege.scorch) || {})) if (n > (scBefore[k] || 0)) { const [x, y] = k.split(',').map(Number); v += 0.3 * fireValue(f, side, S, x, y, worth(base, u0), unitId); }
+        return fw * v;
+      };
+      const scores = runs.map(g => { const u1 = E.unitById(g, unitId); return outcomeScore(base, g, side, S, M) + positionScore(base, g, u0, u1, side, P, S, M) + traitPosition(base, g, u0, u1, P, S) + threatOf(g, u1, side, P, areas, S, M) + pressureOf(g, u1, P) + fireGain(g); });
       const sup = P.level >= 2 ? suppressValue(f, u, target) * [0, 0, 0.6, 0.85, 1, 1.1][P.level] : 0;
       out.push({ actions: [...pre, act], score: scores.reduce((t, x) => t + x, 0) / scores.length + sup, state: runs[0] });
     }
@@ -775,6 +805,15 @@ export function plans(s, unitId, opts = {}) {
         const gu = E.unitById(g, unitId);
         if ((job && job.kind === 'keep' && E.manhattan(gu, job.pt) <= 1) || S.posture === 'stall') out[out.length - 1].score += 0.04 * worth(base, u0);
       }
+    }
+    // Set Aflame: set an adjacent square alight instead of attacking, when the fire is worth more than the attack
+    if (!u.round.attacked && !acf.forcedMarched && E.actionMenu(f, u).setFire) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const x = u.x + dx, y = u.y + dy, fv = fireValue(base, side, S, x, y, worth(base, u0), unitId);
+      if (fv <= 0.05 * worth(base, u0)) continue;
+      const g = fork(f); const act = { type: 'setFire', unitId, x, y };
+      if (!E.act(g, HOST, act).ok) continue;
+      consider([...pre, act], g);
+      out[out.length - 1].score += fv * [0.5, 0.6, 0.8, 1, 1, 1][P.level];
     }
     // put out a fire that threatens what matters (instead of attacking)
     if (!u.round.attacked && !acf.forcedMarched) for (const [fx, fy] of E.extinguishTiles(f, u)) {
