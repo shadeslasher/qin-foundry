@@ -9,7 +9,7 @@ import { EquipmentPicker, unequipUnit, equipmentOf } from "../equipment.mjs";
 import { healthColor, moraleColor } from "../unit-bars.mjs";
 import { officesForViewer, currentYear } from "../game-year.mjs";
 import { part, partRowHTML, formatValue } from "../rules/sources.mjs";
-import { BONUS_STATS, BONUS_MODES, collectBonuses, parseSkillList, skillListText } from "../rules/bonuses.mjs";
+import { BONUS_STATS, BONUS_MODES, collectBonuses, parseSkillList, skillListText, parseResistTags, RESIST_TAGS } from "../rules/bonuses.mjs";
 import { normalizeStack, STACK_TRIGGERS, STACK_RESETS } from "../rules/stacks.mjs";
 import { normalizeEffect, durationText, testText, EFFECT_TARGETS } from "../rules/skill-effects.mjs";
 import { roundsLeft } from "../rules/tao-rules.mjs";
@@ -243,6 +243,7 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
     actions: {
       rollAspect: QinActorSheetBase.#rollAspect,
       rollSkill: QinActorSheetBase.#rollSkill,
+      rollResist: function () { this.actor.rollResist(); },
       itemCreate: QinActorSheetBase.#itemCreate,
       toggleKnown: QinActorSheetBase.#toggleKnown,
       itemEdit: QinActorSheetBase.#itemEdit,
@@ -823,8 +824,9 @@ export class QinItemSheet extends api.HandlebarsApplicationMixin(ItemSheetBase) 
       const i = Number(inp.closest(".qin-bonus-row").dataset.index);
       if (!list[i]) return;
       const f = inp.dataset.bonusField;
-      list[i][f] = f === "value" ? Math.trunc(Number(inp.value) || 0) : f === "skills" ? parseSkillList(inp.value) : inp.value;
+      list[i][f] = f === "value" ? Math.trunc(Number(inp.value) || 0) : f === "skills" ? parseSkillList(inp.value) : f === "against" ? parseResistTags(inp.value) : inp.value;
       if (f === "stat" && inp.value === "skillTest" && !Array.isArray(list[i].skills)) list[i].skills = [];
+      if (f === "stat" && inp.value === "resistTest" && !Array.isArray(list[i].against)) list[i].against = [];
       this.#saveBonuses(list);
     }));
   }
@@ -872,7 +874,9 @@ export class QinItemSheet extends api.HandlebarsApplicationMixin(ItemSheetBase) 
         const st = normalizeStack(b.stack, b);
         const grow = st ? `Grows: ${b.value} × steps, up to ${st.max} (${STACK_TRIGGERS[st.trigger]}${st.trigger === "opponentsEngaged" ? `, minus ${st.offset}` : ""}; ${STACK_RESETS[st.resetOn]})` : "";
         const isSkillTest = b.stat === "skillTest";
-        return { ...b, index, grow, isSkillTest, skillsText: isSkillTest ? parseSkillList(b.skills).map(k => skillListText([k])).join(", ") : "" };
+        const isResistTest = b.stat === "resistTest";
+        return { ...b, index, grow, isSkillTest, skillsText: isSkillTest ? parseSkillList(b.skills).map(k => skillListText([k])).join(", ") : "",
+          isResistTest, againstText: isResistTest ? parseResistTags(b.against).join(", ") : "" };
       }),
       effectSummary: (() => {
         const e = item.type === "signature" ? normalizeEffect(item.system.effect) : null;
@@ -884,6 +888,7 @@ export class QinItemSheet extends api.HandlebarsApplicationMixin(ItemSheetBase) 
       generalName: item.system.generalName ?? "", generalDesc: item.system.generalDesc ?? "",
       bonusStats: BONUS_STATS, bonusModes: BONUS_MODES,
       skillNameList: Object.keys(SKILLS).map(k => skillListText([k])),
+      resistTagList: RESIST_TAGS,
       bonusAspects: { "": "—", metal: "+ Metal", water: "+ Water", fire: "+ Fire", wood: "+ Wood", earth: "+ Earth" },
     });
     return context;

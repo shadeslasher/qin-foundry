@@ -5,8 +5,8 @@
 // What lands is a timed effect on the target's combat state (shown in its Combat panel, counted down by combat
 // round, expired by the GM's client). A player's resist that lands on an actor they can't update goes through a query.
 import { SYSTEM_ID, SKILLS, SKILL_LEVELS } from "./config.mjs";
-import { normalizeEffect, durationText, testText, testSideParts, resistOutcome, appliedEffect, withEffect, appliedText, sortForPicker, EFFECT_TARGETS, effectButtons, effectAction, playerMayLand } from "./rules/skill-effects.mjs";
-import { collectBonuses, skillTestParts, skillTestBonuses, appliesToSkill } from "./rules/bonuses.mjs";
+import { normalizeEffect, durationText, testText, testSideParts, resistOutcome, appliedEffect, withEffect, appliedText, sortForPicker, EFFECT_TARGETS, effectButtons, effectAction, playerMayLand, effectTags } from "./rules/skill-effects.mjs";
+import { collectBonuses, skillTestParts, skillTestBonuses, appliesToSkill, resistParts } from "./rules/bonuses.mjs";
 import { part, sumParts, partRowHTML } from "./rules/sources.mjs";
 import { rollYinYang, Chat, formDialog } from "./dice.mjs";
 import { getState, saveState, currentFight, rollBonuses, tickedOf } from "./combat-state.mjs";
@@ -41,11 +41,47 @@ export async function skillTestSide(actor, skillKey, { ask = false, title = "" }
   return { parts: u.parts, situational: u.situational };
 }
 
-/** Roll one side of an effect's Test for an actor: { total, parts, dice, roll, situational }. ask: tick boxes for situational skill bonuses. */
-export async function rollTestSide(actor, sideDef, { ask = false, title = "" } = {}) {
+/** A resistTest bonus offered as a tick box: "Steady Nerves: +2 to resist poison (condition)". */
+const resistRowText = (b) => `${b.label}: ${b.text}${b.condition ? ` (${b.condition})` : ""}`;
+
+/**
+ * The actor's resistTest bonuses (schema v2.2) on a resist roll against an effect with `tags` (null = a plain
+ * Resistance roll): { auto, offered } with each offered one's default tick (see resistParts). vs: the effect's user (uuid).
+ */
+export function resistOffer(actor, tags, vs = null) {
+  const r = resistParts(rollBonuses(actor, vs), tags, { panelTicked: tickedOf(actor) });
+  return { auto: r.auto, offered: r.offered };
+}
+
+/** Tick boxes for offered resistTest bonuses, as HTML (name = `${prefix}${i}`). */
+export function resistBoxesHTML(offered, prefix = "rb_", attrs = () => "") {
+  return offered.map((b, i) => `<label class="qin-inline"><input type="checkbox" name="${prefix}${i}"${attrs(b, i)}${b.ticked ? " checked" : ""}> <span class="qin-src qin-src-unique qin-src-situational">Unique</span> ${esc(resistRowText(b))}</label>`).join("");
+}
+
+/** A tick-box dialog for a resist roll's offered bonuses; { [key]: bool }, or null (no dialog, or closed: the defaults). */
+export async function askResistTicks(actor, offer, title) {
+  if (!offer.offered.length) return null;
+  const auto = offer.auto.length ? `<div class="qin-dlg-bonuses"><span class="qin-muted">Applied automatically</span>${offer.auto.map(b => `<div><span class="qin-src qin-src-unique">Unique</span> ${esc(resistRowText(b))}</div>`).join("")}</div>` : "";
+  const fd = await formDialog({ title, okLabel: "Roll",
+    content: `<div class="qin-dialog">${auto}<div class="qin-dlg-bonuses"><span class="qin-muted">Tick the ones that apply to this roll</span>${resistBoxesHTML(offer.offered)}</div></div>` });
+  if (!fd) return null;
+  return Object.fromEntries(offer.offered.map((b, i) => [b.key, !!fd[`rb_${i}`]]));
+}
+
+/**
+ * Roll one side of an effect's Test for an actor: { total, parts, dice, roll, situational }. ask: tick boxes for
+ * situational skill bonuses. resist = { tags, ticked, vs }: this is a resist roll, so resistTest bonuses count
+ * (tags = the effect's tags; ticked = the tick boxes' answer or null for the defaults; vs = the effect's user uuid).
+ */
+export async function rollTestSide(actor, sideDef, { ask = false, title = "", resist = null } = {}) {
   const sys = actor.system;
   const sk = sideDef.skill ? actor.getSkill(sideDef.skill) : null;
   const uniq = await skillTestSide(actor, sideDef.skill, { ask, title });
+  if (resist) {
+    const r = resistParts(rollBonuses(actor, resist.vs ?? null), resist.tags ?? [], { ticked: resist.ticked ?? null, panelTicked: tickedOf(actor) });
+    uniq.parts = [...uniq.parts, ...r.parts];
+    uniq.situational = [...uniq.situational, ...r.offered];
+  }
   const { roll, dice } = await rollYinYang({ beginner: !!sk && sk.value === 0 });
   const list = [
     ...testSideParts(sideDef, { aspects: sys.aspects, resistance: sys.resistance, skill: sk ? { label: `${sk.label} (${SKILL_LEVELS[sk.value] ?? sk.value})`, value: sk.value } : null }),
@@ -131,9 +167,15 @@ function myCharacter() {
   return tok?.actor ?? game.user.character ?? null;
 }
 
-/** A resist roll by one target against the card's total: { total, parts, outcome, dice, roll }. */
-async function resistRoll(flags, target) {
-  const r = await rollTestSide(target, flags.effect.test.resist);
+/** The tags of the card's effect (its own, or from the user's Test skill). */
+const cardTags = (flags) => effectTags(normalizeEffect(flags.effect));
+
+/**
+ * A resist roll by one target against the card's total: { total, parts, outcome, dice, roll, situational }.
+ * ticked: the resistTest tick boxes ({ key: bool }), or null for the defaults.
+ */
+async function resistRoll(flags, target, ticked = null) {
+  const r = await rollTestSide(target, flags.effect.test.resist, { resist: { tags: cardTags(flags), ticked, vs: flags.user ?? null } });
   const outcome = resistOutcome({ userTotal: Number(flags.total) || 0, resistTotal: r.total, userCritFail: flags.critFail, resistCritFail: r.dice.critFail });
   return { ...r, outcome };
 }
@@ -162,12 +204,14 @@ export async function onEffectClick(action, message, flags) {
   if (!me) return ui.notifications.warn("Select your token (or have a character assigned) first.");
   // One resist per card: a character who already failed this card's Test can't roll again to shake it off
   if (getState(me).effects.some(e => e.messageId && e.messageId === message.id)) return ui.notifications.info(`${me.name} has already rolled against this.`);
-  const r = await resistRoll(flags, me);
+  // resistTest bonuses that don't apply by themselves: a tick-box dialog first
+  const ticked = await askResistTicks(me, resistOffer(me, cardTags(flags), flags.user ?? null), `${me.name} resists ${flags.itemName}`);
+  const r = await resistRoll(flags, me, ticked);
   const entry = await landEffect(message, me, r.outcome, { via: "resist" });
   return Chat().create({
     speaker: Chat().getSpeaker({ actor: me }), rolls: [r.roll],
     content: `<div class="qin-chat"><h3>${esc(me.name)} resists ${esc(flags.itemName)}</h3>${parts(r.parts)}<div class="qin-total">Total <b>${r.total}</b> vs <b>${flags.total}</b> (${esc(flags.userName)})</div>
-      <div class="qin-result ${r.outcome === "success" ? "ok" : "fail"}">${r.outcome === "success" ? "Resisted" : "Fails to resist"}</div><p>${landedLine(me, entry)}</p></div>`,
+      <div class="qin-result ${r.outcome === "success" ? "ok" : "fail"}">${r.outcome === "success" ? "Resisted" : "Fails to resist"}</div>${sitList(r.situational)}<p>${landedLine(me, entry)}</p></div>`,
   });
 }
 
@@ -209,7 +253,16 @@ export class EffectTargetPicker extends (api?.ApplicationV2 ?? class {}) {
     }
     const toks = this.tokens();
     const eff = normalizeEffect(this.flags.effect);
-    const rows = toks.map(t => `<label class="qin-picker-row"><input type="checkbox" name="t" value="${t.id}"><span class="qin-cp-grow">${esc(t.name)}</span><span class="qin-muted">${side(t.disposition)}</span></label>`).join("");
+    const tags = this.mode === "resist" ? cardTags(this.flags) : null;
+    // Resist: each actor's resistTest bonuses (schema v2.2): the automatic ones listed, the rest as tick boxes
+    const resistRows = (t) => {
+      if (!tags) return "";
+      const o = resistOffer(t.actor, tags, this.flags.user ?? null);
+      if (!o.auto.length && !o.offered.length) return "";
+      const auto = o.auto.map(b => `<div class="qin-muted"><span class="qin-src qin-src-unique">Unique</span> ${esc(`${b.label}: ${b.text}`)} · applied</div>`).join("");
+      return `<div class="qin-picker-bonuses">${auto}${resistBoxesHTML(o.offered, `rb_${t.id}_`, (b) => ` data-rb-token="${t.id}" data-rb-key="${esc(b.key)}"`)}</div>`;
+    };
+    const rows = toks.map(t => `<label class="qin-picker-row"><input type="checkbox" name="t" value="${t.id}"><span class="qin-cp-grow">${esc(t.name)}</span><span class="qin-muted">${side(t.disposition)}</span></label>${resistRows(t)}`).join("");
     return `<div class="qin-picker"><p class="qin-muted">${esc(this.flags.userName)} · ${esc(EFFECT_TARGETS[eff.target])} · ${esc(durationText(eff.duration))}${this.mode === "resist" ? ` · Test total ${this.flags.total}` : ""}</p>
       <div class="qin-picker-list">${rows || "<p>No character or henchman tokens on this scene.</p>"}</div>
       <div class="qin-buttons"><button type="button" data-action="all" data-side="mine">Tick my side</button><button type="button" data-action="all" data-side="other">Tick the other side</button>
@@ -232,6 +285,9 @@ export class EffectTargetPicker extends (api?.ApplicationV2 ?? class {}) {
     if (!game.user.isGM) return ui.notifications.warn("Only the GM can apply that.");
     const ids = [...this.element.querySelectorAll('input[name="t"]:checked')].map(cb => cb.value);
     const byId = new Map(this.tokens().map(t => [t.id, t]));
+    // Per-actor resistTest tick boxes: { tokenId: { key: bool } } (an actor without boxes: the defaults)
+    const rb = {};
+    for (const cb of this.element.querySelectorAll("input[data-rb-token]")) (rb[cb.dataset.rbToken] ??= {})[cb.dataset.rbKey] = !!cb.checked;
     const results = [], rolls = [];
     for (const id of ids) {
       const t = byId.get(id);
@@ -242,10 +298,10 @@ export class EffectTargetPicker extends (api?.ApplicationV2 ?? class {}) {
         continue;
       }
       if (this.mode === "resist") {
-        const r = await resistRoll(this.flags, t.actor);
+        const r = await resistRoll(this.flags, t.actor, rb[id] ?? null);
         const entry = await landEffect(this.message, t.actor, r.outcome, { via: "resist" });
         rolls.push(r.roll);
-        results.push({ name: t.name, total: r.total, outcome: r.outcome, parts: r.parts, line: landedLine(t.actor, entry) });
+        results.push({ name: t.name, total: r.total, outcome: r.outcome, parts: r.parts, situational: r.situational, line: landedLine(t.actor, entry) });
       } else {
         const entry = await landEffect(this.message, t.actor, "fail");
         results.push({ name: t.name, total: null, line: landedLine(t.actor, entry) });
@@ -254,7 +310,7 @@ export class EffectTargetPicker extends (api?.ApplicationV2 ?? class {}) {
     this.results = results;
     if (results.length) {
       const body = results.map(r => r.total != null
-        ? `<div class="qin-effect-result"><b>${esc(r.name)}</b>: ${r.total} vs ${this.flags.total} · <span class="qin-result-inline ${r.outcome === "success" ? "ok" : "fail"}">${r.outcome === "success" ? "resisted" : "fails"}</span>${parts(r.parts)}<p class="qin-muted">${r.line}</p></div>`
+        ? `<div class="qin-effect-result"><b>${esc(r.name)}</b>: ${r.total} vs ${this.flags.total} · <span class="qin-result-inline ${r.outcome === "success" ? "ok" : "fail"}">${r.outcome === "success" ? "resisted" : "fails"}</span>${parts(r.parts)}${sitList(r.situational)}<p class="qin-muted">${r.line}</p></div>`
         : `<p>${r.line}</p>`).join("");
       await Chat().create({ speaker: { alias: this.flags.itemName }, rolls,
         content: `<div class="qin-chat"><h3><span class="qin-src qin-src-unique">Unique</span> ${esc(this.flags.itemName)} (${esc(this.flags.userName)})${this.mode === "resist" ? ": resist rolls" : ""}</h3>${body}</div>` });

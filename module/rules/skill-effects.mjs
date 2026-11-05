@@ -1,7 +1,7 @@
 // Unique-skill effects on others (David, 2026-11-05, skill-effects schema v2 §2). Pure: no Foundry dependencies.
 // An active's `effect` = { target, test, onFail, onSuccess, duration, note }. Using the active posts an effect card;
 // targets take it (allies) or resist it (enemies). What lands is a timed effect on the target's combat state.
-import { normalizeBonus, collectBonuses } from "./bonuses.mjs";
+import { normalizeBonus, collectBonuses, parseResistTags, parseSkillList } from "./bonuses.mjs";
 import { part, sumParts } from "./sources.mjs";
 
 export const EFFECT_TARGETS = { self: "Self", ally: "One ally", allies: "Allies", enemy: "One enemy", enemies: "Enemies" };
@@ -28,7 +28,36 @@ export function normalizeEffect(e) {
     onSuccess: (e.onSuccess ?? []).map(b => normalizeBonus(b)),
     duration,
     note: String(e.note ?? "").trim(),
+    // Schema v2.2: what the effect is, for resistTest bonuses (empty = derived from the Test's skill, see effectTags)
+    tags: parseResistTags(e.tags),
   };
+}
+
+/**
+ * The tags derived from the user's Test skill when an effect names none (schema v2.2). Skill keys from config.mjs;
+ * anything not listed (and pure Aspect Tests) has no tags.
+ */
+export const SKILL_EFFECT_TAGS = {
+  intimidation: ["intimidation", "fear", "threats"],
+  eloquence: ["persuasion", "provocation"],
+  diplomacy: ["persuasion", "provocation"],
+  seduction: ["seduction", "persuasion"],
+  acting: ["deception"],
+  stealth: ["deception"],
+  theft: ["deception"],
+  medicine: ["poison"],
+  herbalism: ["poison"],
+  externalAlchemy: ["poison"],
+};
+
+/** An effect's tags (raw or normalized): its own `tags`, else the ones its Test's user skill implies. Pure. */
+export function effectTags(eff) {
+  const own = parseResistTags(eff?.tags);
+  if (own.length) return own;
+  const skill = eff?.test?.user?.skill;
+  if (!skill) return [];
+  const key = parseSkillList([skill])[0];
+  return [...(SKILL_EFFECT_TAGS[key] ?? [])];
 }
 
 export const isFriendlyTarget = (eff) => ["self", "ally", "allies"].includes(eff?.target);

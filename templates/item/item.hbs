@@ -77,8 +77,9 @@
 
   {{#if showBonuses}}
   <h3>Bonuses {{#if editable}}<a data-action="bonusAdd" title="Add a bonus"><i class="fa-solid fa-plus"></i></a>{{/if}}</h3>
-  <p class="qin-muted">{{#if isActive}}Applied when the active is used (attack and damage bonuses open the attack dialog with them).{{else}}Always on: added to rolls automatically. Situational: a tick box on the roll dialogs and the Combat panel.{{/if}} Reductions and "attackers take" are entered as positive numbers. "Tests with given skills" adds to the holder's own Tests with the skills listed (comma list).</p>
+  <p class="qin-muted">{{#if isActive}}Applied when the active is used (attack and damage bonuses open the attack dialog with them).{{else}}Always on: added to rolls automatically. Situational: a tick box on the roll dialogs and the Combat panel.{{/if}} Reductions and "attackers take" are entered as positive numbers. "Tests with given skills" adds to the holder's own Tests with the skills listed (comma list). "Tests to resist" adds to resist rolls against what is listed (fear, intimidation, poison, ...; empty = every resist roll).</p>
   <datalist id="qin-skill-names">{{#each skillNameList}}<option value="{{this}}"></option>{{/each}}</datalist>
+  <datalist id="qin-resist-tags">{{#each resistTagList}}<option value="{{this}}"></option>{{/each}}</datalist>
   <div class="qin-bonus-list">
     {{#each bonusRows}}
     <div class="qin-bonus-row" data-index="{{index}}">
@@ -88,6 +89,7 @@
       <select data-bonus-field="mode" {{#unless ../editable}}disabled{{/unless}} aria-label="Always or situational">{{selectOptions ../bonusModes selected=mode}}</select>
       <input type="text" data-bonus-field="condition" value="{{condition}}" placeholder="condition (situational)" {{#unless ../editable}}disabled{{/unless}} aria-label="Condition">
       {{#if isSkillTest}}<input type="text" data-bonus-field="skills" value="{{skillsText}}" list="qin-skill-names" placeholder="skills, e.g. Intimidation, Eloquence" {{#unless ../editable}}disabled{{/unless}} aria-label="Skills (comma list)" title="The skills whose Tests get this bonus (comma list of names or keys)">{{/if}}
+      {{#if isResistTest}}<input type="text" data-bonus-field="against" value="{{againstText}}" list="qin-resist-tags" placeholder="against, e.g. fear, intimidation (empty = all)" {{#unless ../editable}}disabled{{/unless}} aria-label="Resists (comma list)" title="fear, intimidation, provocation, persuasion, bribery, threats, deception, interrogation, despair, coercion, seduction, poison, illness, fatigue, pain, magic. Empty = every resist roll">{{/if}}
       <input type="text" data-bonus-field="label" value="{{label}}" placeholder="label (default: the skill's name)" {{#unless ../editable}}disabled{{/unless}} aria-label="Label">
       {{#if ../editable}}<a data-action="bonusRemove" data-index="{{index}}" title="Remove"><i class="fa-solid fa-xmark"></i></a>{{/if}}
     </div>

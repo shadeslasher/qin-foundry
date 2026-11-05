@@ -16,11 +16,13 @@ export const BONUS_STATS = {
   targetAd: "Opponents' Active Defense against his attacks",
   armorPierce: "Target's armour counts less against his hits",
   skillTest: "Tests with given skills",
+  resistTest: "Tests to resist (fear, poison, ...)",
 };
 export const BONUS_SHORT = {
   pd: "Passive Defense", ad: "Active Defense", attack: "Attack", damage: "damage",
   attackersPenalty: "attackers", firstHitReduction: "first hit each round", hitReduction: "every hit", initiative: "Initiative",
   targetAd: "opponents' Active Defense", armorPierce: "target's armour", skillTest: "Tests",
+  resistTest: "resist rolls",
 };
 export const BONUS_MODES = { always: "Always on", situational: "Situational" };
 const ASPECT_KEYS = ["metal", "water", "fire", "wood", "earth"];
@@ -55,9 +57,35 @@ const skillName = (k) => SKILLS[k]?.label.replace(/\s*\(.*\)\s*$/, "") ?? k;
 /** "Intimidation", "Eloquence / Diplomacy". */
 export const skillListText = (skills) => (skills ?? []).map(skillName).join(" / ");
 
+/**
+ * resistTest tags (schema v2.2): what a resist bonus is against, and what an effect is (effect tags).
+ * Lower-case; Intimidation and Seduction are skill names, so they are written with a capital.
+ */
+export const RESIST_TAGS = ["fear", "intimidation", "provocation", "persuasion", "bribery", "threats", "deception", "interrogation",
+  "despair", "coercion", "seduction", "poison", "illness", "fatigue", "pain", "magic"];
+const RESIST_TAG_LABEL = { intimidation: "Intimidation", seduction: "Seduction" };
+const RESIST_SYNONYMS = { fears: "fear", intimidate: "intimidation", threat: "threats", bribe: "bribery", bribes: "bribery",
+  lies: "deception", lying: "deception", lie: "deception", poisons: "poison", disease: "illness", diseases: "illness", sickness: "illness",
+  illnesses: "illness", tiredness: "fatigue", exhaustion: "fatigue", charm: "seduction", provocations: "provocation", sorcery: "magic" };
+
+/** resistTest `against` / effect `tags`: an array or a comma list, lower-cased, de-duplicated ("Fear, intimidation"). Unknown words are kept (they just never match). */
+export function parseResistTags(v) {
+  const raw = Array.isArray(v) ? v : String(v ?? "").split(/[,;]/);
+  const out = [];
+  for (const r of raw) {
+    let t = String(r ?? "").trim().toLowerCase();
+    if (!t) continue;
+    t = RESIST_SYNONYMS[t] ?? t;
+    if (!out.includes(t)) out.push(t);
+  }
+  return out;
+}
+/** "fear, Intimidation". */
+export const resistTagsText = (tags) => (tags ?? []).map(t => RESIST_TAG_LABEL[t] ?? t).join(", ");
+
 export function normalizeBonus(b = {}, fallbackLabel = "") {
   const stat = BONUS_STATS[b.stat] ? b.stat : "pd";
-  const extra = stat === "skillTest" ? { skills: parseSkillList(b.skills) } : {};
+  const extra = stat === "skillTest" ? { skills: parseSkillList(b.skills) } : stat === "resistTest" ? { against: parseResistTags(b.against) } : {};
   return {
     stat,
     value: Math.trunc(Number(b.value) || 0),
@@ -85,6 +113,14 @@ export function bonusValue(b, aspects = {}) {
 
 /** "Passive Defense +1", "first hit each round −Metal 5", "+2 damage". `steps` (growing bonuses) multiplies the value. */
 export function describeBonus(b, aspects = {}, steps = null) {
+  // resistTest with tags: "+2 to resist fear, Intimidation"; without: "resist rolls +2" (every resist roll)
+  const against = b.stat === "resistTest" ? parseResistTags(b.against) : [];
+  if (against.length) {
+    const tail = ` to resist ${resistTagsText(against)}`;
+    const v = bonusValue(b, aspects) * (steps ?? 1), sign = v < 0 ? "−" : "+";
+    const asp = b.aspect && steps == null ? `${ASPECT_LABEL[b.aspect]}${b.value ? (b.value > 0 ? ` +${b.value}` : ` −${-b.value}`) : ""} (${Math.abs(v)})` : Math.abs(v);
+    return `${sign}${asp}${tail}${steps != null ? ` (${steps}/${b.stack?.max ?? "?"})` : ""}`;
+  }
   const short = b.stat === "skillTest" ? `${skillListText(parseSkillList(b.skills)) || "Skill"} Tests` : BONUS_SHORT[b.stat];
   if (steps != null) {
     const per = bonusValue(b, aspects), v = per * steps, sign = REDUCING_STATS.has(b.stat) ? "−" : v < 0 ? "−" : "+";
@@ -131,7 +167,7 @@ export function collectBonuses(sources, { aspects = {}, stacks = [], engaged = n
       out.push({ key, stat: b.stat, value: b.stack ? per * steps : per, mode: b.mode, condition: b.condition,
         label: b.stack ? `${b.label} (${steps}/${b.stack.max})` : b.label, baseLabel: b.label,
         sourceId: s.id, sourceName: s.name, bonus: b, text: describeBonus(b, aspects, steps), fromEffect: !!s.fromEffect,
-        stack: b.stack, steps, perStep: per, ...(b.skills ? { skills: b.skills } : {}),
+        stack: b.stack, steps, perStep: per, ...(b.skills ? { skills: b.skills } : {}), ...(b.against ? { against: b.against } : {}),
         vsSourceActor: b.vsSource && s.sourceActor ? s.sourceActor : null, sourceActorName: s.sourceActorName ?? "" });
     });
   }
@@ -191,6 +227,46 @@ export function skillTestParts(list, skill, { ticked = {}, martial = false } = {
 
 /** Every skillTest bonus on the list, for dialogs where the skill is still to be chosen. */
 export const skillTestBonuses = (list) => (list ?? []).filter(b => b.stat === "skillTest");
+
+/** Every resistTest bonus on the list (schema v2.2). */
+export const resistTestBonuses = (list) => (list ?? []).filter(b => b.stat === "resistTest");
+
+/** The tags of a resistTest bonus that are in `tags` (an effect's tags). */
+export function resistMatches(b, tags) {
+  const against = parseResistTags(b?.against ?? b?.bonus?.against);
+  const t = parseResistTags(tags);
+  return against.filter(x => t.includes(x));
+}
+
+/**
+ * resistTest bonuses on a resist roll (schema v2.2), as tagged parts.
+ * tags: the effect's tags (effectTags), or null for a plain Resistance roll with nothing named.
+ * Against an effect: always-on bonuses that are untagged, or share a tag with it, apply automatically
+ * ("Unflinching (vs fear)"); situational ones and always-on ones that don't match are offered as tick boxes,
+ * ticked by default when they share a tag. A plain Resistance roll offers every one, ticking the untagged
+ * always-on ones. The Combat panel's ticks (panelTicked = { key: true }) also tick by default. ticked = { key: bool }
+ * (a dialog's answer) overrides the defaults; null = the defaults.
+ * Returns { parts, total, auto, offered: [{ ...bonus, matched, ticked, text }] }.
+ */
+export function resistParts(list, tags = null, { ticked = null, panelTicked = {} } = {}) {
+  const auto = [], offered = [], parts = [];
+  const named = tags != null;
+  for (const b of resistTestBonuses(list)) {
+    const against = parseResistTags(b.against);
+    const matched = named ? resistMatches(b, tags) : [];
+    const vs = matched.length ? ` (vs ${resistTagsText(matched)})` : "";
+    if (named && b.mode !== "situational" && (!against.length || matched.length)) {
+      auto.push({ ...b, matched });
+      parts.push(part("unique", `${b.label}${vs}`, b.value, { key: b.key }));
+      continue;
+    }
+    const def = named ? matched.length > 0 || !!panelTicked[b.key] : (b.mode !== "situational" && !against.length) || !!panelTicked[b.key];
+    const on = ticked ? !!ticked[b.key] : def;
+    offered.push({ ...b, matched, ticked: on, byDefault: def });
+    if (on) parts.push(part("unique", `${b.label}${vs || (b.condition ? ` (${b.condition})` : "")}`, b.value, { situational: true, key: b.key }));
+  }
+  return { parts, total: parts.reduce((t, p) => t + p.value, 0), auto, offered };
+}
 
 /**
  * Passive Defense with every part tagged: Water + Wood + 2, sheet bonus, armour modifiers, unique bonuses (always on,

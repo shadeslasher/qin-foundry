@@ -568,6 +568,117 @@ test("skillTest: the effect flow asks for situational ticks before the user's Te
   game.combat = null;
 });
 
+/* ---------------------------------------- resistTest bonuses (schema v2.2) on resist rolls */
+
+const unflinching = { name: "Unflinching", slot: "passive", desc: "+2 on Tests to resist fear and Intimidation.",
+  bonuses: [{ stat: "resistTest", value: 2, mode: "always", against: ["fear", "intimidation"] }] };
+const antidote = { name: "Antidote Habit", slot: "passive", desc: "+2 to resist poison.", bonuses: [{ stat: "resistTest", value: 2, mode: "always", against: "poison" }] };
+const resistParts_ = (r) => r.parts.filter(p => p.kind === "unique").map(p => [p.label, p.value, !!p.situational]);
+
+test("resistTest e2e: Zhang Liao's intimidation vs '+2 to resist fear and Intimidation' (applied) and '+2 to resist poison' (offered, unticked)", async () => {
+  asGM();
+  fight(1);
+  const s = SKILLS_UNDER_TEST[0];
+  const zl = actor({ name: "Zhang Liao resist", aspects: s.aspects, skills: { intimidation: 5 }, items: [sig("sk", s.skill.name, s.skill)] });
+  // both Resistance 7 (Metal 4 + Earth 3)
+  const brave = actor({ name: "Brave Guard", aspects: { metal: 4, water: 2, fire: 2, wood: 2, earth: 3 }, items: [sig("un", unflinching.name, unflinching)] });
+  const doctor = actor({ name: "Wary Doctor", aspects: { metal: 4, water: 2, fire: 2, wood: 2, earth: 3 }, items: [sig("an", antidote.name, antidote)] });
+  globalThis.canvas = { scene: { tokens: [{ id: "tz", name: zl.name, disposition: 1, actor: zl },
+    { id: "tg", name: brave.name, disposition: -1, actor: brave }, { id: "td", name: doctor.name, disposition: -1, actor: doctor }] } };
+  diceQueue.push([6, 0]);
+  const card = await cs.useActive(zl, zl.items.get("sk")); // 5 + 5 + 6 = 16
+  assert.equal(card.flags.qin.total, 16);
+  // the GM's picker shows each actor's resist bonuses: the matching one as applied, the other as an unticked box
+  const picker = new fx.EffectTargetPicker({ message: card, mode: "resist" });
+  const html = await picker._renderHTML();
+  assert.match(html, /Unflinching: \+2 to resist fear, Intimidation · applied/);
+  const box = html.match(/<input type="checkbox" name="rb_td_0"[^>]*>/)?.[0];
+  assert.ok(box, "a tick box for the doctor's poison bonus");
+  assert.doesNotMatch(box, /checked/, "unticked: poison isn't what this effect is");
+  assert.doesNotMatch(html, /name="rb_tg_/, "no box for the automatic one");
+  // both roll 7 + Yin 7 = 14: the guard's +2 makes 16 (a tie: resisted); the doctor's +2 is not counted (fails)
+  diceQueue.push([7, 0], [7, 0]);
+  const res = await pickerApply(picker, [brave, doctor]);
+  const rg = res.find(r => r.name === brave.name), rd = res.find(r => r.name === doctor.name);
+  assert.deepEqual(resistParts_(rg), [["Unflinching (vs fear, Intimidation)", 2, false]]);
+  assert.equal(rg.total, 16);
+  assert.equal(rg.outcome, "success");
+  assert.equal(effectsOf(brave).length, 0);
+  assert.deepEqual(resistParts_(rd), []);
+  assert.equal(rd.total, 14);
+  assert.equal(rd.outcome, "fail");
+  assert.deepEqual(rd.situational.map(b => [b.label, b.ticked]), [["Antidote Habit", false]], "offered but unticked");
+  assert.match(chat.at(-1).content, /Antidote Habit: \+2 to resist poison.*not ticked/s);
+  assert.equal(effectsOf(doctor).length, 1);
+  // the GM ticks the doctor's box in the picker: it counts
+  const p2 = new fx.EffectTargetPicker({ message: card, mode: "resist" });
+  const ids = ["td"];
+  p2.element = { querySelectorAll: (sel) => sel.includes(":checked") ? ids.map(value => ({ value }))
+    : sel.includes("data-rb-token") ? [{ checked: true, dataset: { rbToken: "td", rbKey: "an:0" } }] : [] };
+  diceQueue.push([7, 0]);
+  await fx.EffectTargetPicker.DEFAULT_OPTIONS.actions.apply.call(p2);
+  assert.equal(p2.results[0].total, 16);
+  assert.deepEqual(resistParts_(p2.results[0]), [["Antidote Habit", 2, true]]);
+  // shown in the Combat panel's passives and the sheet's list
+  const ctx = await CombatPanel.prototype._prepareContext.call({ actor: brave });
+  assert.ok(ctx.alwaysRows.some(r => r.text === "Unflinching: +2 to resist fear, Intimidation"));
+  game.combat = null;
+});
+
+test("resistTest e2e: a player's own resist asks about the offered ones; an ally's buff counts the same way", async () => {
+  asGM();
+  fight(1);
+  const s = SKILLS_UNDER_TEST[0];
+  const zl = actor({ name: "Zhang Liao vs doctor", aspects: s.aspects, skills: { intimidation: 5 }, items: [sig("sk", s.skill.name, s.skill)] });
+  const doc = actor({ name: "Player Doctor", aspects: { metal: 4, water: 2, fire: 2, wood: 2, earth: 3 }, owners: ["p1"], items: [sig("an", antidote.name, antidote)] });
+  diceQueue.push([6, 0]);
+  const card = await cs.useActive(zl, zl.items.get("sk"));
+  asPlayer(doc);
+  const [btn] = renderCard(card);
+  dialogAnswers.push({ rb_0: true }); // the player ticks it
+  diceQueue.push([7, 0]);
+  await click(btn);
+  assert.match(chat.at(-1).content, /Antidote Habit/);
+  assert.match(chat.at(-1).content, /Resisted/, "7 + 7 + 2 = 16 ties 16");
+  asGM();
+
+  // a buff: "+2 to resist fear for the scene", applied by the GM to an ally, then the ally resists
+  const rally = { name: "Hold the Line", chi: 2, desc: "Allies get +2 to resist fear for the scene.",
+    effect: { target: "allies", duration: { scene: true }, onFail: [{ stat: "resistTest", value: 2, mode: "always", against: ["fear"] }] } };
+  const cao = actor({ name: "Cao Ren rally", aspects: { metal: 4, water: 3, fire: 4, wood: 3, earth: 4 }, items: [sig("rl", rally.name, { ...rally, slot: "active" })] });
+  const ally = actor({ name: "Rallied Soldier", aspects: { metal: 4, water: 2, fire: 2, wood: 2, earth: 3 } });
+  globalThis.canvas = { scene: { tokens: [{ id: "al", name: ally.name, disposition: -1, actor: ally }, { id: "cr", name: cao.name, disposition: -1, actor: cao }] } };
+  const buffCard = await cs.useActive(cao, cao.items.get("rl"));
+  await pickerApply(new fx.EffectTargetPicker({ message: buffCard, mode: "apply" }), [ally]);
+  assert.equal(effectsOf(ally)[0].bonuses[0].stat, "resistTest");
+  assert.deepEqual(effectsOf(ally)[0].bonuses[0].against, ["fear"]);
+  const panel = await panelRows(ally);
+  assert.ok(panel.some(r => r.text.includes("+2 to resist fear")), "the buff in the panel");
+  diceQueue.push([7, 0]);
+  const [r] = await pickerApply(new fx.EffectTargetPicker({ message: card, mode: "resist" }), [ally]);
+  assert.deepEqual(resistParts_(r), [["Hold the Line (vs fear)", 2, false]]);
+  assert.equal(r.total, 16);
+  game.combat = null;
+});
+
+test("resistTest e2e: the sheet's plain Resistance roll offers every one, ticking the untagged always-on ones", async () => {
+  asGM();
+  const iron = { name: "Iron Will", slot: "passive", desc: "", bonuses: [{ stat: "resistTest", value: 1, mode: "always" }] };
+  const a = actor({ name: "Resister", aspects: { metal: 4, water: 2, fire: 2, wood: 2, earth: 3 }, items: [sig("un", unflinching.name, unflinching), sig("ir", iron.name, iron)] });
+  diceQueue.push([3, 0]);
+  const r = await a.rollResist({ prompt: false });
+  assert.equal(r.total, 7 + 3 + 1, "Resistance + die + the untagged one");
+  const card = lastTemplate("chat/roll.hbs");
+  assert.deepEqual(uniq(card), [["Iron Will", 1, true]]);
+  assert.deepEqual(card.situational.map(x => [x.text, x.ticked]), [["Unflinching: +2 to resist fear, Intimidation", false], ["Iron Will: resist rolls +1", true]]);
+  // the dialog's ticks
+  dialogAnswers.push({ st: 9, modifier: 0, rb_0: true, rb_1: true });
+  diceQueue.push([3, 0]);
+  const t = await a.rollResist({});
+  assert.equal(t.total, 7 + 3 + 2 + 1);
+  assert.equal(t.success, true);
+});
+
 test("e2e summary", () => {
   assert.equal(report.length, SKILLS_UNDER_TEST.length);
   for (const line of report) console.log(`# ${line}`);

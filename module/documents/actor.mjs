@@ -4,11 +4,11 @@ import { ASPECTS, SKILLS, SKILL_LEVELS } from "../config.mjs";
 import * as Q from "../rules/qin-rules.mjs";
 import { rollYinYang, renderTemplate, formDialog, Chat } from "../dice.mjs";
 import { part, sumParts } from "../rules/sources.mjs";
-import { pdBreakdown, collectBonuses, attackerSideBonuses, targetAdParts, skillTestParts, skillTestBonuses, appliesToSkill } from "../rules/bonuses.mjs";
+import { pdBreakdown, collectBonuses, attackerSideBonuses, targetAdParts, skillTestParts, skillTestBonuses, appliesToSkill, resistParts } from "../rules/bonuses.mjs";
 import { damageAfterReductions, isFirstHitThisRound, resolveTao } from "../rules/tao-rules.mjs";
 import { getState, tickedOf, queuedFor, consumeUpdate, currentFight, taoOf, activateTao, markActiveUsed, rollBonuses, afterAttackStacks, stackEventFor } from "../combat-state.mjs";
 import { stackDefs, stackEvent, droppedLevel } from "../rules/stacks.mjs";
-import { postEffectCard } from "../skill-effects.mjs";
+import { postEffectCard, resistBoxesHTML } from "../skill-effects.mjs";
 
 const esc = (s) => foundry.utils.escapeHTML ? foundry.utils.escapeHTML(String(s ?? "")) : String(s ?? "");
 
@@ -233,6 +233,45 @@ export class QinActor extends foundry.documents.Actor {
     const situational = uniq.situational.map(b => ({ kind: "unique", situational: true, ticked: b.ticked, text: `${b.label}: ${b.text}${b.condition ? ` (${b.condition})` : ""}` }));
     await this._postRoll({ title: o.label || (o.skill ? `${ASPECTS[o.aspect].label} + ${sk.label}` : `${ASPECTS[o.aspect].label} Test`), roll, dice, parts, total, st, success, situational });
     return { total, dice, success };
+  }
+
+  /**
+   * A plain Resistance roll (schema v2.2): Resistance + Yin/Yang, like an effect's resist side. Every resistTest
+   * bonus is offered as a tick box (the untagged always-on ones, and the Combat panel's ticks, start ticked).
+   * Prompts unless `prompt: false` (then the defaults). opts: st, modifier, label, ticked ({ key: bool }).
+   */
+  async rollResist(opts = {}) {
+    if (this.isUnit) return;
+    let o = { st: "", modifier: 0, ...opts };
+    const list = rollBonuses(this, opts.vs ?? null);
+    const offer = resistParts(list, null, { panelTicked: tickedOf(this) });
+    let ticked = opts.ticked ?? null;
+    if (opts.prompt !== false) {
+      const boxes = offer.offered.length ? `<div class="qin-dlg-bonuses"><span class="qin-muted">Resist bonuses: tick the ones that apply to this roll</span>${resistBoxesHTML(offer.offered)}</div>` : "";
+      const fd = await formDialog({ title: `${this.name}: Resistance roll`,
+        content: `<div class="qin-dialog"><div class="form-group"><label>ST (optional)</label><input type="number" name="st" value="${o.st}"></div>
+          <div class="form-group"><label>Modifier</label><input type="number" name="modifier" value="${Number(o.modifier) || 0}"></div>${boxes}</div>` });
+      if (!fd) return;
+      o = { ...o, ...fd };
+      ticked = Object.fromEntries(offer.offered.map((b, i) => [b.key, !!fd[`rb_${i}`]]));
+    }
+    const { roll, dice } = await rollYinYang({ beginner: false });
+    const mod = Number(o.modifier) || 0;
+    const uniq = resistParts(list, null, { ticked, panelTicked: tickedOf(this) });
+    const parts = [
+      part("base", "Resistance", this.system.resistance ?? 0),
+      part("dice", `Yin / Yang ${dice.yin} / ${dice.yang}${dice.double && !dice.critFail ? ", double" : ""}`, dice.value),
+      ...uniq.parts,
+      mod ? part("modifier", "Modifier", mod) : null,
+      ...this._penaltyParts(false),
+    ].filter(Boolean);
+    const total = sumParts(parts);
+    const st = o.st === "" || o.st == null ? null : Number(o.st);
+    const success = dice.critFail ? false : st == null ? null : total >= st;
+    await this._afterDice(dice);
+    const situational = uniq.offered.map(b => ({ kind: "unique", situational: true, ticked: b.ticked, text: `${b.label}: ${b.text}${b.condition ? ` (${b.condition})` : ""}` }));
+    await this._postRoll({ title: o.label || "Resistance roll", roll, dice, parts, total, st, success, situational });
+    return { total, dice, success, parts };
   }
 
   async _afterDice(dice) {

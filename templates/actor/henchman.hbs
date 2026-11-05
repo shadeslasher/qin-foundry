@@ -16,7 +16,7 @@
   </section>
   <section class="qin-derived">
     <div class="qin-stat"><span>Passive Defense</span><b>{{system.passiveDefense}}</b></div>
-    <div class="qin-stat"><span>Resistance</span><b>{{system.resistance}}</b></div>
+    <div class="qin-stat"><span>Resistance</span><b>{{system.resistance}}</b><div class="qin-mini"><a data-action="rollResist" title="Resistance + Yin/Yang (resist bonuses as tick boxes)">Resist</a></div></div>
     <div class="qin-stat"><span>Armor</span><b>{{system.armor.protection}}</b></div>
     <div class="qin-stat"><span>Tier</span><input type="number" name="system.tier" value="{{system.tier}}" min="1" max="6"></div>
     <div class="qin-stat"><span>Health</span><b class="qin-hp">{{#each hpPips}}<a data-action="henchHp" data-index="{{@index}}" class="qin-hp-pip {{#if this}}full{{/if}}" title="Click to set health"></a>{{/each}} {{system.hp.value}}/{{system.hp.max}}</b></div>
