@@ -1,12 +1,16 @@
 <div class="qin-chat qin-roll {{#if dice.critFail}}crit-fail{{/if}} {{#if dice.double}}double{{/if}}">
   <h3>{{title}}</h3>
   <div class="qin-dice"><span class="die yin" title="Yin">{{dice.yin}}</span><span class="die yang" title="Yang">{{dice.yang}}</span></div>
-  <ul class="qin-parts">{{#each parts}}<li><span>{{this.[0]}}</span><span>{{this.[1]}}</span></li>{{/each}}</ul>
-  <div class="qin-total">Total <b>{{total}}</b>{{#if st}} vs ST {{st}}{{/if}}</div>
+  <ul class="qin-parts">{{#each parts}}{{{qinPart this}}}{{/each}}</ul>
+  <div class="qin-total">Total <b>{{total}}</b>{{#if hasST}} vs {{stLabel}} <b>{{st}}</b>{{/if}}</div>
+  {{#if pdBox}}<div class="qin-pd-box"><span class="qin-muted">{{pdBox.title}}</span><ul class="qin-parts">{{#each pdBox.parts}}{{{qinPart this}}}{{/each}}</ul></div>{{/if}}
   {{#if dice.critFail}}<div class="qin-result fail">Critical failure (double zero) — −5 Chi</div>
   {{else if (eq success true)}}<div class="qin-result ok">Success{{#if margin}} — margin {{margin}}{{/if}}</div>
   {{else if (eq success false)}}<div class="qin-result fail">Failure</div>{{/if}}
   {{#if dice.chiGain}}{{#if isCharacter}}<div class="qin-muted">Double {{dice.value}}: regained up to {{dice.chiGain}} Chi</div>{{/if}}{{/if}}
   {{{extra}}}
+  {{#if damageBox}}<div class="qin-damage"><b>Damage if it lands: {{damageBox.total}}</b>{{#if damageBox.note}} <span class="qin-muted">· {{damageBox.note}}</span>{{/if}}<ul class="qin-parts">{{#each damageBox.parts}}{{{qinPart this}}}{{/each}}</ul></div>{{/if}}
+  {{#if notes.length}}<ul class="qin-notes">{{#each notes}}<li>{{{qinChip this}}} {{text}}</li>{{/each}}</ul>{{/if}}
+  {{#if situational.length}}<div class="qin-situational"><span class="qin-muted">Situational bonuses</span><ul>{{#each situational}}<li class="{{#if ticked}}on{{/if}}">{{{qinChip this}}} {{text}} {{#if ticked}}<b>· applied</b>{{else}}<span class="qin-muted">· not ticked</span>{{/if}}</li>{{/each}}</ul></div>{{/if}}
   {{#if buttons.length}}<div class="qin-buttons">{{#each buttons}}<button type="button" data-qin-action="{{action}}" data-type="{{type}}">{{label}}</button>{{/each}}</div>{{/if}}
 </div>

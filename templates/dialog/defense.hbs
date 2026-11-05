@@ -2,7 +2,11 @@
   <p><b>{{label}}</b> with {{skillLabel}} — beat <b>{{attackTotal}}</b>{{#if attacker}} ({{attacker}}'s attack){{/if}}</p>
   {{#if techniques.length}}<div class="form-group"><label>Technique</label><select name="technique"><option value="">— none —</option>{{#each techniques}}<option value="{{id}}">{{name}} (ST +{{system.stIncrease}})</option>{{/each}}</select></div>{{/if}}
   {{#if isCharacter}}<div class="form-group"><label>Inner strength (max {{earth}}, 2 Chi each)</label><input type="number" name="inner" value="0" min="0" max="{{earth}}"></div>{{/if}}
-  {{#if strongBlock}}<div class="form-group"><label>Strong Block (Invisible Shield 3): +{{wood}}</label><input type="checkbox" name="strongBlock"></div>{{/if}}
+  {{#if strongBlock}}<label class="qin-inline"><input type="checkbox" name="strongBlock" {{#if strongQueued}}checked{{/if}}> <span class="qin-src qin-src-tao">Tao</span> Invisible Shield 3, Strong Block: +Wood {{wood}} (3 Chi){{#if strongQueued}} <span class="qin-muted">(ready)</span>{{/if}}</label>{{/if}}
+  {{#if chiBlock}}<label class="qin-inline"><input type="checkbox" name="chiBlock" {{#if chiBlockQueued}}checked{{/if}}> <span class="qin-src qin-src-tao">Tao</span> Invisible Shield 4, Chi Block: a free defense, no action used (4 Chi){{#if chiBlockQueued}} <span class="qin-muted">(ready)</span>{{/if}}</label>{{/if}}
   <div class="form-group"><label>Roll modifier</label><input type="number" name="modifier" value="0"></div>
+  {{#if always.length}}<div class="qin-dlg-bonuses"><span class="qin-muted">Applied automatically</span>{{#each always}}<div><span class="qin-src qin-src-unique">Unique</span> {{this}}</div>{{/each}}</div>{{/if}}
+  {{#if sitOpts.length}}<div class="qin-dlg-bonuses"><span class="qin-muted">Situational: tick the ones that apply</span>
+    {{#each sitOpts}}<label class="qin-inline"><input type="checkbox" name="sit_{{i}}" {{#if checked}}checked{{/if}}> <span class="qin-src qin-src-unique qin-src-situational">Unique</span> {{text}}{{#if condition}} <span class="qin-muted">({{condition}})</span>{{/if}}</label>{{/each}}</div>{{/if}}
   {{#if actionsNote}}<p class="qin-muted">{{actionsNote}}</p>{{/if}}
 </div>

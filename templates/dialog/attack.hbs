@@ -1,12 +1,18 @@
 <div class="qin-dialog">
   <p><b>{{weapon.name}}</b> — damage {{weapon.system.damage}}{{#if target}} · target <b>{{target.name}}</b>{{/if}}</p>
+  {{#if active}}<p class="qin-dlg-note"><span class="qin-src qin-src-unique">Unique</span> <b>{{active.name}}</b>{{#if active.text}}: {{active.text}}{{/if}}{{#if active.chiCost}} · {{active.chiCost}} Chi{{/if}} (applied)</p>{{/if}}
   {{#if distance}}<p class="qin-muted">Distance {{distance}} yd{{#if band}} · {{band.label}} range ({{#if band.st}}{{band.st}}{{else}}0{{/if}} to the ST, already in Situation){{/if}}</p>{{/if}}
   <div class="form-group"><label>Target Passive Defense</label><input type="number" name="pd" value="{{targetPD}}" placeholder="unknown"></div>
   <div class="form-group"><label>Technique</label><select name="technique"><option value="">— none —</option>{{#each techniques}}<option value="{{id}}">{{name}} (ST +{{system.stIncrease}})</option>{{/each}}</select></div>
   <div class="form-group"><label>Situation (added to the ST)</label><input type="number" name="situation" value="{{situation}}" title="Behind defender -2, side -1, defender surprised -1, defender on ground -3, target in cover +1 to +4..."></div>
   {{#if isRanged}}<div class="form-group"><label>Aim bonus (actions spent aiming)</label><input type="number" name="aim" value="0" min="0"></div>{{/if}}
   <div class="form-group"><label>Roll modifier</label><input type="number" name="modifier" value="0"></div>
-  <div class="form-group"><label>Damage bonus (e.g. Destructive Breath)</label><input type="number" name="damageBonus" value="0"></div>
+  <div class="form-group"><label>Other damage bonus</label><input type="number" name="damageBonus" value="0"></div>
   {{#if isCharacter}}<div class="form-group"><label>Inner strength (max {{earth}}, 2 Chi each)</label><input type="number" name="inner" value="0" min="0" max="{{earth}}"></div>{{/if}}
+  {{#if always.length}}<div class="qin-dlg-bonuses"><span class="qin-muted">Applied automatically</span>{{#each always}}<div><span class="qin-src qin-src-unique">Unique</span> {{this}}</div>{{/each}}</div>{{/if}}
+  {{#if queued.length}}<div class="qin-dlg-bonuses"><span class="qin-muted">Ready for this attack (Chi spent only if it hits)</span>
+    {{#each queued}}<label class="qin-inline"><input type="checkbox" name="q_{{i}}" checked> <span class="qin-src qin-src-tao">Tao</span> {{label}}: {{text}} ({{cost}} Chi)</label>{{/each}}</div>{{/if}}
+  {{#if sitOpts.length}}<div class="qin-dlg-bonuses"><span class="qin-muted">Situational: tick the ones that apply</span>
+    {{#each sitOpts}}<label class="qin-inline"><input type="checkbox" name="sit_{{i}}" {{#if checked}}checked{{/if}}> <span class="qin-src qin-src-unique qin-src-situational">Unique</span> {{text}}{{#if condition}} <span class="qin-muted">({{condition}})</span>{{/if}}</label>{{/each}}</div>{{/if}}
   <p class="qin-muted">Close combat ST: attacker elevated −1, to the side −1, behind −2; defender surprised −1, immobilized −1, on the ground −3. Ranged: short −1, medium 0, long +1, extreme +3.</p>
 </div>

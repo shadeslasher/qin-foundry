@@ -1,0 +1,7 @@
+<div class="qin-chat qin-roll qin-damage-card">
+  <h3>{{name}} is hit</h3>
+  <ul class="qin-parts">{{#each parts}}{{{qinPart this}}}{{/each}}</ul>
+  <div class="qin-total">{{lostLabel}} <b>{{final}}</b></div>
+  {{#if stateLine}}<div class="qin-muted">{{stateLine}}</div>{{/if}}
+  {{#if unused.length}}<div class="qin-situational"><span class="qin-muted">Not used this hit</span><ul>{{#each unused}}<li>{{{qinChip this}}} {{text}}</li>{{/each}}</ul></div>{{/if}}
+</div>

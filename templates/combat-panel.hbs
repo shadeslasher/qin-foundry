@@ -1,0 +1,67 @@
+<div class="qin-cp">
+  <header class="qin-cp-head">
+    <img src="{{actor.img}}" alt="" data-action="openSheet" title="Open the sheet">
+    <div><b>{{actor.name}}</b>{{#if subtitle}}<div class="qin-muted">{{subtitle}}</div>{{/if}}<div class="qin-cp-fight">{{fight}}</div></div>
+  </header>
+  <div class="qin-cp-body">
+    <section class="qin-cp-status">
+      {{#if chi}}<div class="qin-cp-meter"><span>Chi</span><b>{{chi.value}}</b><small>/ {{chi.max}}</small><div class="qin-cp-bar chi"><i style="width: {{chi.pct}}%"></i></div></div>{{/if}}
+      {{#if bol}}<div class="qin-cp-meter"><span>{{#if bol.henchman}}Health{{else}}Breath of Life{{/if}}</span><b>{{bol.value}}</b><small>/ {{bol.max}}</small><div class="qin-cp-bar bol"><i style="width: {{bol.pct}}%"></i></div></div>{{/if}}
+      {{#if actions}}<div class="qin-cp-meter"><span>Actions</span><b>{{actions.left}}</b><small>/ {{actions.max}}</small><div class="qin-cp-pips">{{#each actions.pips}}<i class="qin-pip {{#if this}}full{{/if}}"></i>{{/each}}</div></div>{{/if}}
+    </section>
+
+    <section>
+      <h4>In effect now</h4>
+      {{#each inEffect}}
+      <div class="qin-cp-row qin-cp-{{kind}}"><span class="qin-src qin-src-{{kind}}">{{#if (eq kind "tao")}}Tao{{else}}Unique{{/if}}</span><span class="qin-cp-grow">{{text}}</span><b>{{left}}</b>{{#if canEnd}}<button type="button" data-action="endEffect" data-id="{{id}}">End</button>{{/if}}</div>
+      {{/each}}
+      {{#each alwaysRows}}
+      <div class="qin-cp-row qin-cp-plain"><span class="qin-src qin-src-unique">Unique</span><span class="qin-cp-grow">{{text}}</span><span class="qin-muted">always on</span></div>
+      {{/each}}
+      {{#unless inEffect.length}}{{#unless alwaysRows.length}}<p class="qin-muted">Nothing in effect.</p>{{/unless}}{{/unless}}
+    </section>
+
+    <section class="qin-cp-ready">
+      <h4>Ready for the next roll</h4>
+      {{#each queued}}
+        {{#each items}}
+        <div class="qin-cp-row"><span class="qin-cp-slot">{{../label}}</span><span class="qin-src qin-src-{{kind}}">{{#if (eq kind "tao")}}Tao{{else}}Unique{{/if}}</span><span class="qin-cp-grow">{{text}}</span><button type="button" class="qin-cp-x" data-action="unqueue" data-id="{{id}}" aria-label="Remove {{text}}" title="Remove (nothing was spent)">&times;</button></div>
+        {{/each}}
+      {{else}}<p class="qin-muted">Nothing waiting.</p>{{/each}}
+      <p class="qin-muted">Chi is spent when the roll uses it. Removing one refunds nothing because nothing was spent yet.</p>
+    </section>
+
+    {{#if taos.length}}
+    <section>
+      <h4>Taos</h4>
+      {{#each taos}}
+      <div class="qin-cp-tao"><div class="qin-cp-tao-name">{{name}}{{#if other}} <a data-action="taoOther" data-tao-id="{{id}}">{{otherLabel}}</a>{{/if}}</div>
+        <div class="qin-cp-btns">
+        {{#each buttons}}<button type="button" data-action="tao" data-tao-id="{{../id}}" data-level="{{level}}" {{#if disabled}}disabled{{/if}} title="{{when}}"><b>{{label}}</b><small>{{#if disabled}}{{reason}}{{else}}{{sub}}{{/if}}</small></button>{{/each}}
+        </div>
+      </div>
+      {{/each}}
+    </section>
+    {{/if}}
+
+    {{#if actives.length}}
+    <section>
+      <h4>Unique actives</h4>
+      {{#each actives}}
+      <div class="qin-cp-row qin-cp-plain"><span class="qin-src qin-src-unique">Unique</span><span class="qin-cp-grow"><b>{{name}}</b>{{#if sub}} · {{sub}}{{/if}}{{#if recharge}} <span class="qin-muted">({{recharge}})</span>{{/if}}</span>
+        {{#if ready}}{{#if cost}}<span class="qin-muted">{{cost}} Chi</span>{{/if}}<button type="button" class="qin-primary" data-action="useActive" data-id="{{id}}">Use</button>{{else}}<span class="qin-muted">{{status}}</span>{{/if}}</div>
+      {{/each}}
+    </section>
+    {{/if}}
+
+    {{#if situational.length}}
+    <section>
+      <h4>Situational</h4>
+      {{#each situational}}
+      <label class="qin-cp-row qin-cp-plain"><input type="checkbox" data-sit-key="{{key}}" {{#if checked}}checked{{/if}}><span class="qin-src qin-src-unique qin-src-situational">Unique</span><span class="qin-cp-grow">{{text}}{{#if condition}} <span class="qin-muted">({{condition}})</span>{{/if}}</span></label>
+      {{/each}}
+      <p class="qin-muted">Ticked bonuses are applied to the next relevant roll while they stay ticked.</p>
+    </section>
+    {{/if}}
+  </div>
+</div>

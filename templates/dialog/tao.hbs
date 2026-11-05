@@ -1,6 +1,6 @@
 <div class="qin-dialog">
-  <p>Spend Chi equal to the effect's level.</p>
+  <p>Chi cost = the effect's level; effects "paid in Chi" cost their bonus. Effects marked <span class="qin-src qin-src-tao">Tao</span> are applied for you: they wait for the next roll that uses them, or run for their rounds.</p>
   {{#each levels}}
-  <label class="qin-radio"><input type="radio" name="level" value="{{level}}" {{#if @first}}checked{{/if}}> <b>Level {{level}}</b> ({{level}} Chi): {{text}}</label>
+  <label class="qin-radio"><input type="radio" name="level" value="{{value}}" {{#if @first}}checked{{/if}}> <b>{{#if (eq value "any")}}Any level{{else}}Level {{level}}{{/if}}</b> ({{cost}} Chi): {{#if auto}}<span class="qin-src qin-src-tao">Tao</span> {{auto}}{{#if text}} <span class="qin-muted">— {{text}}</span>{{/if}}{{else}}{{text}}{{/if}}</label>
   {{/each}}
 </div>

@@ -1,4 +1,7 @@
 import { SKILLS } from "../config.mjs";
+import { BONUS_STATS } from "../rules/bonuses.mjs";
+
+const BONUS_STAT_KEYS = Object.keys(BONUS_STATS);
 
 const fields = foundry.data.fields;
 const int = (initial = 0, opts = {}) => new fields.NumberField({ required: true, nullable: false, integer: true, initial, ...opts });
@@ -146,6 +149,16 @@ export class SignatureData extends foundry.abstract.TypeDataModel {
         chargeAttackBonus: int(0),
         extraMoraleLossOnWin: int(0),
       }),
+      // Structured in-person bonuses (David, 2026-11-05): always-on ones are applied to rolls automatically,
+      // situational ones are tick boxes on the dialogs and the Combat panel. On an active they apply when it is used.
+      bonuses: new fields.ArrayField(new fields.SchemaField({
+        stat: new fields.StringField({ initial: "pd", choices: BONUS_STAT_KEYS }),
+        value: int(0),
+        aspect: new fields.StringField({ initial: "", blank: true }), // optional: add this Aspect ("reduced by his Metal")
+        mode: new fields.StringField({ initial: "always", choices: ["always", "situational"] }),
+        condition: new fields.StringField({ initial: "" }),
+        label: new fields.StringField({ initial: "" }),
+      }), { initial: [] }),
       description: desc(),
     };
   }

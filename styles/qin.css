@@ -1028,3 +1028,87 @@ details.qin-recent[open] > summary { margin-bottom: 4px; }
 .qin-sig-tip b { display: block; margin-bottom: 2px; }
 .qin-sig-tip .qin-sig-meta { font-style: italic; opacity: 0.85; margin-bottom: 4px; }
 .qin-sig-tip-body p { margin: 0 0 4px; }
+
+/* ---------- Source tags on roll parts, sheet stat breakdowns, Combat panel (David, 2026-11-05) ---------- */
+.qin-src { display: inline-block; font-size: calc(10px * var(--qin-scale, 1.15)); line-height: 1.35; padding: 0 5px; margin-right: 5px; border-radius: 4px; border: 1px solid transparent; font-weight: 600; white-space: nowrap; vertical-align: 1px; }
+.qin-src-aspect { background: #5f5f5f; color: #fff; }
+.qin-src-aspect.qin-src-metal { background: #5f5f5f; } .qin-src-aspect.qin-src-water { background: #2f5f8a; }
+.qin-src-aspect.qin-src-fire { background: #a8352a; } .qin-src-aspect.qin-src-wood { background: #3e7a3a; } .qin-src-aspect.qin-src-earth { background: #7a5c1c; }
+.qin-src-skill, .qin-src-base { border-color: #231c14; color: #231c14; background: transparent; font-weight: 500; }
+.qin-src-dice { background: #1d1d1d; color: #fff; }
+.qin-src-gear { background: #7a4b26; color: #fff; }
+.qin-src-tao { background: #2f5f8a; color: #fff; }
+.qin-src-unique { background: #b8862b; color: #1b140b; font-weight: 700; }
+.qin-src-unique.qin-src-situational { background: #fbf3df; color: #7a5a12; border: 1px dashed #b8862b; }
+.qin-src-houseRule { border-color: #9b2c22; color: #9b2c22; background: transparent; }
+.qin-src-wound { background: #9b2c22; color: #fff; }
+.qin-src-modifier { border-color: #5a4f40; color: #5a4f40; background: transparent; font-weight: 500; }
+.qin-parts li.qin-part { align-items: center; padding: 1px 0; }
+.qin-part-label { display: flex; align-items: center; flex-wrap: wrap; gap: 0; min-width: 0; }
+.qin-part-value { font-weight: bold; white-space: nowrap; }
+.qin-pd-box { background: #fbf3df; border: 1px dashed var(--qin-gold, #b8862b); border-radius: 4px; padding: 4px 7px; margin: 4px 0; }
+.qin-pd-box .qin-parts { margin: 2px 0 0; }
+.qin-damage .qin-parts { margin-top: 2px; }
+.qin-struck { text-decoration: line-through; opacity: 0.7; }
+.qin-situational { border-top: 1px dotted #c9b48a; margin-top: 4px; padding-top: 3px; font-size: calc(12px * var(--qin-scale, 1.15)); }
+.qin-situational ul, .qin-notes { list-style: none; margin: 2px 0; padding: 0; font-size: calc(12px * var(--qin-scale, 1.15)); }
+.qin-situational li.on { font-weight: 600; }
+.qin-dlg-bonuses { display: flex; flex-direction: column; gap: 3px; margin: 6px 0; padding: 5px 7px; border: 1px solid var(--qin-line, #cbb994); border-radius: 4px; background: rgba(255, 255, 255, 0.35); }
+.qin-dlg-note { margin: 4px 0; }
+
+/* Character sheet: stats with a bonus from outside the base rules */
+.qin-derived { grid-template-columns: repeat(auto-fit, minmax(calc(74px * var(--qin-scale, 1.15)), 1fr)); }
+a.qin-stat { color: inherit; text-decoration: none; position: relative; cursor: pointer; }
+a.qin-stat:hover, a.qin-stat:focus-visible { border-color: var(--qin-gold); }
+.qin-stat.qin-stat-gold { border: 2px solid var(--qin-gold); background: #fbf3df; padding: 3px; }
+.qin-stat-badge { position: absolute; top: -7px; right: -5px; font-style: normal; font-weight: 700; font-size: calc(10px * var(--qin-scale, 1.15)); background: var(--qin-gold); color: #1b140b; border-radius: 8px; padding: 0 5px; line-height: 1.5; }
+.qin-dmg-badge { position: static; display: inline-block; text-decoration: none; }
+.qin-breakdown-tip { min-width: 240px; text-align: left; }
+.qin-breakdown-tip > b { display: block; margin-bottom: 3px; }
+.qin-breakdown-tip .qin-parts { font-size: 12px; }
+.qin-breakdown-total { border-top: 1px solid #c9b48a; margin-top: 3px; padding-top: 2px; }
+.qin-running { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 10px 6px; font-size: calc(12px * var(--qin-scale, 1.15)); }
+.qin-running-fx { background: #e6eef6; border-radius: 6px; padding: 2px 6px; }
+.qin-unique-bonuses { padding: 0 10px 6px; }
+.qin-unique-bonuses h3 { margin-top: 2px; }
+.qin-combat-panel-btn { flex: none; width: auto; white-space: nowrap; font-size: 12px; padding: 2px 10px; height: auto; line-height: 1.6; background: var(--qin-gold) !important; color: #1b140b !important; border: 1px solid #8a6420 !important; font-weight: 700; }
+.qin-combat-panel-btn:hover { background: #c9973a !important; }
+.qin-bonus-list { display: flex; flex-direction: column; gap: 4px; padding: 0 10px; }
+.qin-bonus-row { display: grid; grid-template-columns: 1.6fr 0.5fr 0.8fr 0.9fr 1.4fr 1.2fr auto; gap: 4px; align-items: center; }
+.qin-bonus-row input, .qin-bonus-row select { min-width: 0; height: calc(24px * var(--qin-scale, 1.15)); font-size: calc(12px * var(--qin-scale, 1.15)); }
+
+/* Combat panel */
+.qin-combat-panel .window-content { background: var(--qin-paper); color: var(--qin-ink); padding: 0; }
+.qin-cp { display: flex; flex-direction: column; font-size: calc(13px * var(--qin-scale, 1.15)); }
+.qin-cp-head { display: flex; gap: 8px; align-items: center; padding: 8px 12px; border-bottom: 2px solid var(--qin-red); background: linear-gradient(#efe2c6, var(--qin-paper)); }
+.qin-cp-head img { width: 44px; height: 44px; object-fit: cover; border: 2px solid var(--qin-gold); border-radius: 6px; cursor: pointer; }
+.qin-cp-fight { font-size: calc(12px * var(--qin-scale, 1.15)); color: var(--qin-red); font-weight: 600; }
+.qin-cp-body { overflow-y: auto; max-height: calc(100vh - 120px); }
+.qin-cp section { padding: 8px 12px; border-bottom: 1px solid var(--qin-line); display: flex; flex-direction: column; gap: 5px; }
+.qin-cp h4 { margin: 0; font-weight: 700; color: var(--qin-red); font-size: calc(14px * var(--qin-scale, 1.15)); border: 0; }
+.qin-cp-status { flex-direction: row !important; gap: 10px !important; }
+.qin-cp-meter { flex: 1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px; }
+.qin-cp-meter > span { width: 100%; font-size: calc(11px * var(--qin-scale, 1.15)); color: var(--qin-muted); }
+.qin-cp-meter b { font-size: calc(18px * var(--qin-scale, 1.15)); }
+.qin-cp-bar { width: 100%; height: 6px; background: #ddd2bb; border-radius: 3px; overflow: hidden; }
+.qin-cp-bar i { display: block; height: 100%; }
+.qin-cp-bar.chi i { background: #2f5f8a; } .qin-cp-bar.bol i { background: #9b2c22; }
+.qin-cp-pips { width: 100%; display: flex; gap: 3px; flex-wrap: wrap; }
+.qin-cp-pips .qin-pip { width: 10px; height: 10px; border-radius: 50%; border: 1px solid #8a6420; display: inline-block; }
+.qin-cp-pips .qin-pip.full { background: var(--qin-gold); }
+.qin-cp-row { display: flex; gap: 6px; align-items: center; border-radius: 6px; padding: 4px 6px; }
+.qin-cp-row.qin-cp-tao { background: #e6eef6; } .qin-cp-row.qin-cp-unique { background: #fbf3df; }
+.qin-cp-row.qin-cp-plain { padding: 2px 6px; }
+.qin-cp-grow { flex: 1; min-width: 0; }
+.qin-cp-slot { color: var(--qin-muted); width: 92px; flex: none; font-size: calc(12px * var(--qin-scale, 1.15)); }
+.qin-cp-ready { background: #fffaf0; }
+.qin-cp button { width: auto; flex: none; min-height: 26px; line-height: 1.2; border: 1px solid var(--qin-line); background: #fffaf0; border-radius: 4px; font-family: inherit; padding: 2px 8px; }
+.qin-cp button.qin-primary { background: var(--qin-gold); color: #1b140b; border-color: #8a6420; font-weight: 700; }
+.qin-cp-x { min-width: 26px; }
+.qin-cp-tao-name { font-weight: 700; margin-bottom: 3px; }
+.qin-cp-tao-name a { font-weight: 400; font-size: calc(12px * var(--qin-scale, 1.15)); margin-left: 6px; color: var(--qin-red); }
+.qin-cp-btns { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; }
+.qin-cp-btns button { display: flex; flex-direction: column; align-items: flex-start; text-align: left; padding: 3px 7px; }
+.qin-cp-btns button small { color: var(--qin-muted); font-size: calc(11px * var(--qin-scale, 1.15)); }
+.qin-cp-btns button:disabled { opacity: 0.75; background: #ece3cf; cursor: not-allowed; }
+.qin-cp-btns button:not(:disabled):hover { border-color: #2f5f8a; }

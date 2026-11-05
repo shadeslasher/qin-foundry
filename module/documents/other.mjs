@@ -1,4 +1,5 @@
 import { rollYinYang, renderTemplate, Chat } from "../dice.mjs";
+import { tickedOf, queuedFor, consumeUpdate } from "../combat-state.mjs";
 import { remainingActions, resetActionUpdates, maxExchanges, changeSpent, requestNextTurn } from "../combat-actions.mjs";
 
 export class QinItem extends foundry.documents.Item {
@@ -37,9 +38,22 @@ export class QinCombat extends foundry.documents.Combat {
       if (!actor || actor.type === "unit") continue;
       const { roll, dice } = await rollYinYang();
       const water = actor.system.aspects?.water ?? 0;
-      const total = water + dice.value;
+      // Unique Initiative bonuses (always on, or situational and ticked) and Sudden Lightning's Speed if queued
+      const extras = [];
+      const ticked = tickedOf(actor);
+      for (const b of actor.system.bonusList ?? []) {
+        if (b.stat !== "initiative" || (b.mode === "situational" && !ticked[b.key])) continue;
+        extras.push({ kind: "unique", situational: b.mode === "situational", label: b.label, value: b.value });
+      }
+      const q = queuedFor(actor, "initiative");
+      if (q.length) {
+        for (const e of q) extras.push({ kind: "tao", label: `${e.label} (${e.cost} Chi)`, value: e.value });
+        await actor.update(consumeUpdate(actor, q.map(e => e.id)).update);
+      }
+      for (const e of extras) e.shown = e.value < 0 ? `\u2212${-e.value}` : `+${e.value}`;
+      const total = water + dice.value + extras.reduce((t, e) => t + e.value, 0);
       updates.push({ _id: id, initiative: total + water / 100 });
-      lines.push({ name: c.name, total, water, dice });
+      lines.push({ name: c.name, total, water, dice, extras });
       if (dice.chiGain) await actor.gainChi?.(dice.chiGain);
       if (dice.chiLoss) await actor.loseChi?.(dice.chiLoss);
     }

@@ -1,4 +1,5 @@
 // Pure Qin rules math. No Foundry dependencies, so it can be unit-tested in Node.
+import { part } from "./sources.mjs";
 
 /** Body (Metal+Water) vs Mind (Fire+Wood). */
 export function balance(a) {
@@ -127,6 +128,22 @@ export function attackDamage({ metal, weapon, dice, hit, bonus = 0 }) {
   let dmg = metal + weapon + yangDamage(dice) + bonus;
   if (dice.double && !dice.critFail && hit) dmg += doubleDamage(dice);
   return Math.max(0, dmg);
+}
+
+/**
+ * Attack damage as tagged parts: Metal (Aspect), weapon (Gear), half Yang over Yin and half a double (House rule),
+ * then any extra parts (unique bonuses, Destructive Breath...). Returns { total, parts }.
+ */
+export function attackDamageParts({ metal, weapon, weaponName = "Weapon", dice, hit, extra = [] }) {
+  const parts = [part("aspect", "Metal", metal, { aspect: "metal" }), part("gear", weaponName, weapon)];
+  const y = yangDamage(dice);
+  if (y) parts.push(part("houseRule", `Yang over Yin ${dice.yangDiff}, half`, y));
+  if (dice?.double && !dice.critFail && hit) {
+    const d = doubleDamage(dice);
+    if (d) parts.push(part("houseRule", `Double ${dice.value}, half`, d));
+  }
+  parts.push(...extra.filter(p => p && p.value));
+  return { total: Math.max(0, parts.reduce((t, p) => t + p.value, 0)), parts };
 }
 
 /** Spending Chi: below zero, each negative point becomes a damage point. */

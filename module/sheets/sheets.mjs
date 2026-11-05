@@ -8,6 +8,11 @@ import { TT_ICONS } from "../icons.mjs";
 import { EquipmentPicker, unequipUnit, equipmentOf } from "../equipment.mjs";
 import { healthColor, moraleColor } from "../unit-bars.mjs";
 import { officesForViewer, currentYear } from "../game-year.mjs";
+import { part, partRowHTML, formatValue } from "../rules/sources.mjs";
+import { BONUS_STATS, BONUS_MODES } from "../rules/bonuses.mjs";
+import { roundsLeft } from "../rules/tao-rules.mjs";
+import { useActive, taoOf, currentFight } from "../combat-state.mjs";
+import { CombatPanel } from "../combat-panel.mjs";
 const hex = (n) => "#" + Number(n).toString(16).padStart(6, "0");
 
 const { api, sheets } = foundry.applications;
@@ -43,17 +48,57 @@ function runningFight() {
   return c?.started && c.round > 0 ? { id: c.id, round: c.round } : null;
 }
 
-/** Use an in-person active: refuse while it recharges, spend its Chi, post it, and note the round it was used in. */
-async function useSignature(actor, item) {
-  const fight = runningFight(), status = rechargeStatus(item.system, fight);
-  if (!status.ready) return ui.notifications.warn(`${item.name}: ${status.text}.`);
-  if (item.system.chiCost) await actor.spendChi(item.system.chiCost, item.name);
-  if (fight) await item.update({ "system.lastUse": { combat: fight.id, round: fight.round } });
-  const rl = rechargeLabel(item.system);
-  await ChatMessage.implementation.create({
-    speaker: ChatMessage.implementation.getSpeaker({ actor }),
-    content: `<div class="qin-chat"><h3>${esc(item.name)}</h3><p class="qin-sig-meta">Used${item.system.chiCost ? ` · ${item.system.chiCost} Chi` : ""}${rl ? ` · ${esc(rl)}` : ""}</p>${item.system.description || ""}</div>`,
-  });
+/** Use an in-person active (same as the Combat panel's Use: attack actives open the attack dialog with their bonuses). */
+async function useSignature(actor, item) { return useActive(actor, item); }
+
+/**
+ * Stat breakdowns for the character sheet (David, 2026-11-05): Passive Defense, Armour, Active Defense and damage.
+ * gold = a bonus from somewhere other than the base rules is in the number; badge = that bonus.
+ */
+function statBreakdowns(actor) {
+  const sys = actor.system, list = sys.bonusList ?? [], fight = currentFight();
+  const html = (title, parts, foot = "") => `<div class="qin-breakdown-tip"><b>${esc(title)}</b><ul class="qin-parts">${parts.map(partRowHTML).join("")}</ul>${foot}</div>`;
+  const situ = (stat) => list.filter(b => b.stat === stat && b.mode === "situational").map(b => part("unique", `${b.label}${b.condition ? ` (${b.condition})` : ""}`, b.value, { situational: true, note: "situational" }));
+  // Passive Defense
+  const pdParts = [...(sys.pdParts ?? []), ...situ("pd")];
+  const pdFoot = `<div class="qin-breakdown-total">Total <b>${sys.passiveDefense}</b></div>`;
+  const pd = { total: sys.passiveDefense, extra: sys.pdExtra ?? 0, gold: (sys.pdParts ?? []).some(p => !["aspect", "base"].includes(p.kind)), tip: html(`Passive Defense ${sys.passiveDefense}`, pdParts, pdFoot) };
+  // Armour: protection (gear) and everything that takes damage off a hit
+  const arParts = [];
+  for (const a of sys.armor?.list ?? []) if (a.protection) arParts.push(part("gear", a.name, a.protection, { note: a.protection === sys.armor.protection ? "" : "(not the best: not counted)" }));
+  arParts.push(part("base", `Movement penalty (${sys.armor?.protection ?? 0} \u2212 Metal ${sys.aspects.metal})`, sys.armor?.movementPenalty ?? 0));
+  let arExtra = 0;
+  for (const h of sys.hitReductions ?? []) { arParts.push(part("tao", `Strengthened Body, ${h.label}: every hit`, -h.value)); arExtra += h.value; }
+  for (const b of list) if (["hitReduction", "firstHitReduction"].includes(b.stat)) {
+    const on = b.mode !== "situational";
+    arParts.push(part("unique", `${b.label}: ${b.stat === "firstHitReduction" ? "first hit each round" : "every hit"}`, -b.value, { situational: !on, note: on ? "" : "situational" }));
+    if (on) arExtra += b.value;
+  }
+  const is = taoOf(actor, "invisibleShield").level, sb = taoOf(actor, "strengthenedBody").level;
+  if (is >= 1) arParts.push(part("tao", `Invisible Shield ${is}: Strong Defense, reduce a blow`, 0, { display: `up to \u2212${is}, ${is} Chi` }));
+  if (sb >= 4 && !(sys.hitReductions ?? []).length) arParts.push(part("tao", `Strengthened Body ${sb}: Hard Hide`, 0, { display: `\u2212Metal per hit, 4 Chi` }));
+  const armor = { total: sys.armor?.protection ?? 0, extra: arExtra, gold: arExtra > 0, tip: html(`Armour ${sys.armor?.protection ?? 0}`, arParts) };
+  // Active Defense: the always-on bonus to Block and Dodge
+  const adParts = list.filter(b => b.stat === "ad" && b.mode !== "situational").map(b => part("unique", b.label, b.value));
+  const shieldParts = (sys.armor?.list ?? []).filter(a => a.defenseBonus).map(a => part("gear", `${a.name} (Block only)`, a.defenseBonus, { note: "" }));
+  const adRest = [...shieldParts, ...situ("ad")];
+  if (is >= 3) adRest.push(part("tao", `Invisible Shield ${is}: Strong Block`, sys.aspects.wood, { display: `+Wood ${sys.aspects.wood}, 3 Chi` }));
+  const adTotal = sys.activeDefenseBonus ?? 0;
+  const ad = { total: adTotal, shown: formatValue(adTotal, "unique"), extra: adTotal, gold: adTotal !== 0, tip: html(`Active Defense bonus ${formatValue(adTotal, "unique")}`, [...adParts, ...adRest], `<div class="qin-muted">Added to Block and Dodge Tests.</div>`) };
+  // Damage: always-on unique damage bonuses (shown on the weapons)
+  const dmgParts = list.filter(b => b.stat === "damage" && b.mode !== "situational").map(b => part("unique", b.label, b.value));
+  const dmgTotal = dmgParts.reduce((t, p) => t + p.value, 0);
+  const damage = { total: dmgTotal, gold: dmgTotal !== 0, tip: html(`Damage bonus ${formatValue(dmgTotal, "unique")}`, [...dmgParts, ...situ("damage")]) };
+  // Effects in force (Taos running), for the sheet
+  const running = (sys.combatEffects ?? []).map(e => { const l = roundsLeft(e, fight); return { label: e.label, kind: e.kind === "unique" ? "unique" : "tao", left: e.exchange ? "this exchange" : e.restOfFight ? "rest of fight" : l === null ? "until ended" : `${l} round${l === 1 ? "" : "s"}` }; });
+  return { pd, armor, ad, damage, running };
+}
+
+/** The "Bonuses from unique skills" lists. */
+function uniqueBonusRows(actor) {
+  const list = actor.system.bonusList ?? [];
+  const row = (b) => ({ source: b.sourceName, text: `${b.text}${b.condition ? ` ${b.condition}` : ""}` });
+  return { always: list.filter(b => b.mode !== "situational").map(row), situational: list.filter(b => b.mode === "situational").map(row) };
 }
 
 /** Compendium entries with pre-built hover details, cached per pack (the system packs don't change in play). */
@@ -207,6 +252,8 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
       restChi: QinActorSheetBase.#restChi,
       toggleEquip: QinActorSheetBase.#toggleEquip,
       signatureOpen: QinActorSheetBase.#signatureOpen,
+      combatPanel: function () { CombatPanel.open(this.document); },
+      statBreakdown: QinActorSheetBase.#statBreakdown,
       officeAdd: QinActorSheetBase.#officeAdd,
       officeRemove: QinActorSheetBase.#officeRemove,
       addFromLibrary: QinActorSheetBase.#addFromLibrary,
@@ -233,6 +280,10 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
   async _prepareContext(options) {
     const context = await super._prepareContext(options);
     context.isGM = game.user.isGM;
+    if (["character", "henchman"].includes(this.document.type)) {
+      context.stats = statBreakdowns(this.document);
+      context.uniqueBonuses = uniqueBonusRows(this.document);
+    }
     const actor = this.document;
     const system = actor.system;
     const items = {};
@@ -375,6 +426,16 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
     else if (choice === "edit") item.sheet.render(true);
     else if (choice === "chat") item.toChat();
     else if (choice === "remove") item.delete();
+  }
+
+  /** Click a stat: its breakdown, each part with its source tag. */
+  static async #statBreakdown(event, target) {
+    const st = statBreakdowns(this.actor)[target.dataset.stat];
+    if (!st) return;
+    await (api.DialogV2 ?? api.Dialog).wait({
+      window: { title: `${this.actor.name}: breakdown` }, classes: ["qin", "qin-breakdown-dialog"], position: { width: 380 },
+      content: st.tip, buttons: [{ action: "close", label: "Close", default: true }], rejectClose: false,
+    });
   }
 
   static async #rollAspect(event, target) {
@@ -733,8 +794,37 @@ export class QinItemSheet extends api.HandlebarsApplicationMixin(ItemSheetBase) 
     position: { width: 520, height: "auto" },
     window: { resizable: true },
     form: { submitOnChange: true, closeOnSubmit: false },
-    actions: { draftDone: QinItemSheet.#draftDone, draftCancel: QinItemSheet.#draftCancel },
+    actions: { draftDone: QinItemSheet.#draftDone, draftCancel: QinItemSheet.#draftCancel, bonusAdd: QinItemSheet.#bonusAdd, bonusRemove: QinItemSheet.#bonusRemove },
   };
+
+  /** Signature bonuses: the list is saved whole (its inputs carry no form name). Drafts keep it on the in-memory item. */
+  async #saveBonuses(list) {
+    if (this.options.qinDraft) { this.document.updateSource({ "system.bonuses": list }); return this.render(); }
+    return this.document.update({ "system.bonuses": list });
+  }
+  #bonusList() { return foundry.utils.deepClone(this.document.system.bonuses ?? []).map(b => ({ ...b })); }
+  static async #bonusAdd() {
+    const list = this.#bonusList();
+    list.push({ stat: "pd", value: 1, aspect: "", mode: "always", condition: "", label: "" });
+    await this.#saveBonuses(list);
+  }
+  static async #bonusRemove(event, target) {
+    const list = this.#bonusList();
+    list.splice(Number(target.dataset.index), 1);
+    await this.#saveBonuses(list);
+  }
+  _onRender(context, options) {
+    super._onRender?.(context, options);
+    this.element.querySelectorAll(".qin-bonus-row [data-bonus-field]").forEach(inp => inp.addEventListener("change", (ev) => {
+      ev.stopPropagation();
+      const list = this.#bonusList();
+      const i = Number(inp.closest(".qin-bonus-row").dataset.index);
+      if (!list[i]) return;
+      const f = inp.dataset.bonusField;
+      list[i][f] = f === "value" ? Math.trunc(Number(inp.value) || 0) : inp.value;
+      this.#saveBonuses(list);
+    }));
+  }
 
   /** Unsaved drafts keep edits on the in-memory item instead of writing to the database. */
   async _processSubmitData(event, form, submitData, options) {
@@ -774,6 +864,10 @@ export class QinItemSheet extends api.HandlebarsApplicationMixin(ItemSheetBase) 
       signatureSlots: Object.fromEntries(Object.entries(SIGNATURE_SLOTS).map(([k, s]) => [k, s.label])),
       isActive: item.type === "signature" && isActiveSlot(item.system.slot),
       showEffects: item.type === "officerAbility" || (item.type === "signature" && item.system.slot === "battlePassive"),
+      showBonuses: item.type === "signature" && !/^battle/.test(item.system.slot ?? ""),
+      bonusRows: (item.system.bonuses ?? []).map((b, index) => ({ ...b, index })),
+      bonusStats: BONUS_STATS, bonusModes: BONUS_MODES,
+      bonusAspects: { "": "—", metal: "+ Metal", water: "+ Water", fire: "+ Fire", wood: "+ Wood", earth: "+ Earth" },
     });
     return context;
   }

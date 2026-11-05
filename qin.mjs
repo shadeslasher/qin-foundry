@@ -51,6 +51,11 @@ function applyTextScale() {
 }
 
 import { registerCompendiumSync } from "./module/compendium-sync.mjs";
+import { partRowHTML, chipHTML, formatValue } from "./module/rules/sources.mjs";
+import { registerCombatState } from "./module/combat-state.mjs";
+import { CombatPanel, registerCombatPanel } from "./module/combat-panel.mjs";
+registerCombatState();
+registerCombatPanel();
 import { registerPlacedTag } from "./module/placed-tag.mjs";
 import { registerGameYear } from "./module/game-year.mjs";
 import { DuelScenesConfig } from "./module/battle/duel-scene.mjs";
@@ -61,7 +66,7 @@ Hooks.once("init", () => {
   CONFIG.QIN = CFG;
   CONFIG.qinFactions ??= {};
   globalThis.qin = game.qin = { config: CFG, rules: QinRules, openBattle: () => BattlePanel.open(), battleRequest, registerFactions, factionList, openUnitInfo, openOfficerView, importBattleMap: () => importBattleMap(SYSTEM_ID),
-    registerMapRenderer, redrawMap: (scene = canvas.scene) => redrawScene(scene), paintMap: (scene = canvas.scene) => MapEditorApp.open(scene), refreshBattlePanel: () => BattlePanel.refresh(), newUnit: () => newUnitDialog(), unitEditor: () => UnitEditorApp.open(), registerSoundPack, playSound: (m) => playMoment(m, { minGap: 0 }), openSounds: () => SoundPanel.toggle() };
+    registerMapRenderer, redrawMap: (scene = canvas.scene) => redrawScene(scene), paintMap: (scene = canvas.scene) => MapEditorApp.open(scene), refreshBattlePanel: () => BattlePanel.refresh(), newUnit: () => newUnitDialog(), unitEditor: () => UnitEditorApp.open(), registerSoundPack, playSound: (m) => playMoment(m, { minGap: 0 }), openSounds: () => SoundPanel.toggle(), openCombatPanel: (actor) => CombatPanel.open(actor) };
 
   CONFIG.Actor.documentClass = QinActor;
   CONFIG.Item.documentClass = QinItem;
@@ -172,6 +177,11 @@ Hooks.once("init", () => {
   }
   Handlebars.registerHelper("qinObj", (options) => options.hash);
   if (!Handlebars.helpers.eq) Handlebars.registerHelper("eq", (a, b) => a === b);
+  if (!Handlebars.helpers.or) Handlebars.registerHelper("or", (...args) => args.slice(0, -1).some(Boolean));
+  // Source-tagged roll parts (David, 2026-11-05)
+  Handlebars.registerHelper("qinPart", (p) => new Handlebars.SafeString(partRowHTML(Array.isArray(p) ? { kind: "modifier", label: p[0], value: p[1] } : p)));
+  Handlebars.registerHelper("qinChip", (p) => new Handlebars.SafeString(chipHTML(p)));
+  Handlebars.registerHelper("signed", (v) => formatValue(v, "unique"));
   if (!Handlebars.helpers.inc) Handlebars.registerHelper("inc", (n) => Number(n) + 1);
 
   // Combat turn hotkeys (change them in Configure Controls)

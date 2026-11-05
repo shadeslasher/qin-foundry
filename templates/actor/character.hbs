@@ -2,7 +2,7 @@
   <header class="qin-header">
     <img class="qin-portrait" src="{{actor.img}}" data-action="editImage" data-edit="img" title="{{actor.name}}">
     <div class="qin-head-main">
-      <div class="qin-name-row"><input class="qin-name" name="name" type="text" value="{{actor.name}}" placeholder="Name">{{#if isGM}}<button type="button" class="qin-add-officer" data-action="addToOfficers" title="Copy this character into the Party Officers folder; every player owns the copy"><i class="fa-solid fa-user-plus"></i> Add to Party Officers</button>{{/if}}</div>
+      <div class="qin-name-row"><input class="qin-name" name="name" type="text" value="{{actor.name}}" placeholder="Name">{{#if owner}}<button type="button" class="qin-combat-panel-btn" data-action="combatPanel" title="Open the Combat panel beside the chat"><i class="fa-solid fa-shield-halved"></i> Combat panel</button>{{/if}}{{#if isGM}}<button type="button" class="qin-add-officer" data-action="addToOfficers" title="Copy this character into the Party Officers folder; every player owns the copy"><i class="fa-solid fa-user-plus"></i> Add to Party Officers</button>{{/if}}</div>
       <div class="qin-details">
         <label>State <input name="system.details.state" type="text" value="{{system.details.state}}"></label>
         <label>Epithet <input name="system.details.title" type="text" value="{{system.details.title}}"></label>
@@ -27,10 +27,11 @@
       <div class="qin-chi"><input type="number" name="system.chi.value" value="{{system.chi.value}}"> / {{system.chi.max}}</div>
       <div class="qin-mini"><a data-action="meditate">Meditate</a> · <a data-action="restChi">Sleep</a></div>
     </div>
-    <div class="qin-stat"><span>Passive Defense</span><b>{{system.passiveDefense}}</b></div>
+    <a class="qin-stat qin-stat-bd {{#if stats.pd.gold}}qin-stat-gold{{/if}}" data-action="statBreakdown" data-stat="pd" data-tooltip="{{stats.pd.tip}}" data-tooltip-direction="DOWN"><span>Passive Defense</span><b>{{system.passiveDefense}}</b>{{#if stats.pd.gold}}<em class="qin-stat-badge">{{signed stats.pd.extra}}</em>{{/if}}</a>
     <div class="qin-stat"><span>Resistance</span><b>{{system.resistance}}</b></div>
     <div class="qin-stat"><span>Balance</span><b>{{system.balance}}</b></div>
-    <div class="qin-stat"><span>Armor</span><b>{{system.armor.protection}}</b>{{#if system.armor.movementPenalty}}<small>move −{{system.armor.movementPenalty}}</small>{{/if}}</div>
+    <a class="qin-stat qin-stat-bd {{#if stats.armor.gold}}qin-stat-gold{{/if}}" data-action="statBreakdown" data-stat="armor" data-tooltip="{{stats.armor.tip}}" data-tooltip-direction="DOWN"><span>Armor</span><b>{{system.armor.protection}}</b>{{#if system.armor.movementPenalty}}<small>move −{{system.armor.movementPenalty}}</small>{{/if}}{{#if stats.armor.gold}}<em class="qin-stat-badge">−{{stats.armor.extra}}/hit</em>{{/if}}</a>
+    <a class="qin-stat qin-stat-bd {{#if stats.ad.gold}}qin-stat-gold{{/if}}" data-action="statBreakdown" data-stat="ad" data-tooltip="{{stats.ad.tip}}" data-tooltip-direction="DOWN"><span>Active Defense</span><b>{{stats.ad.shown}}</b>{{#if stats.ad.gold}}<em class="qin-stat-badge">{{signed stats.ad.extra}}</em>{{/if}}</a>
     <div class="qin-stat"><span>Renown</span><input type="number" name="system.renown" value="{{system.renown}}"></div>
     <div class="qin-stat"><span>Experience</span><input type="number" name="system.experience.value" value="{{system.experience.value}}"></div>
     <div class="qin-stat qin-coin"><span><i class="fa-solid fa-coins"></i> Coin</span><input type="number" name="system.coin" value="{{system.coin}}" min="0"></div>
@@ -45,6 +46,22 @@
     </div>
     {{/each}}
   </section>
+
+  {{#if stats.running.length}}
+  <section class="qin-running">
+    {{#each stats.running}}<span class="qin-running-fx"><span class="qin-src qin-src-{{kind}}">{{#if (eq kind "tao")}}Tao{{else}}Unique{{/if}}</span> {{label}} <b>{{left}}</b></span>{{/each}}
+  </section>
+  {{/if}}
+
+  {{#if (or uniqueBonuses.always.length uniqueBonuses.situational.length)}}
+  <section class="qin-unique-bonuses">
+    <h3>Bonuses from unique skills</h3>
+    {{#if uniqueBonuses.always.length}}<div class="qin-muted">Always on: added to rolls automatically</div>
+    <ul class="qin-list">{{#each uniqueBonuses.always}}<li><span class="qin-src qin-src-unique">Unique</span> <b>{{source}}</b> · {{text}}</li>{{/each}}</ul>{{/if}}
+    {{#if uniqueBonuses.situational.length}}<div class="qin-muted">Situational: tick on the card or in the Combat panel when it applies</div>
+    <ul class="qin-list">{{#each uniqueBonuses.situational}}<li><span class="qin-src qin-src-unique qin-src-situational">Unique</span> <b>{{source}}</b> · {{text}}</li>{{/each}}</ul>{{/if}}
+  </section>
+  {{/if}}
 
   <section class="qin-bol">
     <div class="qin-bol-head"><b>Breath of Life</b> {{system.bol.remaining}} / {{system.bol.total}}
@@ -103,7 +120,7 @@
         <tr data-item-id="{{item.id}}">
           <td><a data-action="itemUse" title="Attack"><i class="fa-solid fa-dice-d10"></i> {{item.name}}</a></td>
           <td>{{skill.label}} ({{skill.value}})</td><td>{{add skill.value 1}}</td>
-          <td>{{item.system.damage}}</td><td>{{item.system.resilience}}</td>
+          <td>{{item.system.damage}}{{#if ../stats.damage.gold}} <a class="qin-stat-badge qin-dmg-badge" data-action="statBreakdown" data-stat="damage" data-tooltip="{{../stats.damage.tip}}">{{signed ../stats.damage.total}}</a>{{/if}}</td><td>{{item.system.resilience}}</td>
           <td>{{#if ranged}}{{item.system.range.c}}/{{item.system.range.m}}/{{item.system.range.l}}/{{item.system.range.e}}{{else}}—{{/if}}</td>
           <td class="qin-controls"><a data-action="itemEdit"><i class="fa-solid fa-pen"></i></a><a data-action="itemDelete"><i class="fa-solid fa-trash"></i></a></td>
         </tr>

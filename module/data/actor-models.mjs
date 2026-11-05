@@ -1,5 +1,14 @@
 import { SKILLS, ASPECTS } from "../config.mjs";
 import * as Q from "../rules/qin-rules.mjs";
+import { bonusSourcesOf, collectBonuses, bonusesByStat, pdBreakdown } from "../rules/bonuses.mjs";
+import { normalizeCombatState, liveEffects, effectTotals } from "../rules/tao-rules.mjs";
+
+/** The running fight on the tracker as { id, round, exchange }, if any (safe outside Foundry). */
+function currentFight() {
+  const c = globalThis.game?.combat;
+  return c?.started ? { id: c.id, round: c.round, exchange: c.getFlag?.("qin", "exchange") ?? 1 } : null;
+}
+const combatExists = (id) => { const g = globalThis.game?.combats; return !g || !!g.get?.(id); };
 import { parseTraitText, traitTextOf, traitTiersOf } from "../battle/traits.mjs";
 
 const fields = foundry.data.fields;
@@ -45,17 +54,30 @@ class QinBaseActor extends foundry.abstract.TypeDataModel {
     const items = this.parent?.items ?? [];
     this.balance = Q.balance(a);
     this.resistance = Q.resistance(a);
-    this.passiveDefense = Q.passiveDefense(a) + (this.pdBonus || 0);
     // Armor: best equipped protection (shields add their defense bonus separately)
-    let protection = 0, defenseBonus = 0, armorPD = 0;
+    let protection = 0, defenseBonus = 0, best = null;
+    const armorList = [];
     for (const i of items) {
       if (i.type !== "armor" || !i.system.equipped) continue;
-      protection = Math.max(protection, i.system.protection);
+      if (i.system.protection > protection || !best) { protection = Math.max(protection, i.system.protection); best = i; }
       defenseBonus += i.system.defenseBonus || 0;
-      armorPD += i.system.pdModifier || 0;
+      armorList.push({ name: i.name, pdModifier: i.system.pdModifier || 0, protection: i.system.protection || 0, defenseBonus: i.system.defenseBonus || 0 });
     }
-    this.passiveDefense += armorPD;
-    this.armor = { protection, defenseBonus, movementPenalty: Q.armorPenalty(protection, a.metal) };
+    this.armor = { protection, defenseBonus, movementPenalty: Q.armorPenalty(protection, a.metal), name: best?.name ?? "", list: armorList };
+    // Combat state (Taos in effect, used actives) and unique-skill bonuses (David, 2026-11-05)
+    const state = normalizeCombatState(this.parent?.flags?.qin?.combatState);
+    const live = liveEffects(state.effects, currentFight(), combatExists);
+    const fx = effectTotals(live);
+    this.combatEffects = live;
+    this.noPain = fx.noPain;
+    this.bonusList = collectBonuses([...bonusSourcesOf(items), ...fx.bonusSources], { aspects: a });
+    this.bonuses = bonusesByStat(this.bonusList);
+    const pd = pdBreakdown({ aspects: a, pdBonus: this.pdBonus || 0, armor: armorList, bonuses: this.bonusList, tao: fx.pd });
+    this.passiveDefense = pd.total;
+    this.pdParts = pd.parts;
+    this.pdExtra = pd.extra;
+    this.activeDefenseBonus = this.bonuses.ad.alwaysTotal;
+    this.hitReductions = fx.hitReduction;
     this.bestSkill = Math.max(0, ...allSkillLevels(this, items));
   }
 }
@@ -103,7 +125,8 @@ export class CharacterData extends QinBaseActor {
     this.bol.penalty = st.penalty;
     this.bol.coma = st.coma;
     this.bol.dead = st.dead;
-    this.penalty = st.penalty;
+    this.woundPenalty = st.penalty;
+    this.penalty = this.noPain ? 0 : st.penalty; // Strengthened Body 2, Feel no pain
   }
 }
 

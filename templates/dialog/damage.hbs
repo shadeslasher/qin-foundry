@@ -3,5 +3,7 @@
   <div class="form-group"><label>Damage</label><input type="number" name="damage" value="{{damage}}"></div>
   <div class="form-group"><label>Armor protection</label><input type="number" name="protection" value="{{protection}}"></div>
   <div class="form-group"><label>Armor reduced by (Direct Hit / Masterstroke)</label><input type="number" name="pierce" value="{{pierce}}"></div>
-  <div class="form-group"><label>Other reduction (Hard Hide, Strong Defense…)</label><input type="number" name="reduction" value="0"></div>
+  {{#if auto.length}}<div class="qin-dlg-bonuses"><span class="qin-muted">Applied automatically, after armour</span>{{#each auto}}<div>{{{qinChip this}}} {{label}} &minus;{{value}}</div>{{/each}}</div>{{/if}}
+  {{#if strongDefense}}<label class="qin-inline"><input type="checkbox" name="strongDefense" {{#if strongQueued}}checked{{/if}}> <span class="qin-src qin-src-tao">Tao</span> Invisible Shield {{strongDefense}}, Strong Defense: &minus;{{strongDefense}} ({{strongDefense}} Chi, spent only if it reduces something){{#if strongQueued}} <span class="qin-muted">(ready)</span>{{/if}}</label>{{/if}}
+  <div class="form-group"><label>Other reduction</label><input type="number" name="reduction" value="0"></div>
 </div>

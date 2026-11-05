@@ -100,6 +100,37 @@ export async function spendDefenseAction(actor) {
   return true;
 }
 
+/**
+ * The action side of an Active Defense (David, 2026-11-05). chiBlock: the defender chose the Invisible Shield's Chi
+ * Block (a free defense: no action used, 4 Chi). canChiBlock: they know it, so it's offered when no actions are left.
+ * Returns { ok, chiBlock, note } (note = the line for the defense card).
+ */
+export async function defenseActionFor(actor, { chiBlock = false, canChiBlock = false } = {}) {
+  const c = activeCombatantFor(actor);
+  if (chiBlock) return { ok: true, chiBlock: true, note: "Chi Block: no action used" };
+  if (!c) return { ok: true, chiBlock: false, note: "" };
+  if (remainingActions(c) <= 0) {
+    const name = foundry.utils.escapeHTML?.(c.name) ?? c.name;
+    if (canChiBlock) {
+      const Dlg = foundry.applications.api.DialogV2 ?? foundry.applications.api.Dialog;
+      const choice = await Dlg.wait({
+        window: { title: "No actions left" },
+        content: `<p><b>${name}</b> has used all their actions this round.</p><p>Use the Invisible Shield's <b>Chi Block</b> (a free Active Defense, 4 Chi), or defend anyway without marking an action?</p>`,
+        buttons: [{ action: "chiBlock", label: "Chi Block (4 Chi)", default: true }, { action: "anyway", label: "Defend anyway" }, { action: "cancel", label: "Cancel" }],
+        rejectClose: false,
+      });
+      if (choice === "chiBlock") return { ok: true, chiBlock: true, note: "Chi Block: no action used" };
+      if (choice === "anyway") return { ok: true, chiBlock: false, note: "No actions left: none marked" };
+      return { ok: false };
+    }
+    const ok = await spendDefenseAction(actor);
+    return { ok, chiBlock: false, note: ok ? "No actions left: none marked" : "" };
+  }
+  const left = remainingActions(c) - 1;
+  await changeSpent(c, 1);
+  return { ok: true, chiBlock: false, note: `1 action used (${left} left this round)` };
+}
+
 /* ---------------------------------------- GM relay for players */
 
 async function askGM(payload) {
