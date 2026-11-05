@@ -44,6 +44,11 @@
 // (Jungle Warriors, Mountain Passes, Woodsmen), standing in allies' auras (War Drums, Imperial Solidarity,
 // Imperial Mandate, Inspiration, Hold the Line, Rallying Banner), setting up Swarm / Opportunists attacks,
 // Suppressing Fire on holding spears before a charge, and Cornered Tiger fighting on below half health.
+//
+// Fire (David, 2026-11-04): plans already pay for walking through flames and ending a turn in them. A unit also
+// puts a fire out (Extinguish, instead of attacking) when it threatens a square that matters to the side: a square
+// it keeps (worst of all when that square itself burns), any unit's job square, a building that helps its side
+// (morale squares, defensive buildings), or allies standing next to the flames (see fireDanger).
 import * as E from './engine.mjs';
 
 const HOST = { id: 'host', host: true };
@@ -432,6 +437,35 @@ function closedSides(s, e, al) {
 }
 const cantBeRinged = (s, e) => E.unitTrait(e, 'stalwart') || E.unitTrait(e, "pretender's guard") || !!E.tileRules(s, e.x, e.y)?.noSurround;
 
+// ---------------------------------------------------------------- fire (David, 2026-11-04)
+
+/** How much a burning square threatens what matters to this side, as a score (0 = leave it). */
+export function fireDanger(s, side, S, fx, fy, w) {
+  const al = E.alliance(side), cheb = (p) => Math.max(Math.abs(p.x - fx), Math.abs(p.y - fy));
+  const reach = [1, 0.55, 0.25];
+  const flammable = (p) => { const r = E.tileRules(s, p.x, p.y); return !!(r && r.flammable) || (p.x === fx && p.y === fy); };
+  let v = 0;
+  const weigh = (p, wt, maxD = 2) => { const d = cheb(p); if (d <= maxD && flammable(p)) v += wt * reach[d]; };
+  for (const p of S.keep) weigh(p, cheb(p) === 0 ? 1.4 : 0.9);
+  for (const [, j] of S.jobs) weigh(j.pt, 0.5);
+  for (const o of E.liveUnits(s)) if (E.alliance(o.side) === al && cheb(o) <= 1) v += 0.25 * reach[cheb(o)];
+  // buildings that help the side: morale squares (command tent, supply depot) and defensive ones (forts, towers)
+  for (let dx = -2; dx <= 2; dx++) for (let dy = -2; dy <= 2; dy++) {
+    const p = { x: fx + dx, y: fy + dy }, r = E.tileRules(s, p.x, p.y);
+    if (r && r.flammable && (r.moraleTurn > 0 || r.meleeDef > 0 || r.command > 0)) weigh(p, 0.3);
+  }
+  return v * w;
+}
+/** Burning squares worth putting out for this side (with their danger), from the state the side knows. */
+function dangerousFires(s, side, S, w) {
+  const out = [];
+  for (const k of Object.keys((s.siege && s.siege.fires) || {})) {
+    const [x, y] = k.split(',').map(Number), d = fireDanger(s, side, S, x, y, w);
+    if (d > 0.08 * w) out.push({ x, y, d });
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------- positioning traits (David, 2026-11-04)
 
 const tileOf = (s, x, y) => s.map && s.map.tiles && s.map.tiles[x + ',' + y];
@@ -682,6 +716,12 @@ export function plans(s, unitId, opts = {}) {
     const heur = ([x, y]) => (S.close * M.close > 0 ? 1 : 0.3) * Math.min(99, ...foes.map(e => Math.abs(e.x - x) + Math.abs(e.y - y))) + (job ? 1.5 : 0.5) * Math.min(99, nearest({ x, y }, objs))
       - 1.5 * groundValue(base, u0, x, y);
     tiles.sort((A, B) => heur(A) - heur(B));
+    // squares next to fires that threaten what matters go to the front, so a firefighting move is always weighed
+    const fires = P.level >= 1 ? dangerousFires(base, side, S, worth(base, u0)) : [];
+    if (fires.length) {
+      const near = (t) => fires.some(f => Math.max(Math.abs(f.x - t[0]), Math.abs(f.y - t[1])) <= 1);
+      tiles = [...tiles.filter(near), ...tiles.filter(t => !near(t))];
+    }
     if (tiles.length > P.maxTiles) tiles = [...tiles.slice(0, Math.ceil(P.maxTiles * 0.7)), ...tiles.slice(Math.ceil(P.maxTiles * 0.7)).sort(() => rand() - 0.5).slice(0, Math.floor(P.maxTiles * 0.3))];
     starts = [{ pre: [{ type: 'skipMove', unitId }], f: (() => { const f = fork(base); E.act(f, HOST, { type: 'skipMove', unitId }); return f; })() }];
     for (const [x, y] of tiles) {
@@ -735,6 +775,16 @@ export function plans(s, unitId, opts = {}) {
         const gu = E.unitById(g, unitId);
         if ((job && job.kind === 'keep' && E.manhattan(gu, job.pt) <= 1) || S.posture === 'stall') out[out.length - 1].score += 0.04 * worth(base, u0);
       }
+    }
+    // put out a fire that threatens what matters (instead of attacking)
+    if (!u.round.attacked && !acf.forcedMarched) for (const [fx, fy] of E.extinguishTiles(f, u)) {
+      const danger = fireDanger(base, side, S, fx, fy, worth(base, u0));
+      if (danger <= 0.08 * worth(base, u0)) continue;
+      const g = fork(f); E.setRng(seeded(hashStr(unitId + 'ext' + fx + ',' + fy)));
+      const act = { type: 'extinguish', unitId, x: fx, y: fy };
+      if (!E.act(g, HOST, act).ok) continue;
+      consider([...pre, act], g);
+      out[out.length - 1].score += danger * [0.4, 0.6, 0.8, 1, 1, 1][P.level];
     }
     // overwatch (ranged, nothing to shoot yet)
     if (E.typeOf(f, u).weapon === 'ranged' && !u.round.attacked && !E.attackTargets(f, u).length) {

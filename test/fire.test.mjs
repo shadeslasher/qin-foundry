@@ -91,3 +91,17 @@ test('Extinguish: free with water next to the unit; only burning squares next to
   assert.strictEqual(u.men, men); assert.strictEqual(u.morale, mo);
   assert.ok(!s.siege.fires['2,1']);
 });
+
+test('a unit on a bridge that burns away scrambles to the nearest dry square with heavy losses', () => {
+  const river = {};
+  for (let y = 0; y < 12; y++) river['5,' + y] = { terrain: 'river' };
+  river['5,5'] = { terrain: 'river', overlays: ['bridge'] };
+  const { s, a } = setup(river, { x: 5, y: 5 });
+  const u = R.unitById(s, a), men = u.men, mo = u.morale;
+  s.siege.fires = { '5,5': { left: 1 } };
+  R._endRound(s);
+  assert.ok(s.siege.burnt['5,5'], 'the bridge is gone');
+  assert.ok(Math.abs(u.x - 5) === 1 && Math.abs(u.y - 5) <= 1, 'on the bank next to it: ' + u.x + ',' + u.y);
+  assert.strictEqual(u.men, men - Math.ceil((u.maxMen || 100) * 0.25)); assert.strictEqual(u.morale, mo - 10);
+  assert.ok(s.log.some(e => e.detail?.type === 'stranded'));
+});

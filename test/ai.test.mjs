@@ -336,3 +336,24 @@ test('AI: Suppressing Fire goes for the braced spears when its cavalry is waitin
   }
   assert.ok(spearHits >= 3, 'shoots the spears: ' + spearHits + '/4');
 });
+
+// ---- fire (David, 2026-11-04)
+test('AI: puts out a fire next to a square it must keep, leaves a harmless one alone', () => {
+  const acts = {};
+  for (const guard of [true, false]) {
+    const s = R.newState(); s.players.p1 = { name: 'Alice' };
+    s.map.cols = 12; s.map.rows = 12; s.map.tiles = {};
+    for (let x = 0; x < 12; x++) for (let y = 0; y < 12; y++) s.map.tiles[x + ',' + y] = { terrain: 'plains' };
+    s.map.tiles['5,5'] = { terrain: 'forest' }; s.map.tiles['5,6'] = { terrain: 'tall-grass' };
+    s.library.unitTypes.push(foe);
+    const ids = [{ typeId: 'foe', side: 'player', owner: 'p1', x: 1, y: 1 }, { typeId: 'foe', side: 'enemy', x: 7, y: 7 }]
+      .map(o => must(R.act(s, HOST, { type: 'addUnit', ...o })).unitId);
+    if (guard) s.objectives = { victory: [{ id: 'v', type: 'burn', x: 5, y: 5 }], defeat: [], extraction: [] };
+    must(R.act(s, HOST, { type: 'startBattle' })); R.setRng(() => 0.3); must(R.act(s, HOST, { type: 'startRound' }));
+    s.siege = { ladders: [], dropped: [], gates: [], fires: { '5,6': { left: 3 } } };
+    must(R.act(s, P1, { type: 'begin', unitId: ids[0] })); must(R.act(s, P1, { type: 'endTurn', unitId: ids[0] }));
+    acts[guard] = runAI(s, { enemy: true }, 3).map(a => a.type);
+  }
+  assert.ok(acts.true.includes('extinguish'), 'guards the square the players must burn: ' + acts.true);
+  assert.ok(!acts.false.includes('extinguish'), 'nothing at stake: ' + acts.false);
+});

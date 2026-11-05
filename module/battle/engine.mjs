@@ -262,7 +262,33 @@ function burnRound(s) {
     const [x, y] = k.split(',').map(Number), info = burnInfo(s, x, y);
     delete sg.fires[k]; sg.burnt = sg.burnt || {}; sg.burnt[k] = true;
     log(s, 'The ' + (info ? info.name.toLowerCase() : 'square') + ' at ' + k + ' burns down.', { type: 'burntDown', x, y, gate: !!gateAt(s, x, y) });
+    strandedByFire(s, x, y);
   }
+}
+/** Heavy losses for a unit whose bridge or boat burns away under it (David, 2026-11-04): a quarter of its full health, and morale. */
+const STRANDED_LOSS = 0.25, STRANDED_MORALE = 10;
+/** A unit left on water when the bridge or boat under it burns away scrambles to the nearest dry square, with heavy losses. */
+function strandedByFire(s, x, y) {
+  const u = unitAt(s, x, y); if (!u || !alive(u) || passable(s, x, y, u)) return;
+  // nearest free square it could stand on, by steps over open ground (ties: the first found)
+  const seen = new Set([x + ',' + y]), q = [[x, y]];
+  let to = null;
+  while (q.length && !to) {
+    const [cx, cy] = q.shift();
+    for (const [dx, dy] of ALL8) {
+      const nx = cx + dx, ny = cy + dy, nk = nx + ',' + ny;
+      if (seen.has(nk) || !inBounds(s, nx, ny)) continue;
+      seen.add(nk);
+      if (passable(s, nx, ny, u) && !unitAt(s, nx, ny)) { to = { x: nx, y: ny }; break; }
+      q.push([nx, ny]);
+    }
+  }
+  const loss = colossalCap(u, Math.ceil(Math.max(1, u.maxMen || 100) * STRANDED_LOSS));
+  u.men = Math.max(0, u.men - loss);
+  u.morale = clamp(u.morale - STRANDED_MORALE, 0, 100);
+  if (to) { u.x = to.x; u.y = to.y; }
+  log(s, u.name + (to ? ' scrambles from the burning wreck to ' + to.x + ',' + to.y : ' is trapped on the burning wreck') + ': -' + loss + ' troops, -' + STRANDED_MORALE + ' morale.', { type: 'stranded', unit: u.id, loss, to });
+  settle(s);
 }
 /** City gates: { id, squares: [[x, y]...], owner: 'friendly' | 'enemy', state: 'locked' | 'open' | 'broken' | 'burned' }. */
 const gateAt = (s, x, y) => (s.siege && s.siege.gates ? s.siege.gates.find(g => g.squares.some(([gx, gy]) => gx === x && gy === y)) : null) || null;
