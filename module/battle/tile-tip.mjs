@@ -76,6 +76,13 @@ function show(ev) {
     try { tip = tileTipLines(E.tileRules({ map: { tiles }, siege }, x, y)); } catch { tip = null; }
     const gate = tip ? gateInfo(siege, x, y, tiles[key]) : null;
     if (!tip) return hide();
+    // fire: rounds left while it burns, or how much it takes to catch (David, 2026-11-04)
+    const burning = siege.fires?.[key];
+    if (burning) tip.lines.unshift(`Burning: ${burning.left} round${burning.left === 1 ? "" : "s"} left`, "Walking through costs 5 morale");
+    else if (tip.lines.includes("Flammable")) {
+      const r = E.tileRules({ map: { tiles }, siege }, x, y), left = Math.max(0, (r?.fireRes ?? 0) - (siege.scorch?.[key] ?? 0));
+      tip.lines[tip.lines.indexOf("Flammable")] = left ? `Flammable: catches after ${left} more spread${left === 1 ? "" : "s"}` : "Flammable: catches at the first spark";
+    }
     if (!el) { el = document.createElement("div"); el.className = "qin-tile-tip"; document.body.appendChild(el); }
     el.innerHTML = `<b>${esc(tip.title)}</b>${gate ? gateHtml(gate) : ""}${tip.lines.length ? `<ul>${tip.lines.map(l => `<li>${esc(l)}</li>`).join("")}</ul>` : `<div class="qin-muted">No effects</div>`}`;
     el.style.display = "";

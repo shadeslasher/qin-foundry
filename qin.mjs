@@ -28,6 +28,7 @@ import { panToActiveOfficer, registerTurnPan } from "./module/battle/turn-pan.mj
 import { registerBattleSpeed } from "./module/battle/battle-speed.mjs";
 import { registerHealthV2, migrateHealthV2 } from "./module/health-v2.mjs";
 import { registerBattleAI } from "./module/battle/ai-driver.mjs";
+import { registerFireFx, drawFires } from "./module/battle/fire-fx.mjs";
 import { HotkeyGuide } from "./module/hotkeys.mjs";
 import { registerSounds, registerSoundPack, onBattleSetting, primeBattleSounds, primeTokenPositions, onUnitTokenMoved, SoundPanel, playMoment } from "./module/sound.mjs";
 import { registerNameLabels, toggleNameLabels } from "./module/battle/name-labels.mjs";
@@ -94,6 +95,7 @@ Hooks.once("init", () => {
       drawDeployZones();
       drawReinforceZones();
       refreshObjectives();
+      try { drawFires(); } catch (e) { console.warn("Qin | fire", e); }
       renderTurnBanner();
       try { onBattleSetting(getBattle(), (id) => canvas?.scene?.tokens.get(id)?.actor?.system?.side ?? null); } catch (e) { console.warn("Qin | turn sounds", e); }
       syncBattleMap();
@@ -110,6 +112,7 @@ Hooks.once("init", () => {
   registerDeployDrawing();
   registerHealthV2();
   registerBattleAI();
+  registerFireFx();
   registerTurnPan();
   registerBattleSpeed();
   game.settings.register(SYSTEM_ID, "compactUnits", { // the Battle panel's "Less info" button, per player
