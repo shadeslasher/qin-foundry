@@ -302,7 +302,13 @@ function gateHostile(u, g) {
   const side = alliance(u.side);
   return g.owner === 'enemy' ? side === 'player' : side === 'enemy';
 }
-const gateTargets = (s, u) => gatesNear(s, u).filter(g => gateHostile(u, g));
+/** Catapults (David, 2026-11-04): a unit on a catapult square bombards enemy gates up to this far away, for double damage. */
+const CATAPULT_RANGE = 10;
+const onCatapult = (s, u) => overlaysAt(s, u.x, u.y).includes('catapult');
+const gateDist = (g, u) => Math.min(...g.squares.map(([x, y]) => Math.abs(x - u.x) + Math.abs(y - u.y)));
+const gateTargets = (s, u) => (onCatapult(s, u)
+  ? (s.siege && s.siege.gates ? s.siege.gates.filter(g => gateDist(g, u) <= CATAPULT_RANGE) : [])
+  : gatesNear(s, u)).filter(g => gateHostile(u, g));
 /** Gates next to the unit. */
 const gatesNear = (s, u) => (s.siege && s.siege.gates ? s.siege.gates.filter(g => g.squares.some(([x, y]) => Math.abs(x - u.x) + Math.abs(y - u.y) === 1)) : []);
 /** May this unit open or close that gate? Its owners from either side; anyone from inside the city. */
@@ -520,7 +526,7 @@ const heroOfficer = (s, u) => { const o = officerOf(s, u), t = typeOf(s, u); ret
 function movementOf(s, u) {
   const t = typeOf(s, u);
   const slowed = fx(u).slow ? 1 : 0; // Barbed Arrows
-  const load = carrying(u) === 'ladders' ? 1 : carrying(u) === 'engine' ? 2 : 0; // siege equipment is heavy
+  const load = carrying(u) === 'engine' ? 1 : 0; // a siege engine is heavy; ladders cost nothing (David, 2026-11-04)
   const saddle = saddleOf(u) >= 3 ? 1 : 0; // Saddle++: movement +1
   // whatever slows it, a unit can always move at least 1 tile (David, 2026-10-25)
   const supp = suppressed(u) ? 2 : 0; // Suppressing Fire: movement -2 (still at least 1)
@@ -2407,15 +2413,17 @@ const ACTIONS = {
     const { u, act: ac } = r;
     if (u.round.attacked || ac.forcedMarched) return err("Attacking a gate is the unit's action for the turn");
     const g = gateTargets(s, u).find(x => !a.gateId || x.id === a.gateId);
-    if (!g) return err('No gate of the other side next to this unit');
+    if (!g) return err(onCatapult(s, u) ? 'No gate of the other side within the catapult\'s range' : 'No gate of the other side next to this unit');
     gateHp(g);
     // an uncontested roll: Yin/Yang + the officer's Command + the unit's damage; a siege engine doubles it
     const dice = yinYang(), o = officerOf(s, u), t = typeOf(s, u) || {};
     const cmd = o ? o.command || 0 : 0, dmgBase = t.damage || 0;
     let dmg = Math.max(0, dice.value + cmd + dmgBase);
-    if (carrying(u) === 'engine') dmg *= 2;
+    const engine = carrying(u) === 'engine' && gateDist(g, u) === 1, cat = onCatapult(s, u);
+    if (engine) dmg *= 2; // battering with a siege engine
+    if (cat) dmg *= 2;    // a catapult's stones
     g.hp = Math.max(0, g.hp - dmg);
-    log(s, u.name + ' batters the gate for ' + dmg + ' (Yin/Yang ' + dice.value + (cmd ? ' + Command ' + cmd : '') + ' + damage ' + dmgBase + (carrying(u) === 'engine' ? ', doubled by the siege engine' : '') + '): ' + g.hp + '/' + g.maxHp + ' left.',
+    log(s, u.name + ' batters the gate for ' + dmg + ' (Yin/Yang ' + dice.value + (cmd ? ' + Command ' + cmd : '') + ' + damage ' + dmgBase + (engine ? ', doubled by the siege engine' : '') + (cat ? ', doubled by the catapult' : '') + '): ' + g.hp + '/' + g.maxHp + ' left.',
       { type: 'gateHit', gate: g.id, by: u.id, damage: dmg, hp: g.hp, maxHp: g.maxHp, dice });
     if (g.hp <= 0) { g.state = 'broken'; log(s, 'The gate gives way and breaks open!', { type: 'gate', gate: g.id, state: 'broken', by: u.id }); }
     u.round.attacked = true;

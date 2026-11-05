@@ -35,10 +35,10 @@ export const EQUIPMENT = [
     { name: "War Horn", desc: "Adds the Reinvigorate action: an adjacent allied unit reactivates and takes another turn immediately. Using it ends this unit's turn. Needs 1 turn to recharge after use." },
   ] },
   { family: "Siege Ladders", kind: "siege", tiers: [
-    { name: "Siege Ladders", desc: "Movement -1 while carried. Gives the Place Ladder action next to a city wall or tower square without a ladder (not gates); it ends the turn and uses the ladders. Outside units next to a laddered wall square can fight the unit on it in melee, and can climb onto it if it is empty (all their movement; not cavalry or units carrying siege equipment). Can be dropped, and is dropped when the unit falls; an empty-handed unit moving onto it picks it up." },
+    { name: "Siege Ladders", desc: "Gives the Place Ladder action next to a city wall or tower square without a ladder (not gates); it ends the turn and uses the ladders. Outside units next to a laddered wall square can fight the unit on it in melee, and can climb onto it if it is empty (all their movement; not cavalry or units carrying siege equipment). Can be dropped, and is dropped when the unit falls; an empty-handed unit on its square can pick it up (its action for the turn). No movement penalty (David, 2026-11-04)." },
   ] },
   { family: "Siege Engine", kind: "siege", tiers: [
-    { name: "Siege Engine", desc: "Movement -2 while carried. This unit makes two attacks on structures instead of one. Can be dropped, and is dropped when the unit falls; an empty-handed unit moving onto it picks it up. A unit carries ladders or a siege engine, never both." },
+    { name: "Siege Engine", desc: "Movement -1 while carried. Attack Gate deals double damage. Can be dropped, and is dropped when the unit falls; an empty-handed unit on its square can pick it up (its action for the turn). A unit carries ladders or a siege engine, never both." },
   ] },
 ];
 const byName = new Map(EQUIPMENT.flatMap(f => f.tiers.map(t => [t.name, { ...t, family: f.family, kind: f.kind }])));

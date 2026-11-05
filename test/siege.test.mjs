@@ -66,7 +66,7 @@ test('Place Ladder: needs ladders, a wall square next to it, ends the turn; the 
   const u = add(s, { typeId: 'inf', side: 'player', owner: 'p1', x: 6, y: 2 });
   add(s, { typeId: 'inf', side: 'enemy', x: 12, y: 12 });
   u.carry = 'ladders';
-  assert.strictEqual(R.movementOf(s, u), 2, 'carrying ladders: movement -1');
+  assert.strictEqual(R.movementOf(s, u), 3, 'carrying ladders: no movement penalty (David, 2026-11-04)');
   must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'skipTactics' }));
   dice([0, 0]); must(R.act(s, HOST, { type: 'startRound' }));
   must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: u.id }));
@@ -107,7 +107,7 @@ test('equipment: dropped by choice or when the unit falls; an empty-handed unit 
   const b = add(s, { typeId: 'inf', side: 'player', owner: 'p1', x: 1, y: 10 });
   add(s, { typeId: 'inf', side: 'enemy', x: 12, y: 1 });
   a.carry = 'engine';
-  assert.strictEqual(R.movementOf(s, a), 1, 'siege engine: movement -2');
+  assert.strictEqual(R.movementOf(s, a), 2, 'siege engine: movement -1 (David, 2026-11-04; was -2)');
   must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'skipTactics' }));
   dice([0, 0]); must(R.act(s, HOST, { type: 'startRound' }));
   must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: a.id }));
@@ -235,4 +235,26 @@ test('stairs: units walk up from a stairs square onto the wall and back down; me
   const foe = add(s, { typeId: 'inf', side: 'enemy', x: 6, y: 3 });
   const atStairs = add(s, { typeId: 'inf', side: 'player', owner: 'p1', x: 6, y: 2 });
   assert.ok(R.rangeOk(s, atStairs, foe) && R.rangeOk(s, foe, atStairs), 'stairs <-> wall melee');
+});
+
+test('catapults: a unit on a catapult square bombards an enemy gate up to 10 squares away for double damage; a siege engine doubles battering', () => {
+  const s = city();
+  s.map.tiles['6,13'].overlays = ['catapult'];
+  const g = s.siege.gates[0];
+  const gunner = add(s, { typeId: 'inf', side: 'enemy', x: 6, y: 13 });  // 4 squares from the gate
+  const ram = add(s, { typeId: 'inf', side: 'enemy', x: 6, y: 10 });
+  add(s, { typeId: 'inf', side: 'player', owner: 'p1', x: 12, y: 1 });
+  must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'skipTactics' }));
+  dice([0, 0]); must(R.act(s, HOST, { type: 'startRound' }));
+  s.turn.activation = { unitId: gunner.id, step: 'move', started: true };
+  assert.ok(R.actionMenu(s, gunner).attackGate, 'in range from the catapult');
+  dice([9, 2]); must(R.act(s, HOST, { type: 'attackGate', unitId: gunner.id }));
+  assert.strictEqual(g.hp, 80 - 26, '(7 + damage 6) doubled');
+  ram.carry = 'engine';
+  s.turn.activation = { unitId: ram.id, step: 'move', started: true };
+  dice([9, 2]); must(R.act(s, HOST, { type: 'attackGate', unitId: ram.id }));
+  assert.strictEqual(g.hp, 54 - 26, 'the siege engine doubles battering too');
+  const far = add(s, { typeId: 'inf', side: 'enemy', x: 12, y: 13 }); // no catapult: only next to a gate
+  s.turn.activation = { unitId: far.id, step: 'move', started: true };
+  assert.ok(!R.actionMenu(s, far).attackGate);
 });

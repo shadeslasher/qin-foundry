@@ -36,6 +36,11 @@
 //     Steadfast, Cunning, Protective. Rash and glory-seeking officers sometimes ignore the plan (said in the log)
 //   - mistakes: tacticians of Art of War 0-2 often chase, blunder into reach, dawdle or ignore the ground
 //
+// Sieges (David, 2026-11-04; ai-siege.mjs): on maps with city walls, distances to enemies and to the squares a unit is
+// sent to follow the real way in (gates, ladders), and each side has a role. Attackers batter gates (siege engines
+// and catapults first), put up ladders, pick up dropped equipment and climb; defenders man the walls, shut their
+// gates when the enemy is near, stay inside, and go for enemy units carrying ladders or engines.
+//
 // Traits (David, 2026-11-04): attacks are always played out with the real rules (levels 2+). The danger to a
 // unit from each enemy is played out with the real rules too at levels 3+ (all traits on both sides: armor,
 // Anti-Cavalry, Brace, charges, Terror, Fire Arrows, officer passives...); level 2 uses a quicker estimate that
@@ -55,6 +60,7 @@
 // Officer skills aren't automated in the engine (the GM applies them), so the AI doesn't use them yet.
 import * as E from './engine.mjs';
 import { tacticsStep } from './ai-tactics.mjs';
+import { hasWalls, moverKind, routeField, routeAt, siegeRoles } from './ai-siege.mjs';
 
 const HOST = { id: 'host', host: true };
 
@@ -87,7 +93,10 @@ export function sideLevel(s, side) {
 /** A copy of the state for trying things out. The map and the library are shared (never changed by a turn). */
 export function fork(s) {
   const o = {};
-  for (const k of Object.keys(s)) o[k] = (k === 'map' || k === 'library' || k === 'objectives') ? s[k] : (s[k] && typeof s[k] === 'object' ? JSON.parse(JSON.stringify(s[k])) : s[k]);
+  for (const k of Object.keys(s)) {
+    if (k === '_inside') { o[k] = s[k]; continue; } // the engine's cache of the squares inside the city: depends only on the map
+    o[k] = (k === 'map' || k === 'library' || k === 'objectives') ? s[k] : (s[k] && typeof s[k] === 'object' ? JSON.parse(JSON.stringify(s[k])) : s[k]);
+  }
   o.log = [];
   return o;
 }
@@ -116,6 +125,7 @@ function outcomeScore(a, b, side, S, M) {
     let w = worth(a, u0);
     if (S && mine && S.protect.has(u0.id)) w *= 1.8; // the opponent needs this one routed: keep it safe
     if (S && !mine && S.hunt.has(u0.id)) w *= 1.8;   // the opponent needs this one alive (or out): go for it
+    if (S && !mine && S.siege && S.siege.defender && u0.carry) w *= 1.4; // ladders and engines at the walls: stop them
     const sign = mine ? -1 : gain;
     const dm = Math.max(0, u0.men - u1.men) / mx(u0);
     const dmo = Math.max(-20, Math.min(60, u0.morale - u1.morale)) / 100;
@@ -337,8 +347,10 @@ export function strategy(s, side) {
       count.set(pick.i, count.get(pick.i) + 1); rest.splice(rest.indexOf(pick.u), 1);
     }
   }
+  const siegeS = { take: [...take.keys()].map(ptOf), keep: [...keep.keys()].map(ptOf) };
+  const siege = siegeRoles(s, side, siegeS);
   const reinforceSquares = coming.filter(r => Number.isFinite(r.x) && Number.isFinite(r.y)).map(r => ({ x: r.x, y: r.y }));
-  return { posture, ...POSTURE[posture], aggr, reinforceSquares, burn, keep: [...keep.keys()].map(ptOf), take: [...take.keys()].map(ptOf), jobs, protect, hunt, reinforceRound, why };
+  return { posture, ...POSTURE[posture], aggr, reinforceSquares, burn, siege, keep: [...keep.keys()].map(ptOf), take: [...take.keys()].map(ptOf), jobs, protect, hunt, reinforceRound, why };
 }
 
 /** How good this square is to stand on for this unit (defense, command, height, cover; fire and fords hurt). */
@@ -562,6 +574,14 @@ function suppressValue(s, att, target) {
   return cav.length ? 0.12 * worth(s, target) * Math.min(2, cav.length) : 0.04 * worth(s, target);
 }
 
+/** Distance from p to the nearest of pts for this unit: along the real way in on siege maps, straight otherwise. */
+function routeDist(s, u, p, pts) {
+  if (!pts.length) return Infinity;
+  if (!hasWalls(s)) return nearest(p, pts);
+  const d = routeAt(s, routeField(s, moverKind(s, u), E.alliance(u.side), pts), p);
+  return Number.isFinite(d) ? d : 40 + nearest(p, pts); // no way in at all: far, but still prefer nearer
+}
+
 /** Where the unit stands at the end of its turn: its job, closing on enemies, good ground, and (level 5) next round's strikes. */
 function positionScore(s0, s1, u0, u1, side, P, S, M) {
   if (!u1 || u1.status !== 'active') return 0;
@@ -572,7 +592,9 @@ function positionScore(s0, s1, u0, u1, side, P, S, M) {
   const al = E.alliance(side), lvl = P.level;
   let v = 0;
   if (foes.length) {
-    const d0 = Math.min(...foes.map(e => E.manhattan(e, u0))), d1 = Math.min(...foes.map(e => E.manhattan(e, u1)));
+    const walls = hasWalls(s0) && !ranged;
+    const d0 = walls ? routeDist(s0, u0, u0, foes) : Math.min(...foes.map(e => E.manhattan(e, u0)));
+    const d1 = walls ? routeDist(s0, u0, u1, foes) : Math.min(...foes.map(e => E.manhattan(e, u1)));
     const want = ranged ? Math.max(1, t.rangeMax || 1) : 1;
     // a unit guarding a square only goes out to meet enemies that come near it
     const near = job && job.kind === 'keep' ? foes.some(e => E.manhattan(e, job.pt) <= 6) : true;
@@ -591,7 +613,7 @@ function positionScore(s0, s1, u0, u1, side, P, S, M) {
     }
   }
   if (job) {
-    const d0 = E.manhattan(u0, job.pt), d1 = E.manhattan(u1, job.pt);
+    const d0 = routeDist(s0, u0, u0, [job.pt]), d1 = routeDist(s0, u0, u1, [job.pt]);
     if (job.kind === 'take') {
       v += (job.anchor ? 0.12 : 0.08) * w * (d0 - d1);
       if (d1 === 0) v += 0.3 * w; // ending a turn there seizes it
@@ -655,6 +677,17 @@ function positionScore(s0, s1, u0, u1, side, P, S, M) {
       const vip = friends.filter(o => { const of = o.officerId ? E.officerOf(s1, o) : null; return of && /commander|strategist/i.test(of.ctype || ''); });
       if (vip.length) v += 0.04 * w * (nearest(u0, vip) - nearest(u1, vip));
     }
+  }
+  // attackers: a catapult square in range of an enemy gate still standing is a good place to be (anyone on it bombards)
+  if (S.siege && S.siege.attacker && hasWalls(s0)) {
+    const cat = (p) => (E.tileRules(s0, p.x, p.y)?.names || []).includes('Catapult') && (s0.siege?.gates || []).some(g => (g.state === 'locked' || g.state === 'open')
+      && (g.owner === 'enemy' ? E.alliance(side) !== 'enemy' : E.alliance(side) === 'enemy') && g.squares.some(([gx, gy]) => Math.abs(gx - p.x) + Math.abs(gy - p.y) <= 10));
+    v += 0.15 * w * ((cat(u1) ? 1 : 0) - (cat(u0) ? 1 : 0));
+  }
+  // a city's defenders stay behind the walls while the enemy is outside (unless sent out or attacking)
+  if (S.siege && S.siege.defender && S.posture !== 'aggressive' && !(job && !E.insideCity(s0, job.pt.x, job.pt.y))) {
+    const inside = (p) => E.insideCity(s0, p.x, p.y) || E.isWallTop(s0, p.x, p.y);
+    if (foes.some(e => !inside(e))) v += 0.05 * w * ((inside(u1) ? 1 : 0) - (inside(u0) ? 1 : 0));
   }
   // waiting for reinforcements: drift towards where they will come in
   if (S.posture === 'stall' && S.reinforceSquares?.length) v += 0.02 * w * (nearest(u0, S.reinforceSquares) - nearest(u1, S.reinforceSquares));
@@ -736,7 +769,7 @@ export function plans(s, unitId, opts = {}) {
     let tiles = [...blue.keys()].map(k => k.split(',').map(Number));
     const foes = E.liveUnits(base).filter(e => E.hostile(e, u0));
     const objs = job ? [job.pt] : [...S.take, ...S.keep];
-    const heur = ([x, y]) => (S.close * M.close > 0 ? 1 : 0.3) * Math.min(99, ...foes.map(e => Math.abs(e.x - x) + Math.abs(e.y - y))) + (job ? 1.5 : 0.5) * Math.min(99, nearest({ x, y }, objs))
+    const heur = ([x, y]) => (S.close * M.close > 0 ? 1 : 0.3) * Math.min(99, routeDist(base, u0, { x, y }, foes)) + (job ? 1.5 : 0.5) * Math.min(99, routeDist(base, u0, { x, y }, objs))
       - 1.5 * groundValue(base, u0, x, y);
     tiles.sort((A, B) => heur(A) - heur(B));
     // squares next to fires that threaten what matters go to the front, so a firefighting move is always weighed
@@ -805,6 +838,28 @@ export function plans(s, unitId, opts = {}) {
         // dug in on the square it keeps, or waiting for help: holding is worth a little more
         const gu = E.unitById(g, unitId);
         if ((job && job.kind === 'keep' && E.manhattan(gu, job.pt) <= 1) || S.posture === 'stall') out[out.length - 1].score += 0.04 * worth(base, u0);
+      }
+    }
+    // siege work (instead of attacking): batter or bombard a gate, put up ladders, pick up dropped equipment, shut a gate
+    if (!u.round.attacked && !acf.forcedMarched && S.siege && (S.siege.attacker || S.siege.defender)) {
+      const menu = E.actionMenu(f, u), w0 = worth(base, u0), sw = [0.5, 0.7, 0.85, 1, 1, 1][P.level];
+      const tryAct = (act, bonus) => { const g = fork(f); E.setRng(seeded(hashStr(unitId + act.type + (act.x ?? '') + ',' + (act.y ?? '')))); if (!E.act(g, HOST, act).ok) return null; consider([...pre, act], g); out[out.length - 1].score += bonus * sw; return g; };
+      if (S.siege.attacker && menu.attackGate) {
+        const g0 = E.gateTargets(f, u)[0]; const before = g0 ? (E.gateHp(g0)?.hp ?? 0) : 0;
+        const act = { type: 'attackGate', unitId, gateId: g0 && g0.id };
+        const g = fork(f); E.setRng(seeded(hashStr(unitId + 'gate'))); 
+        if (g0 && E.act(g, HOST, act).ok) {
+          const g1 = g.siege.gates.find(x => x.id === g0.id), drop = Math.max(0, before - (g1.hp || 0)) / Math.max(1, g1.maxHp || 80);
+          consider([...pre, act], g);
+          out[out.length - 1].score += sw * w0 * (1.2 * drop + (g1.state === 'broken' ? 0.8 : 0) + 0.05);
+        }
+      }
+      if (S.siege.attacker && menu.placeLadder) for (const [x, y] of E.ladderTiles(f, u)) tryAct({ type: 'placeLadder', unitId, x, y }, 0.45 * w0);
+      if (S.siege.attacker && menu.pickUp) tryAct({ type: 'pickUpEquipment', unitId }, 0.3 * w0);
+      if (S.siege.defender && menu.closeGate) {
+        const near = E.liveUnits(f).some(e => E.hostile(e, u) && (f.siege?.gates || []).some(g => g.state === 'open' && g.squares.some(([gx, gy]) => Math.abs(gx - e.x) + Math.abs(gy - e.y) <= 6)));
+        // a shut gate keeps out the whole army: worth more when the side holds squares inside
+        if (near) tryAct({ type: 'closeGate', unitId }, w0 * (0.6 + (S.keep.some(p => E.insideCity(base, p.x, p.y)) ? 0.6 : 0)));
       }
     }
     // Set Aflame: set an adjacent square alight instead of attacking, when the fire is worth more than the attack
