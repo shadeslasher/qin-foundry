@@ -19,7 +19,7 @@ export function tileTipLines(rules) {
   else {
     if (rules.pass === "noCavalry") lines.push("No cavalry");
     if (rules.move > 0) lines.push(`Move +${rules.move} to enter`);
-    if ((rules.names || []).some(n => n === "Road" || n === "Bridge")) lines.push("Road: a move that starts on or uses a road gets 1 extra square (once)");
+    if ((rules.names || []).some(n => n === "Road" || n === "Bridge")) lines.push("Road: a move that passes through or ends on a road gets 1 extra square (once)");
   }
   if (rules.meleeDef) lines.push(`Melee defense ${sign(rules.meleeDef)}`);
   if (rules.rangedDef) lines.push(`Ranged defense ${sign(rules.rangedDef)}`);

@@ -565,13 +565,13 @@ function terrainStep(s, u, x, y, nx, ny) {
 // Tiles reachable by `u` with `budget` movement. Units block movement.
 // Campaign rule (David, 2026-10-27): a move costs 1 per square walked plus the single biggest surcharge
 // on the path, paid once (three forest squares cost 3 + 1 = 4, not 6).
-/** A road (or the bridge that carries it) on this square: a move that starts on or crosses one gets 1 extra square. */
+/** A road (or the bridge that carries it) on this square: a move that passes through or ends on one gets 1 extra square. */
 const ROAD_BONUS = 1;
 function onRoad(s, x, y) { const t = s.map.tiles && s.map.tiles[x + ',' + y]; return !!t && (t.overlays || []).some(o => o === 'road' || o === 'bridge'); }
 function reachable(s, u, budget) {
   // Units may move through friendly units (not stop on them); Heavy units, and all enemies, block.
-  // Roads (David, 2026-11-05): a move that starts on a road or goes along one costs 1 less, once (like the single
-  // biggest surcharge it pays): road and forest on the same path cancel out.
+  // Roads (David, 2026-11-05): a move that passes through or ends on a road square costs 1 less, once (like the
+  // single biggest surcharge it pays); starting on one doesn't count. Road and forest on the same path cancel out.
   // The cheapest path wins; on a tie, one clear of rough ground, then the longer walk (for a charge).
   // out: "x,y" -> movement spent (empty squares only); out.steps: squares walked; out.rough: keys whose path crossed or ended on rough ground.
   const out = new Map(), steps = new Map(), rough = new Set(), fire = new Map(); const key = (x, y) => x + ',' + y;
@@ -582,7 +582,7 @@ function reachable(s, u, budget) {
   // cheapest first; then through the fewest fires; then clear of rough ground; then the longer walk
   const better = (a, b) => !b || a[0] < b[0] || (a[0] === b[0] && (a[3] < b[3] || (a[3] === b[3] && (a[1] < b[1] || (a[1] === b[1] && a[2] > b[2])))));
   bestAt.set(start, [0, 0, 0, 0]); steps.set(start, 0);
-  const rd0 = onRoad(s, u.x, u.y) ? 1 : 0;
+  const rd0 = 0; // starting on a road doesn't count: the move must enter a road square (David, 2026-11-05)
   const q = [[u.x, u.y, 0, 0, 0, 0, rd0]]; // x, y, squares walked, max surcharge, rough, burning squares passed through, road used
   seen.set(start + ',0,0,0,' + rd0, 0);
   const costOf = (e) => e[2] + e[3] - (e[6] ? ROAD_BONUS : 0);

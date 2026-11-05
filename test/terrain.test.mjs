@@ -286,7 +286,7 @@ test('Frontier Riders: sand, tall grass and rocky ground cost nothing extra and 
 });
 
 
-test('roads (David, 2026-11-05): a move that starts on or crosses a road gets 1 extra square, once; road and forest cancel out', () => {
+test('roads (David, 2026-11-05): a move that passes through or ends on a road gets 1 extra square, once; starting on one does not count; road and forest cancel out', () => {
   const tiles = {};
   for (let x = 0; x < 10; x++) tiles[x + ',5'] = { terrain: 'plains', overlays: ['road'] };
   tiles['4,4'] = { terrain: 'forest' };
@@ -297,8 +297,10 @@ test('roads (David, 2026-11-05): a move that starts on or crosses a road gets 1 
   assert.ok(r.has('6,5') && !r.has('7,5'), 'four squares along the road with movement 3 (the bonus counts once)');
   assert.strictEqual(r.get('6,5'), 3);
   assert.strictEqual(r.get('4,4'), 3, 'road and forest on one path cancel out: 3 squares + 1 forest - 1 road');
+  assert.strictEqual(r.get('2,4'), 1, 'stepping off the road: starting on it gives nothing');
+  assert.strictEqual(r.get('2,7'), 2, 'two squares off the road cost 2: no bonus');
   const off = R.unitById(s, add(s, { typeId: 'inf', side: 'player', owner: 'p1', x: 2, y: 8 })); // on plains, away from the road
   const r2 = R.reachable(s, off, 3);
-  assert.strictEqual(r2.get('2,6'), 2, 'reaching the road costs 1 less too (it goes onto a road)');
+  assert.strictEqual(r2.get('2,6'), 2, 'reaching the road costs 1 less (it ends on a road)');
   assert.ok(!r2.has('6,8') && r2.has('5,8'), 'no road on the way: no bonus');
 });
