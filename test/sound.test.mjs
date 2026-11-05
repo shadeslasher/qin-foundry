@@ -74,7 +74,8 @@ test("sounds: player and enemy turns share Turn start; move sounds repeat once p
   assert.deepEqual(moveSoundTimes(1), [0, 167]);
   assert.deepEqual(moveSoundTimes(4), [0, 167, 333, 500].map(Math.round).map((v, i) => i * 167));
   assert.equal(moveSoundTimes(40).length, 12);
-  assert.deepEqual(moveSoundTimes(3, 10), [0, 160, 320]);
+  assert.deepEqual(moveSoundTimes(3, 10), [0, 100, 200]);
+  assert.deepEqual(moveSoundTimes(3, 20), [0, 80, 160]); // floor: 80 ms apart
   assert.deepEqual(moveSoundTimes(7, 6, 12, 3), [0, 501, 1002]); // cavalry: one gallop stride per 3 squares (every 0.5 s)
   assert.deepEqual(moveSoundTimes(1, 6, 12, 3), [0, 501]);
 });

@@ -5,6 +5,7 @@
 // Each player has their own volume and mute, separate from Foundry's sliders. Battle sounds play for everyone
 // (they ride on the battle animation every client already plays); menu sounds only for the person clicking.
 import { SYSTEM_ID } from "./config.mjs";
+import { atSpeed } from "./battle/battle-speed.mjs";
 
 /** Every moment the battle can play a sound for, grouped as in the panel. `local`: only the person acting hears it. */
 export const MOMENT_GROUPS = [
@@ -112,7 +113,7 @@ export function attackSounds(st) {
 }
 /** Play a step's sounds (called by every client as it plays the battle animation). */
 export function playStepSounds(st) {
-  for (const [ms, m] of stepSounds(st)) { if (ms) setTimeout(() => playMoment(m), ms); else playMoment(m); }
+  for (const [ms, m] of stepSounds(st)) { if (ms) setTimeout(() => playMoment(m), atSpeed(ms)); else playMoment(m); }
 }
 
 /** Sound-only steps for log entries that have no animation of their own (pure; exported for tests). */
@@ -166,7 +167,7 @@ export function onBattleSetting(b, sideOf = () => null) {
  *  least twice, so a one-square step still reads as walking), spaced to match the token's slide (speed: squares/s). */
 export function moveSoundTimes(squares, speed = 6, max = 12, per = 1) {
   const n = Math.max(2, Math.min(max, Math.ceil((Math.round(squares) || 0) / per)));
-  const gap = Math.max(160, Math.round(1000 / (speed || 6))) * per; // per: squares one sound covers (a gallop stride is 3, every 0.5 s)
+  const gap = Math.max(80, Math.round(1000 / (speed || 6))) * per; // per: squares one sound covers (a gallop stride is 3, every 0.5 s)
   return Array.from({ length: n }, (_, i) => i * gap);
 }
 const lastPos = new Map(); // token id -> {x, y}: where it stood before this move (every client keeps its own)
@@ -189,12 +190,10 @@ export function onUnitTokenMoved(doc, change, battle) {
   const squares = from ? Math.max(Math.abs(doc.x - from.x), Math.abs(doc.y - from.y)) / size : 1;
   if (!(squares > 0)) return;
   const moment = doc.actor.system.category === "cavalry" ? "Cavalry moves" : "Infantry moves";
-  // Sounds keep their normal pace at battle speed ×2 (David, 2026-11-04): spacing uses the base token speed,
-  // and a faster move just plays fewer of them (as many as fit in the time the slide takes).
-  let speed = 6, base = 6;
-  try { const m = CONFIG.Token?.movement; speed = Number(m?.defaultSpeed) || 6; base = Number(m?.qinBaseSpeed) || speed; } catch { /* default */ }
+  // At battle speed ×2 the move sounds come twice as fast too, matching the slide (David, 2026-11-04).
+  let speed = 6; try { speed = Number(CONFIG.Token?.movement?.defaultSpeed) || 6; } catch { /* default */ }
   for (const t of moving.get(doc.id) ?? []) clearTimeout(t);
-  moving.set(doc.id, moveSoundTimes(squares * base / speed, base, 12, moment === "Cavalry moves" ? 3 : 1).map(ms => setTimeout(() => playMoment(moment, { minGap: 0 }), ms)));
+  moving.set(doc.id, moveSoundTimes(squares, speed, 12, moment === "Cavalry moves" ? 3 : 1).map(ms => setTimeout(() => playMoment(moment, { minGap: 0 }), ms)));
 }
 
 /* ---------------------------------------- the panel */
