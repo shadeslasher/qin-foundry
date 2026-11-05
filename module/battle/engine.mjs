@@ -410,6 +410,7 @@ function skillCheck(s, u, o) {
   if (!sk) return { ok: false, reason: 'No officer skill' };
   if (u.round && u.round.skillUsed) return { ok: false, reason: 'Officer skill already used this turn' };
   if (SK.status(s, u, 'noSkills')) return { ok: false, reason: "Can't use battlefield actives now" };
+  { const why = SK.activeBlocked(s, u); if (why) return { ok: false, reason: why }; }
   const cost = Number(sk.moraleCost) || 0, round = (s.turn && s.turn.round) || 0;
   if (sk.perBattle && fx(u).skillLast != null) return { ok: false, reason: 'Already used this battle' };
   const n = Number(sk.recharge) || 0;

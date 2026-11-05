@@ -198,3 +198,19 @@ test('a trigger\'s free attack: taken in a short turn, without using up the unit
   assert.ok(!u(0).round.attacked, 'its own attack is still there');
   assert.ok(!SK.pendingChoice(s));
 });
+
+test('active "attacks with +3, then can move 2": the move waits for the attack, then the turn ends', () => {
+  const act = { do: [{ attack: { mods: [{ stat: 'attack', value: 3 }], flags: [{ flag: 'noStrikeBack' }] }, who: { self: true } }, { move: 2, who: { self: true } }] };
+  const o = officer('a', { active: act });
+  const { s, u, ids } = setup([{ side: 'player', x: 1, y: 1, officerId: 'a' }, { side: 'enemy', x: 2, y: 1 }, { side: 'enemy', x: 11, y: 11 }], [o]);
+  s.turn.activation = { unitId: ids[0], step: 'move', started: false, tilesMoved: 0, from: { x: 1, y: 1 } };
+  must(R.act(s, HOST, { type: 'useSkill', unitId: ids[0] }));
+  assert.ok(!SK.pendingChoice(s), 'no move before the attack');
+  const menBefore = u(0).men;
+  must(R.act(s, HOST, { type: 'attack', unitId: ids[0], targetId: ids[1] }));
+  assert.strictEqual(u(0).men, menBefore, 'no strike back');
+  assert.strictEqual(SK.pendingChoice(s)?.kind, 'move', 'now the move');
+  must(R.act(s, HOST, { type: 'skillChoose', x: 1, y: 3 }));
+  assert.deepStrictEqual([u(0).x, u(0).y], [1, 3]);
+  assert.ok(!s.turn.activation || s.turn.activation.unitId !== ids[0], 'turn over');
+});

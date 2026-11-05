@@ -295,11 +295,11 @@ function enterSkillChoice() {
   renderMenu();
   startPicking((x, y) => {
     if (ch.kind === "move") {
-      if (!sq.some(([a, b]) => a === x && b === y)) return pickWarn("Click a green square, or press Skip.");
+      if (!sq.some(([a, b]) => a === x && b === y)) return pickWarn("Click a green square, or right-click to pass.");
       return send({ type: "skillChoose", x, y });
     }
     const d = ts.find(o => o.x === x && o.y === y);
-    if (!d) return pickWarn("Click an enemy marked in red, or press Skip.");
+    if (!d) return pickWarn("Click an enemy marked in red, or right-click to pass.");
     send({ type: "skillChoose", targetId: d.id });
   });
 }
@@ -423,6 +423,12 @@ function renderMenu(sub = null) {
     ladder: "Click a gold wall square next to the unit to set the ladders there.",
     fire: "Click an orange tile next to the unit to set it on fire (forest or tall grass).",
   };
+  if (mode === "skillChoice") { // a skill's free move / attack: a hint along the bottom, Esc or right-click passes
+    const ch = SK.pendingChoice(current.s), who = ch && E.unitById(current.s, ch.unitId);
+    menuEl.style.display = "none";
+    showPickHint(`<b>${esc(who?.name ?? "")}</b> · ${ch?.kind === "attack" ? "Battlefield skill: click an enemy marked in red to attack it" : `Battlefield skill: click a green square to move up to ${ch?.budget ?? ""}${ch?.mode === "away" ? " away from the enemy" : ch?.mode === "toward" ? " toward its target" : ""}`}<br><span class="qin-fe-back"><i class="fa-solid fa-computer-mouse"></i> Right-click or Esc to pass</span>`);
+    return;
+  }
   if (PICK_HINT[mode]) {
     menuEl.style.display = "none";
     showPickHint(`<b>${esc(u.name)}</b> · ${PICK_HINT[mode]}<br><span class="qin-fe-back"><i class="fa-solid fa-computer-mouse"></i> Right-click or Esc to go back</span>`);

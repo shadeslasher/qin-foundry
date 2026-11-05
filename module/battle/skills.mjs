@@ -319,7 +319,7 @@ export function onAttack(s, attacker, defender, res) {
   if (killed) event(s, 'kill', attacker, { target: defender });
   for (const b of used) if (b.after) {
     const src = E.unitById(s, b.src) || attacker;
-    const steps = [...(killed ? b.after.onKill || [] : []), ...(won ? b.after.onWin || [] : []), ...(lost ? b.after.onLose || [] : [])];
+    const steps = [...(killed ? b.after.onKill || [] : []), ...(won ? b.after.onWin || [] : []), ...(lost ? b.after.onLose || [] : []), ...(b.after.then || [])];
     if (steps.length) runSteps(s, steps, { src, target: defender, picks: b.after.picks || {}, name: b.name, auto: !activeIs(s, src) });
   }
   moraleSweep(s);
@@ -490,6 +490,9 @@ function step(s, st, ctx, rest) {
     for (const r of rest) { if (r.onKill || r.onWin || r.onLose) { for (const k of ['onKill', 'onWin', 'onLose']) if (r[k]) after[k] = [...(after[k] || []), ...r[k]]; skip++; } else break; }
     if (ctx.picks) after.picks = ctx.picks;
     const who = units(st.who);
+    // his own unit's attack in an active: the steps after it ("then it can move 2") wait for that attack
+    const selfAttack = !ctx.auto && who.some(u => u.id === src.id);
+    if (selfAttack && rest.length > skip) after.then = rest.slice(skip);
     for (const u of who) {
       addBuff(s, u, src, ctx.name || 'skill', { mods: st.attack.mods, flags: st.attack.flags, target: st.attack.target, after: Object.keys(after).length ? after : undefined }, 'nextAttack', ctx);
       if (u.id === src.id && !ctx.auto) { if (u.round) u.round.attacked = false; }
@@ -500,7 +503,8 @@ function step(s, st, ctx, rest) {
       if (!who.length) return;
       return interject(s, who.map(u => [...(st.moveFirst && u.id === src.id ? [{ kind: 'move', unitId: u.id, budget: st.moveFirst, mode: 'any', toward: null }] : []), { kind: 'attack', unitId: u.id }]), rest.slice(skip), ctx);
     }
-    if (st.moveFirst) { queueMove(s, src, st.moveFirst, 'any', null); return wait(s, rest.slice(skip), ctx); }
+    if (st.moveFirst) { queueMove(s, src, st.moveFirst, 'any', null); return selfAttack ? 'wait' : wait(s, rest.slice(skip), ctx); }
+    if (selfAttack) return 'stop';
     if (skip) return runSteps(s, rest.slice(skip), ctx) === 'wait' ? 'wait' : 'stop';
     return;
   }
@@ -650,6 +654,7 @@ function readPicks(s, u, a) {
     const chosen = (a.picks && a.picks[pk.id]) || [];
     const max = pk.count || 1;
     if (chosen.length > max) return 'Pick at most ' + max;
+    if (!pk.upTo && !pickCandidates(s, u, pk).length) return activeBlocked(s, u);
     if (!pk.upTo && chosen.length < Math.min(max, pickCandidates(s, u, pk).length)) return 'Pick ' + max + (pk.side === 'tile' ? ' square' : ' unit') + (max > 1 ? 's' : '');
     const ok = pickCandidates(s, u, pk);
     for (const c of chosen) {
@@ -668,6 +673,14 @@ export function useActive(s, u, a = {}) {
   // an active may also carry passive-like parts while it lasts? (mods/flags at the top of an active apply to his unit this turn)
   if (act.mods || act.flags) addBuff(s, u, u, sp.activeName || 'active', { mods: act.mods, flags: act.flags }, 'thisTurn');
   runSteps(s, act.do || [], { src: u, picks, name: sp.activeName || 'active' });
+  return null;
+}
+/** Why the active can't be used now (a pick it needs has nothing to choose), or null. */
+export function activeBlocked(s, u) {
+  const sp = specsOf(s, u); const act = sp && sp.active;
+  if (!act) return null;
+  for (const pk of act.pick || []) if (!pk.upTo && !pickCandidates(s, u, pk).length)
+    return 'No ' + (pk.side === 'tile' ? 'square' : pk.side === 'allies' ? 'allied unit' : 'enemy unit') + ' it can be used on';
   return null;
 }
 /** What a pick may choose: unit ids, or [x, y] squares for tiles. */
