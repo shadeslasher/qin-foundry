@@ -43,8 +43,8 @@ test('movement: costs, impassable squares, bridges, roads and "not cavalry"', ()
   assert.ok(reach.has('5,4') && reach.get('5,4') === 3, 'marsh costs 1 + 2');
   assert.ok(!reach.has('5,6'), 'river blocks');
   assert.ok(reach.has('6,6'), 'bridge crosses the river');
-  assert.strictEqual(reach.get('6,5'), 1, 'roads cost the normal 1');
-  assert.strictEqual(reach.get('7,5'), 2, 'road on paving: still 1 each');
+  assert.strictEqual(reach.get('6,5'), 0, 'a move along a road costs 1 less, once (David, 2026-11-05)');
+  assert.strictEqual(reach.get('7,5'), 1, 'two road squares: still only 1 less');
   assert.strictEqual(reach.steps.get('7,5'), 2);
   assert.ok(reach.has('4,5'), 'infantry crosses abatis');
   const c = R.unitById(s, add(s, { typeId: 'cav', side: 'player', owner: 'p1', x: 5, y: 8 }));
@@ -240,7 +240,7 @@ test('cavalry on rough ground: +1 surcharge, and no charge across or onto it', (
   assert.ok(r.rough.has('5,3'), 'ending on forest is rough');
   assert.strictEqual(r.get('6,3'), 4, 'rocky ground: 3 squares + 1 for horse');
   assert.strictEqual(r.get('5,4'), 1); assert.ok(!r.rough.has('5,4'));
-  assert.strictEqual(r.get('7,3'), 4, 'road through forest is clear for cavalry');
+  assert.strictEqual(r.get('7,3'), 3, 'road through forest is clear for cavalry (and the road takes 1 off the move)');
   assert.ok(!r.rough.has('7,3'));
   assert.strictEqual(R.tileRules(s, 3, 3).rough, undefined, 'farmland is not rough');
   inf.x = 6; inf.y = 5;
@@ -283,4 +283,22 @@ test('Frontier Riders: sand, tall grass and rocky ground cost nothing extra and 
   const f = R.unitById(s, add(s, { typeId: 'inf', side: 'player', owner: 'p1', x: 6, y: 5 }));
   f.traitTiers = { 'frontier riders': 1 };
   assert.strictEqual(R.reachable(s, f, 6).get('6,3'), 2, 'foot: sand costs nothing extra');
+});
+
+
+test('roads (David, 2026-11-05): a move that starts on or crosses a road gets 1 extra square, once; road and forest cancel out', () => {
+  const tiles = {};
+  for (let x = 0; x < 10; x++) tiles[x + ',5'] = { terrain: 'plains', overlays: ['road'] };
+  tiles['4,4'] = { terrain: 'forest' };
+  const s = field(tiles);
+  s.library.unitTypes.push(unitType('inf'));
+  const u = R.unitById(s, add(s, { typeId: 'inf', side: 'player', owner: 'p1', x: 2, y: 5 })); // starts on the road
+  const r = R.reachable(s, u, 3);
+  assert.ok(r.has('6,5') && !r.has('7,5'), 'four squares along the road with movement 3 (the bonus counts once)');
+  assert.strictEqual(r.get('6,5'), 3);
+  assert.strictEqual(r.get('4,4'), 3, 'road and forest on one path cancel out: 3 squares + 1 forest - 1 road');
+  const off = R.unitById(s, add(s, { typeId: 'inf', side: 'player', owner: 'p1', x: 2, y: 8 })); // on plains, away from the road
+  const r2 = R.reachable(s, off, 3);
+  assert.strictEqual(r2.get('2,6'), 2, 'reaching the road costs 1 less too (it goes onto a road)');
+  assert.ok(!r2.has('6,8') && r2.has('5,8'), 'no road on the way: no bonus');
 });

@@ -565,8 +565,13 @@ function terrainStep(s, u, x, y, nx, ny) {
 // Tiles reachable by `u` with `budget` movement. Units block movement.
 // Campaign rule (David, 2026-10-27): a move costs 1 per square walked plus the single biggest surcharge
 // on the path, paid once (three forest squares cost 3 + 1 = 4, not 6).
+/** A road (or the bridge that carries it) on this square: a move that starts on or crosses one gets 1 extra square. */
+const ROAD_BONUS = 1;
+function onRoad(s, x, y) { const t = s.map.tiles && s.map.tiles[x + ',' + y]; return !!t && (t.overlays || []).some(o => o === 'road' || o === 'bridge'); }
 function reachable(s, u, budget) {
   // Units may move through friendly units (not stop on them); Heavy units, and all enemies, block.
+  // Roads (David, 2026-11-05): a move that starts on a road or goes along one costs 1 less, once (like the single
+  // biggest surcharge it pays): road and forest on the same path cancel out.
   // The cheapest path wins; on a tie, one clear of rough ground, then the longer walk (for a charge).
   // out: "x,y" -> movement spent (empty squares only); out.steps: squares walked; out.rough: keys whose path crossed or ended on rough ground.
   const out = new Map(), steps = new Map(), rough = new Set(), fire = new Map(); const key = (x, y) => x + ',' + y;
@@ -577,27 +582,31 @@ function reachable(s, u, budget) {
   // cheapest first; then through the fewest fires; then clear of rough ground; then the longer walk
   const better = (a, b) => !b || a[0] < b[0] || (a[0] === b[0] && (a[3] < b[3] || (a[3] === b[3] && (a[1] < b[1] || (a[1] === b[1] && a[2] > b[2])))));
   bestAt.set(start, [0, 0, 0, 0]); steps.set(start, 0);
-  const q = [[u.x, u.y, 0, 0, 0, 0]]; // x, y, squares walked, max surcharge, rough, burning squares passed through
-  seen.set(start + ',0,0,0', 0);
+  const rd0 = onRoad(s, u.x, u.y) ? 1 : 0;
+  const q = [[u.x, u.y, 0, 0, 0, 0, rd0]]; // x, y, squares walked, max surcharge, rough, burning squares passed through, road used
+  seen.set(start + ',0,0,0,' + rd0, 0);
+  const costOf = (e) => e[2] + e[3] - (e[6] ? ROAD_BONUS : 0);
   while (q.length) {
     let bi = 0;
-    for (let i = 1; i < q.length; i++) if (q[i][2] + q[i][3] < q[bi][2] + q[bi][3]) bi = i;
-    const [x, y, n, m, rf, fc] = q.splice(bi, 1)[0];
-    if (seen.get(key(x, y) + ',' + m + ',' + rf + ',' + fc) < n) continue;
+    for (let i = 1; i < q.length; i++) if (costOf(q[i]) < costOf(q[bi])) bi = i;
+    const [x, y, n, m, rf, fc, rd] = q.splice(bi, 1)[0];
+    if (seen.get(key(x, y) + ',' + m + ',' + rf + ',' + fc + ',' + rd) < n) continue;
     for (const [dx, dy] of ORTHO) {
       const nx = x + dx, ny = y + dy, k = key(nx, ny);
       if (k === start) continue;
       if (!terrainStep(s, u, x, y, nx, ny)) continue;
       const nn = n + 1, nm = Math.max(m, surcharge(s, nx, ny, u)), nr = rf || (roughFor(s, nx, ny, u) ? 1 : 0);
-      if (nn + nm > budget) continue;
+      const nrd = rd || (onRoad(s, nx, ny) ? 1 : 0);
+      const cost = nn + nm - (nrd ? ROAD_BONUS : 0);
+      if (cost > budget) continue;
       const fcThrough = Math.min(6, fc + (burningAt(x, y) && key(x, y) !== start ? 1 : 0)); // fires walked through (not where it stops)
-      const sk = k + ',' + nm + ',' + nr + ',' + fcThrough;
+      const sk = k + ',' + nm + ',' + nr + ',' + fcThrough + ',' + nrd;
       if (seen.has(sk) && seen.get(sk) <= nn) continue;
       const o = unitAt(s, nx, ny);
       if (o && (trait(o, 'heavy') || !stealthFriends(alliance(o.side), alliance(u.side)))) continue;
-      seen.set(sk, nn); q.push([nx, ny, nn, nm, nr, fcThrough]);
+      seen.set(sk, nn); q.push([nx, ny, nn, nm, nr, fcThrough, nrd]);
       if (o) continue; // pass through friends, never stop on them
-      const cand = [nn + nm, nr, nn, fcThrough];
+      const cand = [cost, nr, nn, fcThrough];
       if (better(cand, bestAt.get(k))) {
         bestAt.set(k, cand); out.set(k, cand[0]); steps.set(k, nn);
         if (nr) rough.add(k); else rough.delete(k);
