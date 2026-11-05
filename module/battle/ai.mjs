@@ -54,6 +54,7 @@
 // fire spreads to neighbours) and to the side's own goals (a square it must burn), minus what it threatens of its own.
 // Officer skills aren't automated in the engine (the GM applies them), so the AI doesn't use them yet.
 import * as E from './engine.mjs';
+import { tacticsStep } from './ai-tactics.mjs';
 
 const HOST = { id: 'host', host: true };
 
@@ -923,6 +924,11 @@ export function pickUnit(s, side, opts = {}) {
 export function aiStep(s, sides, opts = {}) {
   const on = (side) => !!sides?.[side];
   if (s.duels?.pending) return null;
+  // tactics phase: an AI side picks its tactician and places its tactics (ai-tactics.mjs)
+  if (s.turn?.phase === 'tactics') {
+    for (const side of ['enemy', 'ally']) if (on(side)) { const a = tacticsStep(s, side, opts); if (a) return a; }
+    return null;
+  }
   const p = E.prompt(s);
   if (p.kind === 'activation') {
     const u = E.unitById(s, p.unitId);

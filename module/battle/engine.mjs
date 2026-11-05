@@ -1981,7 +1981,7 @@ const ACTIONS = {
     if (!TACTIC_SIDES.includes(a.side)) return err('Bad side');
     const tac = a.tactician || null;
     if (tac && a.side === 'player' && !(Number(tac.aow) >= 1)) return err(tac.name + ' has no Art of War, so cannot lead the player tactics');
-    T.sides[a.side] = tac ? { id: tac.id, name: tac.name, img: tac.img || null, aow: Number(tac.aow) || 0, kind: tac.kind || 'officer', userId: tac.userId || null } : null;
+    T.sides[a.side] = tac ? { id: tac.id, name: tac.name, img: tac.img || null, aow: Number(tac.aow) || 0, kind: tac.kind || 'officer', userId: tac.userId || null, ...(a.ai ? { ai: true } : {}) } : null;
     T.placed = T.placed.filter(p => p.side !== a.side); // a new tactician starts with a clean slate
   },
   placeTactic(s, actor, a) { // a: { side, key, x, y, id? (move an existing one), highGround? }
@@ -2003,7 +2003,9 @@ const ACTIONS = {
     if (def.highGround && !a.highGround) return err(def.name + ' must be placed on high ground (hill, city wall, fort or command tent)');
     if (existing) { existing.x = a.x; existing.y = a.y; return ok({ tacticId: existing.id }); }
     const id = 't' + T.nextId++;
-    T.placed.push({ id, key: a.key, side: a.side, x: a.x, y: a.y, size: def.size, state: 'hidden', tactician: tac ? tac.name : null });
+    T.placed.push({ id, key: a.key, side: a.side, x: a.x, y: a.y, size: def.size, state: 'hidden', tactician: tac ? tac.name : null, ...(a.ai ? { ai: true } : {}) });
+    // the battle AI's last placement for a side: it's done, and leaves whatever the GM changes afterwards alone
+    if (a.ai && a.last && actor.host && tac) tac.aiDone = true;
     return ok({ tacticId: id });
   },
   removeTactic(s, actor, a) {
