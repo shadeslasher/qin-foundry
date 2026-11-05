@@ -189,9 +189,12 @@ export function onUnitTokenMoved(doc, change, battle) {
   const squares = from ? Math.max(Math.abs(doc.x - from.x), Math.abs(doc.y - from.y)) / size : 1;
   if (!(squares > 0)) return;
   const moment = doc.actor.system.category === "cavalry" ? "Cavalry moves" : "Infantry moves";
-  let speed = 6; try { speed = Number(CONFIG.Token?.movement?.defaultSpeed) || 6; } catch { /* default */ }
+  // Sounds keep their normal pace at battle speed ×2 (David, 2026-11-04): spacing uses the base token speed,
+  // and a faster move just plays fewer of them (as many as fit in the time the slide takes).
+  let speed = 6, base = 6;
+  try { const m = CONFIG.Token?.movement; speed = Number(m?.defaultSpeed) || 6; base = Number(m?.qinBaseSpeed) || speed; } catch { /* default */ }
   for (const t of moving.get(doc.id) ?? []) clearTimeout(t);
-  moving.set(doc.id, moveSoundTimes(squares, speed, 12, moment === "Cavalry moves" ? 3 : 1).map(ms => setTimeout(() => playMoment(moment, { minGap: 0 }), ms)));
+  moving.set(doc.id, moveSoundTimes(squares * base / speed, base, 12, moment === "Cavalry moves" ? 3 : 1).map(ms => setTimeout(() => playMoment(moment, { minGap: 0 }), ms)));
 }
 
 /* ---------------------------------------- the panel */
