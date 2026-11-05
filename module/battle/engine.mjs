@@ -302,9 +302,9 @@ function gateHostile(u, g) {
   const side = alliance(u.side);
   return g.owner === 'enemy' ? side === 'player' : side === 'enemy';
 }
-/** Catapults (David, 2026-11-04): a unit on a catapult square bombards enemy gates up to this far away, for double damage. */
+/** Catapults (David, 2026-11-04): a ranged unit on a catapult square bombards enemy gates up to this far away, for double damage. */
 const CATAPULT_RANGE = 10;
-const onCatapult = (s, u) => overlaysAt(s, u.x, u.y).includes('catapult');
+const onCatapult = (s, u) => overlaysAt(s, u.x, u.y).includes('catapult') && (typeOf(s, u) || {}).weapon === 'ranged'; // only ranged units work a catapult (David, 2026-11-04)
 const gateDist = (g, u) => Math.min(...g.squares.map(([x, y]) => Math.abs(x - u.x) + Math.abs(y - u.y)));
 const gateTargets = (s, u) => (onCatapult(s, u)
   ? (s.siege && s.siege.gates ? s.siege.gates.filter(g => gateDist(g, u) <= CATAPULT_RANGE) : [])
@@ -1086,7 +1086,9 @@ function buildRoll(s, unit, role, ctx) {
   if (tr) {
     const where = tr.names.join(', ');
     if (tr.command) parts.push(['Terrain (' + where + '): command', tr.command]);
-    if (role === 'attacker' && tr.atk) parts.push(['Terrain (' + where + '): attack', tr.atk]);
+    // a catapult's Attack bonus only helps the ranged units that work it (David, 2026-11-04)
+    const atk = tr.atk - (overlaysAt(s, unit.x, unit.y).includes('catapult') && (typeOf(s, unit) || {}).weapon !== 'ranged' ? (data.MAP_OVERLAYS.catapult.atk || 0) : 0);
+    if (role === 'attacker' && atk) parts.push(['Terrain (' + where + '): attack', atk]);
     if (tr.downhill) { // on a hill against a lower unit, attacking or attacked (not against units on a hill, wall or tower)
       const dr = tileRules(s, other.x, other.y);
       if (!(dr && dr.high)) parts.push(['Terrain (' + where + '): ' + (role === 'attacker' ? 'attacking downhill' : 'attacked from below'), tr.downhill]);

@@ -678,8 +678,8 @@ function positionScore(s0, s1, u0, u1, side, P, S, M) {
       if (vip.length) v += 0.04 * w * (nearest(u0, vip) - nearest(u1, vip));
     }
   }
-  // attackers: a catapult square in range of an enemy gate still standing is a good place to be (anyone on it bombards)
-  if (S.siege && S.siege.attacker && hasWalls(s0)) {
+  // attackers: a catapult square in range of an enemy gate still standing is a good place for a ranged unit (it bombards)
+  if (S.siege && S.siege.attacker && hasWalls(s0) && ranged) {
     const cat = (p) => (E.tileRules(s0, p.x, p.y)?.names || []).includes('Catapult') && (s0.siege?.gates || []).some(g => (g.state === 'locked' || g.state === 'open')
       && (g.owner === 'enemy' ? E.alliance(side) !== 'enemy' : E.alliance(side) === 'enemy') && g.squares.some(([gx, gy]) => Math.abs(gx - p.x) + Math.abs(gy - p.y) <= 10));
     v += 0.15 * w * ((cat(u1) ? 1 : 0) - (cat(u0) ? 1 : 0));

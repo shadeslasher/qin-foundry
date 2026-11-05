@@ -237,11 +237,11 @@ test('stairs: units walk up from a stairs square onto the wall and back down; me
   assert.ok(R.rangeOk(s, atStairs, foe) && R.rangeOk(s, foe, atStairs), 'stairs <-> wall melee');
 });
 
-test('catapults: a unit on a catapult square bombards an enemy gate up to 10 squares away for double damage; a siege engine doubles battering', () => {
+test('catapults: a ranged unit on a catapult square bombards an enemy gate up to 10 squares away for double damage; a siege engine doubles battering', () => {
   const s = city();
   s.map.tiles['6,13'].overlays = ['catapult'];
   const g = s.siege.gates[0];
-  const gunner = add(s, { typeId: 'inf', side: 'enemy', x: 6, y: 13 });  // 4 squares from the gate
+  const gunner = add(s, { typeId: 'arch', side: 'enemy', x: 6, y: 13 });  // 4 squares from the gate (damage 6)
   const ram = add(s, { typeId: 'inf', side: 'enemy', x: 6, y: 10 });
   add(s, { typeId: 'inf', side: 'player', owner: 'p1', x: 12, y: 1 });
   must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'skipTactics' }));
@@ -254,6 +254,10 @@ test('catapults: a unit on a catapult square bombards an enemy gate up to 10 squ
   s.turn.activation = { unitId: ram.id, step: 'move', started: true };
   dice([9, 2]); must(R.act(s, HOST, { type: 'attackGate', unitId: ram.id }));
   assert.strictEqual(g.hp, 54 - 26, 'the siege engine doubles battering too');
+  s.map.tiles['5,13'].overlays = ['catapult'];
+  const foot = add(s, { typeId: 'inf', side: 'enemy', x: 5, y: 13 }); // melee units can't work a catapult
+  s.turn.activation = { unitId: foot.id, step: 'move', started: true };
+  assert.ok(!R.actionMenu(s, foot).attackGate, 'only ranged units use catapults');
   const far = add(s, { typeId: 'inf', side: 'enemy', x: 12, y: 13 }); // no catapult: only next to a gate
   s.turn.activation = { unitId: far.id, step: 'move', started: true };
   assert.ok(!R.actionMenu(s, far).attackGate);
