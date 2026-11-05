@@ -22,6 +22,19 @@
 //   - units the opponent must rout are kept safe; units the opponent must keep alive (or get out) are hunted
 // Every unit also values good ground (defense, command, high ground, cover; fire and fords are bad), more so in
 // a defensive posture.
+//
+// Fighting (David, 2026-11-04), see mind() and positionScore():
+//   - finishing blows: removing an enemy unit counts extra; skilled tacticians finish units cheaply (they play the
+//     fight out and weigh the reply), poor ones now and then go for the kill whatever it costs (a "greedy" mistake)
+//   - surrounding: closing the sides of an enemy unit is worth more the nearer it is to a full ring; being closed in
+//     is dangerous. Aggressive postures care about the ring, defensive ones about their own safety
+//   - morale: shaken or battered units step out of reach to recover (officer regen, morale squares, rallying
+//     banners) unless they anchor a square or are steadfast
+//   - formations (levels 2+): ranged units stay behind their melee, melee units screen them and keep together
+//   - officers fight by type: Commanders and Strategists (and the tactician's own unit) are kept safer, Vanguards,
+//     Champions and Sentinels take risks; and by Battle style (sheet field): Rash, Glory-seeking, Cautious,
+//     Steadfast, Cunning, Protective. Rash and glory-seeking officers sometimes ignore the plan (said in the log)
+//   - mistakes: tacticians of Art of War 0-2 often chase, blunder into reach, dawdle or ignore the ground
 import * as E from './engine.mjs';
 
 const HOST = { id: 'host', host: true };
@@ -74,7 +87,7 @@ const mx = (u) => Math.max(1, Number(u && u.maxMen) || 100);
 function worth(s, u) { const t = E.typeOf(s, u); const tier = Math.max(1, Number(t?.tier) || Number(t?.unitValue) || 1); return tier * tier * 0.5 + 1; }
 
 /** Score change from `a` to `b` for `side`: enemy losses minus its own, by health share, morale and units lost. */
-function outcomeScore(a, b, side, S) {
+function outcomeScore(a, b, side, S, M) {
   const al = E.alliance(side); let v = 0;
   const gain = S ? S.gain : 1.35;
   for (const u0 of a.units) {
@@ -87,7 +100,9 @@ function outcomeScore(a, b, side, S) {
     const sign = mine ? -1 : gain;
     const dm = Math.max(0, u0.men - u1.men) / mx(u0);
     const dmo = Math.max(-20, Math.min(60, u0.morale - u1.morale)) / 100;
-    const lost = u1.status !== 'active' ? 0.7 : 0;
+    // a unit put out of the fight stops hurting the side: finishing one counts extra (more for the bold and the glory-seeking)
+    const lost = u1.status !== 'active' ? 0.7 + (mine ? 0 : (M ? M.kill : 0.2)) : 0;
+    if (!mine && M && M.glory > 1 && (u0.officerId || (Number(E.typeOf(a, u0)?.tier) || 0) >= 3)) w *= M.glory; // famous foes
     v += sign * w * (dm + 0.45 * dmo + lost);
   }
   return v;
@@ -101,7 +116,7 @@ function naiveHit(s, att, def, tiles) {
 }
 
 /** Enemy units that could strike this unit before it acts again, with a guess at the harm, as a score (negative). */
-function threatOf(s, u, side, P, areas, S) {
+function threatOf(s, u, side, P, areas, S, M) {
   if (!u || u.status !== 'active') return 0;
   const k = u.x + ',' + u.y, w = worth(s, u), hits = [];
   const holding = !!(u.round && u.round.holding);
@@ -118,7 +133,7 @@ function threatOf(s, u, side, P, areas, S) {
   }
   hits.sort((x, y) => y - x);
   const top = hits.slice(0, 3).reduce((t, h, i) => t + h * [1, 0.6, 0.35][i], 0);
-  const prot = S && S.protect.has(u.id) ? 1.6 : 1;
+  const prot = (S && S.protect.has(u.id) ? 1.6 : 1) * (M ? M.threat : 1) * (M && M.shaken ? 1.5 : 1);
   return -P.threatW * (S ? S.threatMult : 0.75) * prot * w * Math.min(1.2, top);
 }
 
@@ -149,7 +164,7 @@ const ptOf = (k) => { const [x, y] = String(k).split(',').map(Number); return { 
 function strength(s, u) {
   const t = E.typeOf(s, u), off = u.officerId ? E.officerOf(s, u) : null;
   let v = worth(s, u) * (0.4 + 0.6 * u.men / mx(u)) * (0.7 + 0.3 * Math.min(100, u.morale ?? 50) / 100);
-  if (off) v *= 1.25 + 0.08 * (Number(off.command) || 0);
+  if (off) v *= (1.25 + 0.08 * (Number(off.command) || 0)) * (/champion/i.test(off.ctype || '') ? 1.3 : 1); // Champions hold chokepoints
   if (t.weapon === 'ranged') v *= 0.6; // a square is kept by those who can fight on it
   return v;
 }
@@ -245,7 +260,8 @@ export function strategy(s, side) {
       count.set(pick.i, count.get(pick.i) + 1); rest.splice(rest.indexOf(pick.u), 1);
     }
   }
-  return { posture, ...POSTURE[posture], aggr, keep: [...keep.keys()].map(ptOf), take: [...take.keys()].map(ptOf), jobs, protect, hunt, reinforceRound, why };
+  const reinforceSquares = coming.filter(r => Number.isFinite(r.x) && Number.isFinite(r.y)).map(r => ({ x: r.x, y: r.y }));
+  return { posture, ...POSTURE[posture], aggr, reinforceSquares, keep: [...keep.keys()].map(ptOf), take: [...take.keys()].map(ptOf), jobs, protect, hunt, reinforceRound, why };
 }
 
 /** How good this square is to stand on for this unit (defense, command, height, cover; fire and fords hurt). */
@@ -261,21 +277,111 @@ export function groundValue(s, u, x, y) {
 
 function nearest(u, pts) { let d = Infinity; for (const p of pts) { const [x, y] = Array.isArray(p) ? p : [p.x, p.y]; d = Math.min(d, Math.abs(u.x - x) + Math.abs(u.y - y)); } return d; }
 
+// ---------------------------------------------------------------- the unit's mind (David, 2026-11-04)
+
+const TYPE_MIND = { // by the officer's character type
+  commander: { threat: 1.35, close: 0.8 },
+  strategist: { threat: 1.6, close: 0.6 },
+  vanguard: { threat: 0.75, close: 1.35, kill: 1.2 },
+  champion: { threat: 0.85, anchor: 1.3 },
+  sentinel: { threat: 0.85, kill: 1.3 },
+};
+export const BATTLE_STYLES = ['rash', 'glory-seeking', 'cautious', 'steadfast', 'cunning', 'protective'];
+/** Battle style words on an officer's sheet ("Rash, Cunning"), as a Set of the known ones. */
+export function stylesOf(text) {
+  const out = new Set();
+  for (const w of String(text || '').toLowerCase().split(/[,;/]+/).map(x => x.trim().replace(/\s+/g, '-'))) {
+    if (w === 'glory' || w === 'glory-seeker' || w === 'gloryseeking') out.add('glory-seeking');
+    else if (w === 'reckless') out.add('rash');
+    else if (BATTLE_STYLES.includes(w)) out.add(w);
+  }
+  return out;
+}
+
+/** Is this unit led by its side's tactician? */
+function isTacticianUnit(s, u) {
+  const tac = s.tactics?.sides?.[u.side], off = u.officerId ? E.officerOf(s, u) : null;
+  return !!(tac && off && (tac.id === off.id || tac.name === off.name));
+}
+
+/**
+ * How this unit fights this activation: weights from its officer's type and battle style, how shaken it is, and
+ * (rolled once per unit per round, so the plan holds together) a mistake or a bout of disobedience.
+ *   { threat, close, kill, glory, flank, ground, anchorish, shaken, recover, ignoreJob, mistake, disobey, note }
+ */
+export function mind(s, u, S, P) {
+  const off = u.officerId ? E.officerOf(s, u) : null;
+  const ty = TYPE_MIND[String(off?.ctype || '').trim().toLowerCase()] || {};
+  const st = stylesOf(off?.style);
+  const M = { threat: ty.threat || 1, close: ty.close || 1, kill: (P.level >= 3 ? 0.4 : 0.2) * (ty.kill || 1), glory: 1, flank: 1, ground: 1,
+    anchorish: ty.anchor || 1, shaken: false, recover: 0, ignoreJob: false, mistake: null, disobey: false, note: null, styles: st };
+  if (isTacticianUnit(s, u)) M.threat *= 1.5;
+  if (st.has('rash')) { M.threat *= 0.5; M.close *= 1.6; M.kill *= 1.3; }
+  if (st.has('glory-seeking')) { M.glory = 1.6; M.kill *= 1.5; }
+  if (st.has('cautious')) { M.threat *= 1.4; M.close *= 0.6; }
+  if (st.has('cunning')) { M.flank = 1.6; M.ground = 1.4; }
+  // shaken or battered: wants to step back and recover (skilled sides see it sooner)
+  const mo = Number(u.morale ?? 50), hp = u.men / mx(u);
+  const line = P.level >= 2 ? (mo < 40 || hp < 0.35) : mo < 20;
+  if (line && !st.has('steadfast')) { M.shaken = true; M.recover = P.level >= 2 ? 1 : 0.5; }
+  // dice for this round: mistakes (poor tacticians), disobedience (rash and glory-seeking officers)
+  const r = seeded(hashStr(u.id + ':mind:' + (s.turn?.round ?? 0)));
+  const r1 = r(), r2 = r(), r3 = r();
+  const foes = E.liveUnits(s).filter(e => E.hostile(e, u));
+  const reach = E.movementOf(s, u) + Math.max(1, E.typeOf(s, u).rangeMax || 1);
+  const weakNear = foes.some(e => e.men / mx(e) < 0.4 && E.manhattan(u, e) <= reach);
+  if (weakNear && r1 < [0.16, 0.11, 0.06, 0.02, 0, 0][P.level]) M.mistake = 'greedy';
+  else if (r1 < [0.46, 0.33, 0.18, 0.07, 0, 0][P.level]) M.mistake = ['chase', 'blind', 'dawdle', 'ground'][Math.floor(r2 * 4)];
+  if (M.mistake === 'greedy') { M.threat *= 0.15; M.kill = 2.5; }
+  if (M.mistake === 'chase') { M.close = Math.max(M.close, 1.8); M.ignoreJob = true; }
+  if (M.mistake === 'blind') M.threat *= 0.3;
+  if (M.mistake === 'dawdle') M.close = 0;
+  if (M.mistake === 'ground') M.ground = 0;
+  const wild = (st.has('rash') ? 0.3 : 0) + (st.has('glory-seeking') ? 0.25 : 0);
+  const job = S.jobs.get(u.id);
+  const held = !!job || S.posture === 'defensive' || S.posture === 'stall'; // orders that hold him back
+  if (wild && held && foes.length && r3 < wild * (1 - 0.08 * P.level)) {
+    M.disobey = true; M.ignoreJob = true; M.threat *= 0.4; M.close = Math.max(M.close, 2); M.recover = 0; M.shaken = false;
+    const name = off?.name || u.name;
+    M.note = st.has('glory-seeking') && !st.has('rash') ? name + ' seeks glory and leaves his post to take on the enemy!' : name + ' ignores his orders and charges!';
+  }
+  if (st.has('steadfast')) M.ignoreJob = false;
+  return M;
+}
+
+const ORTHO4 = [[0, 1], [1, 0], [0, -1], [-1, 0]];
+const RING = [0, 0.02, 0.06, 0.15, 0.35]; // value of an enemy closed in on 0-4 sides
+function closedSides(s, e, al) {
+  let n = 0;
+  const cols = s.map?.cols, rows = s.map?.rows;
+  for (const [dx, dy] of ORTHO4) {
+    const x = e.x + dx, y = e.y + dy;
+    if (cols && rows && (x < 0 || y < 0 || x >= cols || y >= rows)) { n++; continue; }
+    const r = E.tileRules(s, x, y); if (r && r.pass === 'none' && !r.wall) { n++; continue; }
+    const o = E.unitAt(s, x, y); if (o && o.status === 'active' && E.alliance(o.side) === al) n++;
+  }
+  return n;
+}
+const cantBeRinged = (s, e) => E.unitTrait(e, 'stalwart') || E.unitTrait(e, "pretender's guard") || !!E.tileRules(s, e.x, e.y)?.noSurround;
+
 /** Where the unit stands at the end of its turn: its job, closing on enemies, good ground, and (level 5) next round's strikes. */
-function positionScore(s0, s1, u0, u1, side, P, S) {
+function positionScore(s0, s1, u0, u1, side, P, S, M) {
   if (!u1 || u1.status !== 'active') return 0;
+  M = M || { close: 1, ground: 1, flank: 1, recover: 0, shaken: false, ignoreJob: false, styles: new Set() };
   const w = worth(s0, u0), t = E.typeOf(s0, u0), ranged = t.weapon === 'ranged';
   const foes = E.liveUnits(s0).filter(e => E.hostile(e, u0));
-  const job = S.jobs.get(u0.id);
+  const job = M.ignoreJob ? null : S.jobs.get(u0.id);
+  const al = E.alliance(side), lvl = P.level;
   let v = 0;
   if (foes.length) {
     const d0 = Math.min(...foes.map(e => E.manhattan(e, u0))), d1 = Math.min(...foes.map(e => E.manhattan(e, u1)));
     const want = ranged ? Math.max(1, t.rangeMax || 1) : 1;
     // a unit guarding a square only goes out to meet enemies that come near it
     const near = job && job.kind === 'keep' ? foes.some(e => E.manhattan(e, job.pt) <= 6) : true;
-    let close = S.close;
+    let close = S.close * M.close;
     if (S.hunt.size && foes.some(e => S.hunt.has(e.id))) close = Math.max(close, 1);
     if (job && job.kind === 'keep') close = near ? Math.max(0.6, close) : 0;
+    if (M.shaken && M.recover) close = Math.min(close, 0);
     v += 0.012 * w * close * (Math.abs(d0 - want) - Math.abs(d1 - want)); // close in (melee) or reach shooting range (ranged)
     // hunted units: get at them
     const hunted = foes.filter(e => S.hunt.has(e.id));
@@ -292,15 +398,68 @@ function positionScore(s0, s1, u0, u1, side, P, S) {
       v += (job.anchor ? 0.12 : 0.08) * w * (d0 - d1);
       if (d1 === 0) v += 0.3 * w; // ending a turn there seizes it
     } else if (job.anchor) {
-      v += 0.1 * w * (d0 - d1) + (d1 === 0 ? 0.45 * w : 0); // sit on the square
+      v += 0.1 * w * (d0 - d1) + (d1 === 0 ? 0.45 * w * (M.anchorish || 1) : 0); // sit on the square
     } else {
       const ring = ranged ? 3 : 2; // guards stand around it (ranged a little further back)
       v += 0.06 * w * (Math.max(0, d0 - ring) - Math.max(0, d1 - ring)) - (d1 > ring + 2 ? 0.03 * w * (d1 - ring - 2) : 0);
     }
   }
   // good ground (lower levels see less of it)
-  const gw = [0.3, 0.6, 0.85, 1, 1, 1][P.level] * S.ground;
+  const gw = [0.3, 0.6, 0.85, 1, 1, 1][lvl] * S.ground * M.ground * (M.shaken ? 1.3 : 1);
   if (gw) v += 0.035 * w * gw * (groundValue(s0, u0, u1.x, u1.y) - groundValue(s0, u0, u0.x, u0.y));
+  // surrounding: close in the sides of nearby enemies; keep its own sides open (better tacticians see more of it)
+  const lw = [0.2, 0.4, 0.7, 1, 1.2, 1.3][lvl];
+  const ringW = lw * M.flank * ({ aggressive: 1.3, balanced: 1, defensive: 0.6, stall: 0.3 })[S.posture];
+  const safeW = lw * ({ aggressive: 0.7, balanced: 1, defensive: 1.3, stall: 1.5 })[S.posture];
+  for (const e of foes) {
+    if (E.manhattan(e, u1) !== 1 && E.manhattan(e, u0) !== 1) continue;
+    const e1 = E.unitById(s1, e.id); if (!e1 || e1.status !== 'active' || cantBeRinged(s1, e1)) continue;
+    v += ringW * worth(s0, e) * (RING[closedSides(s1, e1, al)] - RING[closedSides(s0, e, al)]);
+  }
+  if (!cantBeRinged(s1, u1)) {
+    let shut = 0;
+    for (const [dx, dy] of ORTHO4) {
+      const x = u1.x + dx, y = u1.y + dy, o = E.unitAt(s1, x, y);
+      if (o && o.status === 'active' && E.alliance(o.side) !== al) shut += 1;
+      else if (lvl >= 3 && !o && foes.some(e => E.manhattan(e, { x, y }) <= E.movementOf(s0, e) && E.manhattan(e, u1) > 1)) shut += 0.4; // enemies could step in
+    }
+    v -= safeW * w * RING[Math.min(4, Math.round(shut))];
+  }
+  // morale: a shaken unit out of every enemy's reach recovers (officer regen, morale squares, rallying banners)
+  if (M.shaken && M.recover && !(job && job.kind === 'keep' && job.anchor)) {
+    const k1 = u1.x + ',' + u1.y;
+    const safe = !foes.some(e => { const ar = (M.areas && M.areas.get(e.id)) || E.threatArea(s0, e); return ar.attack.has(k1) || ar.move.has(k1); });
+    if (safe) {
+      const off = u0.officerId ? E.officerOf(s0, u0) : null, mo = Number(u0.morale ?? 50);
+      let gain = off ? Math.max(0, Math.min(75, mo + (off.fire || 0) + (off.command || 0)) - mo) : 0;
+      gain += Math.max(0, E.tileRules(s0, u1.x, u1.y)?.moraleTurn || 0);
+      if (E.liveUnits(s1).some(o => o.id !== u0.id && E.alliance(o.side) === al && E.unitTrait(o, 'rallying banner') && E.manhattan(o, u1) === 1)) gain += 5;
+      v += M.recover * w * (0.15 + 0.6 * gain / 100);
+    }
+  }
+  // formations (levels 2+): ranged behind the melee line, melee screening the ranged, units keeping together
+  const fw = [0, 0, 0.5, 0.8, 1, 1.2][lvl];
+  if (fw && foes.length) {
+    const friends = E.liveUnits(s1).filter(o => o.id !== u0.id && E.alliance(o.side) === al);
+    const nearFoe = (p) => Math.min(...foes.map(e => E.manhattan(e, p)));
+    const melee = friends.filter(o => E.typeOf(s1, o).weapon !== 'ranged');
+    if (ranged && melee.length) {
+      const ahead = (p) => Math.max(0, Math.min(...melee.map(m => nearFoe(m))) - nearFoe(p));
+      v -= fw * 0.03 * w * (ahead(u1) - ahead(u0));
+    } else if (!ranged) {
+      for (const r of friends.filter(o => E.typeOf(s1, o).weapon === 'ranged' && E.manhattan(o, u1) <= 3))
+        if (nearFoe(u1) < nearFoe(r)) v += fw * 0.02 * w;
+    }
+    const tight = friends.filter(o => Math.abs(o.x - u1.x) <= 1 && Math.abs(o.y - u1.y) <= 1).length;
+    v += fw * 0.01 * w * Math.min(2, tight) * (S.posture === 'defensive' || S.posture === 'stall' ? 1.5 : 1);
+    // protective officers stay close to the side's commanders and strategists
+    if (M.styles.has('protective')) {
+      const vip = friends.filter(o => { const of = o.officerId ? E.officerOf(s1, o) : null; return of && /commander|strategist/i.test(of.ctype || ''); });
+      if (vip.length) v += 0.04 * w * (nearest(u0, vip) - nearest(u1, vip));
+    }
+  }
+  // waiting for reinforcements: drift towards where they will come in
+  if (S.posture === 'stall' && S.reinforceSquares?.length) v += 0.02 * w * (nearest(u0, S.reinforceSquares) - nearest(u1, S.reinforceSquares));
   return v;
 }
 
@@ -355,11 +514,13 @@ export function plans(s, unitId, opts = {}) {
   const ac = base.turn.activation; if (!ac || ac.unitId !== unitId) return [];
   const rand = seeded(hashStr(unitId + ':' + base.turn.round + ':' + (opts.salt || '')));
   const areas = new Map(E.liveUnits(base).filter(e => E.hostile(e, u0)).map(e => [e.id, E.threatArea(base, e)]));
-  const S = opts.strategy || strategy(base, side), job = S.jobs.get(unitId);
+  const S = opts.strategy || strategy(base, side), M = opts.mind || mind(base, u0, S, P);
+  M.areas = areas;
+  const job = M.ignoreJob ? null : S.jobs.get(unitId);
   const out = [];
   const consider = (actions, f) => {
     const u1 = E.unitById(f, unitId);
-    const o1 = outcomeScore(base, f, side, S), p1 = positionScore(base, f, u0, u1, side, P, S), t1 = threatOf(f, u1, side, P, areas, S) + pressureOf(f, u1, P);
+    const o1 = outcomeScore(base, f, side, S, M), p1 = positionScore(base, f, u0, u1, side, P, S, M), t1 = threatOf(f, u1, side, P, areas, S, M) + pressureOf(f, u1, P);
     let sc = o1 + p1 + t1;
     out.push({ actions, score: sc, state: f });
   };
@@ -375,7 +536,7 @@ export function plans(s, unitId, opts = {}) {
     let tiles = [...blue.keys()].map(k => k.split(',').map(Number));
     const foes = E.liveUnits(base).filter(e => E.hostile(e, u0));
     const objs = job ? [job.pt] : [...S.take, ...S.keep];
-    const heur = ([x, y]) => (S.close > 0 ? 1 : 0.3) * Math.min(99, ...foes.map(e => Math.abs(e.x - x) + Math.abs(e.y - y))) + (job ? 1.5 : 0.5) * Math.min(99, nearest({ x, y }, objs))
+    const heur = ([x, y]) => (S.close * M.close > 0 ? 1 : 0.3) * Math.min(99, ...foes.map(e => Math.abs(e.x - x) + Math.abs(e.y - y))) + (job ? 1.5 : 0.5) * Math.min(99, nearest({ x, y }, objs))
       - 1.5 * groundValue(base, u0, x, y);
     tiles.sort((A, B) => heur(A) - heur(B));
     if (tiles.length > P.maxTiles) tiles = [...tiles.slice(0, Math.ceil(P.maxTiles * 0.7)), ...tiles.slice(Math.ceil(P.maxTiles * 0.7)).sort(() => rand() - 0.5).slice(0, Math.floor(P.maxTiles * 0.3))];
@@ -418,7 +579,7 @@ export function plans(s, unitId, opts = {}) {
       }
       if (!runs.length) continue;
       // average the playouts' scores; keep one of them as the representative end state
-      const scores = runs.map(g => { const u1 = E.unitById(g, unitId); return outcomeScore(base, g, side, S) + positionScore(base, g, u0, u1, side, P, S) + threatOf(g, u1, side, P, areas, S) + pressureOf(g, u1, P); });
+      const scores = runs.map(g => { const u1 = E.unitById(g, unitId); return outcomeScore(base, g, side, S, M) + positionScore(base, g, u0, u1, side, P, S, M) + threatOf(g, u1, side, P, areas, S, M) + pressureOf(g, u1, P); });
       out.push({ actions: [...pre, act], score: scores.reduce((t, x) => t + x, 0) / scores.length, state: runs[0] });
     }
     // hold position (defensive stance)
@@ -472,6 +633,11 @@ export function nextAction(s, unitId, opts = {}) {
       const v = threatOf(f, fu, side, P, areas, S); if (v > bestV) { bestV = v; best = { x, y }; }
     }
     return best ? { type: 'reposition', unitId, x: best.x, y: best.y } : { type: 'reposition', unitId };
+  }
+  // an officer who goes his own way says so in the log, once a round, before he acts
+  if (ac.step === 'move' && !(u.round && u.round.aiNoted)) {
+    const M = mind(s, u, strategy(s, side), P);
+    if (M.note) return { type: 'aiNote', unitId, text: M.note };
   }
   const list = plans(s, unitId, opts);
   return list.length ? list[0].actions[0] : { type: 'endTurn', unitId };

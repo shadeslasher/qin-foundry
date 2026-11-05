@@ -65,6 +65,7 @@ function officerLibraryEntry(officer) {
   const art = abilities.find(a => a.system.kind === "battleArt");
   return {
     id: officer.uuid, name: officer.name,
+    ctype: String(officer.system.details?.characterType ?? ""), style: String(officer.system.details?.battleStyle ?? ""), // how the battle AI plays him
     fire: officer.system.aspects.fire, command: officer.system.skills.command?.value ?? 0, skills,
     passive: { name: abilities.filter(a => a.system.kind === "passive").map(a => a.name).join(", "), text: abilities.filter(a => a.system.kind === "passive").map(a => stripHtml(a.system.description)).filter(Boolean).join(" "), effects },
     skill: skill ? { name: skill.name, text: stripHtml(skill.system.description), moraleCost: skill.system.moraleCost,

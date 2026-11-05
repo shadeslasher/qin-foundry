@@ -1719,8 +1719,9 @@ function act(s, actor, a) {
     const tbBefore = acBefore && acBefore.takeBack;
     const tbFromUndo = a.type === 'undoMove' && acBefore && acBefore.undo ? acBefore.undo.takeBack : null;
     const res = fn(s, actor, a) || ok();
-    if (res.ok && s.turn.activation && a.type !== 'moveTo' && a.type !== 'undoMove') delete s.turn.activation.undo;
-    if (res.ok && s.turn.activation && a.type !== 'takeBack') delete s.turn.activation.takeBack;
+    const keepsUndo = a.type === 'aiNote'; // a line in the log changes nothing on the map
+    if (res.ok && s.turn.activation && a.type !== 'moveTo' && a.type !== 'undoMove' && !keepsUndo) delete s.turn.activation.undo;
+    if (res.ok && s.turn.activation && a.type !== 'takeBack' && !keepsUndo) delete s.turn.activation.takeBack;
     if (res.ok && snap && s.turn.activation) s.turn.activation.takeBack = snap;
     if (res.ok && a.type === 'moveTo' && tbBefore && s.turn.activation && s.turn.activation.undo) s.turn.activation.undo.takeBack = tbBefore;
     if (res.ok && tbFromUndo && s.turn.activation) s.turn.activation.takeBack = tbFromUndo;
@@ -1747,7 +1748,7 @@ function takeBackSnapshot(s) {
 const DUEL_ACTIONS = new Set(['duelAnswer', 'duelResult', 'duelCancel']);
 const HOST_ONLY = new Set(['duelResult', 'duelCancel', 'triggerAllTactics', 'setGate', 'setHidden', 'setMap', 'paintTerrain', 'setLibrary', 'addUnit', 'editUnit', 'removeUnit',
   'startBattle', 'resetBattle', 'startRound', 'skipPrompt', 'addMod', 'removeMod', 'adjust', 'setFacing',
-  'setTactician', 'finishTactics', 'skipTactics', 'declareOutcome']);
+  'setTactician', 'finishTactics', 'skipTactics', 'declareOutcome', 'aiNote']);
 
 const ACTIONS = {
   // ---------- host / GM
@@ -1881,6 +1882,11 @@ const ACTIONS = {
     s.outcome = { result: a.result, round: s.turn.round, at: Date.now(), declared: true };
     log(s, { victory: 'Victory! The GM ends the battle.', defeat: 'Defeat. The GM ends the battle.', stalemate: 'Stalemate. The GM ends the battle.' }[a.result], { type: 'outcome', result: a.result });
     s.turn = freshTurn('over', s.turn.round);
+  },
+  aiNote(s, actor, a) { // the battle AI says what an officer does on his own (David, 2026-11-04): once per unit per round
+    const u = unitById(s, a.unitId); if (!u) return err('Unknown unit');
+    u.round.aiNoted = true;
+    log(s, String(a.text || '').slice(0, 240), { type: 'aiNote', unit: u.id });
   },
   skipPrompt(s) { // host safety valve: skip whoever the game is waiting on
     const p = prompt(s), t = s.turn;

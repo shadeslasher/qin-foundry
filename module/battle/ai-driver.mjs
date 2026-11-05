@@ -28,6 +28,27 @@ export function aiLevels() {
 }
 
 let timer = null, busy = false, fails = 0;
+
+// Big moments get a longer pause before the AI goes on, so everyone sees what happened (David, 2026-11-04):
+// a unit routed, a tactic sprung, an officer skill, heroic action or duel, an officer going his own way,
+// a gate or building destroyed, and reinforcements arriving.
+const BIG = new Set(["defeat", "tactic", "skill", "heroic", "duel", "aiNote", "burntDown", "gate", "levelUp", "surrounded"]);
+const BIG_PAUSE = 2600;
+let seenT = 0, seenArrived = null, pauseUntil = 0;
+function bigMomentSince() {
+  const battle = getBattle();
+  const log = battle.log ?? [];
+  const fresh = log.filter(e => (e.t ?? 0) > seenT);
+  if (log.length) seenT = Math.max(seenT, ...log.map(e => e.t ?? 0));
+  let big = fresh.some(e => BIG.has(e.detail?.type));
+  try { // reinforcements that have just arrived
+    const zones = game.scenes.get(battle.sceneId)?.getFlag(SYSTEM_ID, "reinforcements")?.zones ?? [];
+    const arrived = zones.filter(z => z.arrived).length;
+    if (seenArrived !== null && arrived > seenArrived) big = true;
+    seenArrived = arrived;
+  } catch { /* no scene */ }
+  return big;
+}
 const isRunner = () => game.user?.isGM && (!game.users.activeGM || game.users.activeGM === game.user);
 
 function schedule() {
@@ -35,7 +56,10 @@ function schedule() {
   clearTimeout(timer);
   const cfg = aiSettings();
   if (cfg.paused || (!cfg.enemy && !cfg.ally)) return;
-  timer = setTimeout(() => tick().catch(e => console.warn("Qin | battle AI", e)), atSpeed(Math.max(150, Number(cfg.delay) || 900)));
+  const now = Date.now();
+  if (bigMomentSince()) pauseUntil = now + atSpeed(BIG_PAUSE);
+  const wait = Math.max(atSpeed(Math.max(150, Number(cfg.delay) || 900)), pauseUntil - now);
+  timer = setTimeout(() => tick().catch(e => console.warn("Qin | battle AI", e)), wait);
 }
 
 async function tick() {

@@ -186,3 +186,92 @@ test('AI: waiting for reinforcements, it stays out of reach instead of walking i
   }
   assert.ok(dist.true > dist.false, 'keeps its distance: ' + JSON.stringify(dist));
 });
+
+// ---- fighting: officers, mistakes, morale (David, 2026-11-04)
+const off = (id, name, ctype, style, o) => ({ id, name, fire: 2, command: 3, skills: {}, heroicActions: [], ctype, style, ...o });
+function withOfficers(units, officers, objectives) {
+  const s = R.newState(); s.players.p1 = { name: 'Alice' };
+  s.library.unitTypes.push(strong, weak, foe); s.library.officers.push(...officers);
+  const ids = units.map(o => must(R.act(s, HOST, Object.assign({ type: 'addUnit' }, o))).unitId);
+  if (objectives) s.objectives = { victory: [], defeat: [], extraction: [], ...objectives };
+  must(R.act(s, HOST, { type: 'startBattle' }));
+  R.setRng(() => 0.3); must(R.act(s, HOST, { type: 'startRound' }));
+  return { s, ids };
+}
+
+test('AI: battle styles read from the sheet text', () => {
+  assert.deepStrictEqual([...AI.stylesOf('Rash, glory seeking; Cunning, nonsense')].sort(), ['cunning', 'glory-seeking', 'rash']);
+  assert.strictEqual(AI.stylesOf('').size, 0);
+});
+
+test('AI: Strategists and the tactician are kept safer; Vanguards take risks', () => {
+  const { s, ids } = withOfficers(army, [off('o1', 'Guo Jia', 'Strategist', ''), off('o2', 'Zhang Liao', 'Vanguard', '')]);
+  R.unitById(s, ids[1]).officerId = 'o1'; R.unitById(s, ids[2]).officerId = 'o2';
+  const S = AI.strategy(s, 'enemy'), P = AI.profile(5);
+  const a = AI.mind(s, R.unitById(s, ids[1]), S, P), b = AI.mind(s, R.unitById(s, ids[2]), S, P);
+  assert.ok(a.threat > 1.4 && b.threat < 1 && b.close > a.close);
+  s.tactics = { sides: { enemy: { id: 'o1', name: 'Guo Jia', aow: 5 } } };
+  assert.ok(AI.mind(s, R.unitById(s, ids[1]), S, P).threat > a.threat, 'the tactician himself even more so');
+});
+
+test('AI: poor tacticians make mistakes often, masters never', () => {
+  const count = { 0: 0, 4: 0 };
+  for (const lvl of [0, 4]) for (let round = 1; round <= 40; round++) {
+    const { s, ids } = battle([foe], army.slice(0, 1).concat([{ typeId: 'foe', side: 'enemy', x: 5, y: 8 }]));
+    s.turn.round = round;
+    if (AI.mind(s, R.unitById(s, ids[1]), AI.strategy(s, 'enemy'), AI.profile(lvl)).mistake) count[lvl]++;
+  }
+  assert.ok(count[0] >= 10 && count[0] <= 28, 'level 0: ' + count[0] + '/40');
+  assert.strictEqual(count[4], 0);
+});
+
+test('AI: a rash officer told to keep a square sometimes charges anyway, and says so; a steadfast one never leaves', () => {
+  let wild = 0, notes = 0, steady = 0;
+  for (let round = 1; round <= 30; round++) {
+    const { s, ids } = withOfficers(army, [off('o1', 'Zhang Fei', 'Vanguard', 'Rash'), off('o2', 'Gao Shun', 'Champion', 'Steadfast')],
+      { victory: [{ id: 'v1', type: 'seize', x: 3, y: 9 }, { id: 'v2', type: 'seize', x: 8, y: 9 }] });
+    R.unitById(s, ids[1]).officerId = 'o1'; R.unitById(s, ids[3]).officerId = 'o2';
+    s.turn.round = round;
+    const S = AI.strategy(s, 'enemy');
+    const m = AI.mind(s, R.unitById(s, ids[1]), S, AI.profile(2));
+    if (m.disobey) { wild++; if (/Zhang Fei/.test(m.note)) notes++; }
+    if (AI.mind(s, R.unitById(s, ids[3]), S, AI.profile(2)).ignoreJob) steady++;
+  }
+  assert.ok(wild >= 3 && wild <= 15, 'rash: ' + wild + '/30');
+  assert.strictEqual(notes, wild, 'each time in the log');
+  assert.strictEqual(steady, 0);
+});
+
+test('AI: an officer going his own way puts a line in the log first, once, then acts', () => {
+  for (let round = 1; round <= 30; round++) {
+    const { s, ids } = withOfficers([
+      { typeId: 'foe', side: 'player', owner: 'p1', x: 5, y: 3 },
+      { typeId: 'strong', side: 'enemy', x: 5, y: 9, officerId: 'o1' },
+    ], [off('o1', 'Zhang Fei', 'Vanguard', 'Rash, Glory-seeking')], { victory: [{ id: 'v1', type: 'seize', x: 5, y: 9 }] });
+    s.turn.round = round;
+    const m = AI.mind(s, R.unitById(s, ids[1]), AI.strategy(s, 'enemy'), AI.profile(1));
+    if (!m.disobey) continue;
+    const acts = runAI(s, { enemy: true }, 1);
+    const notes = acts.filter(a => a.type === 'aiNote');
+    assert.strictEqual(notes.length, 1, JSON.stringify(acts));
+    assert.ok(s.log.some(e => e.detail?.type === 'aiNote'));
+    assert.ok(acts.findIndex(a => a.type === 'aiNote') < acts.findIndex(a => a.type === 'moveTo' || a.type === 'skipMove'));
+    return;
+  }
+  assert.fail('never disobeyed in 30 rounds');
+});
+
+test('AI: a shaken unit with an officer steps out of reach to recover instead of fighting on', () => {
+  const dist = {};
+  for (const shaken of [true, false]) {
+    const { s, ids } = withOfficers([
+      { typeId: 'foe', side: 'player', owner: 'p1', x: 5, y: 3 },
+      { typeId: 'foe', side: 'enemy', x: 5, y: 7, officerId: 'o1' },
+    ], [off('o1', 'Li Dian', 'Commander', '')]);
+    const u = R.unitById(s, ids[1]);
+    if (shaken) u.morale = 22;
+    runAI(s, { enemy: true }, 2);
+    dist[shaken] = R.manhattan(R.unitById(s, ids[0]), R.unitById(s, ids[1]));
+  }
+  assert.ok(dist.true > dist.false, JSON.stringify(dist));
+});

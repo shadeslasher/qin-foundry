@@ -67,6 +67,7 @@ export class CharacterData extends QinBaseActor {
       details: new fields.SchemaField({
         state: new fields.StringField({ initial: "" }),
         characterType: new fields.StringField({ initial: "" }),
+        battleStyle: new fields.StringField({ initial: "" }), // battle AI personality: Rash, Glory-seeking, Cautious, Steadfast, Cunning, Protective
         tier: new fields.StringField({ initial: "" }),
         title: new fields.StringField({ initial: "" }),
       }),
