@@ -45,7 +45,7 @@ test("homebrew Yin/Yang: doubles are face value + Chi, double zero is a critical
 });
 
 test("attack damage: Yang difference, double bonus only on a hit", () => {
-  assert.strictEqual(Q.attackDamage({ metal: 4, weapon: 3, dice: Q.yinYangResult(5, 9), hit: true }), 11); // book example
+  assert.strictEqual(Q.attackDamage({ metal: 4, weapon: 3, dice: Q.yinYangResult(5, 9), hit: true }), 9); // book example 11, with Yang over Yin halved (4 -> 2)
   assert.strictEqual(Q.attackDamage({ metal: 4, weapon: 3, dice: Q.yinYangResult(9, 5), hit: true }), 7);
   assert.strictEqual(Q.attackDamage({ metal: 4, weapon: 3, dice: Q.yinYangResult(9, 9), hit: true }), 16);
   assert.strictEqual(Q.attackDamage({ metal: 4, weapon: 3, dice: Q.yinYangResult(9, 9), hit: false }), 7);
