@@ -154,7 +154,14 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
   const officers = new Map();
   const rzones = reinforceZonesOf(scene.getFlag?.(SYSTEM_ID, REINFORCE_FLAG));
   for (const tok of unitTokens(scene)) {
-    if (isWaitingReinforcement(tok.getFlag?.(SYSTEM_ID, REINFORCE_TOKEN_FLAG), rzones)) continue; // reinforcements not yet arrived: not in the battle
+    const rzId = tok.getFlag?.(SYSTEM_ID, REINFORCE_TOKEN_FLAG);
+    if (isWaitingReinforcement(rzId, rzones)) { // reinforcements not yet arrived: not in the battle
+      // ...but their own side knows they are coming, and when (the battle AI plays for time until then)
+      const z = rzones.find(z => z.id === rzId);
+      (s.incoming ??= []).push({ side: tok.actor?.system?.side, round: z?.round ?? null, tier: Number(tok.actor?.system?.tier) || 1,
+        x: Math.round(tok.x / size), y: Math.round(tok.y / size) });
+      continue;
+    }
     const a = tok.actor, sys = a.system;
     const gx = Math.round(tok.x / size), gy = Math.round(tok.y / size);
     const ranged = sys.range > 1;

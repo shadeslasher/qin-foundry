@@ -80,3 +80,109 @@ test('AI: profiles get sharper with Art of War, and the side level comes from it
   assert.strictEqual(AI.sideLevel(s, 'enemy'), 4);
   assert.strictEqual(AI.sideLevel(s, 'ally'), 1, 'no tactician plays as 1');
 });
+
+// ---- strategy: objectives, the clock, reinforcements, ground (David, 2026-11-04)
+const strong = unitType('strong', { tier: 4, damage: 8, armor: 5, armorPen: 5 });
+const weak = unitType('weak', { tier: 1, damage: 4, armor: 1, armorPen: 2 });
+const foe = unitType('foe');
+function strat(objectives, units, extra = {}) {
+  const { s, ids } = battle([strong, weak, foe], units);
+  s.objectives = { victory: [], defeat: [], extraction: [], ...objectives };
+  Object.assign(s, extra);
+  return { s, ids, S: AI.strategy(s, 'enemy') };
+}
+const army = [
+  { typeId: 'foe', side: 'player', owner: 'p1', x: 5, y: 2 },
+  { typeId: 'strong', side: 'enemy', x: 3, y: 9 },
+  { typeId: 'weak', side: 'enemy', x: 5, y: 8 },
+  { typeId: 'weak', side: 'enemy', x: 8, y: 9 },
+];
+
+test('AI strategy: players must seize a square: the enemy keeps it, its strongest unit anchors it, and it plays defensively', () => {
+  const { ids, S } = strat({ victory: [{ id: 'v1', type: 'seize', x: 5, y: 9 }] }, army);
+  assert.ok(['defensive', 'balanced'].includes(S.posture) && S.aggr < 0, 'leans defensive: ' + S.posture + ' ' + S.aggr);
+  assert.deepStrictEqual(S.keep, [{ x: 5, y: 9 }]);
+  const anchor = [...S.jobs].find(([, j]) => j.anchor)[0];
+  assert.strictEqual(anchor, ids[1], 'the strong unit anchors, though a weaker one stands closer');
+});
+
+test('AI strategy: players only have to survive: the enemy attacks, harder as time runs out', () => {
+  const a = strat({ victory: [{ id: 'v1', type: 'survive', rounds: 6 }] }, army).S;
+  assert.strictEqual(a.posture, 'aggressive');
+  const b = strat({ victory: [{ id: 'v1', type: 'survive', rounds: 6 }] }, army, { objState: { playerEnded: {}, enemyEnded: {}, roundsDone: 5, escaped: [] } }).S;
+  assert.ok(b.aggr > a.aggr, 'more urgent late');
+});
+
+test('AI strategy: players racing a turn limit: the enemy plays defensively', () => {
+  const { S } = strat({ defeat: [{ id: 'd1', type: 'turnLimit', rounds: 8 }] }, army);
+  assert.ok(S.aggr < -0.2 && S.posture === 'defensive', S.posture);
+});
+
+test('AI strategy: reinforcements on the way: the enemy plays for time until they arrive', () => {
+  const coming = { incoming: [{ side: 'enemy', round: 3, tier: 3 }, { side: 'enemy', round: 3, tier: 3 }] };
+  const { S } = strat({}, army, coming);
+  assert.strictEqual(S.posture, 'stall');
+  assert.strictEqual(S.reinforceRound, 3);
+  const later = strat({}, army, coming);
+  const { s } = later; s.turn.round = 3;
+  assert.notStrictEqual(AI.strategy(s, 'enemy').posture, 'stall', 'once they are due it fights normally');
+  assert.notStrictEqual(strat({}, army, { incoming: [{ side: 'player', round: 3, tier: 3 }] }).S.posture, 'stall', "the players' reinforcements don't make it wait");
+});
+
+test('AI strategy: two squares to keep: each gets its own anchor and guards', () => {
+  const { S } = strat({ victory: [{ id: 'v1', type: 'seize', x: 2, y: 9 }, { id: 'v2', type: 'burn', x: 9, y: 9 }] }, army);
+  const byPt = new Map();
+  for (const [id, j] of S.jobs) { const k = j.pt.x + ',' + j.pt.y; byPt.set(k, [...(byPt.get(k) || []), { id, anchor: j.anchor }]); }
+  assert.strictEqual(byPt.size, 2, 'both squares covered');
+  for (const list of byPt.values()) assert.ok(list.some(j => j.anchor), 'an anchor on each');
+});
+
+test('AI strategy: a Hold the players must keep is a square the enemy goes to take; units to rout are protected', () => {
+  const { ids, S } = strat({
+    victory: [{ id: 'h1', type: 'hold', x: 5, y: 4, rounds: 3 }, { id: 'r1', type: 'routUnit', unitIds: ['X'] }],
+    defeat: [{ id: 'd1', type: 'tileSeized', x: 5, y: 4, pair: 'h1' }, { id: 'd2', type: 'unitRouted', unitIds: ['P'] }],
+  }, army);
+  assert.deepStrictEqual(S.take, [{ x: 5, y: 4 }]); assert.deepStrictEqual(S.keep, []);
+  assert.ok(S.protect.has('X') && S.hunt.has('P'));
+  void ids;
+});
+
+test('AI: good ground: a fort beats open plains, fire is bad', () => {
+  const { s, ids } = battle([foe], [{ typeId: 'foe', side: 'enemy', x: 5, y: 5 }, { typeId: 'foe', side: 'player', owner: 'p1', x: 1, y: 1 }]);
+  s.map.tiles = { '5,5': { terrain: 'plains', overlays: [] }, '6,5': { terrain: 'plains', overlays: ['fort'] }, '7,5': { terrain: 'plains', overlays: ['fire'] } };
+  const u = R.unitById(s, ids[0]);
+  assert.ok(AI.groundValue(s, u, 6, 5) > AI.groundValue(s, u, 5, 5));
+  assert.ok(AI.groundValue(s, u, 7, 5) < AI.groundValue(s, u, 5, 5));
+});
+
+test('AI: the anchor of a square the players must seize stays on it instead of marching out', () => {
+  let left = { on: 0, off: 0 };
+  for (const withObj of [true, false]) {
+    const { s, ids } = battle([strong, foe], [
+      { typeId: 'foe', side: 'player', owner: 'p1', x: 5, y: 2 },
+      { typeId: 'strong', side: 'enemy', x: 5, y: 8 },
+    ]);
+    if (withObj) s.objectives = { victory: [{ id: 'v1', type: 'seize', x: 5, y: 8 }], defeat: [], extraction: [] };
+    must(R.act(s, P1, { type: 'begin', unitId: ids[0] })); must(R.act(s, P1, { type: 'endTurn', unitId: ids[0] }));
+    runAI(s, { enemy: true }, 4);
+    const u = R.unitById(s, ids[1]);
+    left[withObj ? 'on' : 'off'] = R.manhattan(u, { x: 5, y: 8 });
+  }
+  assert.strictEqual(left.on, 0, 'stays on the square');
+  assert.ok(left.off > 0, 'with nothing to keep it advances');
+});
+
+test('AI: waiting for reinforcements, it stays out of reach instead of walking into the enemy', () => {
+  const dist = {};
+  for (const wait of [true, false]) {
+    const { s, ids } = battle([foe], [
+      { typeId: 'foe', side: 'player', owner: 'p1', x: 5, y: 2 },
+      { typeId: 'foe', side: 'enemy', x: 5, y: 9 },
+    ]);
+    if (wait) s.incoming = [{ side: 'enemy', round: 3, tier: 3 }, { side: 'enemy', round: 3, tier: 2 }];
+    must(R.act(s, P1, { type: 'begin', unitId: ids[0] })); must(R.act(s, P1, { type: 'endTurn', unitId: ids[0] }));
+    runAI(s, { enemy: true }, 4);
+    dist[wait] = R.manhattan(R.unitById(s, ids[0]), R.unitById(s, ids[1]));
+  }
+  assert.ok(dist.true > dist.false, 'keeps its distance: ' + JSON.stringify(dist));
+});

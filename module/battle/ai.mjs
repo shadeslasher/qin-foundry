@@ -10,6 +10,18 @@
 // Lower levels also choose less precisely: their scores carry more random noise.
 //
 // The AI only knows what its side can see: hidden enemy units are left out of its planning.
+//
+// Strategy (David, 2026-11-04): before planning, the side reads the battle's objectives, the clock and its own
+// coming reinforcements (see strategy()) and settles on a posture and a job for each unit:
+//   - the opponent must seize or burn a square: the side keeps it, its strongest officer unit sits on it, and the
+//     army plays more defensively around it
+//   - the opponent only has to survive (or hold a square for rounds): the side attacks, harder as time runs out
+//   - the opponent races a turn limit: time is on the side's side, so it plays defensively
+//   - its own reinforcements are on the way: it plays for time (stays out of reach, takes good ground) until they come
+//   - several squares to keep or take: units are split between them, each square gets its own anchor and guards
+//   - units the opponent must rout are kept safe; units the opponent must keep alive (or get out) are hunted
+// Every unit also values good ground (defense, command, high ground, cover; fire and fords are bad), more so in
+// a defensive posture.
 import * as E from './engine.mjs';
 
 const HOST = { id: 'host', host: true };
@@ -62,13 +74,17 @@ const mx = (u) => Math.max(1, Number(u && u.maxMen) || 100);
 function worth(s, u) { const t = E.typeOf(s, u); const tier = Math.max(1, Number(t?.tier) || Number(t?.unitValue) || 1); return tier * tier * 0.5 + 1; }
 
 /** Score change from `a` to `b` for `side`: enemy losses minus its own, by health share, morale and units lost. */
-function outcomeScore(a, b, side) {
+function outcomeScore(a, b, side, S) {
   const al = E.alliance(side); let v = 0;
-  const gain = stanceOf(a, side) === 'defend' ? 1.1 : 1.35;
+  const gain = S ? S.gain : 1.35;
   for (const u0 of a.units) {
     const u1 = E.unitById(b, u0.id); if (!u1 || u0.status !== 'active') continue;
     // enemy losses count a little more than its own: a side that only trades evenly never attacks
-    const w = worth(a, u0), sign = E.alliance(u0.side) === al ? -1 : gain;
+    const mine = E.alliance(u0.side) === al;
+    let w = worth(a, u0);
+    if (S && mine && S.protect.has(u0.id)) w *= 1.8; // the opponent needs this one routed: keep it safe
+    if (S && !mine && S.hunt.has(u0.id)) w *= 1.8;   // the opponent needs this one alive (or out): go for it
+    const sign = mine ? -1 : gain;
     const dm = Math.max(0, u0.men - u1.men) / mx(u0);
     const dmo = Math.max(-20, Math.min(60, u0.morale - u1.morale)) / 100;
     const lost = u1.status !== 'active' ? 0.7 : 0;
@@ -76,9 +92,6 @@ function outcomeScore(a, b, side) {
   }
   return v;
 }
-
-/** Attack (go after the enemy) unless the side only has squares to keep: then it waits for the enemy to come. */
-function stanceOf(s, side) { const g = goals(s, side); return g.keep.length && !g.take.length ? 'defend' : 'attack'; }
 
 /** Raw-numbers guess at the casualties of a melee or ranged hit (no traits beyond the charge, no holds). */
 function naiveHit(s, att, def, tiles) {
@@ -88,7 +101,7 @@ function naiveHit(s, att, def, tiles) {
 }
 
 /** Enemy units that could strike this unit before it acts again, with a guess at the harm, as a score (negative). */
-function threatOf(s, u, side, P, areas) {
+function threatOf(s, u, side, P, areas, S) {
   if (!u || u.status !== 'active') return 0;
   const k = u.x + ',' + u.y, w = worth(s, u), hits = [];
   const holding = !!(u.round && u.round.holding);
@@ -105,7 +118,8 @@ function threatOf(s, u, side, P, areas) {
   }
   hits.sort((x, y) => y - x);
   const top = hits.slice(0, 3).reduce((t, h, i) => t + h * [1, 0.6, 0.35][i], 0);
-  return -P.threatW * (stanceOf(s, side) === 'defend' ? 1 : 0.75) * w * Math.min(1.2, top);
+  const prot = S && S.protect.has(u.id) ? 1.6 : 1;
+  return -P.threatW * (S ? S.threatMult : 0.75) * prot * w * Math.min(1.2, top);
 }
 
 /** What this unit can strike next turn from where it ends (the other half of standing close): a score (positive). */
@@ -121,41 +135,172 @@ function pressureOf(s, u, P) {
   return 0.5 * P.threatW * best;
 }
 
-/** Squares the side wants to take or keep (from the battle's victory and defeat conditions). */
-function goals(s, side) {
-  const o = s.objectives || {}, al = E.alliance(side);
-  const take = [], keep = [];
-  const tile = (c) => [c.x, c.y];
-  for (const c of o.victory || []) if (['seize', 'hold', 'burn'].includes(c.type)) (al === 'player' ? take : keep).push(tile(c));
-  for (const c of o.defeat || []) if (c.type === 'tileSeized') (al === 'player' ? keep : take).push(tile(c));
-  if (al !== 'player') for (const k of o.extraction || []) keep.push(k.split(',').map(Number));
-  return { take, keep };
+const POSTURE = {
+  //            gain on enemy losses, threat weight, closing on enemies, good ground
+  aggressive: { gain: 1.55, threatMult: 0.6, close: 2, ground: 0.6 },
+  balanced: { gain: 1.35, threatMult: 0.75, close: 1, ground: 1 },
+  defensive: { gain: 1.15, threatMult: 1, close: 0.35, ground: 1.6 },
+  stall: { gain: 1.05, threatMult: 1.3, close: -0.6, ground: 1.6 }, // play for time: stay out of reach
+};
+const tileKey = (c) => c.x + ',' + c.y;
+const ptOf = (k) => { const [x, y] = String(k).split(',').map(Number); return { x, y }; };
+
+/** How strong a unit is to hold ground: its worth, health, morale, and its officer. */
+function strength(s, u) {
+  const t = E.typeOf(s, u), off = u.officerId ? E.officerOf(s, u) : null;
+  let v = worth(s, u) * (0.4 + 0.6 * u.men / mx(u)) * (0.7 + 0.3 * Math.min(100, u.morale ?? 50) / 100);
+  if (off) v *= 1.25 + 0.08 * (Number(off.command) || 0);
+  if (t.weapon === 'ranged') v *= 0.6; // a square is kept by those who can fight on it
+  return v;
 }
 
-function nearest(u, pts) { let d = Infinity; for (const [x, y] of pts) d = Math.min(d, Math.abs(u.x - x) + Math.abs(u.y - y)); return d; }
+/**
+ * The side's plan for the battle: its posture, the squares it keeps or takes, which unit goes where, and the
+ * units to protect or hunt. Read from the objectives, the round, its coming reinforcements and the army sizes.
+ *   { posture, gain, threatMult, close, ground, aggr, keep: [{x,y}], take: [{x,y}], jobs: Map(unitId -> { pt, kind, anchor }),
+ *     protect: Set, hunt: Set, reinforceRound, why: [text] }
+ */
+export function strategy(s, side) {
+  const o = s.objectives || {}, st = s.objState || {}, al = E.alliance(side);
+  const round = Number(s.turn?.round) || 0, done = Number(st.roundsDone) || 0;
+  const keep = new Map(), take = new Map(), protect = new Set(), hunt = new Set(), why = [];
+  const escapeTake = new Map(); // unitId -> extraction squares it heads for (ally side)
+  let aggr = 0;
+  const left = (c) => Math.max(0, (Number(c.rounds) || 0) - done);
+  const pairedHold = new Set((o.victory || []).filter(c => c.type === 'hold').map(c => c.id));
+  const enemySide = al !== 'player'; // the AI is playing against the players' objectives
+  for (const c of o.victory || []) {
+    const k = c.x !== undefined && c.x !== null ? tileKey(c) : null;
+    if (enemySide) switch (c.type) {
+      case 'seize': if (k) keep.set(k, 'seize'); aggr -= 0.35; why.push('keep ' + k + ' (opponent must seize it)'); break;
+      case 'burn': if (k) keep.set(k, 'burn'); aggr -= 0.25; why.push('guard ' + k + ' (opponent must burn it)'); break;
+      case 'hold': if (k) take.set(k, 'hold'); aggr += 0.25; why.push('take ' + k + ' (opponent must hold it)'); break;
+      case 'survive': { const f = c.rounds ? 1 - left(c) / c.rounds : 0; aggr += 0.6 + 0.4 * f; why.push('attack: opponent only has to survive'); break; }
+      case 'routUnit': for (const id of c.unitIds || []) protect.add(id); break;
+      case 'escape': for (const id of c.unitIds || []) hunt.add(id); for (const e of o.extraction || []) keep.set(e, 'extraction'); aggr += 0.2; break;
+    } else switch (c.type) {
+      case 'seize': case 'burn': if (k) take.set(k, c.type); aggr += 0.2; break;
+      case 'hold': if (k) keep.set(k, 'hold'); aggr -= 0.3; break;
+      case 'survive': aggr -= 0.5; why.push('play for time: survive'); break;
+      case 'routUnit': for (const id of c.unitIds || []) hunt.add(id); break;
+      case 'escape': for (const id of c.unitIds || []) { protect.add(id); escapeTake.set(id, o.extraction || []); } break;
+    }
+  }
+  for (const c of o.defeat || []) {
+    const k = c.x !== undefined && c.x !== null ? tileKey(c) : null;
+    if (enemySide) switch (c.type) {
+      case 'unitRouted': for (const id of c.unitIds || []) hunt.add(id); aggr += 0.15; break;
+      case 'tileSeized': if (k) take.set(k, 'seize'); break;
+      case 'turnLimit': aggr -= 0.5; why.push('defend: the opponent is racing the clock'); break;
+    } else switch (c.type) {
+      case 'unitRouted': for (const id of c.unitIds || []) protect.add(id); break;
+      case 'tileSeized': if (k && !pairedHold.has(c.pair)) keep.set(k, 'defend'); aggr -= 0.2; break;
+      case 'turnLimit': { const f = c.rounds ? 1 - left(c) / c.rounds : 0; aggr += 0.4 + 0.4 * f; why.push('attack: the clock is running'); break; }
+    }
+  }
+  // a square both kept and taken (a Hold): fight for it
+  for (const k of take.keys()) keep.delete(k);
+  // the army sizes, and help on the way
+  const live = E.liveUnits(s), mine = live.filter(u => E.alliance(u.side) === al), foes = live.filter(u => E.alliance(u.side) !== al);
+  const power = (us) => us.reduce((t, u) => t + worth(s, u) * u.men / mx(u), 0);
+  const myP = power(mine), foeP = power(foes);
+  const coming = (s.incoming || []).filter(r => r.side && E.alliance(r.side) === al && (r.round ?? Infinity) > round);
+  let reinforceRound = null;
+  if (coming.length && mine.length) {
+    reinforceRound = Math.min(...coming.map(r => r.round ?? Infinity));
+    const extra = coming.reduce((t, r) => t + (Math.max(1, r.tier) ** 2 * 0.5 + 1), 0);
+    const soon = Math.max(0, reinforceRound - round);
+    aggr -= Math.min(0.9, 0.35 + 0.4 * extra / Math.max(1, myP)) * (soon <= 3 ? 1 : 0.6);
+    why.push('play for time: reinforcements in round ' + reinforceRound);
+  }
+  if (foeP > 0 && myP > 0) aggr += Math.max(-0.15, Math.min(0.15, 0.2 * (myP / foeP - 1))); // a much bigger army leans in a little
+  aggr = Math.max(-1, Math.min(1, aggr));
+  const posture = aggr > 0.35 ? 'aggressive' : (coming.length && aggr < -0.35) ? 'stall' : aggr < -0.2 ? 'defensive' : 'balanced';
+  // jobs: each square gets an anchor (strongest nearby unit; keep squares only) and its share of guards
+  const jobs = new Map();
+  const pts = [...[...keep.keys()].map(k => ({ ...ptOf(k), kind: 'keep' })), ...[...take.keys()].map(k => ({ ...ptOf(k), kind: 'take' }))];
+  const free = mine.filter(u => !escapeTake.has(u.id));
+  for (const [id, sq] of escapeTake) if (sq.length) jobs.set(id, { pt: ptOf(sq.reduce((b, k) => { const p = ptOf(k), u = E.unitById(s, id); return !b || !u || E.manhattan(u, p) < E.manhattan(u, ptOf(b)) ? k : b; }, null)), kind: 'take', anchor: true });
+  if (pts.length && free.length) {
+    const taken = new Set();
+    // anchors first: for every square, the strongest unit, discounted by how far it is
+    for (const p of pts) {
+      let best = null, bv = -Infinity;
+      for (const u of free) { if (taken.has(u.id)) continue; const v = strength(s, u) - 0.12 * E.manhattan(u, p) * worth(s, u); if (v > bv) { bv = v; best = u; } }
+      if (best) { taken.add(best.id); jobs.set(best.id, { pt: p, kind: p.kind, anchor: true }); }
+    }
+    // the rest are shared out: each square in turn takes the nearest unit left, so every square is covered
+    const cap = Math.ceil(free.length / pts.length) + 1, count = new Map(pts.map((p, i) => [i, 1]));
+    const rest = free.filter(u => !taken.has(u.id));
+    for (let guard = 0; rest.length && guard < 200; guard++) {
+      let pick = null;
+      for (let i = 0; i < pts.length; i++) {
+        if (count.get(i) >= cap) continue;
+        for (const u of rest) { const d = E.manhattan(u, pts[i]) - (count.get(i) ? 0 : 3); if (!pick || d < pick.d) pick = { u, i, d }; }
+      }
+      if (!pick) break;
+      // far-off units fight where they are rather than marching across the map (unless the side must defend)
+      if (pick.d > 14 && posture !== 'defensive' && posture !== 'stall') { rest.splice(rest.indexOf(pick.u), 1); continue; }
+      jobs.set(pick.u.id, { pt: pts[pick.i], kind: pts[pick.i].kind, anchor: false });
+      count.set(pick.i, count.get(pick.i) + 1); rest.splice(rest.indexOf(pick.u), 1);
+    }
+  }
+  return { posture, ...POSTURE[posture], aggr, keep: [...keep.keys()].map(ptOf), take: [...take.keys()].map(ptOf), jobs, protect, hunt, reinforceRound, why };
+}
 
-/** Where the unit stands at the end of its turn: closing on enemies, objectives, and (level 5) next round's strikes. */
-function positionScore(s0, s1, u0, u1, side, P) {
+/** How good this square is to stand on for this unit (defense, command, height, cover; fire and fords hurt). */
+export function groundValue(s, u, x, y) {
+  const r = E.tileRules(s, x, y); if (!r) return 0;
+  const t = E.typeOf(s, u), ranged = t.weapon === 'ranged';
+  let v = ranged
+    ? 0.6 * r.rangedDef + 0.25 * r.meleeDef + 0.7 * r.range + 0.5 * r.atk + (r.high ? 0.4 : 0) + (r.hides ? 0.4 : 0)
+    : 0.6 * r.meleeDef + 0.3 * r.rangedDef + (r.high ? 0.3 : 0) + 0.3 * r.downhill + (r.noSurround ? 0.3 : 0);
+  v += 0.5 * (r.campDef || 0) + 0.4 * (r.command || 0) + 0.03 * (r.moraleTurn || 0) + 0.04 * (r.healthTurn || 0);
+  return v;
+}
+
+function nearest(u, pts) { let d = Infinity; for (const p of pts) { const [x, y] = Array.isArray(p) ? p : [p.x, p.y]; d = Math.min(d, Math.abs(u.x - x) + Math.abs(u.y - y)); } return d; }
+
+/** Where the unit stands at the end of its turn: its job, closing on enemies, good ground, and (level 5) next round's strikes. */
+function positionScore(s0, s1, u0, u1, side, P, S) {
   if (!u1 || u1.status !== 'active') return 0;
   const w = worth(s0, u0), t = E.typeOf(s0, u0), ranged = t.weapon === 'ranged';
   const foes = E.liveUnits(s0).filter(e => E.hostile(e, u0));
+  const job = S.jobs.get(u0.id);
   let v = 0;
   if (foes.length) {
     const d0 = Math.min(...foes.map(e => E.manhattan(e, u0))), d1 = Math.min(...foes.map(e => E.manhattan(e, u1)));
     const want = ranged ? Math.max(1, t.rangeMax || 1) : 1;
-    v += 0.012 * w * (Math.abs(d0 - want) - Math.abs(d1 - want)); // close in (melee) or reach shooting range (ranged)
+    // a unit guarding a square only goes out to meet enemies that come near it
+    const near = job && job.kind === 'keep' ? foes.some(e => E.manhattan(e, job.pt) <= 6) : true;
+    let close = S.close;
+    if (S.hunt.size && foes.some(e => S.hunt.has(e.id))) close = Math.max(close, 1);
+    if (job && job.kind === 'keep') close = near ? Math.max(0.6, close) : 0;
+    v += 0.012 * w * close * (Math.abs(d0 - want) - Math.abs(d1 - want)); // close in (melee) or reach shooting range (ranged)
+    // hunted units: get at them
+    const hunted = foes.filter(e => S.hunt.has(e.id));
+    if (hunted.length) v += 0.03 * w * (nearest(u0, hunted) - nearest(u1, hunted));
     if (P.lookahead) {
       const reach = E.movementOf(s1, u1) + (ranged ? t.rangeMax || 1 : 1);
-      const weak = foes.filter(e => E.manhattan(e, u1) <= reach).map(e => worth(s1, e) * (1 - e.men / mx(e) + 0.2));
+      const weak = foes.filter(e => E.manhattan(e, u1) <= reach).map(e => worth(s1, e) * (1 - e.men / mx(e) + 0.2) * (S.hunt.has(e.id) ? 1.6 : 1));
       if (weak.length) v += 0.05 * w * Math.max(...weak);
     }
   }
-  const g = goals(s0, side);
-  if (g.take.length) v += 0.08 * w * (nearest(u0, g.take) - nearest(u1, g.take));
-  if (g.keep.length && foes.length) {
-    const d1 = nearest(u1, g.keep), threatNear = foes.some(e => nearest(e, g.keep) <= 6);
-    if (threatNear) v += 0.06 * w * (nearest(u0, g.keep) - d1) + (d1 <= 1 ? 0.1 * w : 0);
+  if (job) {
+    const d0 = E.manhattan(u0, job.pt), d1 = E.manhattan(u1, job.pt);
+    if (job.kind === 'take') {
+      v += (job.anchor ? 0.12 : 0.08) * w * (d0 - d1);
+      if (d1 === 0) v += 0.3 * w; // ending a turn there seizes it
+    } else if (job.anchor) {
+      v += 0.1 * w * (d0 - d1) + (d1 === 0 ? 0.45 * w : 0); // sit on the square
+    } else {
+      const ring = ranged ? 3 : 2; // guards stand around it (ranged a little further back)
+      v += 0.06 * w * (Math.max(0, d0 - ring) - Math.max(0, d1 - ring)) - (d1 > ring + 2 ? 0.03 * w * (d1 - ring - 2) : 0);
+    }
   }
+  // good ground (lower levels see less of it)
+  const gw = [0.3, 0.6, 0.85, 1, 1, 1][P.level] * S.ground;
+  if (gw) v += 0.035 * w * gw * (groundValue(s0, u0, u1.x, u1.y) - groundValue(s0, u0, u0.x, u0.y));
   return v;
 }
 
@@ -170,7 +315,7 @@ function finishPlayout(f, uid) {
 }
 
 /** Play an enemy's strongest reply on this unit: it steps next to it (or shoots from where it is) and attacks. */
-function replyScore(s, uid, side, areas) {
+function replyScore(s, uid, side, areas, S) {
   const u = E.unitById(s, uid); if (!u || u.status !== 'active') return 0;
   const k = u.x + ',' + u.y; let worst = 0;
   for (const e of E.liveUnits(s)) {
@@ -191,7 +336,7 @@ function replyScore(s, uid, side, areas) {
       const tiles = Math.abs(fe.x - spot.x) + Math.abs(fe.y - spot.y);
       fe.x = spot.x; fe.y = spot.y;
       try { E.resolveAttack(f, fe, fu, { movedThisActivation: tiles > 0, tilesMoved: tiles }); } catch { continue; }
-      tot += outcomeScore(s, f, side);
+      tot += outcomeScore(s, f, side, S);
     }
     worst = Math.min(worst, tot / N);
   }
@@ -210,10 +355,11 @@ export function plans(s, unitId, opts = {}) {
   const ac = base.turn.activation; if (!ac || ac.unitId !== unitId) return [];
   const rand = seeded(hashStr(unitId + ':' + base.turn.round + ':' + (opts.salt || '')));
   const areas = new Map(E.liveUnits(base).filter(e => E.hostile(e, u0)).map(e => [e.id, E.threatArea(base, e)]));
+  const S = opts.strategy || strategy(base, side), job = S.jobs.get(unitId);
   const out = [];
   const consider = (actions, f) => {
     const u1 = E.unitById(f, unitId);
-    const o1 = outcomeScore(base, f, side), p1 = positionScore(base, f, u0, u1, side, P), t1 = threatOf(f, u1, side, P, areas) + pressureOf(f, u1, P);
+    const o1 = outcomeScore(base, f, side, S), p1 = positionScore(base, f, u0, u1, side, P, S), t1 = threatOf(f, u1, side, P, areas, S) + pressureOf(f, u1, P);
     let sc = o1 + p1 + t1;
     out.push({ actions, score: sc, state: f });
   };
@@ -228,8 +374,9 @@ export function plans(s, unitId, opts = {}) {
     const { blue } = E.moveOptions(base, u0);
     let tiles = [...blue.keys()].map(k => k.split(',').map(Number));
     const foes = E.liveUnits(base).filter(e => E.hostile(e, u0));
-    const g = goals(base, side);
-    const heur = ([x, y]) => Math.min(99, ...foes.map(e => Math.abs(e.x - x) + Math.abs(e.y - y))) + 0.5 * Math.min(99, nearest({ x, y }, [...g.take, ...g.keep]));
+    const objs = job ? [job.pt] : [...S.take, ...S.keep];
+    const heur = ([x, y]) => (S.close > 0 ? 1 : 0.3) * Math.min(99, ...foes.map(e => Math.abs(e.x - x) + Math.abs(e.y - y))) + (job ? 1.5 : 0.5) * Math.min(99, nearest({ x, y }, objs))
+      - 1.5 * groundValue(base, u0, x, y);
     tiles.sort((A, B) => heur(A) - heur(B));
     if (tiles.length > P.maxTiles) tiles = [...tiles.slice(0, Math.ceil(P.maxTiles * 0.7)), ...tiles.slice(Math.ceil(P.maxTiles * 0.7)).sort(() => rand() - 0.5).slice(0, Math.floor(P.maxTiles * 0.3))];
     starts = [{ pre: [{ type: 'skipMove', unitId }], f: (() => { const f = fork(base); E.act(f, HOST, { type: 'skipMove', unitId }); return f; })() }];
@@ -271,13 +418,18 @@ export function plans(s, unitId, opts = {}) {
       }
       if (!runs.length) continue;
       // average the playouts' scores; keep one of them as the representative end state
-      const scores = runs.map(g => { const u1 = E.unitById(g, unitId); return outcomeScore(base, g, side) + positionScore(base, g, u0, u1, side, P) + threatOf(g, u1, side, P, areas) + pressureOf(g, u1, P); });
+      const scores = runs.map(g => { const u1 = E.unitById(g, unitId); return outcomeScore(base, g, side, S) + positionScore(base, g, u0, u1, side, P, S) + threatOf(g, u1, side, P, areas, S) + pressureOf(g, u1, P); });
       out.push({ actions: [...pre, act], score: scores.reduce((t, x) => t + x, 0) / scores.length, state: runs[0] });
     }
     // hold position (defensive stance)
     if (!u.round.attacked && !acf.forcedMarched) {
       const g = fork(f); const r = E.act(g, HOST, { type: 'holdPosition', unitId });
-      if (r.ok) consider([...pre, { type: 'holdPosition', unitId }], g);
+      if (r.ok) {
+        consider([...pre, { type: 'holdPosition', unitId }], g);
+        // dug in on the square it keeps, or waiting for help: holding is worth a little more
+        const gu = E.unitById(g, unitId);
+        if ((job && job.kind === 'keep' && E.manhattan(gu, job.pt) <= 1) || S.posture === 'stall') out[out.length - 1].score += 0.04 * worth(base, u0);
+      }
     }
     // overwatch (ranged, nothing to shoot yet)
     if (E.typeOf(f, u).weapon === 'ranged' && !u.round.attacked && !E.attackTargets(f, u).length) {
@@ -289,7 +441,7 @@ export function plans(s, unitId, opts = {}) {
   }
   // the best few, checked against the enemy's strongest reply
   out.sort((a, b) => b.score - a.score);
-  if (P.replies) for (const c of out.slice(0, P.replies)) c.score += 0.6 * replyScore(c.state, unitId, side, areas);
+  if (P.replies) for (const c of out.slice(0, P.replies)) c.score += 0.6 * replyScore(c.state, unitId, side, areas, S);
   // noise: lower levels choose less precisely
   const scale = 0.08 * worth(base, u0);
   for (const c of out) { const n = Math.sqrt(-2 * Math.log(rand() || 1e-9)) * Math.cos(2 * Math.PI * rand()); c.score += n * P.noise * scale; }
@@ -313,10 +465,11 @@ export function nextAction(s, unitId, opts = {}) {
   if (ac.step === 'reposition' && ac.reposition) {
     if (P.naive || !ac.reposition.tiles?.length) return { type: 'reposition', unitId };
     const areas = new Map(E.liveUnits(s).filter(e => E.hostile(e, u)).map(e => [e.id, E.threatArea(s, e)]));
-    let best = null, bestV = threatOf(s, u, side, P, areas);
+    const S = strategy(s, side);
+    let best = null, bestV = threatOf(s, u, side, P, areas, S);
     for (const [x, y] of ac.reposition.tiles) {
       const f = fork(s); const fu = E.unitById(f, unitId); fu.x = x; fu.y = y;
-      const v = threatOf(f, fu, side, P, areas); if (v > bestV) { bestV = v; best = { x, y }; }
+      const v = threatOf(f, fu, side, P, areas, S); if (v > bestV) { bestV = v; best = { x, y }; }
     }
     return best ? { type: 'reposition', unitId, x: best.x, y: best.y } : { type: 'reposition', unitId };
   }
