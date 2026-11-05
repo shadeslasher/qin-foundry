@@ -185,8 +185,14 @@ function siegeState(s) { if (!s.siege) s.siege = { ladders: [], dropped: [], gat
 
 // ---------------------------------------------------------------- fire
 // A square that catches fire burns for its burn time (rounds, the longest of its flammable parts), then burns
-// down: flammable parts turn into what they burn into (scorched ground, ruins, or nothing). Spreading comes later.
-//   siege.fires: { "x,y": { left } }   siege.burnt: { "x,y": true }
+// down: flammable parts turn into what they burn into (scorched ground, ruins, or nothing).
+// Spreading (David, 2026-11-04): at the end of each round every square that was burning spreads to one adjacent
+// flammable square (diagonals count), picked at random. A square's fire resistance is how many spreads it takes
+// before it catches (0: the first); each spread (or Fire Arrows hit) that doesn't light it wears one off (siege.scorch).
+// Crossing a burning square costs 5 morale; ending a turn in one costs 10 troops and 5 morale (the Fire overlay).
+// Extinguish: a unit next to a fire (or in it) puts it out instead of attacking: it loses 11 minus a Yin/Yang roll
+// in troops and as much morale, nothing if a water square is next to it.
+//   siege.fires: { "x,y": { left } }   siege.burnt: { "x,y": true }   siege.scorch: { "x,y": spreads taken }
 const burnPart = (id, kind) => (kind === 'terrain' ? data.MAP_TERRAIN[id] : data.MAP_OVERLAYS[id]) || null;
 /** The square as fire has left it: burning adds the Fire overlay, burnt replaces its flammable parts. */
 function burnState(s, x, y, tile) {
@@ -227,10 +233,30 @@ function igniteTile(s, x, y, why) {
   log(s, (why ? why + ': ' : '') + 'the ' + info.name.toLowerCase() + ' at ' + k + ' catches fire (burns for ' + info.burnTime + ' round' + (info.burnTime === 1 ? '' : 's') + ').', { type: 'setFire', x, y });
   return true;
 }
-/** End of a round: fires burn down. */
+const ALL8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+/** Fire reaching a square: it catches once its fire resistance is worn away, else loses one point of it. */
+function scorchTile(s, x, y, why) {
+  const k = x + ',' + y, sg = siegeState(s); sg.scorch = sg.scorch || {};
+  const tr = tileRules(s, x, y);
+  const left = Math.max(0, ((tr && tr.fireRes) || 0) - (sg.scorch[k] || 0));
+  if (left <= 0) { delete sg.scorch[k]; return igniteTile(s, x, y, why); }
+  sg.scorch[k] = (sg.scorch[k] || 0) + 1;
+  log(s, 'Fire licks at the ' + (burnInfo(s, x, y)?.name || 'square').toLowerCase() + ' at ' + k + ' (burn resistance ' + (left - 1) + ' left).', { type: 'scorch', x, y });
+  return false;
+}
+/** End of a round: every fire spreads to one random flammable neighbour, then fires burn down. */
 function burnRound(s) {
   const sg = s.siege; if (!sg?.fires) return;
-  for (const [k, f] of Object.entries(sg.fires)) {
+  const burning = Object.keys(sg.fires);
+  for (const k of burning) {
+    const [x, y] = k.split(',').map(Number);
+    const near = ALL8.map(([dx, dy]) => [x + dx, y + dy]).filter(([nx, ny]) => inBounds(s, nx, ny) && burnInfo(s, nx, ny) && !sg.fires[nx + ',' + ny]);
+    if (!near.length) continue;
+    const [nx, ny] = near[Math.floor(rng() * near.length) % near.length];
+    scorchTile(s, nx, ny, 'The fire spreads');
+  }
+  for (const k of burning) {
+    const f = sg.fires[k]; if (!f) continue;
     f.left -= 1;
     if (f.left > 0) continue;
     const [x, y] = k.split(',').map(Number), info = burnInfo(s, x, y);
@@ -511,39 +537,43 @@ function reachable(s, u, budget) {
   // Units may move through friendly units (not stop on them); Heavy units, and all enemies, block.
   // The cheapest path wins; on a tie, one clear of rough ground, then the longer walk (for a charge).
   // out: "x,y" -> movement spent (empty squares only); out.steps: squares walked; out.rough: keys whose path crossed or ended on rough ground.
-  const out = new Map(), steps = new Map(), rough = new Set(); const key = (x, y) => x + ',' + y;
+  const out = new Map(), steps = new Map(), rough = new Set(), fire = new Map(); const key = (x, y) => x + ',' + y;
+  const burningAt = (x, y) => !!(s.siege && s.siege.fires && s.siege.fires[key(x, y)]);
   const start = key(u.x, u.y);
   const seen = new Map(); // "x,y,m,r" -> fewest squares walked to reach that square with max surcharge m and rough flag r
-  const bestAt = new Map(); // "x,y" -> [cost, rough, steps] of the best path so far
-  const better = (a, b) => !b || a[0] < b[0] || (a[0] === b[0] && (a[1] < b[1] || (a[1] === b[1] && a[2] > b[2])));
-  bestAt.set(start, [0, 0, 0]); steps.set(start, 0);
-  const q = [[u.x, u.y, 0, 0, 0]]; // x, y, squares walked, max surcharge, rough
-  seen.set(start + ',0,0', 0);
+  const bestAt = new Map(); // "x,y" -> [cost, rough, steps, fires] of the best path so far
+  // cheapest first; then through the fewest fires; then clear of rough ground; then the longer walk
+  const better = (a, b) => !b || a[0] < b[0] || (a[0] === b[0] && (a[3] < b[3] || (a[3] === b[3] && (a[1] < b[1] || (a[1] === b[1] && a[2] > b[2])))));
+  bestAt.set(start, [0, 0, 0, 0]); steps.set(start, 0);
+  const q = [[u.x, u.y, 0, 0, 0, 0]]; // x, y, squares walked, max surcharge, rough, burning squares passed through
+  seen.set(start + ',0,0,0', 0);
   while (q.length) {
     let bi = 0;
     for (let i = 1; i < q.length; i++) if (q[i][2] + q[i][3] < q[bi][2] + q[bi][3]) bi = i;
-    const [x, y, n, m, rf] = q.splice(bi, 1)[0];
-    if (seen.get(key(x, y) + ',' + m + ',' + rf) < n) continue;
+    const [x, y, n, m, rf, fc] = q.splice(bi, 1)[0];
+    if (seen.get(key(x, y) + ',' + m + ',' + rf + ',' + fc) < n) continue;
     for (const [dx, dy] of ORTHO) {
       const nx = x + dx, ny = y + dy, k = key(nx, ny);
       if (k === start) continue;
       if (!terrainStep(s, u, x, y, nx, ny)) continue;
       const nn = n + 1, nm = Math.max(m, surcharge(s, nx, ny, u)), nr = rf || (roughFor(s, nx, ny, u) ? 1 : 0);
       if (nn + nm > budget) continue;
-      const sk = k + ',' + nm + ',' + nr;
+      const fcThrough = Math.min(6, fc + (burningAt(x, y) && key(x, y) !== start ? 1 : 0)); // fires walked through (not where it stops)
+      const sk = k + ',' + nm + ',' + nr + ',' + fcThrough;
       if (seen.has(sk) && seen.get(sk) <= nn) continue;
       const o = unitAt(s, nx, ny);
       if (o && (trait(o, 'heavy') || !stealthFriends(alliance(o.side), alliance(u.side)))) continue;
-      seen.set(sk, nn); q.push([nx, ny, nn, nm, nr]);
+      seen.set(sk, nn); q.push([nx, ny, nn, nm, nr, fcThrough]);
       if (o) continue; // pass through friends, never stop on them
-      const cand = [nn + nm, nr, nn];
+      const cand = [nn + nm, nr, nn, fcThrough];
       if (better(cand, bestAt.get(k))) {
         bestAt.set(k, cand); out.set(k, cand[0]); steps.set(k, nn);
         if (nr) rough.add(k); else rough.delete(k);
+        if (fcThrough) fire.set(k, fcThrough); else fire.delete(k);
       }
     }
   }
-  out.steps = steps; out.rough = rough;
+  out.steps = steps; out.rough = rough; out.fire = fire;
   return out;
 }
 
@@ -579,26 +609,43 @@ function threatArea(s, u) {
  * (another move's worth, 5 morale per extra tile, never down to 0 morale; ends the turn).
  */
 function moveOptions(s, u) {
-  const blue = new Map(), red = new Map(), climb = new Set(), rough = new Set();
+  const blue = new Map(), red = new Map(), climb = new Set(), rough = new Set(), fire = new Map();
   const ac = s.turn.activation;
-  if (!u || !ac || ac.unitId !== u.id || ac.step !== 'move' || u.round.cannotMove) return { blue, red, climb, rough };
+  if (!u || !ac || ac.unitId !== u.id || ac.step !== 'move' || u.round.cannotMove) return { blue, red, climb, rough, fire };
   const move = movementOf(s, u);
-  if (!move) return { blue, red, climb, rough };
+  if (!move) return { blue, red, climb, rough, fire };
   // up a ladder onto an empty wall square: takes all its movement
   for (const [x, y] of climbTiles(s, u)) { blue.set(x + ',' + y, 1); climb.add(x + ',' + y); }
   const canForce = !!officerOf(s, u); // only units led by an officer can force-march
   const reach = reachable(s, u, canForce ? move * 2 : move);
   for (const [k, d] of reach) {
     const n = reach.steps.get(k);
-    if (d <= move) { blue.set(k, n); if (reach.rough.has(k)) rough.add(k); }
+    const burn = (reach.fire.get(k) || 0) * FIRE_CROSS_MORALE;
+    if (d <= move) { blue.set(k, n); if (reach.rough.has(k)) rough.add(k); if (burn) fire.set(k, burn); }
     else if (canForce) {
       const cost = forcedMarchCost(s, u) * Math.ceil(d - move);
-      if (u.morale - cost > 0) red.set(k, { dist: n, cost });
+      if (u.morale - cost - burn > 0) red.set(k, { dist: n, cost: cost + burn, fire: burn });
     }
   }
-  return { blue, red, climb, rough }; // rough: blue squares whose path crosses or ends on rough ground (no charge)
+  // rough: blue squares whose path crosses or ends on rough ground (no charge); fire: morale the path's fires cost
+  return { blue, red, climb, rough, fire };
 }
 
+const FIRE_CROSS_MORALE = 5; // morale for each burning square a unit walks through (David, 2026-11-04)
+/** Burning squares this unit can put out: next to it (diagonals count) or under it. */
+function extinguishTiles(s, u) {
+  const f = s.siege && s.siege.fires; if (!f || !u) return [];
+  return [[0, 0], ...ALL8].map(([dx, dy]) => [u.x + dx, u.y + dy]).filter(([x, y]) => f[x + ',' + y]);
+}
+/** Is there water (lake, river, ford...) next to the unit? Then putting out a fire costs it nothing. */
+function waterNear(s, u) {
+  return [[0, 0], ...ALL8].some(([dx, dy]) => {
+    const x = u.x + dx, y = u.y + dy, t = s.map.tiles && s.map.tiles[x + ',' + y];
+    if (!t) return false;
+    const r = tileRules(s, x, y);
+    return !!(r && r.water) || t.terrain === 'river' || t.terrain === 'lake';
+  });
+}
 /** Morale per extra tile of forced march: 5, or 2 under Rapid Advance, Swift Retreat (active, or about to fire). */
 function forcedMarchCost(s, u) { return hasTactic(s, u, 'rapidAdvance') || pendingTactic(s, u, 'forcedMarch') ? 2 : 5; }
 
@@ -653,6 +700,7 @@ function actionMenu(s, u) {
     closeGate: canStillAct && gatesNear(s, u).some(g => g.state === 'open' && gateKeyHolder(s, u, g) && !g.squares.some(([x, y]) => unitAt(s, x, y))),
     attackGate: canStillAct && gateTargets(s, u).length > 0,
     setFire: canStillAct && pendingTactic(s, u, 'setFire'),
+    extinguish: canStillAct && extinguishTiles(s, u).length > 0,
     hold: canStillAct,
     duel: canStillAct && duelTargets(s, u).length > 0,
     outrider: canStillAct && outriderTiles(s, u).length > 0,
@@ -1225,7 +1273,7 @@ function resolveAttack(s, attacker, defender, opts) {
       const sg = siegeState(s); sg.scorch = sg.scorch || {};
       const left = Math.max(0, (tr.fireRes || 0) - (sg.scorch[key] || 0));
       if (left <= 0) { delete sg.scorch[key]; igniteTile(s, defender.x, defender.y, attacker.name + "'s fire arrows"); }
-      else { sg.scorch[key] = (sg.scorch[key] || 0) + 1; log(s, attacker.name + "'s fire arrows scorch " + defender.name + "'s square (burn resistance " + (left - 1) + ' left).'); }
+      else { sg.scorch[key] = (sg.scorch[key] || 0) + 1; log(s, attacker.name + "'s fire arrows scorch " + defender.name + "'s square (burn resistance " + (left - 1) + ' left).', { type: 'scorch', x: defender.x, y: defender.y }); }
     }
   }
   if (trait(attacker, 'reload')) fx(attacker).reload = 'empty';                           // must take the Reload action before attacking again
@@ -2131,7 +2179,7 @@ const ACTIONS = {
     const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
     const { u, act: ac } = r;
     const k = a.x + ',' + a.y;
-    const { blue, red, climb, rough } = moveOptions(s, u);
+    const { blue, red, climb, rough, fire } = moveOptions(s, u);
     const forced = !blue.has(k) && red.has(k);
     if (!blue.has(k) && !forced) return err("Can't move there");
     const from = { x: u.x, y: u.y };
@@ -2145,10 +2193,10 @@ const ACTIONS = {
     revealAround(s, u);
     if (heroOfficer(s, u)) fireTactics(s, 'heroMove', u);
     if (forced) {
-      const { cost, dist } = red.get(k);
+      const { cost, dist, fire: burnt } = red.get(k);
       ac.forcedMarched = true;
       u.morale = clamp(u.morale - cost, 0, 100);
-      log(s, u.name + ' force-marches ' + dist + ' tiles (-' + cost + ' morale).');
+      log(s, u.name + ' force-marches ' + dist + ' tiles (-' + cost + ' morale' + (burnt ? ', ' + burnt + ' of it from the flames' : '') + ').');
       settle(s);
       if (alive(u)) finishActivation(s, u);
       return;
@@ -2160,8 +2208,10 @@ const ACTIONS = {
       settle(s);
       return;
     }
-    if (!struck) ac.undo = { from, facing: prevFacing, hidden: prevHidden, started: prevStarted };
-    log(s, u.name + ' moves ' + blue.get(k) + ' tile' + (blue.get(k) === 1 ? '' : 's') + '.');
+    const burnt = fire.get(k) || 0;
+    if (burnt) { u.morale = clamp(u.morale - burnt, 0, 100); ac.fireMorale = burnt; }
+    if (!struck) ac.undo = { from, facing: prevFacing, hidden: prevHidden, started: prevStarted, morale: burnt };
+    log(s, u.name + ' moves ' + blue.get(k) + ' tile' + (blue.get(k) === 1 ? '' : 's') + (burnt ? ' through the flames (-' + burnt + ' morale)' : '') + '.');
 
     settle(s, { deferEncirclement: true });
   },
@@ -2171,6 +2221,7 @@ const ACTIONS = {
     if (!ac.undo) return err('Nothing to undo');
     if (unitAt(s, ac.undo.from.x, ac.undo.from.y) && unitAt(s, ac.undo.from.x, ac.undo.from.y) !== u) return err('Its old tile is taken');
     u.x = ac.undo.from.x; u.y = ac.undo.from.y; u.facing = ac.undo.facing; u.hidden = ac.undo.hidden;
+    if (ac.undo.morale) u.morale = clamp(u.morale + ac.undo.morale, 0, 100);
     u.round.moved = false; ac.step = 'move'; ac.movedThisActivation = false; ac.tilesMoved = 0; ac.roughPath = false; ac.started = ac.undo.started;
     delete ac.undo;
     log(s, u.name + ' takes back its move.');
@@ -2398,6 +2449,26 @@ const ACTIONS = {
     u.round.attacked = true;
     finishActivation(s, u);
   },
+  extinguish(s, actor, a) { // put out a fire next to (or under) the unit, instead of attacking (David, 2026-11-04)
+    const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
+    const { u, act: ac } = r;
+    if (u.round.attacked || ac.forcedMarched) return err('Putting out a fire replaces the attack');
+    if (!extinguishTiles(s, u).some(([x, y]) => x === a.x && y === a.y)) return err('Pick a burning square next to the unit');
+    const k = a.x + ',' + a.y, sg = siegeState(s);
+    delete sg.fires[k];
+    if (sg.scorch) delete sg.scorch[k];
+    if (waterNear(s, u)) {
+      log(s, u.name + ' puts out the fire at ' + k + ' with water from close by (no losses).', { type: 'extinguish', unit: u.id, x: a.x, y: a.y });
+    } else {
+      const d = yinYang(), loss = Math.max(0, 11 - d.value);
+      u.men = Math.max(0, u.men - colossalCap(u, loss));
+      u.morale = clamp(u.morale - loss, 0, 100);
+      log(s, u.name + ' puts out the fire at ' + k + ' (Yin/Yang ' + d.value + '): -' + loss + ' troops, -' + loss + ' morale.', { type: 'extinguish', unit: u.id, x: a.x, y: a.y, roll: d, loss });
+    }
+    u.round.attacked = true;
+    settle(s);
+    if (alive(u)) finishActivation(s, u);
+  },
   endTurn(s, actor, a) {
     const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
     finishActivation(s, r.u);
@@ -2609,7 +2680,7 @@ function viewFor(s, viewer) {
 }
 
 export { endRound as _endRound, imperialAura as _imperialAura, hidesIn as _hidesIn, officerWeaponLevel, casualtiesOf, evasionOf, evadeCasualties, disciplinedBonus, warDrumsBonus, hornReady, hornTargets, checkpointMorale, checkpointsPassed, overwatchFire as _overwatchFire, surroundAfterTurn as _surroundAfterTurn,
-  moveOptions, attackTargets, actionMenu, threatArea, TACTIC_SIDES, tileRules, ladderTiles, climbTiles, insideCity, isWallTop, gateAt, gateHp, gateTargets, stairsAt,
+  moveOptions, attackTargets, actionMenu, threatArea, extinguishTiles, waterNear, TACTIC_SIDES, tileRules, ladderTiles, climbTiles, insideCity, isWallTop, gateAt, gateHp, gateTargets, stairsAt,
   newState, act, viewFor, prompt, reachable, duelTargets, movementOf, moraleState, visibleTo, rangeOk,
   resolveAttack, buildRoll, skillCheck, setRng, yinYang, typeOf, officerOf, unitById, SIDES, settle, advance,
   liveUnits, hostile, alliance, manhattan, unitAt, alive, trait as unitTrait, TAKE_BACK_KEYS, damageValue,

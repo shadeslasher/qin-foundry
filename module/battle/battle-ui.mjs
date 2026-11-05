@@ -131,7 +131,7 @@ function cancelMode() {
 
 function enterMove() {
   const { s, u } = current;
-  const { blue, red, climb } = E.moveOptions(s, u);
+  const { blue, red, climb, fire } = E.moveOptions(s, u);
   // adjacent allies that haven't moved can be swapped with
   const allies = s.units.filter(o => o.status === "active" && o.id !== u.id && E.unitById(s, o.id) && o.side !== "enemy" === (u.side !== "enemy")
     && Math.abs(o.x - u.x) + Math.abs(o.y - u.y) === 1 && !o.round.moved && !u.round.moved);
@@ -144,7 +144,13 @@ function enterMove() {
   const Txt = foundry.canvas?.containers?.PreciseText ?? PIXI.Text;
   const size = gridSize();
   const style = new PIXI.TextStyle({ fontFamily: "Signika, sans-serif", fontSize: Math.round(size * 0.22), fontWeight: "bold", fill: "#ffffff", stroke: "#000000", strokeThickness: 3 });
-  for (const k of blue.keys()) { const [x, y] = k.split(",").map(Number); drawSquare(overlay, x, y, climb?.has(k) ? 0x9b59d0 : 0x2f80ed, 0.35); }
+  const fireStyle = new PIXI.TextStyle({ fontFamily: "Signika, sans-serif", fontSize: Math.round(size * 0.22), fontWeight: "bold", fill: "#ffb15c", stroke: "#000000", strokeThickness: 3 });
+  for (const k of blue.keys()) {
+    const [x, y] = k.split(",").map(Number);
+    drawSquare(overlay, x, y, climb?.has(k) ? 0x9b59d0 : 0x2f80ed, 0.35);
+    // the way there runs through fire: what it costs in morale (orange)
+    if (fire?.get(k)) { const t = new Txt(`-${fire.get(k)}`, fireStyle); t.anchor?.set?.(0.5); t.position.set(x * size + size / 2, y * size + size / 2); labels.addChild(t); }
+  }
   for (const [k, v] of red) {
     const [x, y] = k.split(",").map(Number);
     drawSquare(overlay, x, y, 0xd63c3c, 0.3);
@@ -248,6 +254,24 @@ function enterLadder() {
   startPicking((x, y) => {
     if (!tiles.some(([tx, ty]) => tx === x && ty === y)) return pickWarn("Click one of the gold wall squares.");
     send({ type: "placeLadder", unitId: current.u.id, x, y });
+  });
+}
+
+/** Extinguish: the burning squares next to (or under) the unit, in light blue; click one to put it out. */
+function enterExtinguish() {
+  const { s, u } = current;
+  const tiles = E.extinguishTiles(s, u);
+  if (tiles.length === 1) return send({ type: "extinguish", unitId: u.id, x: tiles[0][0], y: tiles[0][1] });
+  mode = "extinguish";
+  clearSquares();
+  overlay = new PIXI.Graphics();
+  overlay.eventMode = "none";
+  layer().addChild(overlay);
+  for (const [x, y] of tiles) drawSquare(overlay, x, y, 0x5ec8ff, 0.4, 1);
+  renderMenu();
+  startPicking((x, y) => {
+    if (!tiles.some(([tx, ty]) => tx === x && ty === y)) return pickWarn("Click one of the blue burning squares next to the unit.");
+    send({ type: "extinguish", unitId: current.u.id, x, y });
   });
 }
 
@@ -379,6 +403,9 @@ function renderMenu(sub = null) {
     if (flags.reinvigorate) html += b("horn", "Reinvigorate", true, "War Horn: an adjacent ally that has already acted takes another turn at once. Ends this unit's turn; the horn needs a round to recharge.");
     if (flags.raiseFlag) html += b("raiseFlag", "Raise Flag", true, "Raise Flag tactic: instead of attacking, units in the area below 50 morale rally to 50. Ends the turn.");
     if (flags.setFire) html += b("setFire", "Set Fire", true, "Set Aflame tactic: instead of attacking, set an adjacent flammable tile on fire. Ends the turn.");
+    if (flags.extinguish) html += b("extinguish", "Extinguish", true, E.waterNear(current.s, current.u)
+      ? "Put out a fire next to this unit, instead of attacking. Water is close by: no losses. Ends the turn."
+      : "Put out a fire next to this unit, instead of attacking. It loses 11 minus a Yin/Yang roll in troops and as much morale (nothing with water next to it). Ends the turn.");
     if (flags.reloading) html += b("reload", "Reload", flags.reload, "Reload the weapon (needed before it can attack again). Can follow a move; ends the turn.");
     else html += b("attack", "Attack", flags.attack, flags.attack ? "" : "No enemy in range");
     if (flags.outrider) html += b("outrider", "Ride on", true, "Outrider: instead of attacking, move a little further. Ends the turn after.");
@@ -426,6 +453,7 @@ function onMenuClick(ev) {
     case "pickUp": return send({ type: "pickUpEquipment", unitId: id });
     case "drop": return send({ type: "dropEquipment", unitId: id });
     case "setFire": return enterSetFire();
+    case "extinguish": return enterExtinguish();
     case "skipSecond": return send({ type: "secondAttack", unitId: id });
     case "back": return renderMenu();
     case "hold": return send({ type: "holdPosition", unitId: id });
