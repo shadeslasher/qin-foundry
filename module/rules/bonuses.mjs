@@ -83,9 +83,22 @@ export function parseResistTags(v) {
 /** "fear, Intimidation". */
 export const resistTagsText = (tags) => (tags ?? []).map(t => RESIST_TAG_LABEL[t] ?? t).join(", ");
 
+/**
+ * An aura (schema v2.3): { range, who }. range = grid squares from the holder's token (1 = next to him); 0 = anywhere
+ * on the same scene (who can hear / see him: the GM judges). who = display text only. Not an object = no aura (null).
+ */
+export function normalizeAura(a) {
+  if (!a || typeof a !== "object" || Array.isArray(a)) return null;
+  return { range: Math.max(0, Math.trunc(Number(a.range) || 0)), who: String(a.who ?? "").trim() };
+}
+/** "next to him", "within 3 squares", "on the scene". */
+export const auraRangeText = (aura) => !aura?.range ? "on the scene" : aura.range === 1 ? "next to him" : `within ${aura.range} squares`;
+
 export function normalizeBonus(b = {}, fallbackLabel = "") {
   const stat = BONUS_STATS[b.stat] ? b.stat : "pd";
   const extra = stat === "skillTest" ? { skills: parseSkillList(b.skills) } : stat === "resistTest" ? { against: parseResistTags(b.against) } : {};
+  const aura = normalizeAura(b.aura);
+  if (aura) extra.aura = aura;
   return {
     stat,
     value: Math.trunc(Number(b.value) || 0),
@@ -155,12 +168,15 @@ export function bonusSourcesOf(items) {
  * from `engaged` (opponents in close combat; null = not known here, counts 0). Their label carries "(steps/max)".
  * Sources applied by another actor's effect carry sourceActor (a uuid): their vsSource bonuses only count on rolls
  * involving that actor (see bonusesVs).
+ * Aura bonuses (schema v2.3) are skipped: they never apply to their holder. auras: true returns only them (see auraBonusesFor).
  */
-export function collectBonuses(sources, { aspects = {}, stacks = [], engaged = null } = {}) {
+export function collectBonuses(sources, { aspects = {}, stacks = [], engaged = null, auras = false } = {}) {
   const out = [];
   for (const s of sources ?? []) {
     (s.bonuses ?? []).forEach((raw, i) => {
       const b = normalizeBonus(raw, s.name);
+      // Aura bonuses (schema v2.3) are for his allies, never for the holder: left out unless asked for (auras: true)
+      if (!!b.aura !== !!auras) return;
       const key = `${s.id}:${i}`.replace(/\./g, "_");
       const per = bonusValue(b, aspects);
       const steps = b.stack ? stackSteps(b.stack, stacks, key, { engaged }) : null;
@@ -168,8 +184,61 @@ export function collectBonuses(sources, { aspects = {}, stacks = [], engaged = n
         label: b.stack ? `${b.label} (${steps}/${b.stack.max})` : b.label, baseLabel: b.label,
         sourceId: s.id, sourceName: s.name, bonus: b, text: describeBonus(b, aspects, steps), fromEffect: !!s.fromEffect,
         stack: b.stack, steps, perStep: per, ...(b.skills ? { skills: b.skills } : {}), ...(b.against ? { against: b.against } : {}),
+        ...(b.aura ? { aura: b.aura } : {}),
         vsSourceActor: b.vsSource && s.sourceActor ? s.sourceActor : null, sourceActorName: s.sourceActorName ?? "" });
     });
+  }
+  return out;
+}
+
+/** A holder's aura bonuses as written on his items (for his own sheet): resolved like collectBonuses. */
+export const auraBonusesOf = (sources, opts = {}) => collectBonuses(sources, { ...opts, auras: true });
+
+/** Only friendly (1) and hostile (−1) tokens share auras: neutral and secret ones get none and give none. */
+const auraSide = (d) => (Number(d) === 1 || Number(d) === -1) ? Number(d) : 0;
+
+/**
+ * The aura bonuses (schema v2.3) that reach a receiver from the other tokens on his scene. Pure.
+ * receiver: { tokenId, actorId, linked, disposition }.
+ * sources: [{ tokenId, actorId, linked, name, disposition, out, bonusSources, aspects, stacks }] (the other tokens on the
+ *   scene; bonusSources as on the actor's system data).
+ * distance: (source) => grid squares between the two tokens, or a { [tokenId]: squares } map; null / unknown = out of
+ *   reach for a ranged aura.
+ * Rules: same disposition (friendly or hostile; neutral none), not out of action, never the holder himself (the same
+ * token, or the same linked actor), range > 0 needs distance <= range (0 = anywhere on the scene). The same aura (same
+ * holder actor + same skill bonus) never stacks with a copy of itself; different holders' auras do.
+ * Returns resolved bonuses (collectBonuses shape) with key "aura:<actorId>:<sourceId>:<i>", label
+ * "<Holder> (aura): <label>" (always on) or "<Holder>: <label> (<who>)" (situational), fromAura, holderName, holderTokenId.
+ */
+export function auraBonusesFor({ receiver, sources = [], distance = null } = {}) {
+  const side = auraSide(receiver?.disposition);
+  if (!receiver || !side) return [];
+  const dist = typeof distance === "function" ? distance : (s) => distance?.[s.tokenId] ?? null;
+  const out = [], seen = new Set();
+  for (const s of sources ?? []) {
+    if (!s || s.out || auraSide(s.disposition) !== side) continue;
+    if (s.tokenId != null && s.tokenId === receiver.tokenId) continue;
+    if (s.linked && receiver.linked && s.actorId && s.actorId === receiver.actorId) continue;
+    // His own items and his own actives in force; an aura put on him by someone else's effect doesn't spread further
+    const own = (s.bonusSources ?? []).filter(bs => !bs.sourceActor);
+    const list = auraBonusesOf(own, { aspects: s.aspects ?? {}, stacks: s.stacks ?? [] });
+    if (!list.length) continue;
+    let d;
+    for (const b of list) {
+      const range = b.aura?.range ?? 0;
+      if (range > 0) {
+        if (d === undefined) d = dist(s);
+        if (d == null || !Number.isFinite(Number(d)) || Number(d) > range) continue;
+      }
+      const key = `aura:${s.actorId ?? s.tokenId}:${b.key}`.replace(/\./g, "_");
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const who = b.aura?.who || "allies";
+      const holder = s.name ?? "Ally";
+      const label = b.mode === "situational" ? `${holder}: ${b.baseLabel} (${who})` : `${holder} (aura): ${b.baseLabel}`;
+      out.push({ ...b, key, label: b.stack ? `${label} (${b.steps}/${b.stack.max})` : label, baseLabel: label, sourceName: `${holder} (aura)`,
+        fromAura: true, holderName: holder, holderTokenId: s.tokenId ?? null, holderActorId: s.actorId ?? null, vsSourceActor: null });
+    }
   }
   return out;
 }

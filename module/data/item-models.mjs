@@ -166,6 +166,8 @@ export class SignatureData extends foundry.abstract.TypeDataModel {
         skills: new fields.ArrayField(new fields.StringField(), { initial: [] }),
         // Schema v2.2: resistTest bonuses name what they resist (fear, poison, ...); empty = every resist roll
         against: new fields.ArrayField(new fields.StringField(), { initial: [] }),
+        // Schema v2.3: an aura for his allies { range (squares; 0 = anywhere on the scene), who (display text) }; never for himself
+        aura: new fields.ObjectField({ required: false, nullable: true, initial: null }),
       }), { initial: [] }),
       // Actives only: what the skill does to others { target, test, onFail, onSuccess, duration, note } (schema v2 §2)
       effect: new fields.ObjectField({ required: false, nullable: true, initial: null }),

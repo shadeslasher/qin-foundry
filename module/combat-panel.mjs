@@ -4,7 +4,7 @@
 import { systemPath, rechargeStatus, rechargeLabel, isActiveSlot, SIGNATURE_SLOTS } from "./config.mjs";
 import { taoActionsFor, roundsLeft, QUEUE_SLOTS } from "./rules/tao-rules.mjs";
 import { collectBonuses } from "./rules/bonuses.mjs";
-import { getState, currentFight, activateTao, endEffect, removeQueued, setSituational, tickedOf, useActive, setCombatStateChangeHandler, shortTao, growingRows, adjustStack } from "./combat-state.mjs";
+import { getState, currentFight, activateTao, endEffect, removeQueued, setSituational, tickedOf, useActive, setCombatStateChangeHandler, shortTao, growingRows, adjustStack, auraBonuses } from "./combat-state.mjs";
 import { appliedText, normalizeEffect, durationText, EFFECT_TARGETS } from "./rules/skill-effects.mjs";
 import { STACK_TRIGGERS, STACK_RESETS } from "./rules/stacks.mjs";
 import { activeCombatantFor, getActions } from "./combat-actions.mjs";
@@ -104,6 +104,9 @@ export class CombatPanel extends api.HandlebarsApplicationMixin(api.ApplicationV
     const alwaysBySource = new Map();
     for (const b of always) { if (!alwaysBySource.has(b.sourceName)) alwaysBySource.set(b.sourceName, []); alwaysBySource.get(b.sourceName).push(b.text); }
     const alwaysRows = [...alwaysBySource].map(([name, t]) => ({ text: `${name}: ${t.join(", ")}` }));
+    // Allies' auras reaching him here (schema v2.3), worked out from the tokens on the viewed scene
+    const auras = auraBonuses(actor);
+    for (const b of auras) if (b.mode !== "situational") alwaysRows.push({ text: `${b.label}: ${b.text}${b.aura?.who ? ` (${b.aura.who})` : ""}`, aura: true });
 
     // Growing bonuses: "Name: +2 (2/3)" with + / − (opponents engaged: the count, corrected for this round)
     const growing = growingRows(actor).map(r => ({ key: r.key, text: `${r.label}: ${r.text}`,
@@ -144,7 +147,7 @@ export class CombatPanel extends api.HandlebarsApplicationMixin(api.ApplicationV
 
     // Situational tick boxes
     const ticked = tickedOf(actor);
-    const situational = (sys.bonusList ?? []).filter(b => b.mode === "situational").map(b => ({ key: b.key, checked: !!ticked[b.key], text: `${b.label}: ${b.text}`, condition: b.condition }));
+    const situational = [...(sys.bonusList ?? []), ...auras].filter(b => b.mode === "situational").map(b => ({ key: b.key, checked: !!ticked[b.key], text: `${b.label}: ${b.text}`, condition: b.condition }));
 
     return {
       actor, isCharacter: actor.type === "character",

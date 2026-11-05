@@ -9,11 +9,11 @@ import { EquipmentPicker, unequipUnit, equipmentOf } from "../equipment.mjs";
 import { healthColor, moraleColor } from "../unit-bars.mjs";
 import { officesForViewer, currentYear } from "../game-year.mjs";
 import { part, partRowHTML, formatValue } from "../rules/sources.mjs";
-import { BONUS_STATS, BONUS_MODES, collectBonuses, parseSkillList, skillListText, parseResistTags, RESIST_TAGS } from "../rules/bonuses.mjs";
+import { BONUS_STATS, BONUS_MODES, collectBonuses, parseSkillList, skillListText, parseResistTags, RESIST_TAGS, auraBonusesOf, auraRangeText, normalizeAura } from "../rules/bonuses.mjs";
 import { normalizeStack, STACK_TRIGGERS, STACK_RESETS } from "../rules/stacks.mjs";
 import { normalizeEffect, durationText, testText, EFFECT_TARGETS } from "../rules/skill-effects.mjs";
 import { roundsLeft } from "../rules/tao-rules.mjs";
-import { useActive, taoOf, currentFight } from "../combat-state.mjs";
+import { useActive, taoOf, currentFight, auraBonuses } from "../combat-state.mjs";
 import { CombatPanel } from "../combat-panel.mjs";
 const hex = (n) => "#" + Number(n).toString(16).padStart(6, "0");
 
@@ -100,7 +100,12 @@ function statBreakdowns(actor) {
 function uniqueBonusRows(actor) {
   const list = actor.system.bonusList ?? [];
   const row = (b) => ({ source: b.sourceName, text: `${b.text}${b.condition ? ` ${b.condition}` : ""}` });
-  return { always: list.filter(b => b.mode !== "situational").map(row), situational: list.filter(b => b.mode === "situational").map(row) };
+  // Schema v2.3: the auras he gives (never counted for himself), and allies' auras reaching his token on the viewed scene
+  const auraRow = (b) => ({ source: b.sourceName, text: `${b.text} for ${b.aura?.who || "allies"} (${auraRangeText(b.aura)})${b.mode === "situational" ? ", situational" : ""}${b.condition ? ` ${b.condition}` : ""}` });
+  const gives = auraBonusesOf(actor.system.bonusSources ?? [], { aspects: actor.system.aspects }).map(auraRow);
+  let fromAllies = [];
+  try { fromAllies = auraBonuses(actor).map(b => ({ source: b.label, text: `${b.text}${b.mode === "situational" ? " (situational: tick it)" : ""}${b.condition ? ` ${b.condition}` : ""}` })); } catch { /* no scene */ }
+  return { always: list.filter(b => b.mode !== "situational").map(row), situational: list.filter(b => b.mode === "situational").map(row), gives, fromAllies };
 }
 
 /** Compendium entries with pre-built hover details, cached per pack (the system packs don't change in play). */
@@ -824,7 +829,14 @@ export class QinItemSheet extends api.HandlebarsApplicationMixin(ItemSheetBase) 
       const i = Number(inp.closest(".qin-bonus-row").dataset.index);
       if (!list[i]) return;
       const f = inp.dataset.bonusField;
-      list[i][f] = f === "value" ? Math.trunc(Number(inp.value) || 0) : f === "skills" ? parseSkillList(inp.value) : f === "against" ? parseResistTags(inp.value) : inp.value;
+      // Schema v2.3 aura: "For him" / "Aura for allies", then its range (squares; 0 = on the scene) and who (text)
+      if (f === "auraOn") list[i].aura = inp.value === "aura" ? (normalizeAura(list[i].aura) ?? { range: 0, who: "allies who can see him" }) : null;
+      else if (f === "auraRange" || f === "auraWho") {
+        const a = normalizeAura(list[i].aura) ?? { range: 0, who: "" };
+        if (f === "auraRange") a.range = Math.max(0, Math.trunc(Number(inp.value) || 0)); else a.who = String(inp.value ?? "").trim();
+        list[i].aura = a;
+      }
+      else list[i][f] = f === "value" ? Math.trunc(Number(inp.value) || 0) : f === "skills" ? parseSkillList(inp.value) : f === "against" ? parseResistTags(inp.value) : inp.value;
       if (f === "stat" && inp.value === "skillTest" && !Array.isArray(list[i].skills)) list[i].skills = [];
       if (f === "stat" && inp.value === "resistTest" && !Array.isArray(list[i].against)) list[i].against = [];
       this.#saveBonuses(list);
@@ -876,7 +888,7 @@ export class QinItemSheet extends api.HandlebarsApplicationMixin(ItemSheetBase) 
         const isSkillTest = b.stat === "skillTest";
         const isResistTest = b.stat === "resistTest";
         return { ...b, index, grow, isSkillTest, skillsText: isSkillTest ? parseSkillList(b.skills).map(k => skillListText([k])).join(", ") : "",
-          isResistTest, againstText: isResistTest ? parseResistTags(b.against).join(", ") : "" };
+          isResistTest, againstText: isResistTest ? parseResistTags(b.against).join(", ") : "", auraData: normalizeAura(b.aura), auraSel: normalizeAura(b.aura) ? "aura" : "" };
       }),
       effectSummary: (() => {
         const e = item.type === "signature" ? normalizeEffect(item.system.effect) : null;
@@ -886,7 +898,7 @@ export class QinItemSheet extends api.HandlebarsApplicationMixin(ItemSheetBase) 
           onFail: line(e.onFail), onSuccess: line(e.onSuccess), note: e.note };
       })(),
       generalName: item.system.generalName ?? "", generalDesc: item.system.generalDesc ?? "",
-      bonusStats: BONUS_STATS, bonusModes: BONUS_MODES,
+      bonusStats: BONUS_STATS, bonusModes: BONUS_MODES, auraChoices: { "": "For him", aura: "Aura: for allies" },
       skillNameList: Object.keys(SKILLS).map(k => skillListText([k])),
       resistTagList: RESIST_TAGS,
       bonusAspects: { "": "—", metal: "+ Metal", water: "+ Water", fire: "+ Fire", wood: "+ Wood", earth: "+ Earth" },

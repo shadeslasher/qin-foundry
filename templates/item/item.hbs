@@ -91,6 +91,9 @@
       {{#if isSkillTest}}<input type="text" data-bonus-field="skills" value="{{skillsText}}" list="qin-skill-names" placeholder="skills, e.g. Intimidation, Eloquence" {{#unless ../editable}}disabled{{/unless}} aria-label="Skills (comma list)" title="The skills whose Tests get this bonus (comma list of names or keys)">{{/if}}
       {{#if isResistTest}}<input type="text" data-bonus-field="against" value="{{againstText}}" list="qin-resist-tags" placeholder="against, e.g. fear, intimidation (empty = all)" {{#unless ../editable}}disabled{{/unless}} aria-label="Resists (comma list)" title="fear, intimidation, provocation, persuasion, bribery, threats, deception, interrogation, despair, coercion, seduction, poison, illness, fatigue, pain, magic. Empty = every resist roll">{{/if}}
       <input type="text" data-bonus-field="label" value="{{label}}" placeholder="label (default: the skill's name)" {{#unless ../editable}}disabled{{/unless}} aria-label="Label">
+      <select data-bonus-field="auraOn" {{#unless ../editable}}disabled{{/unless}} aria-label="For him or an aura for allies" title="An aura goes to allies (same side) near his token, never to him">{{selectOptions ../auraChoices selected=auraSel}}</select>
+      {{#if auraData}}<input type="number" data-bonus-field="auraRange" value="{{auraData.range}}" min="0" {{#unless ../editable}}disabled{{/unless}} aria-label="Aura range (squares)" title="Squares from his token (1 = next to him); 0 = anywhere on the scene (who can see / hear him: the GM judges)">
+      <input type="text" data-bonus-field="auraWho" value="{{auraData.who}}" placeholder="who, e.g. allies who can hear him" {{#unless ../editable}}disabled{{/unless}} aria-label="Aura: who">{{/if}}
       {{#if ../editable}}<a data-action="bonusRemove" data-index="{{index}}" title="Remove"><i class="fa-solid fa-xmark"></i></a>{{/if}}
     </div>
     {{#if grow}}<p class="qin-muted qin-bonus-grow">&uarr; {{grow}}</p>{{/if}}

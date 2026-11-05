@@ -53,13 +53,17 @@
   </section>
   {{/if}}
 
-  {{#if (or uniqueBonuses.always.length uniqueBonuses.situational.length)}}
+  {{#if (or uniqueBonuses.always.length uniqueBonuses.situational.length uniqueBonuses.gives.length uniqueBonuses.fromAllies.length)}}
   <section class="qin-unique-bonuses">
     <h3>Bonuses from unique skills</h3>
     {{#if uniqueBonuses.always.length}}<div class="qin-muted">Always on: added to rolls automatically</div>
     <ul class="qin-list">{{#each uniqueBonuses.always}}<li><span class="qin-src qin-src-unique">Unique</span> <b>{{source}}</b> · {{text}}</li>{{/each}}</ul>{{/if}}
     {{#if uniqueBonuses.situational.length}}<div class="qin-muted">Situational: tick on the card or in the Combat panel when it applies</div>
     <ul class="qin-list">{{#each uniqueBonuses.situational}}<li><span class="qin-src qin-src-unique qin-src-situational">Unique</span> <b>{{source}}</b> · {{text}}</li>{{/each}}</ul>{{/if}}
+    {{#if uniqueBonuses.gives.length}}<div class="qin-muted">Auras he gives his allies (not counted for himself)</div>
+    <ul class="qin-list">{{#each uniqueBonuses.gives}}<li><span class="qin-src qin-src-unique">Unique</span> <b>{{source}}</b> · {{text}}</li>{{/each}}</ul>{{/if}}
+    {{#if uniqueBonuses.fromAllies.length}}<div class="qin-muted">Auras from allies here (this scene, worked out from the tokens)</div>
+    <ul class="qin-list">{{#each uniqueBonuses.fromAllies}}<li><span class="qin-src qin-src-unique">Unique</span> <b>{{source}}</b> · {{text}}</li>{{/each}}</ul>{{/if}}
   </section>
   {{/if}}
 

@@ -3,7 +3,7 @@
 // first hit taken each round. Stored in flags.qin.combatState; the GM's client expires timed effects as rounds pass.
 import { SYSTEM_ID, rechargeStatus, rechargeLabel, isActiveSlot } from "./config.mjs";
 import { normalizeCombatState, resolveTao, tickEffects, expireCombat, QUEUE_SLOTS } from "./rules/tao-rules.mjs";
-import { collectBonuses, bonusesVs } from "./rules/bonuses.mjs";
+import { collectBonuses, bonusesVs, auraBonusesFor } from "./rules/bonuses.mjs";
 import { stackDefs, stackEvent, adjustSteps, roundAlreadyCounted, attackedLastRound, countEngaged, engagedWithAdjust } from "./rules/stacks.mjs";
 import { attackerToken } from "./attack-fx.mjs";
 import { postEffectCard } from "./skill-effects.mjs";
@@ -102,16 +102,63 @@ export function engagedCount(actor) {
 
 const usesEngaged = (sources) => (sources ?? []).some(s => (s.bonuses ?? []).some(b => b?.stack?.trigger === "opponentsEngaged"));
 
+/* ---------------------------------------- auras (schema v2.3) */
+
+/** The actor's token document on the viewed scene: the one given, his own (unlinked), a controlled one, or the first. */
+export function sceneTokenOf(actor, token = null) {
+  const scene = globalThis.canvas?.scene;
+  if (!scene || !actor) return null;
+  const given = token?.document ?? token;
+  if (given?.id != null && given.disposition !== undefined) return given;
+  const toks = [...(scene.tokens ?? [])];
+  if (actor.token) return toks.includes(actor.token) || actor.token.parent?.id === scene.id ? actor.token : null;
+  const ctl = canvas.tokens?.controlled?.find?.(t => t.actor === actor)?.document;
+  if (ctl) return ctl;
+  return toks.find(t => t.actor === actor) ?? null;
+}
+
+/** Grid squares between two token documents: the canvas's measurement, else their positions on a square grid. */
+function tokenDistance(a, b) {
+  if (a.object && b.object && canvas.grid?.measurePath) return spacesBetween(a.object, b.object);
+  const size = canvas.grid?.size || canvas.scene?.grid?.size || 100;
+  const c = (t) => ({ x: (Number(t.x) || 0) / size + (Number(t.width) || 1) / 2, y: (Number(t.y) || 0) / size + (Number(t.height) || 1) / 2 });
+  const p = c(a), q = c(b);
+  return Math.round(Math.max(Math.abs(p.x - q.x), Math.abs(p.y - q.y)));
+}
+
+const isDefeated = (actor) => isOut(actor) || !!actor?.statuses?.has?.("dead");
+
+/**
+ * The aura bonuses that reach the actor from allies on the viewed scene (see auraBonusesFor). [] with no canvas,
+ * scene or token (sidebar rolls, tests without a scene). token: his token when the caller knows it (an attack's target).
+ */
+export function auraBonuses(actor, { token = null } = {}) {
+  const doc = sceneTokenOf(actor, token);
+  if (!doc || actor?.type === "unit") return [];
+  const sources = [];
+  for (const t of canvas.scene.tokens ?? []) {
+    const a = t.actor;
+    if (t === doc || t.id === doc.id || !a || a.type === "unit" || !a.system?.bonusSources?.length) continue;
+    sources.push({ tokenId: t.id, actorId: a.id ?? t.actorId, linked: !!t.actorLink, name: t.name ?? a.name, disposition: t.disposition,
+      out: isDefeated(a), bonusSources: a.system.bonusSources, aspects: a.system.aspects, stacks: getState(a).stacks, doc: t });
+  }
+  if (!sources.length) return [];
+  const receiver = { tokenId: doc.id, actorId: actor.id ?? doc.actorId, linked: !!doc.actorLink, disposition: doc.disposition };
+  return auraBonusesFor({ receiver, sources, distance: (s) => tokenDistance(doc, s.doc) });
+}
+
 /**
  * The actor's bonuses for a roll involving `vs` (an actor or uuid; null = no one): growing bonuses at their current
- * steps (opponents engaged counted now), and "against him" bonuses only when vs is the actor who applied them.
+ * steps (opponents engaged counted now), "against him" bonuses only when vs is the actor who applied them, and the
+ * auras of allies on the scene (schema v2.3; token: his token, when the caller knows it).
  */
-export function rollBonuses(actor, vs = null) {
+export function rollBonuses(actor, vs = null, { token = null } = {}) {
   const sys = actor?.system;
-  if (!sys?.bonusSources) return sys?.bonusList ?? [];
+  const auras = auraBonuses(actor, { token });
+  if (!sys?.bonusSources) return [...(sys?.bonusList ?? []), ...auras];
   const engaged = usesEngaged(sys.bonusSources) ? engagedCount(actor) : null;
   const list = collectBonuses(sys.bonusSources, { aspects: sys.aspects, stacks: getState(actor).stacks, engaged });
-  return bonusesVs(list, typeof vs === "string" ? vs : vs?.uuid ?? null);
+  return [...bonusesVs(list, typeof vs === "string" ? vs : vs?.uuid ?? null), ...auras];
 }
 
 /** Every growing bonus on the actor, for the Combat panel: [{ key, label, text, steps, max, trigger, engaged }]. */

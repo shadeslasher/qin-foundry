@@ -679,6 +679,72 @@ test("resistTest e2e: the sheet's plain Resistance roll offers every one, tickin
   assert.equal(t.success, true);
 });
 
+/* ---------------------------------------- aura bonuses (schema v2.3) */
+
+const steadyPresence = { name: "Steady Presence", slot: "passive", desc: "Allies next to him get +1 on Tests to resist fear.",
+  bonuses: [{ stat: "resistTest", value: 1, mode: "always", against: ["fear"], aura: { range: 1, who: "allies next to him" } }] };
+const shieldWall = { name: "Shield Wall", slot: "passive", desc: "Allies next to him get +1 Passive Defense.",
+  bonuses: [{ stat: "pd", value: 1, mode: "always", aura: { range: 1, who: "allies next to him" } }] };
+const sq = (n) => n * 100;
+
+test("aura e2e: Sun Jing-style 'allies next to him +1 to resist fear' next to a target of Zhang Liao's intimidation: +1; two squares away: nothing", async () => {
+  asGM();
+  fight(1);
+  const s = SKILLS_UNDER_TEST[0];
+  const zl = actor({ name: "Zhang Liao aura", aspects: s.aspects, skills: { intimidation: 5 }, items: [sig("sk", s.skill.name, s.skill)] });
+  const sun = actor({ name: "Sun Jing", aspects: { metal: 3, water: 3, fire: 3, wood: 3, earth: 3 }, items: [sig("sp", steadyPresence.name, steadyPresence)] });
+  // Resistance 7 (Metal 4 + Earth 3)
+  const guard = actor({ name: "Aura Guard", type: "henchman", aspects: { metal: 4, water: 2, fire: 2, wood: 2, earth: 3 } });
+  const tok = (id, a, disposition, x, y) => ({ id, name: a.name, disposition, actor: a, actorLink: true, actorId: a.id, x: sq(x), y: sq(y) });
+  const scene = (guardX) => { globalThis.canvas = { grid: { size: 100 }, scene: { id: "sc", tokens: [tok("tz", zl, 1, 0, 0), tok("ts", sun, -1, 5, 5), tok("tg", guard, -1, guardX, 5)] } }; };
+  scene(6); // next to Sun Jing
+  diceQueue.push([6, 0]);
+  const card = await cs.useActive(zl, zl.items.get("sk")); // 5 + 5 + 6 = 16
+  assert.equal(card.flags.qin.total, 16);
+  // the holder himself never gets it
+  assert.equal(cs.rollBonuses(sun).some(b => b.fromAura), false, "not for the holder");
+  assert.equal(sun.system.bonusList.length, 0, "not in his own standing bonuses");
+  // the GM's picker: the aura is listed as applied for the guard
+  const picker = new fx.EffectTargetPicker({ message: card, mode: "resist" });
+  assert.match(await picker._renderHTML(), /Sun Jing \(aura\): Steady Presence: \+1 to resist fear · applied/);
+  diceQueue.push([8, 0]);
+  const [r] = await pickerApply(picker, [guard]);
+  assert.deepEqual(resistParts_(r), [["Sun Jing (aura): Steady Presence (vs fear)", 1, false]]);
+  assert.equal(r.total, 7 + 8 + 1, "Resistance + die + the aura");
+  assert.equal(r.outcome, "success", "16 ties 16: resisted thanks to the aura");
+  // two squares away: nothing
+  scene(7);
+  diceQueue.push([8, 0]);
+  const [far] = await pickerApply(new fx.EffectTargetPicker({ message: card, mode: "resist" }), [guard]);
+  assert.deepEqual(resistParts_(far), []);
+  assert.equal(far.total, 15);
+  assert.equal(far.outcome, "fail");
+  // the Combat panel lists the aura while he is next to Sun Jing
+  scene(6);
+  const ctx = await CombatPanel.prototype._prepareContext.call({ actor: guard });
+  assert.ok(ctx.alwaysRows.some(row => row.aura && row.text.startsWith("Sun Jing (aura): Steady Presence: +1 to resist fear")));
+  scene(7);
+  assert.equal((await CombatPanel.prototype._prepareContext.call({ actor: guard })).alwaysRows.some(row => row.aura), false);
+  game.combat = null;
+});
+
+test("aura e2e: an attacked ally's Passive Defense counts an adjacent ally's aura, worked out for the target token at roll time", async () => {
+  asGM();
+  fight(1);
+  const wall = actor({ name: "Wall Holder", aspects: { metal: 3, water: 3, fire: 3, wood: 3, earth: 3 }, items: [sig("sw", shieldWall.name, shieldWall)] });
+  const def = actor({ name: "Wall Ally", type: "henchman", aspects: { metal: 2, water: 2, fire: 2, wood: 2, earth: 2 }, items: [dao()] });
+  const atk = actor({ name: "Wall Attacker", aspects: { metal: 4, water: 3, fire: 3, wood: 3, earth: 3 }, skills: { daoshu: 3 }, items: [dao()] });
+  const tok = (id, a, disposition, x) => ({ id, name: a.name, disposition, actor: a, actorLink: true, actorId: a.id, x: sq(x), y: 0 });
+  const basePD = def.system.passiveDefense;
+  for (const [x, plus] of [[1, 1], [3, 0]]) {
+    globalThis.canvas = { grid: { size: 100 }, scene: { id: "sc", tokens: [tok("tw", wall, 1, 0), tok("td", def, 1, x), tok("ta", atk, -1, x + 1)] } };
+    await attack(atk, def);
+    assert.equal(lastTemplate("dialog/attack.hbs").targetPD, basePD + plus, plus ? "next to the holder: +1" : "two squares away: none");
+  }
+  assert.equal(def.system.passiveDefense, basePD, "the derived PD doesn't depend on the canvas");
+  game.combat = null;
+});
+
 test("e2e summary", () => {
   assert.equal(report.length, SKILLS_UNDER_TEST.length);
   for (const line of report) console.log(`# ${line}`);

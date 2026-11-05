@@ -16,7 +16,7 @@
       <div class="qin-cp-row qin-cp-{{kind}}{{#if reminder}} qin-cp-reminder{{/if}}"><span class="qin-src qin-src-{{kind}}">{{#if (eq kind "tao")}}Tao{{else}}Unique{{/if}}</span><span class="qin-cp-grow">{{#if reminder}}<i class="fa-solid fa-circle-exclamation" title="Reminder: applied by hand"></i> {{/if}}{{text}}</span><b>{{left}}</b>{{#if canEnd}}<button type="button" data-action="endEffect" data-id="{{id}}">End</button>{{/if}}</div>
       {{/each}}
       {{#each alwaysRows}}
-      <div class="qin-cp-row qin-cp-plain"><span class="qin-src qin-src-unique">Unique</span><span class="qin-cp-grow">{{text}}</span><span class="qin-muted">always on</span></div>
+      <div class="qin-cp-row qin-cp-plain"><span class="qin-src qin-src-unique">Unique</span><span class="qin-cp-grow">{{text}}</span><span class="qin-muted">{{#if aura}}aura{{else}}always on{{/if}}</span></div>
       {{/each}}
       {{#unless inEffect.length}}{{#unless alwaysRows.length}}<p class="qin-muted">Nothing in effect.</p>{{/unless}}{{/unless}}
     </section>

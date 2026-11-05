@@ -41,7 +41,7 @@ export class QinCombat extends foundry.documents.Combat {
       // Unique Initiative bonuses (always on, or situational and ticked) and Sudden Lightning's Speed if queued
       const extras = [];
       const ticked = tickedOf(actor);
-      for (const b of rollBonuses(actor, null)) {
+      for (const b of rollBonuses(actor, null, { token: c.token ?? null })) {
         if (b.stat !== "initiative" || (b.mode === "situational" && !ticked[b.key])) continue;
         extras.push({ kind: "unique", situational: b.mode === "situational", label: b.label, value: b.value });
       }

@@ -320,9 +320,10 @@ export class QinActor extends foundry.documents.Actor {
     const ticked = tickedOf(this);
     const tSys = target && target.type !== "unit" ? target.system : null;
     // Growing bonuses at their current steps; bonuses "against <someone>" only between the two of them
-    const list = rollBonuses(this, tSys ? target : null);
+    // Allies' auras (schema v2.3) count for both: worked out for the two tokens now (the target's PD included)
+    const list = rollBonuses(this, tSys ? target : null, { token: source });
     const tTicked = tSys ? tickedOf(target) : {};
-    const tList = tSys ? rollBonuses(target, this) : [];
+    const tList = tSys ? rollBonuses(target, this, { token: targetToken }) : [];
     const tPD = tSys?.aspects ? pdBreakdown({
       aspects: tSys.aspects, pdBonus: tSys.pdBonus || 0, armor: tSys.armor?.list ?? [], bonuses: tList, ticked: tTicked,
       tao: (tSys.combatEffects ?? []).filter(e => e.effect === "pd").map(e => ({ label: `${e.source ? `${e.source}, ` : ""}${e.label}`, value: e.value })),
