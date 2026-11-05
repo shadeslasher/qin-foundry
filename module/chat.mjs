@@ -1,11 +1,13 @@
 // Chat card buttons: Block / Dodge / Apply damage / Chi Defense on attack cards.
 import { formDialog, renderTemplate } from "./dice.mjs";
-import { getState, taoOf, tickedOf, currentFight, activateTao } from "./combat-state.mjs";
+import { getState, taoOf, tickedOf, currentFight, activateTao, rollBonuses } from "./combat-state.mjs";
 import { isFirstHitThisRound } from "./rules/tao-rules.mjs";
+import { onRenderEffectCard } from "./skill-effects.mjs";
 
 export function onRenderChatMessage(message, html) {
   const flags = message.flags?.qin;
   if (!flags?.kind) return;
+  if (flags.kind === "effect") return onRenderEffectCard(message, html, flags);
   html.querySelectorAll("[data-qin-action]").forEach((btn) => {
     const action = btn.dataset.qinAction;
     if (action === "applyDamage" && !game.user.isGM) { btn.remove(); return; }
@@ -45,7 +47,7 @@ async function onClick(event, message, flags) {
     const ticked = tickedOf(actor);
     for (const h of sys.hitReductions ?? []) auto.push({ kind: "tao", label: `Strengthened Body, ${h.label}`, value: h.value });
     const first = isFirstHitThisRound(getState(actor).firstHit, currentFight());
-    for (const b of sys.bonusList ?? []) {
+    for (const b of rollBonuses(actor, flags.attacker ?? null)) {
       if (b.mode === "situational" && !ticked[b.key]) continue;
       if (b.stat === "hitReduction" || (b.stat === "firstHitReduction" && first)) auto.push({ kind: "unique", situational: b.mode === "situational", label: `${b.label}${b.stat === "firstHitReduction" ? " (first hit this round)" : ""}`, value: b.value });
     }
@@ -58,7 +60,9 @@ async function onClick(event, message, flags) {
     if (!fd) return;
     await actor.applyDamage(Number(fd.damage) || 0, {
       protection: Number(fd.protection) || 0, pierce: Number(fd.pierce) || 0, reduction: Number(fd.reduction) || 0,
-      strongDefense: shield >= 1 ? !!fd.strongDefense : false, card: true,
+      strongDefense: shield >= 1 ? !!fd.strongDefense : false, card: true, attacker: flags.attacker ?? null,
+      // the attacker's armour-pierce sources, tagged on the damage card (unless the pierce was changed by hand)
+      pierceParts: Number(fd.pierce) === Number(flags.pierce || 0) ? flags.pierceParts ?? [] : [],
     });
   }
 }

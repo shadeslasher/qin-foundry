@@ -9,7 +9,9 @@ import { EquipmentPicker, unequipUnit, equipmentOf } from "../equipment.mjs";
 import { healthColor, moraleColor } from "../unit-bars.mjs";
 import { officesForViewer, currentYear } from "../game-year.mjs";
 import { part, partRowHTML, formatValue } from "../rules/sources.mjs";
-import { BONUS_STATS, BONUS_MODES } from "../rules/bonuses.mjs";
+import { BONUS_STATS, BONUS_MODES, collectBonuses } from "../rules/bonuses.mjs";
+import { normalizeStack, STACK_TRIGGERS, STACK_RESETS } from "../rules/stacks.mjs";
+import { normalizeEffect, durationText, testText, EFFECT_TARGETS } from "../rules/skill-effects.mjs";
 import { roundsLeft } from "../rules/tao-rules.mjs";
 import { useActive, taoOf, currentFight } from "../combat-state.mjs";
 import { CombatPanel } from "../combat-panel.mjs";
@@ -90,7 +92,7 @@ function statBreakdowns(actor) {
   const dmgTotal = dmgParts.reduce((t, p) => t + p.value, 0);
   const damage = { total: dmgTotal, gold: dmgTotal !== 0, tip: html(`Damage bonus ${formatValue(dmgTotal, "unique")}`, [...dmgParts, ...situ("damage")]) };
   // Effects in force (Taos running), for the sheet
-  const running = (sys.combatEffects ?? []).map(e => { const l = roundsLeft(e, fight); return { label: e.label, kind: e.kind === "unique" ? "unique" : "tao", left: e.exchange ? "this exchange" : e.restOfFight ? "rest of fight" : l === null ? "until ended" : `${l} round${l === 1 ? "" : "s"}` }; });
+  const running = (sys.combatEffects ?? []).map(e => { const l = roundsLeft(e, fight); return { label: `${e.label}${e.kind === "skillEffect" && e.source ? ` (from ${e.source})` : ""}`, kind: ["unique", "skillEffect"].includes(e.kind) ? "unique" : "tao", left: e.exchange ? "this exchange" : e.restOfFight ? "rest of fight" : l === null ? "until ended" : `${l} round${l === 1 ? "" : "s"}` }; });
   return { pd, armor, ad, damage, running };
 }
 
@@ -865,7 +867,19 @@ export class QinItemSheet extends api.HandlebarsApplicationMixin(ItemSheetBase) 
       isActive: item.type === "signature" && isActiveSlot(item.system.slot),
       showEffects: item.type === "officerAbility" || (item.type === "signature" && item.system.slot === "battlePassive"),
       showBonuses: item.type === "signature" && !/^battle/.test(item.system.slot ?? ""),
-      bonusRows: (item.system.bonuses ?? []).map((b, index) => ({ ...b, index })),
+      bonusRows: (item.system.bonuses ?? []).map((b, index) => {
+        const st = normalizeStack(b.stack, b);
+        const grow = st ? `Grows: ${b.value} × steps, up to ${st.max} (${STACK_TRIGGERS[st.trigger]}${st.trigger === "opponentsEngaged" ? `, minus ${st.offset}` : ""}; ${STACK_RESETS[st.resetOn]})` : "";
+        return { ...b, index, grow };
+      }),
+      effectSummary: (() => {
+        const e = item.type === "signature" ? normalizeEffect(item.system.effect) : null;
+        if (!e) return null;
+        const line = (list) => collectBonuses([{ id: "x", name: "", bonuses: list }]).map((b, i) => `${b.text}${list[i]?.vsSource ? " against the user" : ""}`).join(", ");
+        return { target: EFFECT_TARGETS[e.target], duration: durationText(e.duration), test: testText(e.test, (k) => SKILLS[k]?.label ?? k),
+          onFail: line(e.onFail), onSuccess: line(e.onSuccess), note: e.note };
+      })(),
+      generalName: item.system.generalName ?? "", generalDesc: item.system.generalDesc ?? "",
       bonusStats: BONUS_STATS, bonusModes: BONUS_MODES,
       bonusAspects: { "": "—", metal: "+ Metal", water: "+ Water", fire: "+ Fire", wood: "+ Wood", earth: "+ Earth" },
     });

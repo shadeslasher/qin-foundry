@@ -3,7 +3,10 @@
 // first hit taken each round. Stored in flags.qin.combatState; the GM's client expires timed effects as rounds pass.
 import { SYSTEM_ID, rechargeStatus, rechargeLabel, isActiveSlot } from "./config.mjs";
 import { normalizeCombatState, resolveTao, tickEffects, expireCombat, QUEUE_SLOTS } from "./rules/tao-rules.mjs";
-import { collectBonuses } from "./rules/bonuses.mjs";
+import { collectBonuses, bonusesVs } from "./rules/bonuses.mjs";
+import { stackDefs, stackEvent, adjustSteps, roundAlreadyCounted, attackedLastRound, countEngaged, engagedWithAdjust } from "./rules/stacks.mjs";
+import { attackerToken } from "./attack-fx.mjs";
+import { postEffectCard } from "./skill-effects.mjs";
 import * as Q from "./rules/qin-rules.mjs";
 import { Chat } from "./dice.mjs";
 
@@ -70,6 +73,110 @@ export function tickedOf(actor) {
   return out;
 }
 export const sitKey = (key) => String(key).replace(/\./g, "_");
+
+/* ---------------------------------------- growing bonuses (schema v2 stack) */
+
+/** Grid distance in spaces between two tokens (centre to centre). */
+function spacesBetween(a, b) {
+  const r = canvas.grid.measurePath([a.center, b.center]);
+  if (Number.isFinite(r.spaces) && canvas.grid.type) return r.spaces;
+  return Math.round((r.distance ?? 0) / (canvas.grid.distance || 1));
+}
+
+const isOut = (actor) => !!(actor?.system?.outOfAction || actor?.system?.bol?.dead || actor?.system?.bol?.coma);
+
+/** Hostile tokens adjacent to the actor's token on the current scene (no token: 0). */
+export function adjacentHostiles(actor) {
+  const tok = canvas?.ready ? attackerToken(actor) : null;
+  if (!tok) return 0;
+  const others = canvas.tokens.placeables.filter(t => t !== tok && t.actor && t.actor.type !== "unit")
+    .map(t => ({ id: t.id, disposition: t.document.disposition, out: isOut(t.actor), tok: t }));
+  return countEngaged({ id: tok.id, disposition: tok.document.disposition, tok }, others, (x, y) => spacesBetween(x.tok, y.tok));
+}
+
+/** Opponents engaged now: adjacent hostiles plus the panel's correction for this round. */
+export function engagedCount(actor) {
+  return engagedWithAdjust(adjacentHostiles(actor), getState(actor).engaged, currentFight());
+}
+
+const usesEngaged = (sources) => (sources ?? []).some(s => (s.bonuses ?? []).some(b => b?.stack?.trigger === "opponentsEngaged"));
+
+/**
+ * The actor's bonuses for a roll involving `vs` (an actor or uuid; null = no one): growing bonuses at their current
+ * steps (opponents engaged counted now), and "against him" bonuses only when vs is the actor who applied them.
+ */
+export function rollBonuses(actor, vs = null) {
+  const sys = actor?.system;
+  if (!sys?.bonusSources) return sys?.bonusList ?? [];
+  const engaged = usesEngaged(sys.bonusSources) ? engagedCount(actor) : null;
+  const list = collectBonuses(sys.bonusSources, { aspects: sys.aspects, stacks: getState(actor).stacks, engaged });
+  return bonusesVs(list, typeof vs === "string" ? vs : vs?.uuid ?? null);
+}
+
+/** Every growing bonus on the actor, for the Combat panel: [{ key, label, text, steps, max, trigger, engaged }]. */
+export function growingRows(actor) {
+  const sys = actor.system;
+  const engaged = usesEngaged(sys.bonusSources) ? engagedCount(actor) : null;
+  const list = collectBonuses(sys.bonusSources ?? [], { aspects: sys.aspects, stacks: getState(actor).stacks, engaged });
+  return list.filter(b => b.stack).map(b => ({ key: b.key, label: b.baseLabel, text: b.text, steps: b.steps, max: b.stack.max, trigger: b.stack.trigger,
+    resetOn: b.stack.resetOn, engaged: b.stack.trigger === "opponentsEngaged" ? engaged : null, offset: b.stack.offset, value: b.value }));
+}
+
+/** The pure state change for an event on one actor's growing bonuses, or null when nothing changes. */
+function stackChange(actor, event, ctx = {}) {
+  const defs = stackDefs(actor?.system?.bonusListAll);
+  if (!defs.length) return null;
+  const st = getState(actor);
+  const r = stackEvent(st.stacks, defs, event, ctx);
+  const extra = ctx.state ?? {};
+  if (!r.changed && !Object.keys(extra).length) return null;
+  return { ...st, ...extra, stacks: r.stacks };
+}
+
+/** Apply a growing-bonus event to an actor (through the GM when the user can't update it). */
+export async function stackEventFor(actor, event, ctx = {}) {
+  if (!actor || actor.type === "unit") return;
+  const next = stackChange(actor, event, ctx);
+  if (!next) return;
+  if (actor.isOwner) return saveState(actor, next);
+  return askGM({ type: "state", actorUuid: actor.uuid, event, ctx: { count: ctx.count ?? 1 } });
+}
+
+/** The panel's + / − on a growing bonus. */
+export async function adjustStack(actor, key, delta) {
+  const row = growingRows(actor).find(r => r.key === key);
+  if (!row) return;
+  const st = getState(actor);
+  if (row.trigger === "opponentsEngaged") return adjustEngaged(actor, delta);
+  st.stacks = adjustSteps(st.stacks, key, delta, row.max);
+  return saveState(actor, st);
+}
+
+/** The panel's + / − on the opponents engaged count (holds for this round). */
+export async function adjustEngaged(actor, delta) {
+  const fight = currentFight(), st = getState(actor);
+  const same = st.engaged && fight && st.engaged.combat === fight.id && st.engaged.round === fight.round;
+  const cur = same ? Number(st.engaged.adjust) || 0 : 0;
+  // don't let the correction take the count below 0
+  const auto = adjacentHostiles(actor);
+  const adjust = Math.max(-auto, cur + (Number(delta) || 0));
+  st.engaged = { adjust, combat: fight?.id ?? "", round: fight?.round ?? 0 };
+  return saveState(actor, st);
+}
+
+/** After an attack: remember the round (for "no attack last round") and reset "resets when he attacks" bonuses. */
+export async function afterAttackStacks(actor) {
+  const fight = currentFight();
+  return stackEventFor(actor, "attack", { state: fight ? { lastAttack: { combat: fight.id, round: fight.round } } : {} });
+}
+
+async function askGM(payload) {
+  const gm = game.users.activeGM;
+  if (!gm) return ui.notifications.warn("The GM needs to be connected for that.");
+  try { return await gm.query(QUERY, { userId: game.user.id, ...payload }, { timeout: 15000 }); }
+  catch (e) { ui.notifications.warn(e.message); return null; }
+}
+export { askGM as askGMCombatState };
 
 /* ---------------------------------------- Taos */
 
@@ -164,6 +271,8 @@ export async function useActive(actor, item) {
       combat: fight?.id ?? "", round: fight?.round ?? 0, rounds: item.system.perScene ? 0 : Math.max(1, n), restOfFight: !!item.system.perScene });
     await saveState(actor, st);
   }
+  // An active that acts on others (schema v2 effect) posts its effect card (with the user's Test) instead
+  if (item.system.effect?.target) return postEffectCard(actor, item);
   const rl = rechargeLabel(item.system);
   const fx = others.length ? `<p>${collectBonuses([{ id: item.id, name: item.name, bonuses: others }], { aspects: actor.system.aspects }).map(b => esc(b.text + (b.condition ? ` (${b.condition})` : ""))).join(" · ")}</p>` : "";
   await Chat().create({
@@ -242,46 +351,87 @@ export async function recheckAttack(message, actor) {
 let onChange = () => {};
 export function setCombatStateChangeHandler(fn) { onChange = fn; }
 
-/** GM: drop effects that ran out at this round / exchange, for every actor in the fight. */
-async function tickCombat(combat) {
+/** Actors in a fight: its combatants, plus every character / henchman token on its scene (effects from others). */
+function fightActors(combat) {
+  const out = new Map();
+  for (const c of combat.combatants) if (c.actor && c.actor.type !== "unit") out.set(c.actor.uuid, c.actor);
+  const scene = combat.scene ?? (canvas?.scene ?? null);
+  for (const t of scene?.tokens ?? []) if (t.actor && t.actor.type !== "unit" && !out.has(t.actor.uuid)) out.set(t.actor.uuid, t.actor);
+  return [...out.values()];
+}
+const inCombat = (combat, actor) => combat.combatants.some(c => c.actor?.uuid === actor.uuid);
+
+/** GM: drop effects that ran out at this round / exchange, and count round-start growing bonuses, for every actor. */
+async function tickCombat(combat, change = {}) {
   if (!game.user.isActiveGM) return;
   const fight = { id: combat.id, round: combat.round, exchange: combat.getFlag?.(SYSTEM_ID, "exchange") ?? 1 };
-  const seen = new Set();
-  for (const c of combat.combatants) {
-    const a = c.actor;
-    if (!a || a.type === "unit" || seen.has(a.uuid)) continue;
-    seen.add(a.uuid);
-    const st = getState(a);
+  const newRound = ("round" in change || "started" in change) && combat.started && combat.round > 0;
+  for (const a of fightActors(combat)) {
+    let st = getState(a), dirty = false;
     const { keep, expired } = tickEffects(st.effects, fight);
-    if (!expired.length) continue;
-    st.effects = keep;
+    if (expired.length) { st.effects = keep; dirty = true; }
+    if (newRound && inCombat(combat, a) && !roundAlreadyCounted(st.stackRound, fight)) {
+      const defs = stackDefs(a.system.bonusListAll);
+      if (defs.length) {
+        const r = stackEvent(st.stacks, defs, "roundStart", { firstRound: fight.round <= 1, attackedLastRound: attackedLastRound(st.lastAttack, fight) });
+        st.stacks = r.stacks;
+        st.stackRound = { combat: fight.id, round: fight.round };
+        dirty = true;
+      }
+    }
+    if (!dirty) continue;
     await saveState(a, st);
-    for (const e of expired) if (e.kind === "tao" && !e.exchange) Chat().create({ speaker: Chat().getSpeaker({ actor: a }), content: `<div class="qin-chat"><p class="qin-muted"><span class="qin-src qin-src-tao">Tao</span> ${esc(a.name)}: ${esc(e.label)} ends.</p></div>` });
+    for (const e of expired) {
+      if (e.kind === "tao" && !e.exchange) Chat().create({ speaker: Chat().getSpeaker({ actor: a }), content: `<div class="qin-chat"><p class="qin-muted"><span class="qin-src qin-src-tao">Tao</span> ${esc(a.name)}: ${esc(e.label)} ends.</p></div>` });
+      else if (e.kind === "skillEffect") Chat().create({ speaker: Chat().getSpeaker({ actor: a }), content: `<div class="qin-chat"><p class="qin-muted"><span class="qin-src qin-src-unique">Unique</span> ${esc(a.name)}: ${esc(e.label)}${e.source ? ` (from ${esc(e.source)})` : ""} ends.</p></div>` });
+    }
   }
 }
 
 async function endCombatEffects(combat) {
   if (!game.user.isActiveGM) return;
-  for (const c of combat.combatants) {
-    const a = c.actor;
-    if (!a || a.type === "unit") continue;
+  for (const a of fightActors(combat)) {
     const st = getState(a);
-    // Timed effects tied to the fight end with it; queued ones stay (nothing was spent on them yet)
+    // Timed effects tied to the fight end with it; queued ones stay (nothing was spent on them yet).
+    // Growing bonuses go back to 0 unless they never reset.
     const effects = expireCombat(st.effects, combat.id);
-    if (effects.length !== st.effects.length || st.firstHit) await saveState(a, { ...st, effects, firstHit: null });
+    const r = stackEvent(st.stacks, stackDefs(a.system.bonusListAll), "fightEnd");
+    const fightBits = st.engaged || st.lastAttack || st.stackRound;
+    if (effects.length !== st.effects.length || st.firstHit || r.changed || fightBits)
+      await saveState(a, { ...st, effects, firstHit: null, stacks: r.stacks, engaged: null, lastAttack: null, stackRound: null });
   }
+}
+
+/** GM: a token that moves in a running fight resets its "resets when he moves" bonuses. */
+async function onTokenMoved(tokenDoc, change) {
+  if (!game.user.isActiveGM || !("x" in change || "y" in change)) return;
+  const combat = game.combat;
+  const a = tokenDoc.actor;
+  if (!combat?.started || !a || a.type === "unit" || !inCombat(combat, a)) return;
+  const next = stackChange(a, "moved");
+  if (next) await saveState(a, next);
 }
 
 export function registerCombatState() {
   Hooks.on("updateCombat", (combat, change) => {
     const ex = foundry.utils.getProperty(change, `flags.${SYSTEM_ID}.exchange`);
-    if ("round" in change || ex !== undefined || "started" in change) tickCombat(combat).catch(e => console.warn("Qin | combat effects", e));
+    if ("round" in change || ex !== undefined || "started" in change) tickCombat(combat, change).catch(e => console.warn("Qin | combat effects", e));
     onChange();
   });
   Hooks.on("deleteCombat", (combat) => { endCombatEffects(combat).catch(e => console.warn("Qin | combat effects", e)); onChange(); });
+  Hooks.on("updateToken", (tok, change) => { onTokenMoved(tok, change).catch(e => console.warn("Qin | growing bonuses", e)); });
   Hooks.once("init", () => {
-    CONFIG.queries[QUERY] = async ({ type, userId, messageId, update }) => {
-      if (!game.user.isGM || type !== "recheck") return { ok: false };
+    CONFIG.queries[QUERY] = async ({ type, userId, messageId, update, actorUuid, event, ctx }) => {
+      if (!game.user.isGM) return { ok: false };
+      if (type === "state") {
+        // A growing-bonus event the requesting user caused on an actor they can't update (their hit dropped someone...)
+        const user = game.users.get(userId), actor = actorUuid ? await fromUuid(actorUuid) : null;
+        if (!user || !actor || !["attack", "dropOpponent", "hitTaken", "moved"].includes(event)) return { ok: false };
+        const next = stackChange(actor, event, { count: Number(ctx?.count) || 1 });
+        if (next) await saveState(actor, next);
+        return { ok: true };
+      }
+      if (type !== "recheck") return { ok: false };
       const user = game.users.get(userId), msg = game.messages.get(messageId);
       const target = msg?.flags?.[SYSTEM_ID]?.target ? fromUuidSync(msg.flags[SYSTEM_ID].target) : null;
       if (!user || !msg || !target?.testUserPermission(user, "OWNER")) return { ok: false };

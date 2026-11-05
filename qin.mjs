@@ -53,8 +53,10 @@ function applyTextScale() {
 import { registerCompendiumSync } from "./module/compendium-sync.mjs";
 import { partRowHTML, chipHTML, formatValue } from "./module/rules/sources.mjs";
 import { registerCombatState } from "./module/combat-state.mjs";
+import { registerSkillEffects } from "./module/skill-effects.mjs";
 import { CombatPanel, registerCombatPanel } from "./module/combat-panel.mjs";
 registerCombatState();
+registerSkillEffects();
 registerCombatPanel();
 import { registerPlacedTag } from "./module/placed-tag.mjs";
 import { registerGameYear } from "./module/game-year.mjs";

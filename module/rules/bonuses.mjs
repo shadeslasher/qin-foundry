@@ -1,6 +1,7 @@
 // Structured bonuses on signature (unique) skills (David, 2026-11-05). Pure: no Foundry dependencies.
 // A bonus is { stat, value, aspect, mode, condition, label } on a signature item's system.bonuses.
 import { part } from "./sources.mjs";
+import { normalizeStack, stackSteps } from "./stacks.mjs";
 
 export const BONUS_STATS = {
   pd: "Passive Defense",
@@ -11,17 +12,20 @@ export const BONUS_STATS = {
   firstHitReduction: "First hit each round does less damage",
   hitReduction: "Every hit does less damage",
   initiative: "Initiative",
+  targetAd: "Opponents' Active Defense against his attacks",
+  armorPierce: "Target's armour counts less against his hits",
 };
 export const BONUS_SHORT = {
   pd: "Passive Defense", ad: "Active Defense", attack: "Attack", damage: "damage",
   attackersPenalty: "attackers", firstHitReduction: "first hit each round", hitReduction: "every hit", initiative: "Initiative",
+  targetAd: "opponents' Active Defense", armorPierce: "target's armour",
 };
 export const BONUS_MODES = { always: "Always on", situational: "Situational" };
 const ASPECT_KEYS = ["metal", "water", "fire", "wood", "earth"];
 const ASPECT_LABEL = { metal: "Metal", water: "Water", fire: "Fire", wood: "Wood", earth: "Earth" };
 
 /** Stats where the number is taken away (from damage, or from the attacker). */
-export const REDUCING_STATS = new Set(["attackersPenalty", "firstHitReduction", "hitReduction"]);
+export const REDUCING_STATS = new Set(["attackersPenalty", "firstHitReduction", "hitReduction", "targetAd", "armorPierce"]);
 
 export function normalizeBonus(b = {}, fallbackLabel = "") {
   const stat = BONUS_STATS[b.stat] ? b.stat : "pd";
@@ -32,6 +36,8 @@ export function normalizeBonus(b = {}, fallbackLabel = "") {
     mode: b.mode === "situational" ? "situational" : "always",
     condition: String(b.condition ?? "").trim(),
     label: String(b.label ?? "").trim() || fallbackLabel,
+    stack: normalizeStack(b.stack, b),
+    vsSource: !!b.vsSource,
   };
 }
 
@@ -40,8 +46,12 @@ export function bonusValue(b, aspects = {}) {
   return (Number(b?.value) || 0) + (b?.aspect ? Number(aspects?.[b.aspect]) || 0 : 0);
 }
 
-/** "Passive Defense +1", "first hit each round −Metal 5", "+2 damage". */
-export function describeBonus(b, aspects = {}) {
+/** "Passive Defense +1", "first hit each round −Metal 5", "+2 damage". `steps` (growing bonuses) multiplies the value. */
+export function describeBonus(b, aspects = {}, steps = null) {
+  if (steps != null) {
+    const per = bonusValue(b, aspects), v = per * steps, sign = REDUCING_STATS.has(b.stat) ? "−" : v < 0 ? "−" : "+";
+    return `${BONUS_SHORT[b.stat]} ${sign}${Math.abs(v)} (${steps}/${b.stack?.max ?? "?"})`;
+  }
   const v = bonusValue(b, aspects);
   const asp = b.aspect ? `${ASPECT_LABEL[b.aspect]}${b.value ? (b.value > 0 ? ` +${b.value}` : ` −${-b.value}`) : ""}` : "";
   if (REDUCING_STATS.has(b.stat)) return `${BONUS_SHORT[b.stat]} −${asp ? `${asp} (${v})` : v}`;
@@ -65,18 +75,37 @@ export function bonusSourcesOf(items) {
 
 /**
  * Flatten bonus sources into a list of resolved bonuses:
- * [{ key, stat, value, mode, condition, label, sourceId, sourceName, bonus }]. key = "<sourceId>:<index>" (for tick boxes).
+ * [{ key, stat, value, mode, condition, label, sourceId, sourceName, bonus, stack, steps, perStep, vsSourceActor }].
+ * key = "<sourceId>:<index>" (for tick boxes and growing-bonus steps; dots become underscores).
+ * Growing bonuses (stack) are worth value × steps: steps from `stacks` ([{ key, steps }]), or for "opponentsEngaged"
+ * from `engaged` (opponents in close combat; null = not known here, counts 0). Their label carries "(steps/max)".
+ * Sources applied by another actor's effect carry sourceActor (a uuid): their vsSource bonuses only count on rolls
+ * involving that actor (see bonusesVs).
  */
-export function collectBonuses(sources, { aspects = {} } = {}) {
+export function collectBonuses(sources, { aspects = {}, stacks = [], engaged = null } = {}) {
   const out = [];
   for (const s of sources ?? []) {
     (s.bonuses ?? []).forEach((raw, i) => {
       const b = normalizeBonus(raw, s.name);
-      out.push({ key: `${s.id}:${i}`, stat: b.stat, value: bonusValue(b, aspects), mode: b.mode, condition: b.condition, label: b.label,
-        sourceId: s.id, sourceName: s.name, bonus: b, text: describeBonus(b, aspects), fromEffect: !!s.fromEffect });
+      const key = `${s.id}:${i}`.replace(/\./g, "_");
+      const per = bonusValue(b, aspects);
+      const steps = b.stack ? stackSteps(b.stack, stacks, key, { engaged }) : null;
+      out.push({ key, stat: b.stat, value: b.stack ? per * steps : per, mode: b.mode, condition: b.condition,
+        label: b.stack ? `${b.label} (${steps}/${b.stack.max})` : b.label, baseLabel: b.label,
+        sourceId: s.id, sourceName: s.name, bonus: b, text: describeBonus(b, aspects, steps), fromEffect: !!s.fromEffect,
+        stack: b.stack, steps, perStep: per,
+        vsSourceActor: b.vsSource && s.sourceActor ? s.sourceActor : null, sourceActorName: s.sourceActorName ?? "" });
     });
   }
   return out;
+}
+
+/**
+ * The bonuses that count on a roll involving `other` (an actor uuid, or null for no one in particular): every bonus,
+ * except vsSource ones from an effect, which count only against the actor who applied them.
+ */
+export function bonusesVs(list, other = null) {
+  return (list ?? []).filter(b => !b.vsSourceActor || (other && b.vsSourceActor === other));
 }
 
 /** { [stat]: { always: [...], situational: [...], alwaysTotal } } for every stat. */
@@ -130,4 +159,30 @@ export function pdBreakdown({ aspects, pdBonus = 0, armor = [], bonuses = [], ti
   const total = parts.reduce((s, p) => s + p.value, 0);
   const extra = parts.filter(p => !["aspect", "base"].includes(p.kind)).reduce((s, p) => s + p.value, 0);
   return { parts, total, extra, situational: u.situational };
+}
+
+/**
+ * What an attacker's bonuses do to the other side (schema v2): targetAd (the defender's Active Defense −N) and
+ * armorPierce (the target's armour counts N less, added to a technique's pierce). Always-on bonuses, ticked
+ * situational ones (ticked = { key: true }) and an active's bonuses (activeList, labelled "<name> (active)").
+ * Returns { targetAd: [{ label, value, situational }], targetAdTotal, pierceParts: [{ label, value, situational, technique }], pierce }.
+ */
+export function attackerSideBonuses(list, { ticked = {}, activeList = [], activeName = "", techniquePierce = 0, techniqueName = "" } = {}) {
+  const targetAd = [], pierceParts = [];
+  const side = { targetAd, armorPierce: pierceParts };
+  if (techniquePierce) pierceParts.push({ label: `${techniqueName || "Technique"} (technique)`, value: techniquePierce, situational: false, technique: true });
+  for (const b of list ?? []) {
+    if (!side[b.stat] || !b.value) continue;
+    const sit = b.mode === "situational";
+    if (sit && !ticked[b.key]) continue;
+    side[b.stat].push({ label: `${b.label}${sit && b.condition ? ` (${b.condition})` : ""}`, value: b.value, situational: sit });
+  }
+  for (const b of activeList ?? []) if (side[b.stat] && b.value) side[b.stat].push({ label: `${activeName} (active)`, value: b.value, situational: false });
+  const sum = (a) => a.reduce((t, p) => t + p.value, 0);
+  return { targetAd, targetAdTotal: sum(targetAd), pierceParts, pierce: sum(pierceParts) };
+}
+
+/** The attacker's targetAd entries as tagged parts on the defender's Active Defense (negative). */
+export function targetAdParts(targetAd, attackerName = "") {
+  return (targetAd ?? []).map(t => part("unique", `Attacker${attackerName ? `: ${attackerName}` : ""}, ${t.label}`, -Math.abs(Number(t.value) || 0), { situational: !!t.situational }));
 }

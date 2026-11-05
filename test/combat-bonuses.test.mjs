@@ -152,7 +152,7 @@ test("timed effects count down by combat round and expire; exchange effects last
   assert.equal(tot.pd[0].value, 3);
   assert.equal(tot.noPain, true);
   assert.equal(tot.bonusSources[0].id, "s");
-  assert.deepEqual(normalizeCombatState(null), { effects: [], queued: [], situational: {}, firstHit: null });
+  assert.deepEqual(normalizeCombatState(null), { effects: [], queued: [], situational: {}, firstHit: null, stacks: [], engaged: null, lastAttack: null, stackRound: null });
 });
 
 test("damage reductions in order: armour, then hit reductions, then Strong Defense", () => {

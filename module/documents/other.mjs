@@ -1,5 +1,5 @@
 import { rollYinYang, renderTemplate, Chat } from "../dice.mjs";
-import { tickedOf, queuedFor, consumeUpdate } from "../combat-state.mjs";
+import { tickedOf, queuedFor, consumeUpdate, rollBonuses } from "../combat-state.mjs";
 import { remainingActions, resetActionUpdates, maxExchanges, changeSpent, requestNextTurn } from "../combat-actions.mjs";
 
 export class QinItem extends foundry.documents.Item {
@@ -41,7 +41,7 @@ export class QinCombat extends foundry.documents.Combat {
       // Unique Initiative bonuses (always on, or situational and ticked) and Sudden Lightning's Speed if queued
       const extras = [];
       const ticked = tickedOf(actor);
-      for (const b of actor.system.bonusList ?? []) {
+      for (const b of rollBonuses(actor, null)) {
         if (b.stat !== "initiative" || (b.mode === "situational" && !ticked[b.key])) continue;
         extras.push({ kind: "unique", situational: b.mode === "situational", label: b.label, value: b.value });
       }

@@ -89,9 +89,23 @@
       <input type="text" data-bonus-field="label" value="{{label}}" placeholder="label (default: the skill's name)" {{#unless ../editable}}disabled{{/unless}} aria-label="Label">
       {{#if ../editable}}<a data-action="bonusRemove" data-index="{{index}}" title="Remove"><i class="fa-solid fa-xmark"></i></a>{{/if}}
     </div>
+    {{#if grow}}<p class="qin-muted qin-bonus-grow">&uarr; {{grow}}</p>{{/if}}
     {{else}}<p class="qin-muted">No structured bonuses. Everything in the description is applied by hand.</p>{{/each}}
   </div>
   {{/if}}
+
+  {{#if effectSummary}}
+  <h3>Effect on others</h3>
+  <ul class="qin-effect-summary">
+    <li><b>Target:</b> {{effectSummary.target}} · {{effectSummary.duration}}</li>
+    {{#if effectSummary.test}}<li><b>Test:</b> {{effectSummary.test}} (ties go to the target)</li>{{/if}}
+    {{#if effectSummary.onFail}}<li><b>{{#if effectSummary.test}}If they lose{{else}}Effect{{/if}}:</b> {{effectSummary.onFail}}</li>{{/if}}
+    {{#if effectSummary.onSuccess}}<li><b>If they resist:</b> {{effectSummary.onSuccess}}</li>{{/if}}
+    {{#if effectSummary.note}}<li><b>Reminder:</b> {{effectSummary.note}}</li>{{/if}}
+  </ul>
+  <p class="qin-muted">Using it posts an effect card: allies click Take it, enemies Resist; the GM can pick targets on the scene.</p>
+  {{/if}}
+  {{#if generalName}}<p class="qin-muted"><b>General version:</b> {{generalName}}</p>{{/if}}
 
   {{#if showEffects}}
   <h3>Automated battlefield effects</h3>

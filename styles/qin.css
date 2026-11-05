@@ -1112,3 +1112,16 @@ a.qin-stat:hover, a.qin-stat:focus-visible { border-color: var(--qin-gold); }
 .qin-cp-btns button small { color: var(--qin-muted); font-size: calc(11px * var(--qin-scale, 1.15)); }
 .qin-cp-btns button:disabled { opacity: 0.75; background: #ece3cf; cursor: not-allowed; }
 .qin-cp-btns button:not(:disabled):hover { border-color: #2f5f8a; }
+
+/* Growing bonuses and effects on others (0.100.9) */
+.qin-cp-step { min-width: 26px; flex: 0 0 auto; font-weight: bold; }
+.qin-cp-row.qin-cp-reminder { border: 1px dashed #b98a2e; }
+.qin-effect-card .qin-effect-roll { margin-top: 4px; padding: 4px 6px; border-radius: 6px; background: rgba(0, 0, 0, 0.04); }
+.qin-effect-result { margin: 4px 0; padding: 4px 0; border-top: 1px solid rgba(0, 0, 0, 0.1); }
+.qin-result-inline.ok, .qin-picker .ok { color: #2e7d32; font-weight: bold; }
+.qin-result-inline.fail, .qin-picker .fail { color: #b3261e; font-weight: bold; }
+.qin-picker { display: flex; flex-direction: column; gap: 6px; padding: 6px; }
+.qin-picker-list { max-height: 360px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.qin-picker-row { display: flex; gap: 6px; align-items: center; padding: 2px 4px; }
+.qin-picker-results { margin: 0; padding-left: 18px; }
+.qin-picker .qin-buttons { display: flex; gap: 4px; flex-wrap: wrap; }

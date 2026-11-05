@@ -4,9 +4,11 @@ import { ASPECTS, SKILLS, SKILL_LEVELS } from "../config.mjs";
 import * as Q from "../rules/qin-rules.mjs";
 import { rollYinYang, renderTemplate, formDialog, Chat } from "../dice.mjs";
 import { part, sumParts } from "../rules/sources.mjs";
-import { pdBreakdown, collectBonuses } from "../rules/bonuses.mjs";
+import { pdBreakdown, collectBonuses, attackerSideBonuses, targetAdParts } from "../rules/bonuses.mjs";
 import { damageAfterReductions, isFirstHitThisRound, resolveTao } from "../rules/tao-rules.mjs";
-import { getState, tickedOf, queuedFor, consumeUpdate, currentFight, taoOf, activateTao, markActiveUsed } from "../combat-state.mjs";
+import { getState, tickedOf, queuedFor, consumeUpdate, currentFight, taoOf, activateTao, markActiveUsed, rollBonuses, afterAttackStacks, stackEventFor } from "../combat-state.mjs";
+import { stackDefs, stackEvent, droppedLevel } from "../rules/stacks.mjs";
+import { postEffectCard } from "../skill-effects.mjs";
 
 const esc = (s) => foundry.utils.escapeHTML ? foundry.utils.escapeHTML(String(s ?? "")) : String(s ?? "");
 
@@ -73,13 +75,15 @@ export class QinActor extends foundry.documents.Actor {
    * strongDefense: true / false, or null = use it if it was queued. card: post the tagged damage card.
    * Returns a summary string.
    */
-  async applyDamage(amount, { protection = null, pierce = 0, reduction = 0, strongDefense = null, card = false } = {}) {
+  async applyDamage(amount, { protection = null, pierce = 0, reduction = 0, strongDefense = null, card = false, attacker = null, pierceParts = [] } = {}) {
     const sys = this.system;
     const prot = protection ?? sys.armor?.protection ?? 0;
     const fight = currentFight();
     const state = getState(this);
     const ticked = tickedOf(this);
-    const list = sys.bonusList ?? [];
+    // Bonuses "against <someone>" count only when that someone is the attacker
+    const list = rollBonuses(this, attacker);
+    const woundBefore = this._woundLevel();
     const reductions = [];
     for (const h of sys.hitReductions ?? []) reductions.push({ label: `Strengthened Body, ${h.label}`, value: h.value, kind: "tao", step: "hit" });
     const on = (b) => b.mode !== "situational" || ticked[b.key];
@@ -105,6 +109,8 @@ export class QinActor extends foundry.documents.Actor {
       }
     }
     if (Number(amount) > 0 && fight) state.firstHit = { combat: fight.id, round: fight.round };
+    // Growing bonuses that count hits taken
+    state.stacks = stackEvent(state.stacks, stackDefs(sys.bonusListAll), "hitTaken").stacks;
     update[`flags.qin.combatState`] = state;
     const pierceNote = pierce ? ` (armour −${pierce})` : "";
     const redText = res.steps.filter(s => s.applied).map(s => ` − ${s.applied} ${s.label}`).join("");
@@ -128,9 +134,13 @@ export class QinActor extends foundry.documents.Actor {
       stateLine = out ? "Out of action" : `${left} / ${sys.tier} health left`;
       text = `${this.name} takes ${dmg} damage (${amount} − ${res.armor.applied} armour${pierceNote}${redText}) and loses ${lost} health (Resistance ${sys.resistance}): ${out ? "out of action" : `${left} / ${sys.tier} health left`}.`;
     } else return "";
+    // The attacker's "each opponent he drops" bonuses grow when this hit made the wound level worse
+    const attackerActor = attacker ? await fromUuid(attacker) : null;
+    if (attackerActor && droppedLevel(woundBefore, this._woundLevel())) await stackEventFor(attackerActor, "dropOpponent");
     if (card) {
       const parts = [part("base", "Incoming damage", amount)];
       if (prot || pierce) parts.push(part("gear", `${sys.armor?.name || "Armour"} ${prot}${pierce ? `, pierced −${pierce}` : ""}`, -res.armor.applied));
+      for (const p of pierceParts ?? []) if (p.value) parts.push(part("unique", `${p.label}: armour counts ${p.value} less`, 0, { situational: !!p.situational, display: `pierce ${p.value}` }));
       const unused = [];
       for (const s of res.steps) {
         if (s.used) parts.push(part(s.kind, s.label, -s.applied, { situational: !!s.situational }));
@@ -146,6 +156,14 @@ export class QinActor extends foundry.documents.Actor {
       await Chat().create({ speaker: { alias: "Damage" }, content, flags: { qin: { kind: "damage", target: this.uuid, damage: dmg } } });
     }
     return text;
+  }
+
+  /** Wound state for "dropped to a worse wound level": characters by Breath of Life level, henchmen by health. */
+  _woundLevel() {
+    const sys = this.system;
+    if (this.isCharacter) return { level: sys.bol?.current, coma: !!sys.bol?.coma, dead: !!sys.bol?.dead, out: !!(sys.bol?.coma || sys.bol?.dead) };
+    if (this.isHenchman) return { health: (sys.tier || 0) - (sys.wounds || 0), out: !!sys.outOfAction };
+    return null;
   }
 
   /* ---------------------------------------- Tests */
@@ -249,19 +267,20 @@ export class QinActor extends foundry.documents.Actor {
     const target = targetToken?.actor ?? null;
     const sys = this.system;
     const ticked = tickedOf(this);
-    const list = sys.bonusList ?? [];
     const tSys = target && target.type !== "unit" ? target.system : null;
+    // Growing bonuses at their current steps; bonuses "against <someone>" only between the two of them
+    const list = rollBonuses(this, tSys ? target : null);
     const tTicked = tSys ? tickedOf(target) : {};
-    const tList = tSys?.bonusList ?? [];
+    const tList = tSys ? rollBonuses(target, this) : [];
     const tPD = tSys?.aspects ? pdBreakdown({
       aspects: tSys.aspects, pdBonus: tSys.pdBonus || 0, armor: tSys.armor?.list ?? [], bonuses: tList, ticked: tTicked,
       tao: (tSys.combatEffects ?? []).filter(e => e.effect === "pd").map(e => ({ label: `${e.source ? `${e.source}, ` : ""}${e.label}`, value: e.value })),
     }) : null;
     const chiDefIncluded = (tSys?.combatEffects ?? []).filter(e => e.effect === "pd" && e.exchange).reduce((t, e) => t + (Number(e.value) || 0), 0);
-    const activeList = active ? collectBonuses([{ id: active.id, name: active.name, bonuses: active.system.bonuses }], { aspects: sys.aspects }).filter(b => ["attack", "damage"].includes(b.stat)) : [];
+    const activeList = active ? collectBonuses([{ id: active.id, name: active.name, bonuses: active.system.bonuses }], { aspects: sys.aspects }).filter(b => ["attack", "damage", "targetAd", "armorPierce"].includes(b.stat)) : [];
     // Tick boxes: own situational attack/damage bonuses, and the target's situational "attackers take −N"
     const sitOpts = [];
-    for (const b of list) if (b.mode === "situational" && ["attack", "damage"].includes(b.stat)) sitOpts.push({ b, owner: "self", checked: !!ticked[b.key], text: `${b.label}: ${b.text}`, condition: b.condition });
+    for (const b of list) if (b.mode === "situational" && ["attack", "damage", "targetAd", "armorPierce"].includes(b.stat)) sitOpts.push({ b, owner: "self", checked: !!ticked[b.key], text: `${b.label}: ${b.text}`, condition: b.condition });
     for (const b of tList) if (b.mode === "situational" && b.stat === "attackersPenalty") sitOpts.push({ b, owner: "target", checked: !!tTicked[b.key], text: `Target: ${target.name}, ${b.label}: attack −${b.value}`, condition: b.condition });
     sitOpts.forEach((s, i) => { s.i = i; });
     const queued = queuedFor(this, "attack").map((q, i) => ({ ...q, i }));
@@ -271,7 +290,7 @@ export class QinActor extends foundry.documents.Actor {
       techniques, earth: sys.aspects.earth, isCharacter: this.isCharacter, isRanged: weapon.system.isRanged,
       distance: picked ? Math.round(picked.yards) : null, band: picked?.band ?? null, situation: picked?.band?.st ?? 0,
       sitOpts, queued, active: active ? { name: active.name, chiCost: active.system.chiCost, text: activeList.map(b => b.text).join(", ") } : null,
-      always: [...list.filter(b => b.mode !== "situational" && ["attack", "damage"].includes(b.stat)).map(b => `${b.label}: ${b.text}`),
+      always: [...list.filter(b => b.mode !== "situational" && ["attack", "damage", "targetAd", "armorPierce"].includes(b.stat)).map(b => `${b.label}: ${b.text}`),
         ...tList.filter(b => b.mode !== "situational" && b.stat === "attackersPenalty").map(b => `Target: ${target.name}, ${b.label}: attack −${b.value}`)],
     });
     const fd = await formDialog({ title: `${this.name}: attack with ${weapon.name}${active ? ` (${active.name})` : ""}`, content, okLabel: "Attack" });
@@ -286,15 +305,19 @@ export class QinActor extends foundry.documents.Actor {
     const mod = (Number(fd.modifier) || 0) + (Number(fd.aim) || 0);
     const wpnMod = weapon.system.attackModifier || 0;
     const sitOn = sitOpts.map(s => !!fd[`sit_${s.i}`]);
+    // targetAd (the defender's Active Defense −N) and armorPierce (the target's armour counts N less) go on the card's
+    // flags, tagged with the skill, for the defense and the damage
     const atkUnique = [], dmgUnique = [];
     for (const b of list) if (b.mode !== "situational") {
       if (b.stat === "attack") atkUnique.push(part("unique", b.label, b.value));
       if (b.stat === "damage") dmgUnique.push(part("unique", b.label, b.value));
     }
     for (const b of tList) if (b.mode !== "situational" && b.stat === "attackersPenalty") atkUnique.push(part("unique", `Target: ${target.name}, ${b.label}`, -b.value));
-    for (const b of activeList) (b.stat === "attack" ? atkUnique : dmgUnique).push(part("unique", `${active.name} (active)`, b.value));
+    for (const b of activeList) if (b.stat === "attack" || b.stat === "damage") (b.stat === "attack" ? atkUnique : dmgUnique).push(part("unique", `${active.name} (active)`, b.value));
+    const dialogTicked = {};
     sitOpts.forEach((s, i) => {
       if (!sitOn[i]) return;
+      if (s.owner === "self" && (s.b.stat === "targetAd" || s.b.stat === "armorPierce")) { dialogTicked[s.b.key] = true; return; }
       const label = `${s.owner === "target" ? `Target: ${target.name}, ` : ""}${s.b.label}${s.condition ? ` (${s.condition})` : ""}`;
       if (s.b.stat === "attack") atkUnique.push(part("unique", label, s.b.value, { situational: true }));
       else if (s.b.stat === "damage") dmgUnique.push(part("unique", label, s.b.value, { situational: true }));
@@ -326,12 +349,14 @@ export class QinActor extends foundry.documents.Actor {
       const { update } = consumeUpdate(this, useQ.map(q => q.id));
       await this.update(update);
     }
-    const pierce = tech && /direct hit|masterstroke/i.test(tech.name) ? 2 : 0;
+    const techPierce = tech && /direct hit|masterstroke/i.test(tech.name) ? 2 : 0;
+    const { targetAd, pierceParts, pierce } = attackerSideBonuses(list, { ticked: dialogTicked, activeList, activeName: active?.name ?? "", techniquePierce: techPierce, techniqueName: tech?.name ?? "" });
     await this._afterDice(dice);
     const extra = (active ? `<p><span class="qin-src qin-src-unique">Unique</span> <b>${esc(active.name)}</b> used${active.system.chiCost ? ` (${active.system.chiCost} Chi)` : ""}</p>` : "")
       + (tech ? `<p><b>Technique:</b> ${esc(tech.name)} (ST +${tech.system.stIncrease})</p>` : "")
       + (situation && st != null ? `<p class="qin-muted">Situation ${situation > 0 ? "+" : ""}${situation} to the ST</p>` : "")
       + (target && !tPD ? `<p><b>Target:</b> ${esc(target.name)} (Passive Defense ${basePD ?? "?"})</p>` : "");
+    const notes = targetAd.map(t => ({ kind: "unique", situational: !!t.situational, text: `${t.label}: the defender's Active Defense −${t.value}` }));
     const pdBox = target && tPD ? (basePD === tPD.total
       ? { title: `${target.name}'s Passive Defense ${tPD.total}`, parts: tPD.parts }
       : { title: `${target.name}'s Passive Defense ${tPD.total} (${basePD ?? "none"} entered by hand)`, parts: tPD.parts }) : null;
@@ -346,11 +371,15 @@ export class QinActor extends foundry.documents.Actor {
     }
     await this._postRoll({
       title: `${weapon.name} attack`, roll, dice, parts, total, st, success: st == null ? null : hit, extra, buttons,
-      stLabel: tech || situation ? "ST" : "Passive Defense", pdBox, situational,
-      damageBox: { total: damage, parts: dmg.parts, note: pierce ? "armour −2 (technique)" : "" },
-      flags: { kind: "attack", attacker: this.uuid, target: target?.uuid ?? null, total, damage, pierce, skill: weapon.system.skill, ranged: weapon.system.isRanged, hit,
+      stLabel: tech || situation ? "ST" : "Passive Defense", pdBox, situational, notes,
+      damageBox: { total: damage, parts: dmg.parts, note: pierceParts.map(p => `armour −${p.value} (${p.technique ? "technique" : p.label})`).join(", ") },
+      flags: { kind: "attack", attacker: this.uuid, target: target?.uuid ?? null, total, damage, pierce, pierceParts, targetAd, skill: weapon.system.skill, ranged: weapon.system.isRanged, hit,
         st, basePD, critFail: !!dice.critFail, fight: currentFight(), chiDefIncluded },
     });
+    // Growing bonuses: remember the attack ("no attack last round"), reset the ones that reset when he attacks
+    await afterAttackStacks(this);
+    // An attack active that also acts on others posts its effect card
+    if (active?.system.effect?.target) await postEffectCard(this, active);
     playAttackFx({ source, target: targetToken, point: picked?.point, weapon, hit }).catch(e => console.warn("Qin | attack animation", e));
     // The card remembers the target, so drop the targeting arrows once the attack is posted
     if (picked) for (const t of [...game.user.targets]) t.setTarget(false, { releaseOthers: false, groupSelection: false });
@@ -377,7 +406,7 @@ export class QinActor extends foundry.documents.Actor {
     const qDef = queuedFor(this, "defense");
     const qStrong = qDef.find(q => q.key === "invisibleShield.3"), qChiBlock = qDef.find(q => q.key === "invisibleShield.4");
     const ticked = tickedOf(this);
-    const list = sys.bonusList ?? [];
+    const list = rollBonuses(this, attack.attacker ?? null);
     const sitOpts = list.filter(b => b.stat === "ad" && b.mode === "situational").map((b, i) => ({ i, b, checked: !!ticked[b.key], text: `${b.label}: ${b.text}`, condition: b.condition }));
     const alwaysAD = list.filter(b => b.stat === "ad" && b.mode !== "situational");
     const techniques = this.items.filter(i => i.type === "technique" && i.system.roll === "defense" && (i.system.skill === skillKey || i.system.skill === "any"));
@@ -387,7 +416,7 @@ export class QinActor extends foundry.documents.Actor {
       attacker: attack.attacker ? fromUuidSync(attack.attacker)?.name : null,
       techniques, isCharacter: this.isCharacter, earth: sys.aspects.earth,
       strongBlock: shield >= 3, strongQueued: !!qStrong, chiBlock: shield >= 4, chiBlockQueued: !!qChiBlock, wood: sys.aspects.wood,
-      sitOpts, always: alwaysAD.map(b => `${b.label}: ${b.text}`),
+      sitOpts, always: [...alwaysAD.map(b => `${b.label}: ${b.text}`), ...(attack.targetAd ?? []).map(t => `Attacker, ${t.label}: Active Defense −${t.value}`)],
       actionsNote: combatant ? `Uses 1 action (${remainingActions(combatant)} left this round), unless Chi Block is ticked.` : "",
     });
     const fd = await formDialog({ title: `${this.name}: ${type === "block" ? "Block" : "Dodge"}`, content, okLabel: type === "block" ? "Block" : "Dodge" });
@@ -410,6 +439,7 @@ export class QinActor extends foundry.documents.Actor {
     const sk = this.getSkill(skillKey);
     const { roll, dice } = await rollYinYang({ beginner: sk.value === 0 && type === "block" });
     const water = sys.aspects.water;
+    const attackerName = attack.attacker ? fromUuidSync(attack.attacker)?.name ?? "" : "";
     const shieldName = (sys.armor.list ?? []).filter(a => a.defenseBonus).map(a => a.name).join(", ") || "Shield";
     const sitOn = sitOpts.map(s => !!fd[`sit_${s.i}`]);
     const parts = [
@@ -420,6 +450,8 @@ export class QinActor extends foundry.documents.Actor {
       strong ? part("tao", `Invisible Shield ${shield}, Strong Block: +Wood (3 Chi)`, strong) : null,
       ...alwaysAD.map(b => part("unique", b.label, b.value)),
       ...sitOpts.filter((s, i) => sitOn[i]).map(s => part("unique", `${s.b.label}${s.condition ? ` (${s.condition})` : ""}`, s.b.value, { situational: true })),
+      // The attacker's "opponents take −N on Active Defense" (targetAd), from the attack card
+      ...targetAdParts(attack.targetAd, attackerName),
       inner ? part("modifier", `Inner strength (−${inner * 2} Chi)`, inner) : null,
       mod ? part("modifier", "Modifier", mod) : null,
       ...this._penaltyParts(true),

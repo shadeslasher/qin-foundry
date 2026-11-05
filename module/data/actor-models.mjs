@@ -1,6 +1,6 @@
 import { SKILLS, ASPECTS } from "../config.mjs";
 import * as Q from "../rules/qin-rules.mjs";
-import { bonusSourcesOf, collectBonuses, bonusesByStat, pdBreakdown } from "../rules/bonuses.mjs";
+import { bonusSourcesOf, collectBonuses, bonusesByStat, pdBreakdown, bonusesVs } from "../rules/bonuses.mjs";
 import { normalizeCombatState, liveEffects, effectTotals } from "../rules/tao-rules.mjs";
 
 /** The running fight on the tracker as { id, round, exchange }, if any (safe outside Foundry). */
@@ -70,7 +70,11 @@ class QinBaseActor extends foundry.abstract.TypeDataModel {
     const fx = effectTotals(live);
     this.combatEffects = live;
     this.noPain = fx.noPain;
-    this.bonusList = collectBonuses([...bonusSourcesOf(items), ...fx.bonusSources], { aspects: a });
+    // bonusSources: kept for roll time (growing bonuses recomputed with the opponents engaged, vsSource filtered).
+    // bonusListAll: everything; bonusList: the standing ones (bonuses "against <someone>" only count in rolls with them).
+    this.bonusSources = [...bonusSourcesOf(items), ...fx.bonusSources];
+    this.bonusListAll = collectBonuses(this.bonusSources, { aspects: a, stacks: state.stacks });
+    this.bonusList = bonusesVs(this.bonusListAll, null);
     this.bonuses = bonusesByStat(this.bonusList);
     const pd = pdBreakdown({ aspects: a, pdBonus: this.pdBonus || 0, armor: armorList, bonuses: this.bonusList, tao: fx.pd });
     this.passiveDefense = pd.total;

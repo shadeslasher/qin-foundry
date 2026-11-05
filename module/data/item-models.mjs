@@ -158,7 +158,16 @@ export class SignatureData extends foundry.abstract.TypeDataModel {
         mode: new fields.StringField({ initial: "always", choices: ["always", "situational"] }),
         condition: new fields.StringField({ initial: "" }),
         label: new fields.StringField({ initial: "" }),
+        // Schema v2 (David, 2026-11-05): growing bonus { trigger, max, resetOn, offset }, and "against him" for
+        // bonuses an effect puts on someone else
+        stack: new fields.ObjectField({ required: false, nullable: true, initial: null }),
+        vsSource: new fields.BooleanField({ initial: false }),
       }), { initial: [] }),
+      // Actives only: what the skill does to others { target, test, onFail, onSuccess, duration, note } (schema v2 §2)
+      effect: new fields.ObjectField({ required: false, nullable: true, initial: null }),
+      // A general version for players who learn the skill (schema v2 §3); the compendium copy uses these
+      generalName: new fields.StringField({ initial: "" }),
+      generalDesc: new fields.HTMLField({ initial: "" }),
       description: desc(),
     };
   }

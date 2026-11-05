@@ -139,7 +139,9 @@ export function isFirstHitThisRound(firstHit, combat) {
 
 /**
  * { effects: [timed / exchange / rest-of-fight effects], queued: [effects waiting for a roll],
- *   situational: { "<sourceId>:<index>": true } (ticked situational bonuses), firstHit: { combat, round } }.
+ *   situational: { "<sourceId>:<index>": true } (ticked situational bonuses), firstHit: { combat, round },
+ *   stacks: [{ key, steps }] (growing bonuses), engaged: { adjust, combat, round } (panel correction to the opponents
+ *   engaged count, for that round), lastAttack: { combat, round }, stackRound: { combat, round } (last round counted) }.
  */
 export function normalizeCombatState(raw) {
   return {
@@ -147,6 +149,10 @@ export function normalizeCombatState(raw) {
     queued: Array.isArray(raw?.queued) ? raw.queued.filter(Boolean) : [],
     situational: raw?.situational && typeof raw.situational === "object" ? { ...raw.situational } : {},
     firstHit: raw?.firstHit ?? null,
+    stacks: Array.isArray(raw?.stacks) ? raw.stacks.filter(e => e?.key) : [],
+    engaged: raw?.engaged ?? null,
+    lastAttack: raw?.lastAttack ?? null,
+    stackRound: raw?.stackRound ?? null,
   };
 }
 
@@ -167,7 +173,8 @@ export function effectTotals(effects) {
     if (e.effect === "pd") out.pd.push({ label: e.label, value: Number(e.value) || 0 });
     else if (e.effect === "hitReduction") out.hitReduction.push({ label: e.label, value: Number(e.value) || 0 });
     else if (e.effect === "noPain") out.noPain = true;
-    if (e.bonuses?.length) out.bonusSources.push({ id: e.sourceId || e.id, name: e.label, bonuses: e.bonuses, fromEffect: true });
+    if (e.bonuses?.length) out.bonusSources.push({ id: e.sourceId || e.id, name: e.label, bonuses: e.bonuses, fromEffect: true,
+      sourceActor: e.sourceActor || null, sourceActorName: e.source || "" });
     if (e.noPain) out.noPain = true;
   }
   return out;

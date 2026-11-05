@@ -13,13 +13,24 @@
     <section>
       <h4>In effect now</h4>
       {{#each inEffect}}
-      <div class="qin-cp-row qin-cp-{{kind}}"><span class="qin-src qin-src-{{kind}}">{{#if (eq kind "tao")}}Tao{{else}}Unique{{/if}}</span><span class="qin-cp-grow">{{text}}</span><b>{{left}}</b>{{#if canEnd}}<button type="button" data-action="endEffect" data-id="{{id}}">End</button>{{/if}}</div>
+      <div class="qin-cp-row qin-cp-{{kind}}{{#if reminder}} qin-cp-reminder{{/if}}"><span class="qin-src qin-src-{{kind}}">{{#if (eq kind "tao")}}Tao{{else}}Unique{{/if}}</span><span class="qin-cp-grow">{{#if reminder}}<i class="fa-solid fa-circle-exclamation" title="Reminder: applied by hand"></i> {{/if}}{{text}}</span><b>{{left}}</b>{{#if canEnd}}<button type="button" data-action="endEffect" data-id="{{id}}">End</button>{{/if}}</div>
       {{/each}}
       {{#each alwaysRows}}
       <div class="qin-cp-row qin-cp-plain"><span class="qin-src qin-src-unique">Unique</span><span class="qin-cp-grow">{{text}}</span><span class="qin-muted">always on</span></div>
       {{/each}}
       {{#unless inEffect.length}}{{#unless alwaysRows.length}}<p class="qin-muted">Nothing in effect.</p>{{/unless}}{{/unless}}
     </section>
+
+    {{#if growing.length}}
+    <section class="qin-cp-growing">
+      <h4>Growing bonuses</h4>
+      {{#each growing}}
+      <div class="qin-cp-row qin-cp-plain"><span class="qin-src qin-src-unique">Unique</span><span class="qin-cp-grow"><b>{{text}}</b><br><small class="qin-muted">{{sub}}</small></span>
+        <button type="button" class="qin-cp-step" data-action="stackDown" data-key="{{key}}" {{#unless canDown}}disabled{{/unless}} aria-label="One step less" title="One step less">&minus;</button>
+        <button type="button" class="qin-cp-step" data-action="stackUp" data-key="{{key}}" {{#unless canUp}}disabled{{/unless}} aria-label="One step more" title="One step more">+</button></div>
+      {{/each}}
+    </section>
+    {{/if}}
 
     <section class="qin-cp-ready">
       <h4>Ready for the next roll</h4>
