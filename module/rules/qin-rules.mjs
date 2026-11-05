@@ -116,16 +116,16 @@ export function yinYangResult(yin, yang, { beginner = false } = {}) {
 /** House rule (David, 2026-11-05): Yang over Yin adds 1 damage per 2 points (rounded down). */
 export const yangDamage = (dice) => Math.floor((dice?.yangDiff || 0) / 2);
 
-/** House rule (David, 2026-11-05): every Active Defense Test (Block or Dodge) gets +1. */
-export const ACTIVE_DEFENSE_BONUS = 1;
+/** House rule (David, 2026-11-05): a double on a hit adds half its face value as damage (rounded down). Chi regained is unchanged. */
+export const doubleDamage = (dice) => Math.floor((dice?.value || 0) / 2);
 
 /**
  * Attack damage = Metal + weapon damage + half of (Yang - Yin if Yang higher), rounded down
- * + (face value on a double, only if the attack hits).
+ * + half the face value on a double, rounded down (only if the attack hits).
  */
 export function attackDamage({ metal, weapon, dice, hit, bonus = 0 }) {
   let dmg = metal + weapon + yangDamage(dice) + bonus;
-  if (dice.double && !dice.critFail && hit) dmg += dice.value;
+  if (dice.double && !dice.critFail && hit) dmg += doubleDamage(dice);
   return Math.max(0, dmg);
 }
 

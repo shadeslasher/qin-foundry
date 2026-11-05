@@ -208,7 +208,7 @@ export class QinActor extends foundry.documents.Actor {
     ].filter(Boolean);
     const dmgParts = [`Metal ${metal}`, `${weapon.name} ${weapon.system.damage}`];
     if (Q.yangDamage(dice)) dmgParts.push(`Yang over Yin ${dice.yangDiff} (half: ${Q.yangDamage(dice)})`);
-    if (dice.double && !dice.critFail && hit) dmgParts.push(`double ${dice.value}`);
+    if (dice.double && !dice.critFail && hit) dmgParts.push(`double ${dice.value} (half: ${Q.doubleDamage(dice)})`);
     if (dmgBonus) dmgParts.push(`bonus ${dmgBonus}`);
     const pierce = tech && /direct hit|masterstroke/i.test(tech.name) ? 2 : 0;
     await this._afterDice(dice);
@@ -270,13 +270,12 @@ export class QinActor extends foundry.documents.Actor {
     const water = this.system.aspects.water;
     const penalty = this.system.penalty || 0;
     const armorPen = this.system.armor.movementPenalty;
-    const total = water + sk.value + dice.value + Q.ACTIVE_DEFENSE_BONUS + shieldBonus + inner + strong + mod - penalty - armorPen;
+    const total = water + sk.value + dice.value + shieldBonus + inner + strong + mod - penalty - armorPen;
     const st = attack.total + (tech ? tech.system.stIncrease : 0);
     const success = !dice.critFail && total >= st;
     const parts = [
       ["Water", water], [`${sk.label} (${SKILL_LEVELS[sk.value]})`, sk.value],
       [`Yin/Yang (${dice.yin} / ${dice.yang})${dice.double && !dice.critFail ? ", double" : ""}`, dice.value],
-      ["Active Defense house rule", Q.ACTIVE_DEFENSE_BONUS],
       shieldBonus ? ["Shield", shieldBonus] : null, inner ? [`Inner strength (−${inner * 2} Chi)`, inner] : null,
       strong ? ["Strong Block", strong] : null, mod ? ["Modifier", mod] : null,
       penalty ? ["Injury penalty", -penalty] : null, armorPen ? ["Armor movement penalty", -armorPen] : null,
