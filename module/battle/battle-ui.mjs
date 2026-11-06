@@ -466,7 +466,6 @@ function renderMenu(sub = null) {
     html += b("back", "Back", true);
   } else if (sub === "ability") {
     if (officer?.skill) { const why = flags.skill ? "" : E.skillCheck(current.s, u, officer).reason; html += b("skill", `${esc(officer.skill.name)}${officer.skill.moraleCost ? ` (${officer.skill.moraleCost} morale)` : ""}${why ? ` · ${esc(why)}` : ""}`, flags.skill, officer.skill.text || ""); }
-    if (officer?.battleArt) html += b("art", `Battle art: ${esc(officer.battleArt.name)}`, flags.art, officer.battleArt.text || "");
     html += b("back", "Back", true);
   } else {
     const abilityTip = !officer ? "No officer" : officer.skill ? `${officer.skill.name}: ${officer.skill.text || ""}` : "This officer has no battle ability";
@@ -548,13 +547,11 @@ function onMenuClick(ev) {
     case "heroic": return renderMenu("heroic");
     case "heroicPick": return send({ type: "heroic", unitId: id, index: Number(btn.dataset.index) });
     case "ability": {
-      const { officer, flags } = current;
-      if (flags.skill && !(officer.battleArt && flags.art)) return useSkillUI();
-      if (flags.art && !(officer.skill && flags.skill)) return send({ type: "battleArt", unitId: id });
+      const { flags } = current;
+      if (flags.skill) return useSkillUI();
       return renderMenu("ability");
     }
     case "skill": return useSkillUI();
-    case "art": return send({ type: "battleArt", unitId: id });
   }
 }
 

@@ -70,7 +70,6 @@ function officerLibraryEntry(officer) {
     }
   }
   const skill = abilities.find(a => a.system.kind === "skill");
-  const art = abilities.find(a => a.system.kind === "battleArt");
   const battle = battleSpecs(sig("battlePassive"), sig("battleActive"));
   if (battle?.passive) for (const k of Object.keys(effects)) delete effects[k]; // the automated passive replaces the old effect flags (no double bonus)
   return {
@@ -81,7 +80,6 @@ function officerLibraryEntry(officer) {
     skill: skill ? { name: skill.name, text: stripHtml(skill.system.description), moraleCost: skill.system.moraleCost,
       recharge: skill.system.recharge ?? 0, perBattle: !!skill.system.perScene || !!battle?.active?.oncePerBattle, lastStand: !!skill.system.lastStand } : null,
     heroicActions: HEROIC_ACTIONS.map(h => ({ name: h.name, text: h.text })), // every officer may use the heroic action list
-    battleArt: art ? { name: art.name, text: stripHtml(art.system.description) } : null,
     tier: parseInt(String(officer.system.details?.tier ?? "").match(/\d+/)?.[0] ?? "0", 10) || 0,
     battle, // officers' battlefield skills, automated (skills.mjs)
   };

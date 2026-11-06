@@ -733,7 +733,6 @@ function actionMenu(s, u) {
   const canStillAct = !u.round.attacked && !ac.forcedMarched;
   const reloading = !!fx(u).reload;
   const skillOk = !!(o && o.skill && skillCheck(s, u, o).ok);
-  const artOk = !!(o && o.battleArt && !u.round.skillUsed && moraleState(u.morale) === 'Encouraged');
   return {
     move: opts.blue.size + opts.red.size > 0,
     attack: canStillAct && !reloading && attackTargets(s, u).length > 0, reloading,
@@ -752,7 +751,7 @@ function actionMenu(s, u) {
     duel: canStillAct && duelTargets(s, u).length > 0,
     outrider: canStillAct && outriderTiles(s, u).length > 0,
     overwatch: canStillAct && !reloading && typeOf(s, u).weapon === 'ranged',
-    ability: skillOk || artOk, skill: skillOk, art: artOk,
+    ability: skillOk, skill: skillOk,
     heroic: HEROIC_ENABLED && !!(o && (o.heroicActions || []).length && !u.round.heroicUsed && (u.heroicUsed || 0) < (o.fire || 0)),
     undo: !!ac.undo,
     takeBack: !!ac.takeBack,
@@ -2634,14 +2633,6 @@ const ACTIONS = {
     r.u.heroicUsed++; r.u.lastHeroic = h.name; r.u.round.heroicUsed = true; r.act.started = true;
     log(s, r.u.name + ' heroic action: ' + h.name + ' (' + r.u.heroicUsed + '/' + o.fire + '). ' + (h.text || ''), { type: 'heroic' });
     fireTactics(s, 'heroic', r.u);
-  },
-  battleArt(s, actor, a) {
-    const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
-    const o = officerOf(s, r.u); if (!o || !o.battleArt) return err('No battle art');
-    if (moraleState(r.u.morale) !== 'Encouraged') return err('Battle arts need Encouraged morale (75+)');
-    if (r.u.round.skillUsed) return err('Officer skill already used this turn');
-    r.u.round.skillUsed = true; r.act.started = true;
-    log(s, r.u.name + ' battle art: ' + o.battleArt.name + '. ' + (o.battleArt.text || ''), { type: 'skill' });
   },
 };
 

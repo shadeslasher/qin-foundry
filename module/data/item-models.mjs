@@ -103,11 +103,15 @@ export class SkillData extends foundry.abstract.TypeDataModel {
   }
 }
 
-/** Battlefield officer ability: passive, battle skill, heroic action or battle art. */
+/** Battlefield officer ability: passive, battle skill or heroic action. ("Battle art" was folded into battle skill, David 2026-11-05.) */
 export class OfficerAbilityData extends foundry.abstract.TypeDataModel {
+  static migrateData(src) {
+    if (src?.kind === "battleArt") src.kind = "skill"; // battle arts are battlefield skills (David, 2026-11-05)
+    return super.migrateData(src);
+  }
   static defineSchema() {
     return {
-      kind: new fields.StringField({ initial: "passive", choices: ["passive", "skill", "heroic", "battleArt"] }),
+      kind: new fields.StringField({ initial: "passive", choices: ["passive", "skill", "heroic"] }),
       moraleCost: int(0, { min: 0 }),
       // In-person actives: rounds to wait after a use (0 none, 1 once per round), or once per fight; the last use
       recharge: int(0, { min: 0 }),

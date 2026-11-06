@@ -102,7 +102,7 @@ export const MAGIC_WAYS = {
 };
 
 export const OFFICER_ABILITY_KINDS = {
-  passive: "Passive (always on)", skill: "Battle skill (once per turn)", heroic: "Heroic action (uses = Fire)", battleArt: "Battle art (Encouraged only)",
+  passive: "Passive (always on)", skill: "Battle skill (once per turn)", heroic: "Heroic action (uses = Fire)",
 };
 
 export const OFFICER_EFFECTS = {
