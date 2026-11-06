@@ -46,6 +46,25 @@ function ownerUserId(actor) {
   return user?.id ?? null;
 }
 
+/**
+ * What battlefield skills may compare about an officer (David, 2026-11-05): military rank (the rtk13-map module's
+ * rank flag or his sheet's titles; 1 without either), his faction and whether he leads it (rtk13-map), his family
+ * name (the first word of his name), and his aspects. Without the map module, rank 1 and no faction.
+ */
+function officerStanding(officer) {
+  const api = game.modules?.get?.("rtk13-map")?.active ? game.modules.get("rtk13-map").api : null;
+  let rank = 1, faction = null, ruler = false;
+  try {
+    const flag = officer.getFlag?.("rtk13-map", "rank");
+    const sheet = api?.fromSheet?.(officer);
+    rank = Number(flag ?? sheet?.rank ?? 1) || 1;
+    faction = api?.actorFaction?.(officer) ?? null;
+    ruler = !!sheet?.ruler;
+  } catch { /* no map module */ }
+  const family = String(officer.name ?? "").replace(/\s*\(.*\)\s*$/, "").trim().split(/\s+/)[0] || "";
+  return { rank, faction, ruler, family, aspects: { ...(officer.system.aspects ?? {}) } };
+}
+
 /** The automated battlefield passive / active of an officer, when a spec exists for his items (skill-data.mjs). */
 function battleSpecs(pItem, aItem) {
   const passive = specForItem(pItem), active = specForItem(aItem);
@@ -81,6 +100,7 @@ function officerLibraryEntry(officer) {
       recharge: skill.system.recharge ?? 0, perBattle: !!skill.system.perScene || !!battle?.active?.oncePerBattle, lastStand: !!skill.system.lastStand } : null,
     heroicActions: HEROIC_ACTIONS.map(h => ({ name: h.name, text: h.text })), // every officer may use the heroic action list
     tier: parseInt(String(officer.system.details?.tier ?? "").match(/\d+/)?.[0] ?? "0", 10) || 0,
+    ...officerStanding(officer), // rank, faction, ruler, family, aspects: for battlefield skills that compare officers
     battle, // officers' battlefield skills, automated (skills.mjs)
   };
 }
@@ -141,6 +161,8 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
   s.siege = battle.siege ?? null;
   s.skillsBegun = !!battle.skillsBegun; // officers' battlefield skills: battle-start effects done
   s.skillInterjects = battle.skillInterjects ?? []; s.skillExtra = battle.skillExtra ?? []; // short extra turns skills hand out
+  s.skillOrder = battle.skillOrder ?? []; s.skillCancelTactic = battle.skillCancelTactic ?? []; s.skFallen = battle.skFallen ?? {};
+  s.tileOverrides = battle.tileOverrides ?? {};
   s.deployZones = scene?.getFlag?.(SYSTEM_ID, DEPLOY_FLAG) ?? []; // deployment squares, saved with the scene
   s.objectives = foundry.utils.deepClone(scene?.getFlag?.(SYSTEM_ID, OBJECTIVES_FLAG) ?? emptyObjectives()); // victory / defeat conditions
   s.objState = battle.objState ?? freshObjState();
@@ -159,6 +181,8 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
   const bm = scene.getFlag?.(SYSTEM_ID, MAP_FLAG) ?? scene.flags?.[SYSTEM_ID]?.[MAP_FLAG];
   const tiles = bm ? (tileCache.get(scene.id)?.flag === bm ? tileCache.get(scene.id).tiles : decodeTiles(bm)) : null;
   if (tiles) { tileCache.set(scene.id, { flag: bm, tiles }); s.map.tiles = tiles; s.map.cols = bm.cols; s.map.rows = bm.rows; }
+  // squares a battlefield skill changed (a ford dug, a palisade raised...): laid over the map, without touching the cached one
+  if (tiles && battle.tileOverrides && Object.keys(battle.tileOverrides).length) { s.map.tiles = { ...tiles }; for (const [k, o] of Object.entries(battle.tileOverrides)) if (o?.tile) s.map.tiles[k] = o.tile; }
   // city gates live with the battle (owners, locked/open/broken/burned); a new battle starts from the map
   if (tiles && !(s.siege?.gates?.length)) {
     const gates = gatesFromMap(bm);
@@ -203,7 +227,7 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
       x: fromPos ? fromPos.x : gx, y: fromPos ? fromPos.y : gy, men: sys.men.value, maxMen: sys.men.max, morale: sys.morale, xp: sys.xp?.value ?? 0, level: sys.level ?? 1,
       facing: meta.facing ?? null, hidden: sys.hidden, status: sys.status,
       fierceCharge: fierce ? 1 + fierce[1].length : (traitTiersOf(sys.traits)['fierce charge'] || 0), // Fierce Charge EX = 4 (David, 2026-10-31)
-      traitTiers: traitTiersOf(sys.traits), fx: meta.fx ?? {},
+      traitTiers: traitTiersOf(sys.traits), fx: tok.getFlag?.(SYSTEM_ID, "arrived") ? { ...(meta.fx ?? {}), reinforced: true } : (meta.fx ?? {}), // arrived as a reinforcement (battlefield skills)
       carry: meta.carry !== undefined ? meta.carry : startingCarry(sys.traits),
       mods: meta.mods ?? [], overwatch: !!meta.overwatch, heroicUsed: meta.heroicUsed ?? 0, lastHeroic: meta.lastHeroic ?? null,
       surrounded: meta.surrounded ?? false, round: meta.round ?? { activated: false, moved: false, cannotMove: false, holding: false, attacked: false, skillUsed: false, heroicUsed: false, meleeTarget: null, meleeAttacker: null },
@@ -232,6 +256,42 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
 }
 
 /* ------------------------------------------------------------ write back */
+
+/**
+ * What battlefield skills ask of Foundry itself (David, 2026-11-05): a unit coming over to the other side, a unit
+ * raised next to an officer, reinforcements called in early (by the side's zones, or next to a unit).
+ */
+async function skillRequests(s, scene) {
+  const size = scene?.grid?.size ?? 100;
+  const b2 = getBattle(); let touched = false;
+  for (const r of s.skillRequests) {
+    if (r.kind === "convert") {
+      const tok = scene?.tokens.get(r.unitId); if (!tok) continue;
+      await tok.actor.update({ "system.side": r.side, "system.officer": "" }, { qinBattle: true });
+    } else if (r.kind === "spawn") {
+      const pack = game.packs.get("qin-3k-characters.battle-units");
+      const idx = pack ? await pack.getIndex({ fields: ["system.traitList", "system.tier"] }) : null;
+      const levy = idx?.contents.filter(e => JSON.stringify(e.system?.traitList ?? "").toLowerCase().includes('"levy"')).sort((a, b) => (a.system?.tier ?? 9) - (b.system?.tier ?? 9))[0]
+        ?? idx?.contents.find(e => /levy|militia/i.test(e.name));
+      if (!levy) { ui.notifications.warn("No Levy unit in the Battle Units compendium for a battlefield skill to raise."); continue; }
+      const d = (await pack.getDocument(levy._id)).toObject(); delete d._id;
+      d.system.side = r.side; d.name = d.name + " (raised)";
+      const actor = await Actor.create(d);
+      const taken = new Set(scene.tokens.map(t => Math.round(t.x / size) + "," + Math.round(t.y / size)));
+      let spot = null;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) { const x = r.near.x + dx, y = r.near.y + dy; if (x >= 0 && y >= 0 && !taken.has(x + "," + y) && E._passable(s, x, y)) { spot = { x, y }; break; } }
+      if (!spot) { ui.notifications.warn("No free square for the raised unit."); continue; }
+      const [tok] = await scene.createEmbeddedDocuments("Token", [(await actor.getTokenDocument({ x: spot.x * size, y: spot.y * size })).toObject()], { qinBattle: true });
+      b2.meta ??= {}; b2.meta[tok.id] = { pos: spot, round: { ...E.newRoundFlags(), activated: true } }; touched = true; // it acts from next round
+    } else if (r.kind === "reinforce") {
+      const near = r.near === "self" ? E.unitById(s, r.srcId) : r.near === "hidden" ? (E.liveUnits(s).find(u => u.hidden && E.alliance(u.side) === E.alliance(r.side)) ?? null) : null;
+      const ids = await (await import("./reinforce.mjs")).skillArrive(scene, { side: r.side, count: r.count || 1, near: near ? { x: near.x, y: near.y } : null, category: r.filter?.category ?? null });
+      if (!ids.length) ChatMessage.create({ content: "<p>No reinforcements are waiting to answer the call.</p>", speaker: { alias: "Battle" } });
+      if (r.buff && ids.length) { b2.meta ??= {}; for (const id of ids) { (b2.meta[id] ??= {}).fx ??= {}; (b2.meta[id].fx.buffs ??= []).push({ id: "arr" + id, name: "Arrived", src: r.srcId, until: { kind: "actEnd", acts: 1 }, mods: r.buff.mods ?? [] }); } touched = true; }
+    }
+  }
+  if (touched) await game.settings.set(SYSTEM_ID, SETTING, b2);
+}
 
 async function writeBack(battle, s, scene) {
   const size = scene?.grid.size ?? 100;
@@ -294,6 +354,8 @@ async function writeBack(battle, s, scene) {
   battle.siege = s.siege ?? null;
   battle.skillsBegun = !!s.skillsBegun;
   battle.skillInterjects = s.skillInterjects ?? []; battle.skillExtra = s.skillExtra ?? [];
+  battle.skillOrder = s.skillOrder ?? []; battle.skillCancelTactic = s.skillCancelTactic ?? []; battle.skFallen = s.skFallen ?? {};
+  battle.tileOverrides = s.tileOverrides ?? {};
   battle.objState = s.objState ?? null;
   battle.objEval = s.objEval ?? null;
   battle.outcome = s.outcome ?? null;
@@ -538,6 +600,7 @@ async function runActionNow(userId, action) {
     battle.duelists = [...new Set([...(battle.duelists ?? []), A?.uuid, B?.uuid].filter(Boolean))];
   }
   await writeBack(battle, s, scene);
+  if (s.skillRequests?.length) await skillRequests(s, scene).catch(e => console.warn("Qin | battlefield skill requests", e));
   await postLog(s.log.slice(logLen), s);
   // officer duels: an accepted duel moves to its close-up scene; a finished or cancelled one comes back
   if (res.ok && action.type === "duelAnswer" && s.duels?.pending?.stage === "fighting") (await import("./duel-scene.mjs")).openDuelScene();

@@ -77,7 +77,7 @@ async function arrive(scene, zones, why) {
   for (const z of zones) {
     for (const t of waitingTokens(scene, z.id)) {
       names.push(t.name);
-      await t.update({ hidden: false, [`flags.${SYSTEM_ID}.-=${REINFORCE_TOKEN_FLAG}`]: null }, { qinBattle: true });
+      await t.update({ hidden: false, [`flags.${SYSTEM_ID}.-=${REINFORCE_TOKEN_FLAG}`]: null, [`flags.${SYSTEM_ID}.arrived`]: true }, { qinBattle: true });
     }
   }
   const ids = new Set(zones.map(z => z.id));
@@ -98,6 +98,30 @@ export async function arriveNow(zoneId) {
   const scene = canvas.scene, z = zonesOn(scene).find(z => z.id === zoneId);
   if (!z || z.arrived) return;
   await arrive(scene, [z], "");
+}
+
+/**
+ * A battlefield skill calls reinforcements in now (David, 2026-11-05): up to `count` waiting units of that side
+ * (cavalry only, if asked) come out of their zones; with `near`, they come in on free squares next to that point
+ * instead of at their zone. Returns the token ids that arrived.
+ */
+export async function skillArrive(scene, { side, count = 1, near = null, category = null }) {
+  if (!game.user.isGM || !scene) return [];
+  const size = scene.grid?.size ?? 100;
+  const all = waitingTokens(scene).filter(t => t.actor?.system?.side === side && (!category || String(t.actor?.system?.category ?? "") === category));
+  const out = [];
+  const taken = new Set(scene.tokens.filter(t => !t.hidden).map(t => Math.round(t.x / size) + "," + Math.round(t.y / size)));
+  const freeNear = (p) => { for (let r = 1; r <= 4; r++) for (let dx = -r; dx <= r; dx++) for (let dy = -r; dy <= r; dy++) {
+    if (Math.abs(dx) + Math.abs(dy) !== r) continue; const k = (p.x + dx) + "," + (p.y + dy);
+    if (p.x + dx < 0 || p.y + dy < 0 || taken.has(k)) continue; taken.add(k); return { x: p.x + dx, y: p.y + dy }; } return null; };
+  for (const t of all.slice(0, count)) {
+    const upd = { hidden: false, [`flags.${SYSTEM_ID}.-=${REINFORCE_TOKEN_FLAG}`]: null, [`flags.${SYSTEM_ID}.arrived`]: true };
+    if (near) { const q = freeNear(near); if (q) { upd.x = q.x * size; upd.y = q.y * size; } }
+    await t.update(upd, { qinBattle: true });
+    out.push(t.id);
+  }
+  if (out.length) ChatMessage.create({ content: `<p><b>Reinforcements arrive (battlefield skill):</b> ${out.map(id => esc(scene.tokens.get(id)?.name ?? "")).join(", ")}.</p>`, speaker: { alias: "Battle" } });
+  return out;
 }
 
 /** The battle ended or went back to setup: forget the zones and show every waiting unit. */

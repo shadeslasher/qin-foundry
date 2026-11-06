@@ -975,8 +975,8 @@ function pickCombos(s, u, picks, k) {
   if (!picks.length) return [{}];
   const foes = E.liveUnits(s).filter(e => E.hostile(e, u));
   const near = (p) => Math.min(99, ...foes.map(e => E.manhattan(e, p)));
-  const rank = (pk) => {
-    const c = SK.pickCandidates(s, u, pk);
+  const rank = (pk, earlier = {}) => {
+    const c = SK.pickCandidates(s, u, pk, earlier);
     const val = (id) => {
       if (Array.isArray(id)) return -near({ x: id[0], y: id[1] });
       const x = E.unitById(s, id);
@@ -991,7 +991,7 @@ function pickCombos(s, u, picks, k) {
   for (let i = 0; i < Math.max(1, Math.min(k, lists[0].length)); i++) {
     const combo = {}, used = new Set();
     picks.forEach((pk, j) => {
-      const l = j === 0 ? [...lists[0].slice(i), ...lists[0].slice(0, i)] : lists[j];
+      const l = j === 0 ? [...lists[0].slice(i), ...lists[0].slice(0, i)] : rank(pk, combo); // later picks may depend on earlier ones
       combo[pk.id] = l.filter(c => !used.has(String(c))).slice(0, pk.count || 1);
       combo[pk.id].forEach(c => used.add(String(c)));
     });
@@ -1009,6 +1009,13 @@ function skillAnswer(s, side) {
   const pass = { type: 'skillChoose', skip: true };
   if (!u) return pass;
   const S = strategy(s, u.side);
+  if (ch.kind === 'split') { // share the morale where it is needed most (lowest morale first)
+    const amounts = {}; let left = ch.total;
+    for (const id of [...ch.units].sort((a, b) => (E.unitById(s, a)?.morale ?? 100) - (E.unitById(s, b)?.morale ?? 100))) {
+      const x = E.unitById(s, id); const n = Math.min(ch.max, left, Math.max(0, 100 - (x?.morale ?? 100))); amounts[id] = n; left -= n;
+    }
+    return { type: 'skillChoose', amounts };
+  }
   if (ch.kind === 'attack') {
     let best = null;
     for (const d of E.attackTargets(s, u)) {

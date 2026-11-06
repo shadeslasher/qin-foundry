@@ -2,7 +2,8 @@
 // themselves on the map, and the animation when one fires.
 import { playMoment } from "../sound.mjs";
 import { TACTICS } from "./engine-data.mjs";
-import { getBattle } from "./adapter.mjs";
+import { getBattle, buildState } from "./adapter.mjs";
+import { extraTactics } from "./skills.mjs";
 import { drawLadder, drawSiegeEngine } from "../unit-bars.mjs";
 import { canRedraw } from "./maprender.mjs";
 // battle requests go through game.qin (set up at init) so this file stays free of the panel and sheet modules
@@ -105,8 +106,9 @@ export class TacticsApp extends Base {
     let body = "";
     const canPlace = gm || (side === "player" && iAmPlayerTactician(T));
     if (side === "player" && tac) {
-      const cap = tac.aow + 1;
-      body += `<div class="qin-tac-count">Tactics placed: ${placed.length} / ${cap} <small>(Art of War + 1)</small></div>
+      const extra = (() => { try { return extraTactics(buildState(getBattle()).s, side); } catch { return 0; } })();
+      const cap = tac.aow + 1 + extra;
+      body += `<div class="qin-tac-count">Tactics placed: ${placed.length} / ${cap} <small>(Art of War + 1${extra ? " + 1 from a battlefield skill" : ""})</small></div>
         <div class="qin-tac-slots">${Array.from({ length: cap }, (_, i) => `<i class="${i < placed.length ? "f" : ""}"></i>`).join("")}</div>`;
       if (tac.kind === "officer" && !gm) body += `<p class="qin-muted">The GM is placing ${esc(tac.name)}'s tactics.</p>`;
       else if (tac.kind === "player" && !canPlace) body += `<p class="qin-muted">${esc(tac.name)} is placing the tactics.</p>`;
@@ -116,7 +118,7 @@ export class TacticsApp extends Base {
       const rows = TACTICS.map(d => {
         const done = placed.find(p => p.key === d.key);
         const locked = side === "player" && tac && d.aow > tac.aow;
-        const full = side === "player" && tac && !done && placed.length >= tac.aow + 1;
+        const full = side === "player" && tac && !done && placed.length >= tac.aow + 1 + (() => { try { return extraTactics(buildState(getBattle()).s, side); } catch { return 0; } })();
         const btn = locked ? "" : done && side === "player" ? `<a data-act="place" data-side="${side}" data-key="${d.key}" data-id="${done.id}">Move</a>`
           : full ? "" : `<a data-act="place" data-side="${side}" data-key="${d.key}">Place</a>`;
         return `<div class="qin-tac-row ${locked ? "locked" : ""}" ${tipAttrs(d)}><span>${esc(d.name)}${locked ? ` <small>· Art of War ${d.aow}</small>` : ""}${done && side === "player" ? ` <small class="qin-tac-placed">(placed)</small>` : ""}</span><span>${sizeLabel(d)}</span><span>${btn}</span></div>`;

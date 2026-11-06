@@ -114,6 +114,7 @@ function tileRules(s, x, y) {
 /** Can a unit walk into this square? (u: the mover, for "not cavalry" squares) */
 function passable(s, x, y, u) {
   if (!inBounds(s, x, y)) return false;
+  if (u && s.siege && s.siege.gates) { const g = gateAt(s, x, y); if (g && g.skillOneSide && g.state === 'open' && alliance(u.side) !== g.skillOneSide) return false; } // a gate a skill opened for one side only
   const r = tileRules(s, x, y);
   if (r) return r.pass === 'all' || (r.pass === 'noCavalry' && !(u && (typeOf(s, u) || {}).category === 'cavalry'));
   return (data.TERRAIN[terrainAt(s, x, y)] || data.TERRAIN.flat).passable;
@@ -307,8 +308,8 @@ function gateHostile(u, g) {
 const CATAPULT_RANGE = 10;
 const onCatapult = (s, u) => overlaysAt(s, u.x, u.y).includes('catapult') && (typeOf(s, u) || {}).weapon === 'ranged'; // only ranged units work a catapult (David, 2026-11-04)
 const gateDist = (g, u) => Math.min(...g.squares.map(([x, y]) => Math.abs(x - u.x) + Math.abs(y - u.y)));
-const gateTargets = (s, u) => (onCatapult(s, u)
-  ? (s.siege && s.siege.gates ? s.siege.gates.filter(g => gateDist(g, u) <= CATAPULT_RANGE) : [])
+const gateTargets = (s, u) => (onCatapult(s, u) || SK.flag(s, u, 'gateRange')
+  ? (s.siege && s.siege.gates ? s.siege.gates.filter(g => gateDist(g, u) <= Math.max(onCatapult(s, u) ? CATAPULT_RANGE : 0, Number(SK.flag(s, u, 'gateRange')) || 0)) : [])
   : gatesNear(s, u)).filter(g => gateHostile(u, g));
 /** Gates next to the unit. */
 const gatesNear = (s, u) => (s.siege && s.siege.gates ? s.siege.gates.filter(g => g.squares.some(([x, y]) => Math.abs(x - u.x) + Math.abs(y - u.y) === 1)) : []);
@@ -437,7 +438,7 @@ function moraleState(m) {
 
 // ---------------------------------------------------------------- traits
 // A unit's traits come from its Traits tab as { "base name": tier }, tier 1 = base, 2 = "+", 3 = "++".
-function trait(u, base) { const t = u && u.traitTiers; return (t && t[base]) || 0; }
+function trait(u, base) { const t = u && u.traitTiers; const v = (t && t[base]) || 0; return u && u.fx ? SK.traitTier(u, base, v) : v; } // battlefield skills may grant, raise or take traits
 /** Suppressing Fire (David, 2026-10-29): movement -2 (min 1); a suppressed unit loses Hold, Brace, Anti-Cavalry and Charge Reflection until it wears off. */
 const suppressed = (u) => !!(u && u.fx && u.fx.suppressed);
 /** Hybrid, or Throwing Axes (Hybrid without the melee Attack -2: David, 2026-10-29): a ranged unit that also fights adjacent enemies in melee. */
@@ -495,6 +496,7 @@ const pendingTactic = (s, u, trigger) => !!(s.tactics && s.tactics.phase === 'ba
   t.state === 'hidden' && t.side === u.side && tacticDef(t.key).trigger === trigger && (t.key === 'raiseFlag' ? t.x === u.x && t.y === u.y : inTacticArea(t, u))));
 
 function triggerTactic(s, t, u) {
+  { const c = SK.cancelsTactic(s, t.side); if (c) { t.state = 'spent'; log(s, SIDE_LABEL[t.side] + ' tactic ' + (tacticDef(t.key) || {}).name + ' comes to nothing (' + c.by + ').', { type: 'tactic', cancelled: true }); return; } }
   const def = tacticDef(t.key);
   t.state = def.turns ? 'active' : 'spent';
   t.firedRound = s.turn.round;
@@ -507,6 +509,7 @@ function triggerTactic(s, t, u) {
 function fireTactics(s, event, u) {
   const T = s.tactics;
   if (!T || T.phase !== 'battle' || !u) return [];
+  if (SK.status(s, u, 'noTactics')) return []; // a battlefield skill: it can't set off tactics
   const fired = [];
   for (const t of T.placed) {
     if (t.state !== 'hidden' || t.side !== u.side) continue;
@@ -534,8 +537,9 @@ function movementOf(s, u) {
   // whatever slows it, a unit can always move at least 1 tile (David, 2026-10-25)
   const supp = suppressed(u) ? 2 : 0; // Suppressing Fire: movement -2 (still at least 1)
   let m = Math.max(1, (t ? t.move : 4) + (passive(s, u).moveBonus || 0) - slowed - load + saddle - supp + SK.stat(s, u, 'move'));
-  if (SK.status(s, u, 'halfMove')) m = Math.max(1, Math.floor(m / 2)); // officers' battlefield skills (David, 2026-11-05)
-  if (SK.status(s, u, 'maxMove1')) m = 1;
+  const free = SK.flag(s, u, 'ignoreMoveLimits'); // enemy effects that halve or stop its movement don't apply
+  if (!free && SK.status(s, u, 'halfMove')) m = Math.max(1, Math.floor(m / 2)); // officers' battlefield skills (David, 2026-11-05)
+  if (!free && SK.status(s, u, 'maxMove1')) m = 1;
   return m;
 }
 
@@ -592,16 +596,24 @@ function reachable(s, u, budget) {
   const q = [[u.x, u.y, 0, 0, 0, 0, rd0]]; // x, y, squares walked, max surcharge, rough, burning squares passed through, road used
   seen.set(start + ',0,0,0,' + rd0, 0);
   const costOf = (e) => e[2] + e[3] - (e[6] ? ROAD_BONUS : 0);
+  // officers' battlefield skills (David, 2026-11-05)
+  const ign = SK.flag(s, u, 'ignoreTerrainCost'), ignAll = Array.isArray(ign) && ign.includes('all');
+  const ignored = (x, y) => !!ign && (ignAll || (Array.isArray(ign) && SK.onTerrain(s, x, y, ign)));
+  const through = SK.flag(s, u, 'passThroughEnemies'), wet = SK.flag(s, u, 'crossWater'), freeZoc = SK.flag(s, u, 'ignoreZoc');
+  const stoppers = freeZoc ? [] : liveUnits(s).filter(o => hostile(o, u) && SK.flag(s, o, 'stopAdjacent'));
+  const stopOn = SK.flag(s, u, 'stopOn');
+  const mustStop = (x, y) => (x !== u.x || y !== u.y) && (stoppers.some(o => manhattan(o, { x, y }) === 1) || (Array.isArray(stopOn) && SK.onTerrain(s, x, y, stopOn)));
   while (q.length) {
     let bi = 0;
     for (let i = 1; i < q.length; i++) if (costOf(q[i]) < costOf(q[bi])) bi = i;
     const [x, y, n, m, rf, fc, rd] = q.splice(bi, 1)[0];
     if (seen.get(key(x, y) + ',' + m + ',' + rf + ',' + fc + ',' + rd) < n) continue;
+    if (mustStop(x, y)) continue; // next to a unit that pins enemies, or on ground it must stop on: no further
     for (const [dx, dy] of ORTHO) {
       const nx = x + dx, ny = y + dy, k = key(nx, ny);
       if (k === start) continue;
-      if (!terrainStep(s, u, x, y, nx, ny)) continue;
-      const nn = n + 1, nm = Math.max(m, surcharge(s, nx, ny, u)), nr = rf || (roughFor(s, nx, ny, u) ? 1 : 0);
+      if (!terrainStep(s, u, x, y, nx, ny) && !(wet && inBounds(s, nx, ny) && SK.onTerrain(s, nx, ny, ['water']))) continue;
+      const nn = n + 1, nm = Math.max(m, ignored(nx, ny) ? 0 : surcharge(s, nx, ny, u)), nr = rf || (!ignored(nx, ny) && roughFor(s, nx, ny, u) ? 1 : 0);
       const nrd = rd || (onRoad(s, nx, ny) ? 1 : 0);
       const cost = nn + nm - (nrd ? ROAD_BONUS : 0);
       if (cost > budget) continue;
@@ -609,7 +621,7 @@ function reachable(s, u, budget) {
       const sk = k + ',' + nm + ',' + nr + ',' + fcThrough + ',' + nrd;
       if (seen.has(sk) && seen.get(sk) <= nn) continue;
       const o = unitAt(s, nx, ny);
-      if (o && (trait(o, 'heavy') || !stealthFriends(alliance(o.side), alliance(u.side)))) continue;
+      if (o && (trait(o, 'heavy') || !stealthFriends(alliance(o.side), alliance(u.side))) && !(through && hostile(o, u))) continue;
       seen.set(sk, nn); q.push([nx, ny, nn, nm, nr, fcThrough, nrd]);
       if (o) continue; // pass through friends, never stop on them
       const cand = [cost, nr, nn, fcThrough];
@@ -664,10 +676,22 @@ function moveOptions(s, u) {
   // up a ladder onto an empty wall square: takes all its movement
   for (const [x, y] of climbTiles(s, u)) { blue.set(x + ',' + y, 1); climb.add(x + ',' + y); }
   const canForce = !!officerOf(s, u); // only units led by an officer can force-march
-  const reach = reachable(s, u, canForce ? move * 2 : move);
+  // battlefield skills: extra squares only when moving away from the enemy, or only if it then doesn't attack
+  const away = SK.stat(s, u, 'moveAway'), noAtk = SK.stat(s, u, 'moveNoAttack');
+  const reach = reachable(s, u, Math.max(canForce ? move * 2 : move, move + away + noAtk));
+  const noAttack = new Set();
+  const foes = liveUnits(s).filter(o => hostile(o, u) && visibleTo(s, o, alliance(u.side)));
+  const nearest = (x, y) => Math.min(99, ...foes.map(o => manhattan(o, { x, y })));
+  const d0 = nearest(u.x, u.y);
+  const pinner = (s.units || []).find(o => alive(o) && (u.fx && u.fx.buffs || []).some(b => b.status === 'cantMoveAway' && b.src === o.id));
   for (const [k, d] of reach) {
     const n = reach.steps.get(k);
     const burn = (reach.fire.get(k) || 0) * FIRE_CROSS_MORALE;
+    const [kx, ky] = k.split(',').map(Number);
+    if (pinner && manhattan({ x: kx, y: ky }, pinner) > manhattan(u, pinner)) continue; // can't move away from the unit holding it
+    const extraOk = d <= move || (d <= move + away && nearest(kx, ky) > d0) || (d <= move + noAtk);
+    if (d > move && extraOk && !(d <= move + away && nearest(kx, ky) > d0)) noAttack.add(k);
+    if (extraOk) { blue.set(k, n); if (reach.rough.has(k)) rough.add(k); if (burn) fire.set(k, burn); continue; }
     if (d <= move) { blue.set(k, n); if (reach.rough.has(k)) rough.add(k); if (burn) fire.set(k, burn); }
     else if (canForce) {
       const cost = forcedMarchCost(s, u) * Math.ceil(d - move);
@@ -675,7 +699,7 @@ function moveOptions(s, u) {
     }
   }
   // rough: blue squares whose path crosses or ends on rough ground (no charge); fire: morale the path's fires cost
-  return { blue, red, climb, rough, fire };
+  return { blue, red, climb, rough, fire, noAttack };
 }
 
 const FIRE_CROSS_MORALE = 5; // morale for each burning square a unit walks through (David, 2026-11-04)
@@ -845,6 +869,7 @@ function repositionTiles(s, d, u) {
 const STALK_TERRAIN = new Set(['tall-grass', 'plains', 'farmland']);
 /** Does terrain hide a unit that ends its turn there? (forests, tall grass; Stalk adds plains and farmland) */
 function hidesIn(s, u) {
+  if (SK.flag(s, u, 'hideAnywhere')) return true; // a battlefield skill: it hides even on open ground
   const r = tileRules(s, u.x, u.y);
   if (r ? r.hides : terrainAt(s, u.x, u.y) === 'trees') return true;
   if (!trait(u, 'stalk')) return false;
@@ -858,6 +883,8 @@ function hidesIn(s, u) {
 
 function rangeOk(s, attacker, defender) {
   const t = typeOf(s, attacker); const d = manhattan(attacker, defender);
+  const asR = t.weapon !== 'ranged' ? Number(SK.flag(s, attacker, 'asRanged')) || 0 : 0; // a battlefield skill: a melee unit's attack at range
+  if (asR && d >= 1 && d <= asR) return true;
   const tr = t.weapon === 'ranged' ? tileRules(s, attacker.x, attacker.y) : null;
   const bonus = t.weapon === 'ranged' ? rangeBonus(s, attacker) + (tr ? tr.range : 0) : 0;
   // Hybrid units may fight next to them in melee
@@ -1109,7 +1136,7 @@ function buildRoll(s, unit, role, ctx) {
       const dr = tileRules(s, other.x, other.y);
       if (!(dr && dr.high)) parts.push(['Terrain (' + where + '): ' + (role === 'attacker' ? 'attacking downhill' : 'attacked from below'), tr.downhill]);
     }
-    if (role === 'defender') {
+    if (role === 'defender' && !SK.flag(s, ctx.attacker, 'noTileDefense')) {
       const def = ctx.ranged ? tr.rangedDef : tr.meleeDef;
       if (def) parts.push(['Terrain (' + where + '): ' + (ctx.ranged ? 'ranged' : 'melee') + ' defense', def]);
       const ar = tileRules(s, other.x, other.y);
@@ -1136,24 +1163,39 @@ function damageValue(s, u) {
 
 // Resolve an attack. Returns a result object (also logged). Mutates state.
 function resolveAttack(s, attacker, defender, opts) {
+  { // officers' battlefield skills: an attack may be lost to a challenge, or drawn onto another unit
+    const at0 = typeOf(s, attacker) || {};
+    const bh = SK.beforeAttack(s, attacker, defender, { ranged: at0.weapon === 'ranged' && manhattan(attacker, defender) > 1, forced: !!opts.forced, overwatch: !!opts.overwatch });
+    if (bh && bh.cancel) {
+      if (!opts.free) attacker.round.attacked = true;
+      settle(s);
+      return { attacker: attacker.id, defender: defender.id, cancelled: true, winner: null, casualtiesDefender: 0, casualtiesAttacker: 0, moraleLoss: 0, loser: null, casualtyMorale: { defender: 0, attacker: 0 } };
+    }
+    if (bh && bh.redirect) defender = bh.redirect;
+  }
   const at = typeOf(s, attacker), dt = typeOf(s, defender);
   // Hybrid: a ranged unit may fight an adjacent enemy in melee (Attack -2)
   const hybridMelee = at.weapon === 'ranged' && !!hybridOf(attacker) && manhattan(attacker, defender) === 1;
-  const ranged = at.weapon === 'ranged' && !hybridMelee;
+  const asR = at.weapon !== 'ranged' ? Number(SK.flag(s, attacker, 'asRanged')) || 0 : 0;
+  const ranged = (at.weapon === 'ranged' && !hybridMelee) || (asR > 0 && manhattan(attacker, defender) > 1) || (asR > 0 && SK.flag(s, attacker, 'asRangedAlways')); // a skill's ranged attack
   // Charge: a cavalry unit's melee attack gains +1 for every tile it moved this turn past the first (2 tiles = +1)
   const tilesMoved = opts.movedThisActivation ? (opts.tilesMoved || 0) : 0;
   // Fierce Charge trait on a charge attack: Fierce Charge +4, Fierce Charge+ +6, Fierce Charge++ +8 and the enemy behind takes half damage
   const fierce = attacker.fierceCharge || 0;
-  const chargeBase = !ranged && at.category === 'cavalry' && !SK.flag(s, defender, 'noChargeAgainst') ? Math.max(0, tilesMoved - 1) : 0;
+  const chargeBase = !ranged && (at.category === 'cavalry' || SK.flag(s, attacker, 'asCharge')) && !SK.flag(s, defender, 'noChargeAgainst') ? Math.max(SK.flag(s, attacker, 'asCharge') ? 1 : 0, tilesMoved - 1) : 0;
   const fierceBonus = chargeBase > 0 ? [0, 4, 6, 8, 8][Math.min(4, fierce)] : 0; // +4 / +6 / +8, EX +8 and the unit behind takes full damage (David, 2026-11-01; was +2 / +4 / +4)
   const rawCharge = chargeBase + fierceBonus;
   const chargeBonus = rawCharge;
   const charge = chargeBonus > 0;
-  let rear = isRear(s, attacker, defender) && !passive(s, defender).noRearAgainst && !SK.flag(s, defender, 'noRearAgainst') && !rearDenied(s, attacker);
+  let rear = (isRear(s, attacker, defender) || !!SK.flag(s, attacker, 'asRear')) && !passive(s, defender).noRearAgainst && !SK.flag(s, defender, 'noRearAgainst') && !rearDenied(s, attacker);
+  if (rear && SK.flag(s, attacker, 'noRearNearby')) rear = false; // an enemy officer nearby denies rear attacks
+  const m0a = attacker.morale, m0d = defender.morale; // for morale caps per attack
+  if (SK.flag(s, attacker, 'ignoreDefensiveTraits')) fx(defender).traitsOff = true; // its defensive traits don't count this attack
+  else { const ig = SK.flag(s, attacker, 'ignoreTraits', { role: 'attacker', ranged: at.weapon === 'ranged' }); if (Array.isArray(ig) && ig.length) fx(defender).traitsOff = ig; } // or only these
   const ambush = !!opts.ambush;
   const free = !!opts.free; // a tactic's free attack: no strike back, doesn't use the unit's action
   const ctx = { attacker, defender, ranged, charge, chargeBonus, chargeBase, fierceBonus, tilesMoved, fierce, rear, ambush, hybridMelee, second: !!opts.second, phoenixWon: !!opts.phoenixWon, overwatch: !!opts.overwatch };
-  const skc = (u) => ({ role: u === attacker ? 'attacker' : 'defender', ranged, charge, overwatch: !!opts.overwatch, tilesMoved, other: u === attacker ? defender : attacker }); // for battlefield skills
+  const skc = (u) => ({ role: u === attacker ? 'attacker' : 'defender', ranged, charge, overwatch: !!opts.overwatch, tilesMoved, other: u === attacker ? defender : attacker, ambush: u === attacker && ambush, attackerUnit: attacker }); // for battlefield skills
   // Tactics this attack sets off (they count for this attack already)
   let allOut = [];
   if (!opts.noTactics) {
@@ -1220,6 +1262,7 @@ function resolveAttack(s, attacker, defender, opts) {
   if (charge && at.category === 'cavalry' && canCounter && dmgToAtt > 0 && holdingNow(defender) && fx(defender).holdRound === s.turn.round && trait(defender, 'charge reflection')) { dmgToAtt += chargeBonus; reflected = chargeBonus; }
   if (trait(attacker, 'duelist')) { dmgToAtt = 0; canCounter = false; } // Duelist: ignores counter-strike damage
   if (SK.flag(s, attacker, 'noStrikeBack', skc(attacker)) || SK.flag(s, attacker, 'noCounterDamage', skc(attacker))) { dmgToAtt = 0; canCounter = false; } // officers' battlefield skills
+  if (winner === 'attacker' && SK.flag(s, attacker, 'noStrikeBackIfWin', skc(attacker))) { dmgToAtt = 0; }
 
   // Casualties = armor pen + what the damage leaves after armor, less Evasion in melee.
   // Armor is lowered by Sunder, and Shield Breaker ignores the armor a unit gets from shields.
@@ -1237,6 +1280,10 @@ function resolveAttack(s, attacker, defender, opts) {
   if (ranged && casDef > 0 && trait(attacker, 'deterrence') && alive(defender)) fx(defender).deterred = true; // Deterrence (Liu Chong)
   let casAtt = casualtiesOf(dmgToAtt, armorOf(at, attacker, trait(defender, 'shield breaker')), penD, 0, evAtt);
   casDef = colossalCap(defender, casDef); casAtt = colossalCap(attacker, casAtt); // Colossal (War Elephants): at most 1 per attack
+  // officers' battlefield skills: damage taken (−N, at least 1), half casualties, damage dealt back to melee attackers
+  const lessHurt = (u, c) => { if (c <= 0) return c; const dt2 = SK.stat(s, u, 'damageTaken', skc(u)); if (dt2) c = Math.max(1, c + dt2); if (SK.flag(s, u, 'casualtyHalf', skc(u))) c = Math.ceil(c / 2); return c; };
+  casDef = lessHurt(defender, casDef); casAtt = lessHurt(attacker, casAtt);
+  if (!ranged) { const refl = SK.stat(s, defender, 'reflectMelee', skc(defender)); if (refl > 0) { casAtt += refl; log(s, defender.name + ' deals ' + refl + ' damage back to ' + attacker.name + ' (battlefield skill).', { type: 'skill', unit: defender.id }); } }
 
   // Morale loss for the loser
   // An attacker that can't be struck back (ranged out of reach, charges, Duelist, ambushes...) loses no morale for losing the roll
@@ -1315,7 +1362,8 @@ function resolveAttack(s, attacker, defender, opts) {
   if (winner) { const w = winner === 'attacker' ? attacker : defender, bl = trait(w, 'cutthroat'); if (bl) w.morale = clamp(w.morale + tierVal(bl, [1, 2, 3]), 0, 100); }
   // casualties cost morale at checkpoints: -5 the first time each fifth of the unit's health is lost this battle
   const cpLess = (u) => SK.stat(s, u, 'checkpointLess', skc(u)) + SK.stat(s, u, 'anyLossLess', skc(u));
-  const cmD = Math.max(0, peaceCut(s, defender, checkpointMorale(defender)) - cpLess(defender)), cmA = Math.max(0, peaceCut(s, attacker, checkpointMorale(attacker)) - cpLess(attacker));
+  const cpHalf = (u, n) => (SK.flag(s, u, 'checkpointHalf', skc(u)) ? Math.floor(n / 2) : n);
+  const cmD = Math.max(0, cpHalf(defender, peaceCut(s, defender, checkpointMorale(defender))) - cpLess(defender)), cmA = Math.max(0, cpHalf(attacker, peaceCut(s, attacker, checkpointMorale(attacker))) - cpLess(attacker));
   if (cmD) defender.morale = clamp(defender.morale - cmD, 0, 100);
   if (cmA) attacker.morale = clamp(attacker.morale - cmA, 0, 100);
 
@@ -1384,7 +1432,9 @@ function resolveAttack(s, attacker, defender, opts) {
   if (result.killedBy === attacker.id) killTactics(s, attacker, defender);
   if (attacker.men <= 0 && defender.men > 0) { result.killedBy = defender.id; result.killMorale = trait(attacker, 'expendable') ? 0 : gainMorale(s, defender, 5 * (at.tier || 1), 'killing blow'); result.xpDefender += gainXp(s, defender, 25 * (at.tier || 1) / (dt.tier || 1), 'killing blow'); }
   if (result.killedBy === defender.id) killTactics(s, defender, attacker);
-  SK.onAttack(s, attacker, defender, result); // officers' battlefield skills: triggers, follow-ups, splash
+  delete fx(defender).traitsOff;
+  SK.capAttack(s, attacker, m0a); SK.capAttack(s, defender, m0d);
+  SK.onAttack(s, attacker, defender, { ...result, ranged }); // officers' battlefield skills: triggers, follow-ups, splash
   settle(s);
   // All Out Attack: every unit of the side in the area that can reach the enemy attacks it for free
   for (const tc of allOut) {
@@ -1439,7 +1489,7 @@ function gainMorale(s, u, n, why) {
 function settle(s, opts = {}) {
   s._settleDepth = (s._settleDepth || 0) + 1;
   try { settleLoop(s, opts); } finally { s._settleDepth--; }
-  if (!s._settleDepth) { processFear(s); delete s._settleDepth; checkOutcome(s); }
+  if (!s._settleDepth) { processFear(s); delete s._settleDepth; SK.onSettle(s); checkOutcome(s); }
 }
 
 // ---------------------------------------------------------------- victory and defeat
@@ -1489,7 +1539,7 @@ function settleLoop(s, opts) {
       SK.onFall(s, u); // officers' battlefield skills: allyFalls / enemyFalls
       // Levy: loses 5 morale when an adjacent ally surrenders or is destroyed (other units don't)
       for (const n of liveUnits(s)) {
-        if (trait(n, 'levy') && friendly(n, u) && manhattan(n, u) === 1 && !SK.flag(s, n, 'noRoutLoss')) {
+        if (trait(n, 'levy') && friendly(n, u) && manhattan(n, u) === 1 && !SK.flag(s, n, 'noRoutLoss') && !(SK.flag(s, n, 'routLossNear') && manhattan(n, u) > Number(SK.flag(s, n, 'routLossNear')))) {
           n.morale = clamp(n.morale - 5, 0, 100);
           log(s, n.name + ' loses 5 morale (Levy: adjacent ally ' + ended.replace('is ', '') + ').');
         }
@@ -1598,7 +1648,7 @@ function surroundAfterTurn(s, actor) {
     v.round.surroundedHit = true;
     if (hasTactic(s, v, 'fear')) { log(s, v.name + ' is surrounded but will not surrender!'); continue; }
     if (passive(s, v).ignoreEncirclement || SK.flag(s, v, 'cantBeSurrounded')) { log(s, v.name + ' is surrounded but its officer ignores the morale loss.'); continue; }
-    const loss = Math.max(0, SURROUND_MORALE - SURROUND_PER_BLOCK * info.blocked);
+    const loss = Math.max(0, SURROUND_MORALE - SURROUND_PER_BLOCK * info.blocked - SK.stat(s, v, 'surroundLossLess'));
     v.morale = clamp(v.morale - loss, 0, 100); hit = true;
     log(s, v.name + ' is surrounded' + (info.blocked ? ' (' + info.enemies + ' enemy unit' + (info.enemies === 1 ? '' : 's') + ', ' + info.blocked + ' side' + (info.blocked === 1 ? '' : 's') + ' blocked)' : ' on all four sides') + ': -' + loss + ' morale.', { type: 'surrounded', unit: v.id, loss });
   }
@@ -1629,6 +1679,7 @@ function rollInitiative(s) {
     return (B.total - A.total) || (B.fire - A.fire) || (sideRank(a) - sideRank(b)) || (A.tiebreak - B.tiebreak);
   });
   t.order = officers.map(u => u.id);
+  SK.orderAtInitiative(s); // battlefield skills: units told to act first this round
   log(s, 'Round ' + t.round + ' initiative: ' + officers.map(u => u.name + ' ' + t.init[u.id].total).join(', ') +
     (officers.length ? '' : '(no officers)') + '.');
 }
@@ -1708,7 +1759,7 @@ function endRound(s) {
   // Imperial Solidarity: allies within 2 tiles of another unit with it gain 4 morale (once, however many are near).
   for (const o of liveUnits(s)) {
     let best = 0, from = null;
-    for (const u of liveUnits(s)) if (u !== o && friendly(o, u) && manhattan(o, u) === 1 && trait(u, 'inspiration')) {
+    for (const u of liveUnits(s)) if (u !== o && friendly(o, u) && manhattan(o, u) === 1 && trait(u, 'inspiration') && !SK.cutOff(o, u)) {
       const g = tierVal(trait(u, 'inspiration'), [2, 4]); if (g > best) { best = g; from = u; }
     }
     if (best && o.morale < 100) { o.morale = Math.min(100, o.morale + best); log(s, o.name + ' gains ' + best + ' morale (Inspiration' + (best > 2 ? '+' : '') + ' from ' + from.name + ').'); }
@@ -1757,8 +1808,9 @@ function finishActivation(s, u, opts) {
   const t = s.turn;
   // End-of-turn morale regen for units with an officer (up to 75), only on a turn the unit didn't fight
   const o = officerOf(s, u);
-  const regenCap = Math.max(75, alive(u) ? SK.stat(s, u, 'regenCap') : 0); // a battlefield skill may raise the cap
-  if (o && alive(u) && u.morale < regenCap && !u.round.attacked && !u.round.wasAttacked) {
+  let regenCap = Math.max(75, alive(u) ? SK.stat(s, u, 'regenCap') : 0); // a battlefield skill may raise the cap
+  if (alive(u) && SK.flag(s, u, 'regenToResting')) regenCap = Math.min(regenCap, 50 + disciplinedBonus(u));
+  if (o && alive(u) && u.morale < regenCap && ((!u.round.attacked && !u.round.wasAttacked) || SK.flag(s, u, 'regenEvenIfFought'))) {
     const before = u.morale;
     u.morale = Math.min(regenCap, u.morale + o.fire + o.command);
     if (u.morale !== before) log(s, u.name + ' regains ' + (u.morale - before) + ' morale (officer Fire + Command).');
@@ -1766,8 +1818,9 @@ function finishActivation(s, u, opts) {
   // terrain where it ends its turn: command tents and supply depots lift morale, fire burns
   const tr = alive(u) ? tileRules(s, u.x, u.y) : null;
   if (tr && (tr.moraleTurn || tr.healthTurn)) {
-    if (tr.moraleTurn) u.morale = clamp(u.morale + tr.moraleTurn, 0, 100);
-    if (tr.healthTurn) u.men = Math.max(0, u.men - colossalCap(u, -tr.healthTurn));
+    const burning = !!(s.siege && s.siege.fires && s.siege.fires[u.x + ',' + u.y]);
+    if (tr.moraleTurn) u.morale = clamp(u.morale + (tr.moraleTurn < 0 && burning ? Math.min(0, tr.moraleTurn + SK.stat(s, u, 'fireLossLess')) : tr.moraleTurn), 0, 100);
+    if (tr.healthTurn) u.men = Math.max(0, u.men - colossalCap(u, Math.round(-tr.healthTurn * (burning ? 1 + SK.stat(s, u, 'fireCasualties') / 100 : 1))));
     log(s, u.name + ' ends its turn on ' + tr.names.join(', ') + ':' + (tr.moraleTurn ? ' ' + (tr.moraleTurn > 0 ? '+' : '') + tr.moraleTurn + ' morale' : '') +
       (tr.healthTurn ? ' ' + tr.healthTurn + ' troops' : '') + '.');
   }
@@ -1828,6 +1881,8 @@ function skillTurns(s) {
     log(s, v.name + ' may ' + (first.kind === 'attack' ? 'attack' : 'move up to ' + first.budget + (first.mode === 'away' ? ' away from the enemy' : first.mode === 'toward' ? ' toward its target' : '')) + ' (' + x.name + '), or pass.', { type: 'skillTurn', unit: v.id });
     return true;
   }
+  { const id = SK.orderAfterTurn(s), v = id && unitById(s, id); // an officerless unit a skill sends in right after
+    if (v && alive(v) && !v.round.activated) { startActivation(s, v); log(s, v.name + ' takes its turn now (battlefield skill).', { type: 'skill', unit: v.id }); return true; } }
   while (s.skillExtra && s.skillExtra.length) {
     const x = s.skillExtra.shift(), v = unitById(s, x.unitId);
     if (!v || !alive(v)) continue;
@@ -2096,7 +2151,7 @@ const ACTIONS = {
       if (!tac) return err('Choose a tactician first');
       if (def.aow > tac.aow) return err(def.name + ' needs Art of War ' + def.aow);
       const others = T.placed.filter(p => p.side === 'player' && p !== existing);
-      if (others.length >= tac.aow + 1) return err('No tactics left to place (Art of War ' + tac.aow + ' + 1 = ' + (tac.aow + 1) + ')');
+      if (others.length >= tac.aow + 1 + SK.extraTactics(s, a.side)) return err('No tactics left to place (Art of War ' + tac.aow + ' + 1' + (SK.extraTactics(s, a.side) ? ' + 1 from a battlefield skill' : '') + ')');
       if (others.some(p => p.key === a.key)) return err(def.name + ' is already placed');
     }
     if (def.highGround && !a.highGround) return err(def.name + ' must be placed on high ground (hill, city wall, fort or command tent)');
@@ -2250,10 +2305,12 @@ const ACTIONS = {
     const u = unitById(s, p.from), d = unitById(s, p.to);
     if (!controls(s, actor, d)) return err('Only the challenged side can answer');
     const dn = officerOf(s, d);
+    if (!a.accept && SK.flag(s, d, 'cantRefuseDuel')) return err("This officer can't refuse a duel (battlefield skill)");
     if (!a.accept) {
       d.morale = clamp(d.morale - DUEL_REFUSE_MORALE, 0, 100);
       D.refused.push(d.id);
       D.pending = null;
+      SK.onDuel(s, d, 'refused', u);
       log(s, (dn ? dn.name : d.name) + ' refuses the duel: ' + d.name + ' loses ' + DUEL_REFUSE_MORALE + ' morale, and no one can challenge it again this battle.', { type: 'duel', stage: 'refused', from: p.from, to: p.to });
       settle(s);
       if (alive(u) && s.turn.activation && s.turn.activation.unitId === u.id) finishActivation(s, u);
@@ -2276,6 +2333,7 @@ const ACTIONS = {
       if (toDead) { shift(d, -DUEL_DEATH_MORALE, name(d, dn) + ' fell in the duel'); d.officerId = null; }
       if (fromDead && !toDead) shift(d, DUEL_KILL_MORALE, name(d, dn) + ' slew ' + name(u, on));
       if (toDead && !fromDead) shift(u, DUEL_KILL_MORALE, name(u, on) + ' slew ' + name(d, dn));
+      if (fromDead && !toDead) SK.onDuel(s, d, 'slew', u); if (toDead && !fromDead) SK.onDuel(s, u, 'slew', d);
     } else {
       const f = Math.max(0, a.fromDrop || 0), t = Math.max(0, a.toDrop || 0);
       if (f === t) log(s, 'The duel ends even: ' + name(u, on) + ' and ' + name(d, dn) + ' part with neither gaining the upper hand.', { type: 'duel', stage: 'even', from: p.from, to: p.to });
@@ -2284,6 +2342,7 @@ const ACTIONS = {
         log(s, name(win, wo) + ' wins the duel against ' + name(lose, lo) + '.', { type: 'duel', stage: 'won', winner: win.id, loser: lose.id });
         shift(lose, -DUEL_LOSE_MORALE, 'lost the duel');
         shift(win, DUEL_WIN_MORALE, 'won the duel');
+        SK.onDuel(s, win, 'won', lose); SK.onDuel(s, lose, 'lost', win);
       }
     }
     D.pending = null;
@@ -2306,7 +2365,7 @@ const ACTIONS = {
     const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
     const { u, act: ac } = r;
     const k = a.x + ',' + a.y;
-    const { blue, red, climb, rough, fire } = moveOptions(s, u);
+    const { blue, red, climb, rough, fire, noAttack } = moveOptions(s, u);
     const forced = !blue.has(k) && red.has(k);
     if (!blue.has(k) && !forced) return err("Can't move there");
     const from = { x: u.x, y: u.y };
@@ -2329,6 +2388,8 @@ const ACTIONS = {
       return;
     }
     ac.tilesMoved = blue.get(k); ac.roughPath = rough.has(k);
+    if (noAttack && noAttack.has(k)) ac.noAttack = true; // used the extra squares a skill gives only if it doesn't attack
+    SK.onMoved(s, u, from);
     if (climb && climb.has(k)) {
       ac.tilesMoved = 0; // climbing is no charge, and can't be taken back
       log(s, u.name + ' climbs the ladder onto the wall.', { type: 'climb', unit: u.id });
@@ -2420,7 +2481,7 @@ const ACTIONS = {
     settle(s);
     if (!alive(d)) { log(s, d.name + ' gave up before the attack landed.'); if (alive(u)) finishActivation(s, u); return; }
     ac.lastTargetId = d.id; // Hit and Fade rides away from this unit
-    const res = resolveAttack(s, u, d, { movedThisActivation: ac.movedThisActivation, tilesMoved: chargeTiles(ac, d), ambush: !!u.hidden });
+    const res = resolveAttack(s, u, d, { movedThisActivation: ac.movedThisActivation, tilesMoved: chargeTiles(ac, d), ambush: !!u.hidden && !SK.flag(s, d, 'cantBeAmbushed') });
     if (!alive(u)) return;
     if (SK.pendingChoice(s)) { ac.skillResume = true; return; } // a battlefield skill's follow-up waits for a choice; the turn ends after it
     // Clear a Path: destroying an enemy after moving lets the unit move and attack again
@@ -2517,6 +2578,8 @@ const ACTIONS = {
     const engine = carrying(u) === 'engine' && gateDist(g, u) === 1, cat = onCatapult(s, u);
     if (engine) dmg *= 2; // battering with a siege engine
     if (cat) dmg *= 2;    // a catapult's stones
+    const skillDouble = !!SK.flag(s, u, 'gateDouble'); if (skillDouble) dmg *= 2; // a battlefield skill
+    if (skillDouble) SK.consumeNextAttack(u);
     g.hp = Math.max(0, g.hp - dmg);
     log(s, u.name + ' batters the gate for ' + dmg + ' (Yin/Yang ' + dice.value + (cmd ? ' + Command ' + cmd : '') + ' + damage ' + dmgBase + (engine ? ', doubled by the siege engine' : '') + (cat ? ', doubled by the catapult' : '') + '): ' + g.hp + '/' + g.maxHp + ' left.',
       { type: 'gateHit', gate: g.id, by: u.id, damage: dmg, hp: g.hp, maxHp: g.maxHp, dice });
@@ -2611,9 +2674,10 @@ const ACTIONS = {
     if (SK.pendingChoice(s)) return err('Finish the skill already in progress first');
     const sp = SK.specsOf(s, r.u), auto = !!(sp && sp.active);
     if (auto) { const bad = SK.checkPicks(s, r.u, a); if (bad) return err(bad); } // wrong picks: nothing is paid
-    const cost = Number(o.skill.moraleCost) || 0;
+    const cost = Math.max(0, (Number(o.skill.moraleCost) || 0) + SK.skillTax(s, r.u)); // a battlefield skill may make it cost more
     r.u.morale -= cost; r.u.round.skillUsed = true; fx(r.u).skillLast = (s.turn && s.turn.round) || 0; r.act.started = true;
     log(s, r.u.name + ' uses ' + o.skill.name + (cost ? ' (-' + cost + ' morale)' : '') + (auto ? '.' : ': ' + o.skill.text), { type: 'skill', unit: r.u.id, text: o.skill.text });
+    SK.usedActive(r.u);
     if (auto) SK.useActive(s, r.u, a);
     settle(s);
   },
@@ -2649,7 +2713,7 @@ function overwatchFire(s, u) {
   let fired = false;
   for (const h of liveUnits(s)) {
     if (!alive(u) || u.hidden) break;
-    if (!h.overwatch || !hostile(h, u)) continue;
+    if (!h.overwatch || !hostile(h, u) || SK.status(s, u, 'noOverwatchAgainst') || SK.flag(s, u, 'noOverwatchAgainst')) continue;
     if (!rangeOk(s, h, u)) continue;
     delete h.overwatch;
     log(s, h.name + ' fires on overwatch: ' + u.name + ' ended its turn in range!', { type: 'overwatch', unit: h.id, on: false, fired: true });
@@ -2816,5 +2880,5 @@ export { endRound as _endRound, imperialAura as _imperialAura, hidesIn as _hides
   newState, act, viewFor, prompt, reachable, duelTargets, movementOf, moraleState, visibleTo, rangeOk,
   resolveAttack, buildRoll, skillCheck, setRng, yinYang, typeOf, officerOf, unitById, SIDES, settle, advance,
   liveUnits, hostile, alliance, manhattan, unitAt, alive, trait as unitTrait, TAKE_BACK_KEYS, damageValue,
-  log as _log, igniteTile as _ignite, inBounds as _inBounds, passable as _passable, endAfterAttack as _endAfterAttack, finishActivation as _finishActivation, endInterject as _endInterject,
+  log as _log, igniteTile as _ignite, inBounds as _inBounds, passable as _passable, endAfterAttack as _endAfterAttack, finishActivation as _finishActivation, endInterject as _endInterject, isRear as _isRear, isFront as _isFront, newRoundFlags,
 };

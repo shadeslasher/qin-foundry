@@ -254,7 +254,7 @@ function enterSkillPick() {
   if (!skillPick) skillPick = { picks: list, i: 0, chosen: {} };
   const pk = skillPick.picks[skillPick.i];
   if (!pk) { const picks = skillPick.chosen; skillPick = null; mode = null; clearSquares(); return send({ type: "useSkill", unitId: u.id, picks }); }
-  const cands = SK.pickCandidates(s, u, pk);
+  const cands = SK.pickCandidates(s, u, pk, skillPick.chosen); // later picks may depend on earlier ones
   const chosen = (skillPick.chosen[pk.id] ||= []);
   const key = (c) => (Array.isArray(c) ? c.join(",") : c);
   if (!cands.length) { skillPick.i++; return enterSkillPick(); } // nothing to choose: go on without
@@ -281,9 +281,22 @@ function enterSkillPick() {
 const pickWord = (pk) => `${pk.upTo ? "up to " : ""}${pk.count || 1} ${pk.side === "tile" ? "square" : pk.side === "allies" ? "allied unit" : "enemy unit"}${(pk.count || 1) > 1 ? "s" : ""}${pk.range === "any" ? "" : ` within ${pk.range}`}`;
 
 /** A battlefield skill waits for a choice: a free move (green squares) or a free attack (red enemies); or skip it. */
+let splitOpen = false;
+/** Share out a skill's morale among the picked units (A Granary Given Whole and the like). */
+async function askSplit(ch) {
+  if (splitOpen) return; splitOpen = true;
+  const s = current.s, rows = ch.units.map(id => E.unitById(s, id)).filter(Boolean);
+  const content = `<p>Share up to <b>${ch.total}</b> morale (at most ${ch.max} each).</p>` + rows.map(u => `<div class="form-group"><label>${esc(u.name)} <small>(${u.morale} morale)</small></label><input type="number" name="${esc(u.id)}" min="0" max="${ch.max}" value="${Math.min(ch.max, Math.floor(ch.total / rows.length))}"></div>`).join("");
+  try {
+    const res = await foundry.applications.api.DialogV2.prompt({ window: { title: "Share the morale" }, content, rejectClose: false,
+      ok: { label: "Share", callback: (ev, button) => Object.fromEntries(rows.map(u => [u.id, Number(button.form.elements[u.id]?.value) || 0])) } });
+    if (res) send({ type: "skillChoose", amounts: res });
+  } finally { splitOpen = false; }
+}
 function enterSkillChoice() {
   const { s } = current;
   const ch = SK.pendingChoice(s); if (!ch) return;
+  if (ch.kind === "split") { mode = "skillChoice"; clearSquares(); renderMenu(); askSplit(ch); return; }
   mode = "skillChoice";
   clearSquares();
   overlay = new PIXI.Graphics(); overlay.eventMode = "none"; layer().addChild(overlay);
@@ -426,6 +439,7 @@ function renderMenu(sub = null) {
   if (mode === "skillChoice") { // a skill's free move / attack: a hint along the bottom, Esc or right-click passes
     const ch = SK.pendingChoice(current.s), who = ch && E.unitById(current.s, ch.unitId);
     menuEl.style.display = "none";
+    if (ch?.kind === "split") { showPickHint(`<b>${esc(who?.name ?? "")}</b> · Battlefield skill: share out the morale in the window<br><span class="qin-fe-back"><i class="fa-solid fa-computer-mouse"></i> Right-click or Esc to pass</span>`); return; }
     showPickHint(`<b>${esc(who?.name ?? "")}</b> · ${ch?.kind === "attack" ? "Battlefield skill: click an enemy marked in red to attack it" : `Battlefield skill: click a green square to move up to ${ch?.budget ?? ""}${ch?.mode === "away" ? " away from the enemy" : ch?.mode === "toward" ? " toward its target" : ""}`}<br><span class="qin-fe-back"><i class="fa-solid fa-computer-mouse"></i> Right-click or Esc to pass</span>`);
     return;
   }

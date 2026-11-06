@@ -11,6 +11,7 @@
 // read the field better; poor ones sometimes settle for a weaker square or tactic.
 // The side's placements are marked done with its last one (engine `aiDone`), so the GM can move or remove them.
 import * as E from './engine.mjs';
+import * as SK from './skills.mjs';
 import { TACTICS } from './engine-data.mjs';
 import { strategy } from './ai.mjs';
 
@@ -114,7 +115,7 @@ export function tacticValue(s, side, S, d, c, ctx) {
 /** The tactics this side would place: [{ key, x, y, highGround }], best first, within its Art of War. */
 export function planTactics(s, side, opts = {}) {
   const tac = s.tactics?.sides?.[side]; if (!tac) return [];
-  const aow = Math.max(0, Number(tac.aow) || 0), slots = aow + 1;
+  const aow = Math.max(0, Number(tac.aow) || 0), slots = aow + 1 + SK.extraTactics(s, side); // + a battlefield skill's extra tactic
   const level = Math.min(5, aow);
   // the side knows its own units and the enemies it can see
   const al = E.alliance(side);
