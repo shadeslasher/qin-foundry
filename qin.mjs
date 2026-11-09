@@ -1,4 +1,5 @@
 import { PartyPanel, registerParty } from "./module/party.mjs";
+import { OfficerCodex, registerOfficerCodex } from "./module/officer-codex.mjs";
 import { registerOfficerLimit } from "./module/officer-rules.mjs";
 import { registerRecruitQuery } from "./module/recruit.mjs";
 import * as CFG from "./module/config.mjs";
@@ -216,6 +217,7 @@ Hooks.once("init", () => {
     onDown: () => { PartyPanel.toggle(); return true; },
   });
   registerParty();
+  registerOfficerCodex();
   registerOfficerLimit();
   game.keybindings.register(SYSTEM_ID, "tileTip", {
     name: "Tile info", hint: "Show a small tooltip by the cursor describing the square under it (terrain, buildings and their effects). Press again to turn it off.",
@@ -325,9 +327,10 @@ Hooks.on("getSceneControlButtons", (controls) => {
     name: "qinBattle", title: "Battle panel", icon: "fa-solid fa-chess-rook", order: 99,
     button: true, visible: true, onChange: () => BattlePanel.open(),
   };
+  const codexTool = { name: "qinOfficers", title: "Officers", icon: "fa-solid fa-book-open", order: 100, button: true, visible: true, onChange: () => OfficerCodex.toggle() };
   const unitTool = { ...NEW_UNIT_TOOL, visible: !!game.user?.isGM }, editTool = { ...UNIT_EDITOR_TOOL, visible: !!game.user?.isGM };
-  if (Array.isArray(controls)) controls.find(c => c.name === "token")?.tools.push({ ...tool, onClick: tool.onChange }, { ...unitTool, onClick: unitTool.onChange }, { ...editTool, onClick: editTool.onChange });
-  else if (controls.tokens?.tools) { controls.tokens.tools.qinBattle = tool; controls.tokens.tools.qinNewUnit = unitTool; controls.tokens.tools.qinUnitEditor = editTool; }
+  if (Array.isArray(controls)) controls.find(c => c.name === "token")?.tools.push({ ...tool, onClick: tool.onChange }, { ...codexTool, onClick: codexTool.onChange }, { ...unitTool, onClick: unitTool.onChange }, { ...editTool, onClick: editTool.onChange });
+  else if (controls.tokens?.tools) { controls.tokens.tools.qinBattle = tool; controls.tokens.tools.qinOfficers = codexTool; controls.tokens.tools.qinNewUnit = unitTool; controls.tokens.tools.qinUnitEditor = editTool; }
 });
 
 /* ---------- Macro bar: drag a weapon (or Tao, technique...) onto the hotbar to get a click-to-use button */

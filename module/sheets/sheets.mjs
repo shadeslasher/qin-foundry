@@ -675,7 +675,9 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
       try { data = JSON.parse(ev.dataTransfer.getData("text/plain")); } catch { return; }
       const uuid = data.type === "Actor" ? data.uuid : data.type === "Token" ? (await fromUuid(data.uuid))?.actor?.uuid : null;
       if (!uuid) return ui.notifications.warn("Drag a character from the Actors list (tokens can't be dragged off the scene).");
-      const actor = await fromUuid(uuid);
+      // a compendium officer (from the Officers window) leads through his world copy, made if needed
+      const actor = uuid.startsWith("Compendium.") ? await (await import("../officer-codex.mjs")).ensureWorldOfficer(uuid) : await fromUuid(uuid);
+      if (!actor) return ui.notifications.warn("Only the GM can bring that officer in from the compendium.");
       if (actor?.type !== "character") return ui.notifications.warn("Officers must be Qin characters.");
       const e = officerEligibility(actor, this.document.system);
       if (!e.ok) return ui.notifications.warn(`${actor.name} can't lead ${this.document.name}: ${e.reason}.`);
