@@ -52,7 +52,10 @@ export async function playActiveBanner(step, { dim = true } = {}) {
   const artHTML = !info.img ? "" : lay
     ? `<div class="qin-ab-art" style="width:${lay.boxW}px"><img src="${esc(info.img)}" alt="" style="height:${lay.imgH}px;left:${lay.offX}px"></div>`
     : `<div class="qin-ab-art"><img src="${esc(info.img)}" alt=""></div>`;
-  root.innerHTML = `<div class="qin-ab-dim"></div><div class="qin-ab-band"></div>${artHTML}
+  // the band's trailing end is cut at an angle with a gold edge and a thinner gold stripe (David, 2026-11-09); it stays off
+  // screen until the band flies away
+  const cut = `<svg class="qin-ab-cut" viewBox="0 0 120 156" preserveAspectRatio="none" aria-hidden="true"><line x1="90" y1="1.5" x2="0" y2="154.5" stroke="#e8c46a" stroke-width="6"/><line x1="106" y1="1.5" x2="16" y2="154.5" stroke="rgba(232,196,106,.6)" stroke-width="2.5"/></svg>`;
+  root.innerHTML = `<div class="qin-ab-dim"></div><div class="qin-ab-bandwrap"><div class="qin-ab-band">${cut}</div></div>${artHTML}
     <div class="qin-ab-label"><div class="qin-ab-text">${info.officer ? `<div class="qin-ab-who">${esc(info.officer)}</div>` : ""}<div class="qin-ab-skill">${esc(info.skill)}</div></div></div>`;
   document.body.appendChild(root);
   return new Promise(res => setTimeout(() => { root.remove(); res(); }, ms));
