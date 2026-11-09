@@ -1132,7 +1132,7 @@ a.qin-stat:hover, a.qin-stat:focus-visible { border-color: var(--qin-gold); }
 .qin-full-art-none { opacity: .55; cursor: context-menu; }
 /* Battlefield active banner (v0.103.2): dim; the side's band sweeps in from its edge (enemy from the right); the officer's
    full art (head to waist, never mirrored) slides in on the band; officer and skill names centred on top */
-.qin-ab { position: fixed; inset: 0; z-index: 70; pointer-events: none; --ab-top: 40vh; --ab-h: 150px; }
+.qin-ab { position: fixed; inset: 0; z-index: 1000; pointer-events: none; --ab-top: 40vh; --ab-h: 150px; }
 .qin-ab-dim { position: absolute; inset: 0; background: #000; animation: qin-ab-dim var(--ab-ms) ease both; }
 .qin-ab-band { position: absolute; left: 0; right: 0; top: var(--ab-top); height: var(--ab-h);
   background: linear-gradient(90deg, rgba(var(--c),.97), rgba(var(--c),.88) 60%, rgba(var(--c),.55));
