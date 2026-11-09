@@ -77,3 +77,18 @@ test('Sweep hit sounds: its own pick, else the Melee hit sounds', async () => {
   assert.deepStrictEqual(S.soundsFor('Sweep hit', { 'Melee hit': ['hit.ogg'] }, { 'Sweep hit': ['clang.ogg'] }), ['clang.ogg']);
   assert.ok(S.MOMENTS.includes('Sweep hit'));
 });
+
+test('Lu Bu: a rout gives him another turn only on his own turn (myTurn)', () => {
+  const lb = officer('l', { passiveName: 'Terror', passive: { triggers: [
+    { on: 'kill', if: { myTurn: true }, do: [{ extraTurn: { self: true } }] },
+    { on: 'enemyFalls', range: 1, if: { myTurn: true }, targetIf: { officer: false }, limit: 'turn', do: [{ extraTurn: { self: true } }] }] } });
+  const { s, u, ids } = setup([{ side: 'player', x: 5, y: 5, officerId: 'l' }, { side: 'enemy', x: 6, y: 5 }, { side: 'enemy', x: 4, y: 5 }], [lb]);
+  // an enemy's turn: the enemy next to him routs (e.g. it attacked him and lost) — no extra turn
+  s.turn.activation = { unitId: ids[1], step: 'move', started: true, tilesMoved: 0, from: { x: 6, y: 5 } };
+  u(1).morale = 0; u(1).status = 'routed'; SK.onFall(s, u(1));
+  assert.ok(!(s.skillExtra || []).some(e => e.unitId === ids[0]), 'not on an enemy turn');
+  // his own turn: the other enemy next to him routs — another turn
+  s.turn.activation = { unitId: ids[0], step: 'move', started: true, tilesMoved: 0, from: { x: 5, y: 5 } };
+  u(2).morale = 0; u(2).status = 'routed'; SK.onFall(s, u(2));
+  assert.ok((s.skillExtra || []).some(e => e.unitId === ids[0]), 'on his own turn');
+});

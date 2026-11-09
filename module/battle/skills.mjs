@@ -94,6 +94,8 @@ export function matches(s, f, u, ctx = {}) {
       case 'hidden': if (!!u.hidden !== !!v) return false; break;
       case 'notActed': if (!!(u.round && u.round.activated) === !!v) return false; break;
       case 'acted': if (!!(u.round && u.round.activated) !== !!v) return false; break;
+      // it is this unit's own turn (its activation, or the settle right after it ends) — Lu Bu's extra turns (David, 2026-11-09)
+      case 'myTurn': { const t = s.turn || {}; const mine = !!(t.activation && t.activation.unitId === u.id) || t.endingUnit === u.id; if (mine !== !!v) return false; break; }
       case 'moraleBelow': if (!((u.morale ?? 50) < half(v))) return false; break;
       case 'moraleAbove': if (!((u.morale ?? 50) > half(v))) return false; break;
       case 'healthBelow': { const fr = v === 'half' ? 0.5 : Number(v); if (!(u.men < fr * (u.maxMen || 100))) return false; break; }

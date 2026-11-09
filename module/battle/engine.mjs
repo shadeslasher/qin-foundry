@@ -1895,7 +1895,9 @@ function finishActivation(s, u, opts) {
   t.activation = null;
   if (alive(u)) log(s, u.name + ' ends its turn.');
   trackEndOfTurn(s, u); // seizing squares, escaping
+  t.endingUnit = u.id; // routs settled now still count as happening on its turn (skills' myTurn)
   settle(s);
+  delete t.endingUnit;
   if (alive(u)) surroundAfterTurn(s, u); // enemies it leaves surrounded lose morale
   if (opts && opts.noAdvance) return;
   if (skillTurns(s)) return; // a battlefield skill gave a unit a short extra turn, or another turn

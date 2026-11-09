@@ -37,7 +37,7 @@ export const DURATIONS = ['thisTurn', 'nextAttack', 'nextRoll', 'untilNextTurnEn
 export const TERRAINS = ['plains', 'forest', 'trees', 'tall-grass', 'marsh', 'sand', 'rocky', 'steppe', 'farmland', 'ford', 'river',
   'lake', 'scorched', 'road', 'bridge', 'hill', 'city-wall', 'city-gate', 'fortress-tower', 'town', 'fort', 'camp', 'command-tent',
   'watchtower', 'ruins', 'supply-depot', 'dock', 'pass', 'water', 'wall', 'village', 'gate', 'paving', 'city', 'mountain', 'palisade', 'burning', 'catapult', 'boat'];
-const FILTER_KEYS = ['category', 'melee', 'levy', 'trait', 'officer', 'officerType', 'onTerrain', 'nearWater', 'hidden', 'notActed',
+const FILTER_KEYS = ['myTurn', 'category', 'melee', 'levy', 'trait', 'officer', 'officerType', 'onTerrain', 'nearWater', 'hidden', 'notActed',
   'acted', 'cooldownDone', 'moraleBelow', 'moraleAbove', 'healthBelow', 'surroundedOrEngaged', 'notAttackedLastTurn', 'noEnemyAdjacent',
   'attackedMeLastTurn', 'tierAbove', 'flammable',
   // v2
