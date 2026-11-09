@@ -14,6 +14,20 @@ export function registerBattleAI() {
   game.settings.register(SYSTEM_ID, KEY, { scope: "world", config: false, type: Object, default: { ...DEFAULTS }, onChange: () => schedule() });
   Hooks.on("updateSetting", (st) => { if (st.key === `${SYSTEM_ID}.battle`) schedule(); });
   Hooks.once("ready", () => schedule());
+  // Pause / resume the battle AI from the keyboard (GM, David 2026-11-08); the GM controls' Pause button does the same
+  game.keybindings.register(SYSTEM_ID, "pauseAI", {
+    name: "Pause battle AI (GM)", hint: "Stops the enemy and ally AI at once; press again to let it carry on.",
+    editable: [{ key: "KeyK" }], restricted: true, precedence: CONST.KEYBINDING_PRECEDENCE?.NORMAL,
+    onDown: () => { toggleAIPause(); return true; },
+  });
+}
+
+/** Pause the battle AI, or resume it. */
+export async function toggleAIPause() {
+  const paused = !aiSettings().paused;
+  await setAI({ paused });
+  ui.notifications.info(paused ? "Battle AI paused (K to resume)." : "Battle AI resumed.");
+  try { (await import("./gm-panel.mjs")).GmPanel?.refresh?.(); } catch { /* panel not open */ }
 }
 
 export const aiSettings = () => ({ ...DEFAULTS, ...(game.settings.get(SYSTEM_ID, KEY) ?? {}) });
