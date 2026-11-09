@@ -55,7 +55,8 @@ export function hideTokenHover() {
 }
 
 export function onHoverToken(token, hovered) {
-  if (!hovered) { if (current === token) hideTokenHover(); return; }
+  // compare by id: a redraw replaces the token object, and its hover-out comes from the new one
+  if (!hovered) { if (current && (current === token || current.id === token?.id)) hideTokenHover(); return; }
   hideTokenHover();
   level = canSee(token);
   if (!level) return;
@@ -71,8 +72,20 @@ export function onActorChanged(actor) {
   if (box && current?.actor && (current.actor === actor || current.actor.id === actor.id)) draw();
 }
 
+/** The box stayed up after a quick click (David, 2026-11-09): the hover-out never came, e.g. the pointer went straight
+ *  onto the action menu or the token was redrawn. Drop it whenever the pointer is over anything but the map, on any
+ *  click, and when the token it belongs to is gone or no longer hovered. */
+function staleCheck(ev) {
+  if (!box) return;
+  const view = canvas?.app?.view;
+  if ((view && ev?.target !== view) || !current || current.destroyed || current.hover === false) hideTokenHover(); // a click on the map itself keeps it
+}
+
 export function registerTokenHover() {
   Hooks.on("hoverToken", onHoverToken);
+  document.addEventListener("pointermove", staleCheck, { passive: true });
+  document.addEventListener("pointerdown", staleCheck, { passive: true, capture: true });
+  Hooks.on("refreshToken", (t) => { if (box && current && (current.id === t.id) && (t.hover === false || t !== current)) hideTokenHover(); });
   Hooks.on("updateActor", onActorChanged);
   Hooks.on("updateItem", (item) => item.parent && onActorChanged(item.parent));
   Hooks.on("canvasPan", () => place());
