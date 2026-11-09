@@ -1192,3 +1192,20 @@ a.qin-stat:hover, a.qin-stat:focus-visible { border-color: var(--qin-gold); }
 .qin-cx-card.hidden { opacity: .6; }
 .qin-cx-foot { padding: 5px 10px; border-top: 1px solid #3a352a; font-size: 11.5px; color: #999; }
 .qin-cx .qin-muted { color: #888; grid-column: 1 / -1; }
+/* Party window: Units / Officers tabs (v0.104.1) */
+.qin-party-tabs { display: flex; margin: -2px 0 6px; border-bottom: 1px solid rgba(160,140,100,.6); }
+.qin-party-tabs a { flex: 1; text-align: center; padding: 4px; opacity: .75; border-bottom: 2px solid transparent; }
+.qin-party-tabs a.on { opacity: 1; font-weight: bold; color: #e6c46a; border-bottom-color: #e6c46a; }
+.qin-party-tabs small { opacity: .7; font-weight: normal; }
+.qin-party-odrop { border: 2px dashed rgba(160,140,100,.7); border-radius: 6px; padding: 8px; text-align: center; margin-bottom: 6px; opacity: .85; }
+.qin-party-odrop.over, .qin-party-unit.over { border-color: #e6c46a; background: rgba(230,196,106,.12); }
+.qin-party-officers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.qin-party-officer { display: grid; grid-template-columns: 46px 1fr auto; gap: 8px; align-items: center; padding: 5px 6px; border: 1px solid rgba(160,140,100,.45); border-radius: 5px; background: rgba(127,127,127,.08); cursor: grab; }
+.qin-party-officer > img { width: 46px; height: 46px; border: none; }
+.qin-party-officer .qin-muted { font-size: .8em; font-style: italic; }
+.qin-party-lead { font-size: .8em; } .qin-party-lead.free { color: #5fcf8c; } .qin-party-lead.busy { color: #e6c46a; }
+.qin-party-obtns { display: flex; flex-direction: column; gap: 3px; }
+.qin-party-obtns button { width: 26px; height: 22px; padding: 0; line-height: 1; font-size: .8em; }
+.qin-party-off.has img { width: 22px; height: 22px; border: none; }
+.qin-party-off.has a { cursor: pointer; font-weight: bold; }
+.qin-party-offx { margin-left: auto; opacity: .7; padding: 0 4px; } .qin-party-offx:hover { opacity: 1; color: #e05a4a; }

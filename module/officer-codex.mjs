@@ -66,7 +66,7 @@ export async function ensureWorldOfficer(uuid, { shown = null, faction = "" } = 
 }
 /** Show an officer's world copy to the players, or hide it (an officer in the Party Officers folder stays readable). */
 async function setShown(copy, shown, faction) {
-  const L = CONST.DOCUMENT_OWNERSHIP_LEVELS, inParty = copy.folder?.name === "Party Officers";
+  const L = CONST.DOCUMENT_OWNERSHIP_LEVELS, inParty = isPartyOfficer(copy);
   const upd = { [`flags.${SYSTEM_ID}.codexShown`]: shown };
   if (faction) upd[`flags.${SYSTEM_ID}.codexFaction`] = faction;
   const def = copy.ownership?.default ?? 0;
@@ -89,6 +89,48 @@ export async function assignOfficer(unit, uuid) {
   await actor.update({ "system.officer": off.uuid });
   ui.notifications.info(`${off.name} now leads ${actor.name}.`);
   return true;
+}
+
+
+/* ------------------------------------------------------------------ party officers */
+
+export const PARTY_FOLDER = "Party Officers";
+export const isPartyOfficer = (a) => a?.type === "character" && a.folder?.name === PARTY_FOLDER && !a.folder?.folder;
+/** The party's officers (characters in the Party Officers folder), by name. */
+export const partyOfficers = () => (game.actors?.contents ?? []).filter(isPartyOfficer).sort((a, b) => a.name.localeCompare(b.name));
+async function partyFolder() {
+  return game.folders.find(f => f.type === "Actor" && f.name === PARTY_FOLDER && !f.folder)
+    ?? Folder.create({ name: PARTY_FOLDER, type: "Actor", color: "#7a5a2a", sorting: "a" });
+}
+/** Add an officer to the party (GM): a compendium officer through his world copy, a codex copy as he is, any other
+ *  world character as a new copy. Players get read-only access (an existing Owner copy keeps its ownership). */
+export async function addToParty(uuid) {
+  if (!game.user.isGM) return null;
+  let a = String(uuid).startsWith("Compendium.") ? await ensureWorldOfficer(uuid) : await fromUuid(uuid);
+  if (!a || a.type !== "character") { ui.notifications.warn("Only characters can join the party as officers."); return null; }
+  if (isPartyOfficer(a)) { ui.notifications.info(`${a.name} is already in the party.`); return a; }
+  const folder = await partyFolder(), L = CONST.DOCUMENT_OWNERSHIP_LEVELS;
+  if (!a.getFlag(SYSTEM_ID, "codexOf")) { // a world character of the GM's own (not one made by the Officers window): copy him
+    const data = a.toObject(); delete data._id;
+    data.flags = { ...(data.flags ?? {}), [SYSTEM_ID]: { ...(data.flags?.[SYSTEM_ID] ?? {}), officerOf: a.uuid, codexOf: null } };
+    data.ownership = { default: L.OBSERVER };
+    data.folder = folder.id;
+    data.prototypeToken = { ...(data.prototypeToken ?? {}), actorLink: true };
+    a = await Actor.create(data);
+  } else {
+    await a.update({ folder: folder.id, "ownership.default": Math.max(a.ownership?.default ?? 0, L.OBSERVER) });
+  }
+  ui.notifications.info(`${a.name} joins the party; the players can read his sheet.`);
+  return a;
+}
+/** Take an officer out of the party (GM): off his unit, back to the Officer Codex folder, hidden again unless shown there. */
+export async function removeFromParty(actor) {
+  if (!game.user.isGM || !actor) return;
+  const led = (game.actors?.contents ?? []).filter(u => u.type === "unit" && u.system?.officer === actor.uuid);
+  if (led.length) await Actor.updateDocuments(led.map(u => ({ _id: u.id, "system.officer": "" })));
+  const L = CONST.DOCUMENT_OWNERSHIP_LEVELS, folder = await codexFolder();
+  await actor.update({ folder: folder.id, "ownership.default": isShown(actor) ? L.OBSERVER : L.NONE });
+  ui.notifications.info(`${actor.name} leaves the party${led.length ? ` and ${led.map(u => u.name).join(", ")}` : ""}.`);
 }
 
 /* ------------------------------------------------------------------ the window */
@@ -158,7 +200,7 @@ export class OfficerCodex extends (globalThis.foundry?.applications?.api?.Applic
     const list = all.filter(o => matches(o, st)).sort((a, b) => a.name.localeCompare(b.name));
     const card = (o) => {
       const rgb = TYPE_RGB[o.type];
-      const drag = gm || (o.copy && o.copy.folder?.name === "Party Officers");
+      const drag = gm || isPartyOfficer(o.copy);
       return `<div class="qin-cx-card ${gm && !asPlayer && !o.shown ? "hidden" : ""}" data-uuid="${esc(o.uuid)}" data-action="open" ${drag ? `draggable="true"` : ""}>
         ${gm && !asPlayer ? `<a class="qin-cx-eye ${o.shown ? "vis" : ""}" data-action="eye" data-uuid="${esc(o.uuid)}" data-tooltip="${o.shown ? "Players can see him. Click to hide" : "Hidden from the players. Click to show"}"><i class="fa-solid ${o.shown ? "fa-eye" : "fa-eye-slash"}"></i></a>` : ""}
         <img src="${esc(o.img)}" alt="">

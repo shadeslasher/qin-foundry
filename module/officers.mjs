@@ -22,6 +22,8 @@ export function officerCopyData(src, { folderId, sourceUuid, levels }) {
 }
 
 export async function addToOfficers(actor) {
+  // since 2026-11-08 the party's officers are read-only for the players (the Officers tab of the Party window)
+  if (game.user.isGM && actor?.type === "character") return (await import("./officer-codex.mjs")).addToParty(actor.uuid);
   if (!game.user.isGM || !actor) return;
   const already = game.actors.filter(a => a.getFlag("qin", "officerOf") === actor.uuid);
   if (already.length) {

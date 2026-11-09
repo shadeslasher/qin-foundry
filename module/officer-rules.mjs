@@ -42,7 +42,9 @@ export function playerOwned(officer) {
  * GM-only characters (NPC officers) can still lead several.
  */
 export function playerOfficerConflict(officer, unitId) {
-  if (!officer || officer.type !== "character" || !playerOwned(officer)) return null;
+  // the party's officers (Party Officers folder, David 2026-11-08) follow the same one-unit rule
+  const party = officer?.folder?.name === "Party Officers" && !officer.folder?.folder;
+  if (!officer || officer.type !== "character" || !(playerOwned(officer) || party)) return null;
   return (globalThis.game?.actors?.contents ?? []).find(a => a.type === "unit" && a.id !== unitId && a.system?.officer === officer.uuid) ?? null;
 }
 

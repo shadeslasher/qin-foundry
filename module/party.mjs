@@ -5,6 +5,7 @@
 import { officerEligibility } from "./officer-rules.mjs";
 import { RecruitApp, pickArmies, armiesFor } from "./recruit.mjs";
 import { EquipmentPicker, equipmentOf } from "./equipment.mjs";
+import { partyOfficers, addToParty, removeFromParty, assignOfficer, isPartyOfficer } from "./officer-codex.mjs";
 
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
 /** A unit's resting morale when nothing says otherwise (Disciplined units rest higher: system.defaultMorale). */
@@ -64,6 +65,10 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
       heal: PartyPanel.#act, morale: PartyPanel.#act, open: PartyPanel.#open,
       recruit: PartyPanel.#recruit, armies: PartyPanel.#armies, coin: PartyPanel.#coin,
       equip: (ev, el) => EquipmentPicker.open(game.actors.get(el.dataset.id)),
+      tab: (ev, el) => { setTab(el.dataset.tab); PartyPanel.refresh(); },
+      offSheet: (ev, el) => fromUuidSync(el.dataset.uuid)?.sheet?.render(true),
+      offRemove: async (ev, el) => { const a = fromUuidSync(el.dataset.uuid); if (a) await removeFromParty(a); PartyPanel.refresh(); },
+      offClear: async (ev, el) => { const u = game.actors.get(el.dataset.id); if (u?.isOwner) await u.update({ "system.officer": "" }); },
       fold: (ev, el) => { const f = folded(); f.has(el.dataset.id) ? f.delete(el.dataset.id) : f.add(el.dataset.id); saveFolded(f); PartyPanel.refresh(); },
     },
   };
@@ -112,12 +117,13 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
       : scope === "unit" && a?.isOwner ? `<span class="qin-party-btns">${equipBtn(a)}</span>` : ""; // a player equips their own units
     // officer: the owning player's characters (eligible ones only), editable by whoever owns the unit
     const officerPicker = (a, g) => {
-      const s = a.system, chars = (game.actors?.contents ?? []).filter(c => c.type === "character" && c.testUserPermission(g.user, "OWNER"));
-      const cur = s.officerActor;
-      if (cur && !chars.includes(cur)) chars.unshift(cur);
+      const s = a.system, cur = s.officerActor;
+      // a unit with an officer shows him (× takes him off); without one, a list of the player's characters and the party's officers
+      if (cur) return `<div class="qin-party-off has" data-drop-unit="${a.id}"><img src="${esc(cur.img)}" alt=""><a data-action="offSheet" data-uuid="${esc(cur.uuid)}">${esc(cur.name)}</a>${a.isOwner ? `<a class="qin-party-offx" data-action="offClear" data-id="${a.id}" data-tooltip="Take ${esc(cur.name)} off this unit"><i class="fa-solid fa-xmark"></i></a>` : ""}</div>`;
+      const chars = (game.actors?.contents ?? []).filter(c => c.type === "character" && (c.testUserPermission(g.user, "OWNER") || isPartyOfficer(c)));
       const opts = chars.sort((x, y) => x.name.localeCompare(y.name)).map(c => { const e = officerEligibility(c, s, a.id), sel = c.uuid === s.officer;
         return `<option value="${esc(c.uuid)}" ${sel ? "selected" : ""} ${!e.ok && !sel ? "disabled" : ""}>${esc(c.name)}${e.ok ? "" : ` (${esc(e.reason)})`}</option>`; }).join("");
-      return `<label class="qin-party-off"><i class="fa-solid fa-user-shield" data-tooltip="Officer"></i><select data-officer-for="${a.id}" ${a.isOwner ? "" : "disabled"}><option value="">No officer</option>${opts}</select></label>`;
+      return `<label class="qin-party-off" data-drop-unit="${a.id}"><i class="fa-solid fa-user-shield" data-tooltip="Officer: pick one, or drag a party officer here"></i><select data-officer-for="${a.id}" ${a.isOwner ? "" : "disabled"}><option value="">No officer</option>${opts}</select></label>`;
     };
     const unit = (a, g) => {
       const s = a.system, off = s.officerActor;
@@ -159,14 +165,46 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
         <button type="button" data-action="heal" data-scope="all"><i class="fa-solid fa-heart-pulse"></i> Heal all</button>
         <button type="button" data-action="morale" data-scope="all"><i class="fa-solid fa-flag"></i> Reset morale</button>
         <button type="button" data-action="coin" data-scope="all" data-tooltip="Add the same amount of coin to every player's character"><i class="fa-solid fa-coins"></i> Add coin</button></div>` : "";
-    return `<div class="qin-party-wrap">${top}${body}</div>`;
+    const offs = partyOfficers(), tab = getTab();
+    const tabs = `<nav class="qin-party-tabs"><a data-action="tab" data-tab="units" class="${tab === "units" ? "on" : ""}">Units</a><a data-action="tab" data-tab="officers" class="${tab === "officers" ? "on" : ""}">Officers <small>(${offs.length})</small></a></nav>`;
+    if (tab === "officers") {
+      const leads = (o) => (game.actors?.contents ?? []).find(u => u.type === "unit" && u.system?.officer === o.uuid);
+      const row = (o) => { const u = leads(o), d = o.system.details ?? {}, own = u ? ownerOf(u) : null;
+        return `<li class="qin-party-officer" draggable="true" data-uuid="${esc(o.uuid)}">
+          <img src="${esc(o.img)}" alt="">
+          <div><b>${esc(o.name)}</b><div class="qin-muted">${[d.title, d.characterType, d.tier !== "" && d.tier != null ? `Tier ${esc(String(d.tier).replace(/\s.*/, ""))}` : ""].filter(Boolean).map(esc).join(" · ")}</div>
+            <div class="qin-party-lead ${u ? "busy" : "free"}">${u ? `Leads ${esc(u.name)}${own ? ` (${esc(own.name)})` : ""}` : "Free to lead a unit"}</div></div>
+          <span class="qin-party-obtns"><button type="button" data-action="offSheet" data-uuid="${esc(o.uuid)}" data-tooltip="Open the sheet${gm ? "" : " (read-only)"}"><i class="fa-solid fa-id-card"></i></button>
+          ${gm ? `<button type="button" data-action="offRemove" data-uuid="${esc(o.uuid)}" data-tooltip="Take him out of the party"><i class="fa-solid fa-user-minus"></i></button>` : ""}</span></li>`; };
+      const drop = gm ? `<div class="qin-party-odrop" data-drop-party>Drop officers here from the Officers window (or the Actors list)<br><small>the players can read their sheets</small></div>` : `<p class="qin-muted">Drag an officer over the Units tab, then onto one of your units.</p>`;
+      return `<div class="qin-party-wrap">${tabs}${drop}<ul class="qin-party-officers">${offs.map(row).join("") || `<li class="qin-muted">No officers in the party yet.</li>`}</ul></div>`;
+    }
+    return `<div class="qin-party-wrap">${tabs}${top}${body}</div>`;
   }
   _replaceHTML(result, content) {
     content.innerHTML = result;
+    const read = (ev) => { try { return JSON.parse(ev.dataTransfer.getData("text/plain")); } catch { return null; } };
+    // party officers drag onto units; hovering a tab while dragging switches to it
+    for (const li of content.querySelectorAll(".qin-party-officer[draggable]"))
+      li.addEventListener("dragstart", (ev) => ev.dataTransfer.setData("text/plain", JSON.stringify({ type: "Actor", uuid: li.dataset.uuid, qinOfficer: true })));
+    for (const t of content.querySelectorAll(".qin-party-tabs a"))
+      t.addEventListener("dragenter", () => { if (getTab() !== t.dataset.tab) { setTab(t.dataset.tab); PartyPanel.refresh(); } });
+    const zone = (el, onDrop) => {
+      el.addEventListener("dragover", (ev) => { ev.preventDefault(); el.classList.add("over"); });
+      el.addEventListener("dragleave", () => el.classList.remove("over"));
+      el.addEventListener("drop", async (ev) => { ev.preventDefault(); ev.stopPropagation(); el.classList.remove("over"); const d = read(ev); if (d?.type === "Actor" && d.uuid) await onDrop(d.uuid); });
+    };
+    for (const el of content.querySelectorAll("[data-drop-unit]")) zone(el.closest(".qin-party-unit") ?? el, (uuid) => assignOfficer(game.actors.get(el.dataset.dropUnit), uuid));
+    for (const el of content.querySelectorAll("[data-drop-party]")) zone(el, async (uuid) => { await addToParty(uuid); PartyPanel.refresh(); });
     for (const sel of content.querySelectorAll("select[data-officer-for]"))
       sel.addEventListener("change", () => game.actors.get(sel.dataset.officerFor)?.update({ "system.officer": sel.value }));
   }
 }
+
+/** Which tab of the Party window is open, in this browser. */
+const TAB_KEY = "qin.partyTab";
+function getTab() { try { return localStorage.getItem(TAB_KEY) === "officers" ? "officers" : "units"; } catch { return "units"; } }
+function setTab(t) { try { localStorage.setItem(TAB_KEY, t); } catch { /* fine */ } }
 
 /** Players whose units are folded away in this browser (David, 2026-11-01). */
 const FOLD_KEY = "qin.partyFolded";
@@ -175,7 +213,7 @@ function saveFolded(set) { try { localStorage.setItem(FOLD_KEY, JSON.stringify([
 
 /** Keep the panel live as units change. */
 export function registerParty() {
-  const refresh = (doc) => { if (doc?.type === undefined || doc.type === "unit" || doc.documentName === "User") PartyPanel.refresh(); };
+  const refresh = (doc) => { if (doc?.type === undefined || doc.type === "unit" || doc.type === "character" || doc.documentName === "User") PartyPanel.refresh(); };
   for (const h of ["createActor", "updateActor", "deleteActor", "updateUser"]) Hooks.on(h, refresh);
   for (const h of ["createActor", "updateActor", "deleteActor", "updateUser"]) Hooks.on(h, () => RecruitApp.refreshAll());
 }
