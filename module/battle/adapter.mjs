@@ -415,12 +415,6 @@ function animateChanges(scene, before, s, entries, actionType = null) {
   const covered = {}; // what the attack steps already showed, per unit
   const add = (id, k, n) => { (covered[id] ??= { men: 0, morale: 0, xp: 0 })[k] += n; };
   for (const e of entries) {
-    // a battlefield active opens with its banner (dim, the side's band, the officer's art); its effects play after it
-    if (e.detail?.type === "skill" && e.detail.active) {
-      const u = E.unitById(s, e.detail.unit);
-      steps.push({ kind: "activeBanner", unit: e.detail.unit, side: u?.side ?? "neutral", skill: e.detail.skill, officerId: u?.officerId ?? null, officerName: u?.name ?? "" });
-      continue;
-    }
     // a tactic plays where it fired: before the attack that set it off
     if (e.detail?.type === "tactic") { steps.push({ kind: "tactic", tactic: e.detail.tactic }); continue; }
     if (e.detail?.type === "setFire") { steps.push({ kind: "setFire", x: e.detail.x, y: e.detail.y }); continue; }

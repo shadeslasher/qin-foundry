@@ -15,7 +15,6 @@ import { normalizeEffect, durationText, testText, EFFECT_TARGETS } from "../rule
 import { roundsLeft } from "../rules/tao-rules.mjs";
 import { useActive, taoOf, currentFight, auraBonuses } from "../combat-state.mjs";
 import { CombatPanel } from "../combat-panel.mjs";
-import { fullArtFor } from "../full-art.mjs";
 const hex = (n) => "#" + Number(n).toString(16).padStart(6, "0");
 
 const { api, sheets } = foundry.applications;
@@ -289,7 +288,6 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
   async _prepareContext(options) {
     const context = await super._prepareContext(options);
     context.isGM = game.user.isGM;
-    context.fullArt = fullArtFor(this.document);
     if (["character", "henchman"].includes(this.document.type)) {
       context.stats = statBreakdowns(this.document);
       context.uniqueBonuses = uniqueBonusRows(this.document);
@@ -354,26 +352,6 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
       list[i][inp.dataset.officeField] = inp.value;
       this.actor.update({ "system.offices": list });
     }));
-    // Full art: click to view it, drag it onto the map as a tile; the GM right-clicks to choose another image
-    el.querySelectorAll(".qin-full-art").forEach(a => {
-      if (a.dataset.qinDrag) return;
-      a.dataset.qinDrag = "1";
-      const src = a.dataset.fullArt;
-      if (src) {
-        a.setAttribute("draggable", "true");
-        a.addEventListener("dragstart", ev => { ev.stopPropagation(); ev.dataTransfer.setData("text/plain", JSON.stringify({ type: "Tile", texture: { src } })); });
-        a.addEventListener("click", ev => {
-          ev.preventDefault();
-          const IP = foundry.applications?.apps?.ImagePopout ?? globalThis.ImagePopout;
-          new IP({ src, window: { title: this.actor.name }, uuid: this.actor.uuid }).render(true);
-        });
-      }
-      if (game.user.isGM) a.addEventListener("contextmenu", ev => {
-        ev.preventDefault(); ev.stopPropagation();
-        const FP = foundry.applications?.apps?.FilePicker?.implementation ?? globalThis.FilePicker;
-        new FP({ type: "image", current: src || "", callback: path => this.actor.setFlag("qin", "fullArt", path) }).render(true);
-      });
-    });
     // Weapons, Taos, techniques etc. can be dragged to the macro bar (or onto other sheets)
     el.querySelectorAll("[data-item-id]").forEach(li => {
       const item = this.actor.items.get(li.dataset.itemId);

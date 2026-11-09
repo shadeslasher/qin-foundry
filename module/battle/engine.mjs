@@ -2676,7 +2676,7 @@ const ACTIONS = {
     if (auto) { const bad = SK.checkPicks(s, r.u, a); if (bad) return err(bad); } // wrong picks: nothing is paid
     const cost = Math.max(0, (Number(o.skill.moraleCost) || 0) + SK.skillTax(s, r.u)); // a battlefield skill may make it cost more
     r.u.morale -= cost; r.u.round.skillUsed = true; fx(r.u).skillLast = (s.turn && s.turn.round) || 0; r.act.started = true;
-    log(s, r.u.name + ' uses ' + o.skill.name + (cost ? ' (-' + cost + ' morale)' : '') + (auto ? '.' : ': ' + o.skill.text), { type: 'skill', unit: r.u.id, text: o.skill.text, active: true, skill: o.skill.name });
+    log(s, r.u.name + ' uses ' + o.skill.name + (cost ? ' (-' + cost + ' morale)' : '') + (auto ? '.' : ': ' + o.skill.text), { type: 'skill', unit: r.u.id, text: o.skill.text });
     SK.usedActive(r.u);
     if (auto) SK.useActive(s, r.u, a);
     settle(s);

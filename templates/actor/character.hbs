@@ -1,6 +1,6 @@
 <div class="qin-wrap">
   <header class="qin-header">
-    <div class="qin-portrait-wrap"><img class="qin-portrait" src="{{actor.img}}" data-action="editImage" data-edit="img" title="{{actor.name}}">{{#if (or fullArt isGM)}}<a class="qin-full-art {{#unless fullArt}}qin-full-art-none{{/unless}}" data-full-art="{{fullArt}}" title="{{#if fullArt}}Full art: click to view, drag onto the map to place it as a tile{{else}}No full art yet{{/if}}{{#if isGM}} · right-click to choose an image{{/if}}"><i class="fa-solid fa-image-portrait"></i> Full art</a>{{/if}}</div>
+    <img class="qin-portrait" src="{{actor.img}}" data-action="editImage" data-edit="img" title="{{actor.name}}">
     <div class="qin-head-main">
       <div class="qin-name-row"><input class="qin-name" name="name" type="text" value="{{actor.name}}" placeholder="Name">{{#if owner}}<button type="button" class="qin-combat-panel-btn" data-action="combatPanel" title="Open the Combat panel beside the chat"><i class="fa-solid fa-shield-halved"></i> Combat panel</button>{{/if}}{{#if isGM}}<button type="button" class="qin-add-officer" data-action="addToOfficers" title="Copy this character into the Party Officers folder; every player owns the copy"><i class="fa-solid fa-user-plus"></i> Add to Party Officers</button>{{/if}}</div>
       <div class="qin-details">
