@@ -98,6 +98,7 @@ export function stepSounds(st) {
       return how.size ? [[0, "Unit destroyed"]] : []; // destroyed or surrendered: the same sound, once
     }
     case "sound": return [[0, st.moment]];
+    case "activeBanner": return [[0, "Officer skill"]];
   }
   return [];
 }
@@ -124,7 +125,7 @@ export function logSoundSteps(entries, actionType) {
     const d = e.detail ?? {};
     if (d.type === "overwatch" && d.on) add("Overwatch set");
     else if (d.type === "ladder") add("Ladder placed");
-    else if (d.type === "skill") add("Officer skill");
+    else if (d.type === "skill" && !d.active) add("Officer skill"); // an active's sound plays with its banner
     else if (d.type === "outcome" && d.result === "victory") add("Victory");
     else if (d.type === "outcome" && d.result === "defeat") add("Defeat");
     else if (d.type === "gate" && d.state === "open" && d.by) add("Gate opens");

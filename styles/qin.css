@@ -1125,3 +1125,38 @@ a.qin-stat:hover, a.qin-stat:focus-visible { border-color: var(--qin-gold); }
 .qin-picker-row { display: flex; gap: 6px; align-items: center; padding: 2px 4px; }
 .qin-picker-results { margin: 0; padding-left: 18px; }
 .qin-picker .qin-buttons { display: flex; gap: 4px; flex-wrap: wrap; }
+/* Full art button on character sheets (v0.103.0): under the portrait; drag it onto the map, click to view */
+.qin-portrait-wrap { display: flex; flex-direction: column; align-items: center; gap: 3px; flex: none; }
+.qin-full-art { font-size: 11px; line-height: 1.6; padding: 0 6px; border: 1px solid var(--qin-gold); border-radius: 4px; background: rgba(255,255,255,.55); color: #3a2a12; cursor: grab; white-space: nowrap; }
+.qin-full-art:hover { background: #fff; text-shadow: none; }
+.qin-full-art-none { opacity: .55; cursor: context-menu; }
+/* Battlefield active banner (v0.103.0, style B "edge band"): dim, the side's band sweeps in, then the officer's full art */
+.qin-ab { position: fixed; inset: 0; z-index: 70; pointer-events: none; --ab-top: 34vh; --ab-h: 150px; --ab-art: 6vw; }
+.qin-ab-dim { position: absolute; inset: 0; background: #000; animation: qin-ab-dim var(--ab-ms) ease both; }
+.qin-ab-band { position: absolute; left: 0; right: 0; top: var(--ab-top); height: var(--ab-h); display: flex; align-items: center;
+  padding-left: calc(var(--ab-art) + 300px); padding-right: 40px; color: #fff;
+  background: linear-gradient(90deg, rgba(var(--c),.97), rgba(var(--c),.88) 60%, rgba(var(--c),.55));
+  border-top: 3px solid rgba(255,255,255,.9); border-bottom: 3px solid rgba(255,255,255,.9); box-shadow: 0 6px 24px rgba(0,0,0,.6);
+  animation: qin-ab-band-l var(--ab-ms) cubic-bezier(.2,.8,.2,1) both; }
+.qin-ab-right .qin-ab-band { flex-direction: row-reverse; text-align: right; padding-left: 40px; padding-right: calc(var(--ab-art) + 300px);
+  background: linear-gradient(270deg, rgba(var(--c),.97), rgba(var(--c),.88) 60%, rgba(var(--c),.55)); animation-name: qin-ab-band-r; }
+.qin-ab-text { animation: qin-ab-text var(--ab-ms) ease both; }
+.qin-ab-who { font: bold 15px sans-serif; letter-spacing: .22em; text-transform: uppercase; opacity: .95; text-shadow: 0 1px 3px rgba(0,0,0,.6); }
+.qin-ab-skill { font: 900 46px/1.1 "Qin Cinzel", Georgia, serif; letter-spacing: .05em; text-shadow: 0 3px 6px rgba(0,0,0,.6); }
+.qin-ab-art { position: absolute; left: var(--ab-art); top: calc(var(--ab-top) + var(--ab-h) - 360px); width: 290px; height: 360px; overflow: hidden;
+  animation: qin-ab-art-l var(--ab-ms) cubic-bezier(.2,.8,.2,1) both;
+  -webkit-mask-image: linear-gradient(#000 88%, transparent); mask-image: linear-gradient(#000 88%, transparent); }
+.qin-ab-right .qin-ab-art { left: auto; right: var(--ab-art); animation-name: qin-ab-art-r; }
+.qin-ab-art img { width: 100%; height: auto; display: block; filter: drop-shadow(0 6px 10px rgba(0,0,0,.7)); }
+.qin-ab-right .qin-ab-art img { transform: scaleX(-1); } /* face into the screen */
+.qin-ab-token .qin-ab-art { top: calc(var(--ab-top) + var(--ab-h) / 2 - 95px); width: 190px; height: 190px; left: calc(var(--ab-art) + 50px); -webkit-mask-image: none; mask-image: none; }
+.qin-ab-right.qin-ab-token .qin-ab-art { left: auto; right: calc(var(--ab-art) + 50px); }
+.qin-ab-token .qin-ab-art img { border-radius: 50%; border: 3px solid #fff; transform: none; }
+@keyframes qin-ab-dim { 0% { opacity: 0 } 10% { opacity: .45 } 85% { opacity: .45 } 100% { opacity: 0 } }
+@keyframes qin-ab-band-l { 0% { transform: translateX(-105%) } 15% { transform: none } 85% { transform: none } 100% { transform: translateX(-105%) } }
+@keyframes qin-ab-band-r { 0% { transform: translateX(105%) } 15% { transform: none } 85% { transform: none } 100% { transform: translateX(105%) } }
+@keyframes qin-ab-text { 0%, 12% { opacity: 0; letter-spacing: .5em } 28% { opacity: 1; letter-spacing: .05em } 82% { opacity: 1 } 95%, 100% { opacity: 0 } }
+@keyframes qin-ab-art-l { 0%, 14% { opacity: 0; transform: translateX(-90px) } 30% { opacity: 1; transform: none } 84% { opacity: 1; transform: none } 100% { opacity: 0; transform: translateX(-60px) } }
+@keyframes qin-ab-art-r { 0%, 14% { opacity: 0; transform: translateX(90px) } 30% { opacity: 1; transform: none } 84% { opacity: 1; transform: none } 100% { opacity: 0; transform: translateX(60px) } }
+@media (prefers-reduced-motion: reduce) { .qin-ab-band, .qin-ab-art, .qin-ab-text { animation: qin-ab-fade var(--ab-ms) ease both !important; } }
+@keyframes qin-ab-fade { 0% { opacity: 0 } 12% { opacity: 1 } 85% { opacity: 1 } 100% { opacity: 0 } }

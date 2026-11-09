@@ -5,6 +5,7 @@ import { atSpeed } from "./battle/battle-speed.mjs";
 import { playTacticTrigger, playSetFire } from "./battle/tactics-ui.mjs";
 import { SYSTEM_ID } from "./config.mjs";
 import { playStepSounds, attackSounds, playMoment } from "./sound.mjs";
+import { playActiveBanner } from "./battle/active-banner.mjs";
 import { drawUnitBars } from "./unit-bars.mjs";
 
 const SOCKET = `system.${SYSTEM_ID}`;
@@ -1037,6 +1038,7 @@ export async function playBattleAnim({ sceneId, steps }) {
   for (const st of steps) {
     try { playStepSounds(st); } catch (e) { console.warn("Qin | battle sound", e); }
     try {
+      if (st.kind === "activeBanner") { await playActiveBanner(st); continue; }
       if (st.kind === "attack") {
         const A = tok(st.attacker), D = tok(st.defender);
         if (A && D) {
