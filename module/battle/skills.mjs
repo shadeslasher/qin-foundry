@@ -480,7 +480,7 @@ export function onAttack(s, attacker, defender, res) {
     if (b.id === attacker.id || b.id === defender.id || !E.hostile(b, attacker) || Math.max(Math.abs(b.x - attacker.x), Math.abs(b.y - attacker.y)) !== 1 || b.men <= 0) continue;
     const c = Math.min(E.unitTrait(b, 'colossal') ? 1 : sw, b.men); if (!c) continue;
     b.men -= c; fxOf(b).lastHitBy = attacker.id;
-    const extra = Number(stat(s, attacker, 'enemyLoss')) || 0;
+    const extra = (Number(stat(s, attacker, 'enemyLoss')) || 0) + (Number(flag(s, attacker, 'sweepMorale')) || 0);
     const ml = E.checkpointMorale(b) + extra;
     if (ml) b.morale = Math.max(0, (b.morale || 0) - ml);
     say(s, 'Sweep (battlefield skill): ' + b.name + ' takes ' + c + ' casualties' + (ml ? ' and loses ' + ml + ' morale' : '') + '.', { type: 'sweep', unit: b.id, by: attacker.id, casualties: c, morale: ml });
@@ -1177,7 +1177,7 @@ const sgn = (n) => (n >= 0 ? '+' : '−') + Math.abs(n);
 export function describeBuff(b) {
   const parts = [];
   for (const m of b.mods || []) parts.push(STAT_TEXT[m.stat] + ' ' + (['moraleLossLess', 'checkpointLess', 'skillLossLess', 'anyLossLess', 'forcedMarchCost'].includes(m.stat) ? '−' + m.value : m.stat === 'regenCap' ? 'up to ' + m.value : sgn(m.value)));
-  for (const f of b.flags || []) { const [fn, arg] = String(f.flag).split(':'); parts.push(fn === 'sweep' ? arg + ' damage to every other enemy around it when it attacks (ignores armor and evasion)' : fn === 'cantBeSurrounded' ? "can't be surrounded" : String(f.flag).replace(/([A-Z])/g, ' $1').toLowerCase()); }
+  for (const f of b.flags || []) { const [fn, arg] = String(f.flag).split(':'); parts.push(fn === 'sweep' ? arg + ' damage to every other enemy around it when it attacks (ignores armor and evasion)' : fn === 'cantBeSurrounded' ? "can't be surrounded" : fn === 'sweepMorale' ? 'enemies its sweep hits lose ' + arg + ' morale' : String(f.flag).replace(/([A-Z])/g, ' $1').toLowerCase()); }
   if (b.status) parts.push(STATUS_TEXT[b.status]);
   return parts.join(', ');
 }

@@ -20,7 +20,9 @@ export const FLAGS = ['noSurrender', 'noRout', 'cantBeSurrounded', 'noRearAgains
   // 2026-11-09: Readied — its next battlefield active ignores the 75-morale minimum (not a last stand's window)
   'readied',
   // 2026-11-09: Sweep:N — whenever it attacks, every enemy unit in the 3x3 square around it takes N casualties, ignoring armor and evasion (Guan Yu)
-  'sweep'];
+  'sweep',
+  // sweepMorale:N — each unit its sweep hits also loses N morale (Guan Yu, 2026-11-09)
+  'sweepMorale'];
 export const EVENTS = ['battleStart', 'roundStart', 'turnStart', 'turnEnd', 'win', 'lose', 'attackWin', 'defendWin', 'kill',
   'allyFalls', 'enemyEndsAdjacent', 'alliesTurnStart', 'firstBelowHalfMorale',
   'enemyTurnStart', 'roundEnd', 'enemyFalls', 'attacked', 'allyWins',
