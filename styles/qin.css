@@ -1209,3 +1209,17 @@ a.qin-stat:hover, a.qin-stat:focus-visible { border-color: var(--qin-gold); }
 .qin-party-off.has img { width: 22px; height: 22px; border: none; }
 .qin-party-off.has a { cursor: pointer; font-weight: bold; }
 .qin-party-offx { margin-left: auto; opacity: .7; padding: 0 4px; } .qin-party-offx:hover { opacity: 1; color: #e05a4a; }
+
+/* Active effects (David, 2026-11-09): buffs blue, debuffs red, with source and time left */
+.qin-ui-trait.qin-fx.buff { border-left-color: #4a9be8; }
+.qin-ui-trait.qin-fx.buff b { color: #9fcbf5; }
+.qin-ui-trait.qin-fx.debuff { border-left-color: #d9534a; }
+.qin-ui-trait.qin-fx.debuff b { color: #f2a49c; }
+.qin-ui-trait.qin-fx small { display: flex; justify-content: space-between; gap: 8px; margin-top: 2px; color: #b8ad96; font-size: .82em; }
+.qin-ui-trait.qin-fx small em { font-style: normal; font-weight: 600; text-align: right; }
+.qin-ui-trait.qin-fx.buff small em { color: #9fcbf5; }
+.qin-ui-trait.qin-fx.debuff small em { color: #f2a49c; }
+.qin-tt-sub.qin-fx.buff > i { color: #6fb3f0; }
+.qin-tt-sub.qin-fx.debuff > i { color: #ec6a5f; }
+.qin-tt-sub.qin-fx b { color: #f3ead8; }
+.qin-ui-trait.qin-fx small span { color: inherit; font-size: inherit; }

@@ -1158,6 +1158,69 @@ export function buffsOf(s, u) {
   return (fxOf(u).buffs || []).map(b => ({ name: b.name, text: describeBuff(b), from: E.unitById(s, b.src)?.name || '' }));
 }
 
+// ---------------------------------------------------------------- active effects (David, 2026-11-09)
+// Stats where a bigger number is worse for the unit (everything else: bigger is better).
+const WORSE_UP = new Set(['damageTaken', 'skillCost', 'skillMinUp', 'fireCasualties']);
+/** Is a skill buff on u good for it ('buff') or bad ('debuff')? Enemy skills and statuses are debuffs; else the sign of its mods. */
+export function buffKind(s, u, b) {
+  const src = E.unitById(s, b.src);
+  if (b.status) return 'debuff';
+  if (src && src.id !== u.id && E.hostile(src, u)) return 'debuff';
+  let score = 0;
+  for (const m of b.mods || []) { const v = Number(m.value) || 0; score += Math.sign(v) * (WORSE_UP.has(m.stat) ? -1 : 1); }
+  if (b.removeTraits && b.removeTraits.length) score -= 1;
+  return score < 0 ? 'debuff' : 'buff';
+}
+/** How long a buff has left, in words. */
+export function untilText(s, u, b) {
+  const d = b.until || {}, round = (s.turn && s.turn.round) || 0, acts = fxOf(u).acts || 0, src = E.unitById(s, d.src);
+  switch (d.kind) {
+    case 'round': { const n = d.round - round + 1; return n <= 1 ? 'this turn' : n + ' turns left'; }
+    case 'actEnd': return d.from && acts < d.from ? 'its next turn' : d.acts <= acts ? 'until the end of this turn' : 'until the end of its next turn';
+    case 'actStart': return 'until its next turn';
+    case 'attack': return 'its next attack';
+    case 'roll': return 'its next roll';
+    case 'contest': return 'its next contested roll';
+    case 'skill': return 'its next battlefield active';
+    case 'srcStart': return 'until ' + (src ? src.name + "'s" : 'the source\'s') + ' next turn';
+    case 'srcEnd': return 'until the end of ' + (src ? src.name + "'s" : 'the source\'s') + ' next turn';
+    default: return 'rest of the battle';
+  }
+}
+/**
+ * Everything changing unit u right now, for the stand effects and the Info window:
+ * [{ key, kind: 'buff'|'debuff', name, text, from, until, aura }]. key is stable while the effect lasts (a new key = it just landed).
+ * Skill buffs, the stat-changing trait effects (Sunder, Poison, Suppressing Fire, Deterrence, Barbed Arrows), and passive
+ * auras from other officers' units (aura: true; listed, but the stands don't animate them, as they come and go with movement).
+ */
+export function effectsOf(s, u) {
+  const out = [], f = fxOf(u);
+  for (const b of f.buffs || []) {
+    const text = describeBuff(b) || (b.triggers ? 'a lasting effect' : '');
+    if (!text) continue;
+    const src = E.unitById(s, b.src), o = src && E.officerOf(s, src);
+    out.push({ key: 'b:' + b.id, kind: buffKind(s, u, b), name: b.name, text, from: o ? o.name : (src && src.id !== u.id ? src.name : ''), until: untilText(s, u, b), aura: false });
+  }
+  const T = (key, name, text, from, until) => out.push({ key, kind: 'debuff', name, text, from, until, aura: false });
+  if (f.sunder) T('t:sunder:' + f.sunder, 'Sundered', 'Armor −' + f.sunder, f.sunder >= 6 ? 'Sunder++' : f.sunder >= 4 ? 'Sunder+' : 'Sunder', 'rest of the battle');
+  if (f.poison) T('t:poison:' + f.poison, 'Poisoned', 'Melee and ranged defense −' + f.poison, f.poison >= 2 ? 'Poison+' : 'Poison', 'rest of the battle');
+  if (f.suppressed) T('t:suppressed', 'Suppressed', 'Attack −1, melee defense −1, movement −2; loses Hold, Brace, Anti-Cavalry and Charge Reflection', 'Suppressing Fire', 'until the end of its next turn');
+  if (f.deterred) T('t:deterred', 'Deterred', 'Attack −2', 'Deterrence', 'its next attack');
+  if (f.slow) T('t:slow', 'Slowed', 'Movement −1', 'Barbed Arrows', 'its next turn');
+  // passive auras reaching u from other units (its own officer's passive is on the officer card already)
+  for (const X of live(s)) {
+    if (X.id === u.id) continue;
+    const sp = specsOf(s, X), p = sp && sp.passive;
+    if (!p || (ally(X, u) && cutOff(u, X))) continue;
+    const mods = (p.mods || []).filter(e => whoIncludes(s, e.who, X, u)), flags = (p.flags || []).filter(e => whoIncludes(s, e.who, X, u));
+    if (!mods.length && !flags.length) continue;
+    const b = { src: X.id, mods, flags };
+    const text = describeBuff(b); if (!text) continue;
+    out.push({ key: 'a:' + X.id, kind: buffKind(s, u, b), name: sp.passiveName || 'passive', text, from: (sp.officer && sp.officer.name) || X.name, until: 'while in range', aura: true });
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------- v3 helpers the engine calls
 /** Is unit u cut off from what ally X gives (traits, abilities, auras)? Isolated from all, or from that one unit. */
 export function cutOff(u, X) {
