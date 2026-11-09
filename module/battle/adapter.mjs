@@ -99,7 +99,7 @@ function officerLibraryEntry(officer) {
     ctype: String(officer.system.details?.characterType ?? ""), style: String(officer.system.details?.battleStyle ?? ""), // how the battle AI plays him
     fire: officer.system.aspects.fire, command: officer.system.skills.command?.value ?? 0, skills,
     passive: { name: abilities.filter(a => a.system.kind === "passive").map(a => a.name).join(", "), text: abilities.filter(a => a.system.kind === "passive").map(a => stripHtml(a.system.description)).filter(Boolean).join(" "), effects },
-    skill: skill ? { name: skill.name, text: stripHtml(skill.system.description), moraleCost: skill.system.moraleCost,
+    skill: skill ? { name: skill.name, text: stripHtml(skill.system.description), moraleCost: battle?.active?.moraleCost ?? skill.system.moraleCost, // a spec may set the cost (David, 2026-11-09)
       recharge: skill.system.recharge ?? 0, perBattle: !!skill.system.perScene || !!battle?.active?.oncePerBattle, lastStand: !!skill.system.lastStand || !!battle?.active?.lastStand } : null, // a spec may make it a last stand (David, 2026-11-09)
     heroicActions: HEROIC_ACTIONS.map(h => ({ name: h.name, text: h.text })), // every officer may use the heroic action list
     tier: parseInt(String(officer.system.details?.tier ?? "").match(/\d+/)?.[0] ?? "0", 10) || 0,
