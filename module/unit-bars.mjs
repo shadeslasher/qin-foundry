@@ -3,7 +3,8 @@
 // its faction banner rolled up in the corner (it unrolls while hovered), and health/morale bars.
 import { factionOf } from "./factions.mjs";
 import { traitTiersOf } from "./battle/traits.mjs";
-import { tileRules } from "./battle/engine.mjs";
+import { tileRules, skillCheck, officerOf } from "./battle/engine.mjs";
+import { buildState } from "./battle/adapter.mjs";
 import { decodeTiles, FLAG as MAP_FLAG } from "./battle/battlemap.mjs";
 
 const KEY = "qinUnitBars";
@@ -374,9 +375,101 @@ function clear(token) {
   if (token.qinFall && !token.qinFall.destroyed) token.qinFall.destroy({ children: true });
   token.qinFall = null;
   if (c?.qinTick) canvas.app?.ticker?.remove(c.qinTick);
+  if (c?.qinReadyTick) canvas.app?.ticker?.remove(c.qinReadyTick);
   if (c && !c.destroyed) c.destroy({ children: true });
   token[KEY] = null;
   if (token.mesh && !token.mesh.destroyed) token.mesh.renderable = true;
+}
+
+
+/* ------------------------------------------------------------ skill ready (David, 2026-11-09) */
+
+// Which units' officers could use their battlefield active right now: "ready", "last" (a last stand), or none.
+// Worked out once per battle state and shared by every stand; cleared when the battle, a unit or a token changes.
+let readyCache = null;
+function readyMap(battle) {
+  if (readyCache) return readyCache.map; // cleared by the hooks in registerUnitBars whenever anything it depends on changes
+  const map = {};
+  try {
+    const { s } = buildState(battle);
+    for (const u of s.units) {
+      if (u.status !== "active" || !u.officerId) continue;
+      const o = officerOf(s, u);
+      if (o?.skill && skillCheck(s, u, o).ok) map[u.id] = o.skill.lastStand ? "last" : "ready";
+    }
+  } catch (e) { console.warn("Qin | skill-ready marks", e); }
+  readyCache = { map };
+  return map;
+}
+function skillReady(token) {
+  const battle = battleRecord(token);
+  return battle ? readyMap(battle)[token.id] ?? null : null;
+}
+const READY_COLORS = { ready: 0xffffff, last: 0xff5a3c };
+
+/** Points evenly spaced around a rounded rectangle (for the light that runs along the stand's edge). */
+function roundedRectPath(x, y, w, h, r, n = 240) {
+  const P = [];
+  const arc = (cx, cy, a0, a1) => { for (let i = 0; i <= 12; i++) { const a = a0 + (a1 - a0) * i / 12; P.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]); } };
+  P.push([x + r, y], [x + w - r, y]); arc(x + w - r, y + r, -Math.PI / 2, 0);
+  P.push([x + w, y + h - r]); arc(x + w - r, y + h - r, 0, Math.PI / 2);
+  P.push([x + r, y + h]); arc(x + r, y + h - r, Math.PI / 2, Math.PI);
+  P.push([x, y + r]); arc(x + r, y + r, Math.PI, Math.PI * 1.5);
+  const Q = [...P, P[0]], d = [0];
+  for (let i = 1; i < Q.length; i++) d.push(d[i - 1] + Math.hypot(Q[i][0] - Q[i - 1][0], Q[i][1] - Q[i - 1][1]));
+  const out = [];
+  for (let k = 0, j = 0; k < n; k++) {
+    const want = d.at(-1) * k / n;
+    while (d[j + 1] < want) j++;
+    const f = (want - d[j]) / ((d[j + 1] - d[j]) || 1);
+    out.push([Q[j][0] + (Q[j + 1][0] - Q[j][0]) * f, Q[j][1] + (Q[j + 1][1] - Q[j][1]) * f]);
+  }
+  return out;
+}
+
+/**
+ * The skill-ready mark (David, 2026-11-09): two streaks of light run round the stand's edge, passing under
+ * the officer's portrait; a halo pulses round the portrait, with a small lightning badge bobbing beside it.
+ * White when the active is ready, red-orange when it is a last stand that can be used now.
+ */
+function drawSkillReady(c, kind, offTex, w, h, T, pad) {
+  const col = READY_COLORS[kind] ?? 0xffffff;
+  const Blur = PIXI.BlurFilter ?? PIXI.filters?.BlurFilter;
+  const od = T * L.officer, mx = T * 0.015 + od / 2, my = T * 0.015 + od / 2, mr = od / 2;
+  const box = new PIXI.Container(); box.eventMode = "none";
+  const runGlow = new PIXI.Graphics(), run = new PIXI.Graphics();
+  if (Blur) runGlow.filters = [new Blur(T * 0.025)];
+  box.addChild(runGlow, run);
+  // the portrait again, above the streaks, so they pass under it
+  if (offTex) { const o = circleFigure(offTex, od, false); o.position.set(mx, my); box.addChild(o); }
+  const haloGlow = new PIXI.Graphics(), halo = new PIXI.Graphics();
+  if (Blur) haloGlow.filters = [new Blur(T * 0.03)];
+  box.addChild(haloGlow, halo);
+  const u = T / 200, chip = new PIXI.Graphics();
+  chip.lineStyle(Math.max(1, 2 * u), col, 1).beginFill(0x1a140e, 1).drawCircle(0, 0, 11 * u).endFill();
+  chip.lineStyle(0).beginFill(col, 1).drawPolygon([2 * u, -8 * u, -5 * u, 1 * u, -1 * u, 1 * u, -3 * u, 8 * u, 5 * u, -2 * u, 1 * u, -2 * u]).endFill();
+  box.addChild(chip);
+  const path = roundedRectPath(pad, pad, w - 2 * pad, h - 2 * pad, T * 0.1), n = path.length, len = Math.round(n * 0.16);
+  let time = 0;
+  const tick = () => {
+    if (box.destroyed) return;
+    time += (canvas.app?.ticker?.deltaMS ?? 16) / 1000;
+    const start = Math.floor(((time / 2.6) % 1) * n);
+    for (const g of [runGlow, run]) g.clear();
+    for (const side of [0, n >> 1]) for (let i = 0; i < len - 1; i++) {
+      const a = path[(start + side + i) % n], b = path[(start + side + i + 1) % n], al = Math.min(1, (i + 1) / (len * 0.5));
+      runGlow.lineStyle(T * 0.05, col, al * 0.8).moveTo(...a).lineTo(...b);
+      run.lineStyle(Math.max(2, T * 0.025), col, al).moveTo(...a).lineTo(...b);
+    }
+    const p = 0.5 + 0.5 * Math.sin(time * Math.PI * 2 / 1.3);
+    for (const g of [haloGlow, halo]) g.clear();
+    haloGlow.lineStyle(T * (0.04 + 0.03 * p), col, 0.5 + 0.5 * p).drawCircle(mx, my, mr + T * 0.02);
+    halo.lineStyle(T * (0.015 + 0.02 * p), col, 0.35 + 0.65 * p).drawCircle(mx, my, mr + T * 0.02);
+    chip.position.set(mx + mr * 0.95, my + mr * 0.95 - T * 0.02 * (0.5 + 0.5 * Math.sin(time * Math.PI * 2 / 0.9)));
+  };
+  tick();
+  c.addChild(box);
+  return tick;
 }
 
 /* ------------------------------------------------------------ drawing */
@@ -452,7 +545,8 @@ export async function drawUnitBars(token) {
   // a player's own units get bright corner brackets (only that player sees them; the GM never does)
   const mine = !game.user?.isGM && !!actor.isOwner;
   const facing = facingOf(token);
-  const key = JSON.stringify([men, max, morale, w, h, s.side, acted, active, holding, watching, st, mine, n, art, off, fac?.img ?? null, facing, battleRecord(token)?.meta?.[token.id]?.carry ?? null, !!battleRecord(token)?.meta?.[token.id]?.fx?.shocked, s.traits]); // traits: equipment icons (ladders, engine)
+  const ready = acted ? null : skillReady(token); // skill-ready mark: not on a unit that has already acted this round
+  const key = JSON.stringify([ready, men, max, morale, w, h, s.side, acted, active, holding, watching, st, mine, n, art, off, fac?.img ?? null, facing, battleRecord(token)?.meta?.[token.id]?.carry ?? null, !!battleRecord(token)?.meta?.[token.id]?.fx?.shocked, s.traits]); // traits: equipment icons (ladders, engine)
   let c = token[KEY];
   if (c && !c.destroyed && c.parent === token && c.qinKey === key) return;
   const my = (gen.get(token) ?? 0) + 1;
@@ -470,6 +564,7 @@ export async function drawUnitBars(token) {
   }
   c.qinKey = key;
   if (c.qinTick) { canvas.app?.ticker?.remove(c.qinTick); c.qinTick = null; }
+  if (c.qinReadyTick) { canvas.app?.ticker?.remove(c.qinReadyTick); c.qinReadyTick = null; }
   const prevN = c.qinFigN;
   let fall = token.qinFall;                       // soldiers still falling survive the redraw
   if (fall && !fall.destroyed && fall.parent === c) c.removeChild(fall);
@@ -620,6 +715,7 @@ export async function drawUnitBars(token) {
     c.qinTick();
     canvas.app?.ticker?.add(c.qinTick);
   }
+  if (ready) { c.qinReadyTick = drawSkillReady(c, ready, offTex, w, h, T, pad); canvas.app?.ticker?.add(c.qinReadyTick); }
   // the banner sits above every outline drawn on the stand (David, 2026-10-31: it went under the border); greyed with the stand
   if (c.qinFlag && !c.qinFlag.destroyed) {
     if (stand.filters?.length) c.qinFlag.filters = stand.filters;
@@ -677,6 +773,9 @@ export function redrawAllUnitBars() {
 }
 
 export function registerUnitBars() {
+  // the skill-ready marks follow the battle (turns, morale, recharges): work them out again and redraw
+  Hooks.on("updateSetting", (st) => { if (st.key === "qin.battle") { readyCache = null; redrawAllUnitBars(); } });
+  for (const h of ["updateActor", "updateToken", "createToken", "deleteToken", "canvasReady"]) Hooks.on(h, () => { readyCache = null; });
   Hooks.on("drawToken", drawUnitBars);
   Hooks.on("refreshToken", drawUnitBars);
   Hooks.on("destroyToken", clear);
