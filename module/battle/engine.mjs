@@ -1130,7 +1130,7 @@ function buildRoll(s, unit, role, ctx) {
   if (role === 'attacker' && trait(unit, 'ruthless pursuit') && (other.morale ?? 100) <= 50) parts.push(['Ruthless Pursuit (target at 50 morale or less)', 2]);
   let ms = moraleState(unit.morale);
   if (ms === 'Surrendered' && trait(unit, 'fanatic')) ms = 'Demoralized'; // Fanatic: fights on at 0 morale
-  if (ms === 'Encouraged') parts.push(['Encouraged', 2]);
+  if (ms === 'Encouraged') parts.push(['Encouraged', 1]); // +1 (David, 2026-11-09; was +2): a battlefield active should be worth more than staying Encouraged
   const steady = p.ignoreMoralePenalty ? 'officer passive' : trait(unit, 'unwavering') ? 'Unwavering' : SK.flag(s, unit, 'ignoreLowMorale') ? 'battlefield skill' : null;
   // Misplaced Devotion (Qingzhou, David 2026-10-31): at 25 morale or less the unit ignores Demoralized and instead
   // gets Attack +3 on its own attacks and melee defense -3 (ranged defense unchanged)

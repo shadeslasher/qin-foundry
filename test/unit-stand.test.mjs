@@ -23,7 +23,7 @@ test('status icons: Command roll bonus/penalty, defense, ranged defense', () => 
   globalThis.game = { settings: { get: () => battle } };
   const tok = (sys, items = { get: () => null }, id = 't') => ({ id, document: { parent: { id: 's' } }, actor: { system: { range: 1, category: 'infantry', men: { value: 100, max: 100 }, morale: 50, traits: '', ...sys }, items } });
   // morale and losses
-  assert.strictEqual(U.unitStatus(tok({ morale: 80 })).rolls, 2);
+  assert.strictEqual(U.unitStatus(tok({ morale: 80 })).rolls, 1); // Encouraged +1 (2026-11-09)
   assert.strictEqual(U.unitStatus(tok({ morale: 80 })).attack, 0, 'morale is on all rolls, not the sword');
   assert.strictEqual(U.unitStatus(tok({ morale: 20, men: { value: 15, max: 100 } })).rolls, -4, 'demoralised and down to 1 soldier');
   // ranged unit on its turn, not moved: +2

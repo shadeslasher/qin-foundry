@@ -125,7 +125,7 @@ function battleRecord(token) {
 
 /**
  * What the status icons show, all as changes to Command rolls:
- *  attack - situational bonus/penalty to this unit's rolls: morale (+2 Encouraged / -2 Demoralized),
+ *  attack - situational bonus/penalty to this unit's rolls: morale (+1 Encouraged / -2 Demoralized),
  *           losses (2 soldiers -1, 1 soldier -2), and on its own turn the cavalry charge bonus after a
  *           2+ tile move, or the ranged attacker's +2 kept by not moving. During an attack it shows that
  *           attack's whole situational total instead (token.qinAttackBonus).
@@ -162,7 +162,7 @@ export function unitStatus(token) {
   // rolls: changes to ALL Command rolls (attacking and defending): morale and losses
   let rolls = 0, attack = 0;
   const m = s.morale ?? 0;
-  if (m >= 75) rolls += 2; else if (m > 0 && m <= 25 && !tr.unwavering) rolls -= 2;
+  if (m >= 75) rolls += 1; else if (m > 0 && m <= 25 && !tr.unwavering) rolls -= 2;
   const figs = figureCount(s.men?.value ?? 0, s.men?.max || 100);
   if (figs === 1) rolls -= 2; else if (figs === 2) rolls -= 1;
   // attack: changes that only count when attacking
