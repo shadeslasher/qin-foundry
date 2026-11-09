@@ -3,6 +3,7 @@
 // buff lands, and while it lasts the Green Dragon Crescent Blade sweeps a full circle after each of his attacks.
 import { atSpeed } from "./battle-speed.mjs";
 import { overLayer } from "../attack-fx.mjs";
+import { playMoment } from "../sound.mjs";
 
 const rnd = (a, b) => a + Math.random() * (b - a);
 const Blur = () => PIXI.BlurFilter ?? PIXI.filters?.BlurFilter;
@@ -213,6 +214,7 @@ export function playSweep(token, sweep, float) {
     }
     for (const h of hits) if (!h.done && st >= h.at) {
       h.done = true; sweepHit(h.t, c);
+      try { playMoment("Sweep hit", { minGap: 0 }); } catch { /* no sound */ } // one hit sound per enemy the blade passes
       float(h.id, "unitDamage", `−${h.cas}`);
       if (h.mor) float(h.id, "moraleDown", `−${h.mor} morale`, atSpeed(480)); // a little after the damage
     }

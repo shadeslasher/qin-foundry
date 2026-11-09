@@ -70,3 +70,10 @@ test('icons: always-on roll changes from skills are summed; conditional ones (if
   SK.addBuff(s, u(0), u(0), 'Might', { mods: [{ stat: 'attack', value: 4 }, { stat: 'commandDef', value: 1 }] }, { rounds: 3 });
   assert.deepStrictEqual(SK.alwaysOnRolls(s, u(0)), { command: 2, attack: 4 - 2, meleeDef: 1, rangedDef: 1 });
 });
+
+test('Sweep hit sounds: its own pick, else the Melee hit sounds', async () => {
+  const S = await import('../module/sound.mjs');
+  assert.deepStrictEqual(S.soundsFor('Sweep hit', { 'Melee hit': ['hit.ogg'] }, {}), ['hit.ogg']);
+  assert.deepStrictEqual(S.soundsFor('Sweep hit', { 'Melee hit': ['hit.ogg'] }, { 'Sweep hit': ['clang.ogg'] }), ['clang.ogg']);
+  assert.ok(S.MOMENTS.includes('Sweep hit'));
+});

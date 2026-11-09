@@ -9,7 +9,7 @@ import { atSpeed } from "./battle/battle-speed.mjs";
 
 /** Every moment the battle can play a sound for, grouped as in the panel. `local`: only the person acting hears it. */
 export const MOMENT_GROUPS = [
-  ["Combat", ["Melee hit", "Miss or blocked", "Bow shot", "Crossbow shot", "Overwatch shot",
+  ["Combat", ["Melee hit", "Sweep hit", "Miss or blocked", "Bow shot", "Crossbow shot", "Overwatch shot",
     "Unit destroyed", "Morale drop", "Morale up / rally", "Level up", "XP gained", "Fire catches / burning"]],
   ["Turn and actions", ["Battle start", "Condition shown", "Round start", "Turn start",
     "Unit selected", "Infantry moves", "Cavalry moves", "Hold", "Overwatch set", "Reload", "Tactic placed", "Tactic triggered",
@@ -23,6 +23,7 @@ export const LOCAL_MOMENTS = new Set(["Unit selected", "Tactic placed", "Conditi
 export const FALLBACKS = {
   "Crossbow shot": ["Bow shot"], "Overwatch shot": ["Bow shot"],
   "Cavalry moves": ["Infantry moves"],
+  "Sweep hit": ["Melee hit"], // each enemy hit by a sweep (Guan Yu); the Melee hit sounds unless the GM picks its own
 };
 
 let pack = {};
