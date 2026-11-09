@@ -1,5 +1,6 @@
 // Tile info (V): a small, see-through tooltip by the cursor that names the square under it and lists what it
 // does (movement, defense, range, hiding, fire...). Off by default; V turns it on or off for this computer.
+import { uiScale } from "../ui-scale.mjs";
 import { SYSTEM_ID } from "../config.mjs";
 import { getBattle } from "./adapter.mjs";
 import { decodeTiles, FLAG as MAP_FLAG } from "./battlemap.mjs";
@@ -89,7 +90,7 @@ function show(ev) {
     el.style.display = "";
     last = key;
   }
-  const pad = 14, w = el.offsetWidth, h = el.offsetHeight;
+  const pad = 14, k = uiScale(), w = el.offsetWidth * k, h = el.offsetHeight * k; // drawn at the screen scale
   el.style.left = `${Math.min(window.innerWidth - w - 4, ev.clientX + pad)}px`;
   el.style.top = `${Math.min(window.innerHeight - h - 4, ev.clientY + pad)}px`;
 }

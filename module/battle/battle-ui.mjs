@@ -1,5 +1,6 @@
 // Fire Emblem-style battle controls on the canvas: an action menu beside the active unit,
 // blue/red movement squares, attack target highlights, and a "which unit is this" highlight.
+import { uiScale } from "../ui-scale.mjs";
 import * as E from "./engine.mjs";
 import * as SK from "./skills.mjs";
 import { getBattle, buildState, isWritingBack } from "./adapter.mjs";
@@ -393,11 +394,12 @@ function placeMenu() {
   // Use the unit's square from the battle record: the token may still be gliding there
   const t = current.token, size = gridSize(), u = current.u;
   const tx = u ? u.x * size : t.x, ty = u ? u.y * size : t.y, tw = t.w || size;
-  const w = menuEl.offsetWidth || 180;
+  const w = menuEl.offsetWidth || 180, sw = w * uiScale(); // drawn at the screen scale (ui-scale.mjs), anchored at its top corner by the unit
   const right = toClient({ x: tx + tw, y: ty }), left = toClient({ x: tx, y: ty });
   let side = menuSide;
-  if (side === "right" && right.x + 8 + w > window.innerWidth) side = "left";
-  if (side === "left" && left.x - 8 - w < 0) side = "right";
+  if (side === "right" && right.x + 8 + sw > window.innerWidth) side = "left";
+  if (side === "left" && left.x - 8 - sw < 0) side = "right";
+  menuEl.classList.toggle("qin-left", side === "left");
   menuEl.style.left = `${Math.round(side === "right" ? right.x + 8 : left.x - 8 - w)}px`;
   menuEl.style.top = `${Math.round(right.y)}px`;
 }

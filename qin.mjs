@@ -17,6 +17,7 @@ import { registerTokenHover } from "./module/token-hover.mjs";
 import { registerCombatQuery, onRenderCombatTracker } from "./module/combat-actions.mjs";
 import { registerAttackFxSocket, registerDamageFloats } from "./module/attack-fx.mjs";
 import { registerUnitBars, redrawAllUnitBars, registerFacingKey } from "./module/unit-bars.mjs";
+import { registerUiScale } from "./module/ui-scale.mjs";
 import { registerFactions, factionList } from "./module/factions.mjs";
 import { refreshBattleUI, repositionBattleUI, lockUnitTokens, lockUnitMoves, onUnitSelected, registerUnitClicks } from "./module/battle/battle-ui.mjs";
 import { refreshTactics, registerTactics } from "./module/battle/tactics-ui.mjs";
@@ -289,6 +290,7 @@ Hooks.on("renderChatMessageHTML", onRenderChatMessage);
 registerTokenHover();
 registerDamageFloats();
 registerUnitBars();
+registerUiScale(); // battle overlays scale with the screen (David, 2026-11-09)
 registerUnitInfo();
 registerTactics();
 registerDeployZones();

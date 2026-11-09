@@ -1,6 +1,7 @@
 // Victory and defeat conditions in Foundry: the GM's setup (battle panel card, picking units and tiles, the
 // extraction brush), the markers on the map (labels on hover), the tracker at the top right of the screen,
 // and the Victory / Defeat banner everyone sees when the battle is decided. Rules: objectives.mjs + engine.mjs.
+import { uiScale } from "../ui-scale.mjs";
 import { playMoment } from "../sound.mjs";
 import { SYSTEM_ID } from "../config.mjs";
 import { getBattle } from "./adapter.mjs";
@@ -326,7 +327,7 @@ function makeCard(entries, cls) {
 }
 /** Put a card centred above a target (or below it when there's no room above), kept on screen. */
 function placeCard(card, tg) {
-  const w = card.offsetWidth, h = card.offsetHeight, above = toScreen(tg.cx, tg.top), below = toScreen(tg.cx, tg.bottom);
+  const k = uiScale(), w = card.offsetWidth * k, h = card.offsetHeight * k, above = toScreen(tg.cx, tg.top), below = toScreen(tg.cx, tg.bottom); // drawn at the screen scale
   const left = Math.max(8, Math.min(window.innerWidth - w - 8, above.x - w / 2));
   const top = above.y - h - 8 >= 8 ? above.y - h - 8 : Math.min(window.innerHeight - h - 8, below.y + 8);
   card.style.left = `${left}px`; card.style.top = `${top}px`;
