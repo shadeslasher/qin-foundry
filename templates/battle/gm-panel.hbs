@@ -19,5 +19,9 @@
       <button type="button" data-action="level" data-step="1" title="Raise the selected units one level (up to 5)" {{#unless canUp}}disabled{{/unless}}><i class="fa-solid fa-angles-up"></i> Level up</button>
       <button type="button" data-action="level" data-step="-1" title="Lower the selected units one level (down to 1)" {{#unless canDown}}disabled{{/unless}}><i class="fa-solid fa-angles-down"></i> Level down</button>
     </div>
+    <div class="qin-btns">
+      <button type="button" data-action="restore" data-kind="heal" title="Heal the selected units to full health" {{#unless selected.length}}disabled{{/unless}}><i class="fa-solid fa-heart-pulse"></i> Heal</button>
+      <button type="button" data-action="restore" data-kind="morale" title="Set the selected units' morale to their base (resting) morale: 50, or more with Disciplined" {{#unless selected.length}}disabled{{/unless}}><i class="fa-solid fa-flag"></i> Morale to base</button>
+    </div>
   </div>
 </div>

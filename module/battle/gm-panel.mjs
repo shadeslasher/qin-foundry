@@ -1,5 +1,5 @@
-// GM controls, in their own window apart from the Battle panel (David, 2026-10-29): hide/reveal and level up/down
-// for the selected unit tokens. The battle controls (fire, tactics, skip, back to setup, end battle, Victory /
+// GM controls, in their own window apart from the Battle panel (David, 2026-10-29): hide/reveal, level up/down, heal
+// and morale back to base for the selected unit tokens. The battle controls (fire, tactics, skip, back to setup, end battle, Victory /
 // Defeat / Stalemate) went back into the Battle panel (David, 2026-11-01).
 import { SYSTEM_ID, systemPath } from "../config.mjs";
 import * as E from "./engine.mjs";
@@ -9,7 +9,7 @@ import { battleRequest, setHiddenSelected, confirmEndBattle, toggleGmFire, gmFir
 import { TacticsApp } from "./tactics-ui.mjs";
 import { levelChevronsSVG } from "../icons.mjs";
 import { broadcastBattleAnim } from "../attack-fx.mjs";
-import { pickRandomChoices } from "./traits.mjs";
+import { pickRandomChoices, traitTiersOf } from "./traits.mjs";
 import { aiSettings, setAI, aiLevels } from "./ai-driver.mjs";
 
 const { api } = foundry.applications;
@@ -46,6 +46,40 @@ export async function stepLevel(step) {
   GmPanel.refresh();
 }
 
+/** Resting morale (the "base" a unit settles at): 50, Disciplined/+/++/EX 55/60/65/70. */
+function restingMorale(s, tokenId, actor) {
+  const u = s?.units?.find(x => x.id === tokenId);
+  const tier = u ? E.unitTrait(u, "disciplined") : (traitTiersOf(actor.system.traits ?? "").disciplined || 0);
+  return 50 + ([0, 5, 10, 15, 20][Math.min(4, tier || 0)] || 0);
+}
+/** GM: heal the selected units to full health, or set their morale back to its resting value (David, 2026-11-09).
+ *  The change floats over each unit for everyone. */
+export async function restoreSelected(kind) {
+  if (!game.user.isGM) return;
+  const toks = selectedUnits();
+  if (!toks.length) return ui.notifications.warn("Select one or more unit tokens on the map first.");
+  const battle = getBattle();
+  let s = null; try { if (battle.active && battle.sceneId === canvas.scene?.id) s = buildState(battle).s; } catch { /* outside a battle */ }
+  const floats = [], same = [];
+  for (const t of toks) {
+    const sys = t.actor.system;
+    if (kind === "heal") {
+      const max = sys.men?.max || 100, cur = sys.men?.value ?? 0;
+      if (cur >= max) { same.push(t.name); continue; }
+      await t.actor.update({ "system.men.value": max });
+      floats.push([t.id, "heal", `+${max - cur}`]);
+    } else {
+      const base = restingMorale(s, t.id, t.actor), cur = sys.morale ?? 0;
+      if (cur === base) { same.push(t.name); continue; }
+      await t.actor.update({ "system.morale": base });
+      floats.push([t.id, base > cur ? "moraleUp" : "moraleDown", `${base > cur ? "+" : "−"}${Math.abs(base - cur)} morale`]);
+    }
+  }
+  if (floats.length && canvas.scene) broadcastBattleAnim(canvas.scene.id, [{ kind: "floats", items: floats }]);
+  if (same.length) ui.notifications.info(`${same.join(", ")} ${same.length === 1 ? "is" : "are"} already ${kind === "heal" ? "at full health" : "at base morale"}.`);
+  GmPanel.refresh();
+}
+
 export class GmPanel extends api.HandlebarsApplicationMixin(api.Application ?? api.ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "qin-gm-panel",
@@ -55,6 +89,7 @@ export class GmPanel extends api.HandlebarsApplicationMixin(api.Application ?? a
     actions: {
       setHidden: async (ev, el) => { await setHiddenSelected(el.dataset.hidden === "1"); GmPanel.refresh(); },
       level: (ev, el) => stepLevel(Number(el.dataset.step) || 0),
+      restore: (ev, el) => restoreSelected(el.dataset.kind),
       gmFire: () => toggleGmFire(),
       aiSide: async (ev, el) => { const side = el.dataset.side; await setAI({ [side]: !aiSettings()[side] }); GmPanel.refresh(); },
       aiPause: async () => { await setAI({ paused: !aiSettings().paused }); GmPanel.refresh(); },
