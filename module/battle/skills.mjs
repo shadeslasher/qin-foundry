@@ -120,6 +120,7 @@ export function matches(s, f, u, ctx = {}) {
       // v3: what happened earlier in the battle (fx memory, kept by skills.mjs)
       case 'not': if (matches(s, v, u, ctx)) return false; break;
       case 'ownSide': if (!(ctx.src && u.side === ctx.src.side) === !!v) return false; break; // his own side (not an allied side)
+      case 'homeDistrict': { const o = u.officerId ? E.officerOf(s, u) : null; if (!!(o && o.homeDistrict) !== !!v) return false; break; } // fighting in his own district (from the world map)
       case 'nextToTerrain': if (!nextTo(s, u.x, u.y, v)) return false; break; // on or next to such ground
       case 'impassableAdjacent': if ([[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dx, dy]) => !E._passable(s, u.x + dx, u.y + dy, u)).length < Number(v)) return false; break;
       case 'carrying': if ((u.carry || null) !== v) return false; break;
@@ -635,6 +636,13 @@ function step(s, st, ctx, rest) {
     }
     return;
   }
+  if (st.revealPick !== undefined) { // the GM (or the AI, when this side is AI-run) picks hidden enemy units to reveal (David, 2026-11-09)
+    const n = st.revealPick === true ? 1 : Math.max(1, Number(st.revealPick) || 1);
+    if (!revealCandidates(s, src).length) { say(s, label + ': no hidden enemy unit to reveal.', { type: 'skillManual', unit: src.id }); return; }
+    (s.revealPicks ||= []).push({ id: 'rp' + (s.revealPicks.length + 1) + '-' + src.id, src: src.id, side: src.side, left: n, label });
+    say(s, label + ': a hidden enemy unit will be revealed (' + (n > 1 ? n + ' units, ' : '') + 'picked by the GM, or by the AI for an AI side).', { type: 'skillManual', unit: src.id });
+    return;
+  }
   if (st.reveal !== undefined) {
     for (const u of live(s)) if (u.hidden && E.hostile(u, src) && E.manhattan(u, src) <= st.reveal && !flag(s, u, 'noRevealBySkills')) { u.hidden = false; say(s, label + ': ' + nm(u) + ' is revealed.', { type: 'revealed', unit: u.id }); }
     return;
@@ -900,6 +908,35 @@ export function pruneChoices(s) {
   const ac = s.turn && s.turn.activation; if (!ac || !ac.skillQueue) return;
   while (ac.skillQueue.length && !choiceOpen(s, ac.skillQueue[0])) ac.skillQueue.shift();
 }
+
+/** Hidden enemy units a battle-start reveal (revealPick) may pick for src. */
+export function revealCandidates(s, src) {
+  return live(s).filter(u => u.hidden && E.hostile(u, src) && !flag(s, u, 'noRevealBySkills'));
+}
+/** The AI's pick for a reveal: the strongest hidden enemy (tier, then troops), nearest first on a tie. */
+export function aiRevealTarget(s, src) {
+  const c = revealCandidates(s, src);
+  const tierOf = (u) => Number(typeOf(s, u).tier) || 1;
+  c.sort((a, b) => tierOf(b) - tierOf(a) || (b.men || 0) - (a.men || 0) || E.manhattan(a, src) - E.manhattan(b, src));
+  return c[0] || null;
+}
+/** Answer a waiting reveal: { pickId, targetId } or { pickId, skip: true }. Returns an error string or null. */
+export function answerReveal(s, a) {
+  const q = s.revealPicks || [], p = q.find(x => x.id === a.pickId) || q[0];
+  if (!p) return 'No reveal is waiting';
+  const src = E.unitById(s, p.src);
+  if (!a.skip) {
+    const t = E.unitById(s, a.targetId);
+    if (!src || !t || !revealCandidates(s, src).some(u => u.id === t.id)) return 'Pick a hidden enemy unit';
+    t.hidden = false;
+    say(s, p.label + ': ' + nm(t) + ' is revealed.', { type: 'revealed', unit: t.id });
+    p.left -= 1;
+  }
+  if (a.skip || p.left <= 0 || !src || !revealCandidates(s, src).length) s.revealPicks = q.filter(x => x !== p);
+  return null;
+}
+/** The next reveal waiting for a pick, if any. */
+export const pendingReveal = (s) => (s.revealPicks && s.revealPicks[0]) || null;
 
 /** The next choice an active is waiting for, if any: { kind: 'move'|'attack', unitId, budget, mode, toward }. */
 export function pendingChoice(s) {

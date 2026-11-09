@@ -61,8 +61,11 @@ function officerStanding(officer) {
     faction = api?.actorFaction?.(officer) ?? null;
     ruler = !!sheet?.ruler;
   } catch { /* no map module */ }
+  // fighting in his own district? from the world map: where the party is vs. where he is posted (David, 2026-11-09)
+  let homeDistrict = false;
+  try { homeDistrict = !!api?.inHomeDistrict?.(officer)?.home; } catch { /* no map module */ }
   const family = String(officer.name ?? "").replace(/\s*\(.*\)\s*$/, "").trim().split(/\s+/)[0] || "";
-  return { rank, faction, ruler, family, aspects: { ...(officer.system.aspects ?? {}) } };
+  return { rank, faction, ruler, family, homeDistrict, aspects: { ...(officer.system.aspects ?? {}) } };
 }
 
 /** The automated battlefield passive / active of an officer, when a spec exists for his items (skill-data.mjs). */
@@ -163,6 +166,7 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
   s.skillInterjects = battle.skillInterjects ?? []; s.skillExtra = battle.skillExtra ?? []; // short extra turns skills hand out
   s.skillOrder = battle.skillOrder ?? []; s.skillCancelTactic = battle.skillCancelTactic ?? []; s.skFallen = battle.skFallen ?? {};
   s.tileOverrides = battle.tileOverrides ?? {};
+  s.revealPicks = battle.revealPicks ?? []; // battle-start reveals waiting for the GM (or the AI) to pick a hidden enemy
   s.deployZones = scene?.getFlag?.(SYSTEM_ID, DEPLOY_FLAG) ?? []; // deployment squares, saved with the scene
   s.objectives = foundry.utils.deepClone(scene?.getFlag?.(SYSTEM_ID, OBJECTIVES_FLAG) ?? emptyObjectives()); // victory / defeat conditions
   s.objState = battle.objState ?? freshObjState();
@@ -356,6 +360,7 @@ async function writeBack(battle, s, scene) {
   battle.skillInterjects = s.skillInterjects ?? []; battle.skillExtra = s.skillExtra ?? [];
   battle.skillOrder = s.skillOrder ?? []; battle.skillCancelTactic = s.skillCancelTactic ?? []; battle.skFallen = s.skFallen ?? {};
   battle.tileOverrides = s.tileOverrides ?? {};
+  battle.revealPicks = s.revealPicks ?? [];
   battle.objState = s.objState ?? null;
   battle.objEval = s.objEval ?? null;
   battle.outcome = s.outcome ?? null;

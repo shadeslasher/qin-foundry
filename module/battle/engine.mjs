@@ -1969,7 +1969,7 @@ function takeBackSnapshot(s) {
 }
 
 const DUEL_ACTIONS = new Set(['duelAnswer', 'duelResult', 'duelCancel']);
-const HOST_ONLY = new Set(['duelResult', 'duelCancel', 'triggerAllTactics', 'setGate', 'setHidden', 'setMap', 'paintTerrain', 'setLibrary', 'addUnit', 'editUnit', 'removeUnit',
+const HOST_ONLY = new Set(['skillReveal', 'duelResult', 'duelCancel', 'triggerAllTactics', 'setGate', 'setHidden', 'setMap', 'paintTerrain', 'setLibrary', 'addUnit', 'editUnit', 'removeUnit',
   'startBattle', 'resetBattle', 'startRound', 'skipPrompt', 'addMod', 'removeMod', 'adjust', 'setFacing',
   'setTactician', 'finishTactics', 'skipTactics', 'declareOutcome', 'aiNote']);
 
@@ -2083,7 +2083,7 @@ const ACTIONS = {
     s.tactics = null;
     s.objState = freshObjState(); s.outcome = null; s.objEval = null;
     for (const u of s.units) u.round = newRoundFlags();
-    delete s.skillsBegun; delete s.skillExtra; delete s.skillInterjects; for (const u of s.units) SK.resetUnit(u);
+    delete s.skillsBegun; delete s.skillExtra; delete s.skillInterjects; delete s.revealPicks; for (const u of s.units) SK.resetUnit(u);
     log(s, 'Host returned to setup.');
   },
   startRound(s, actor) {
@@ -2679,6 +2679,10 @@ const ACTIONS = {
     log(s, r.u.name + ' uses ' + o.skill.name + (cost ? ' (-' + cost + ' morale)' : '') + (auto ? '.' : ': ' + o.skill.text), { type: 'skill', unit: r.u.id, text: o.skill.text, active: true, skill: o.skill.name });
     SK.usedActive(r.u);
     if (auto) SK.useActive(s, r.u, a);
+    settle(s);
+  },
+  skillReveal(s, actor, a) { // pick the hidden enemy a battle-start reveal shows (GM, or the AI for an AI side): { pickId, targetId } | { pickId, skip }
+    const e = SK.answerReveal(s, a); if (e) return err(e);
     settle(s);
   },
   skillChoose(s, actor, a) { // answer a battlefield active's pending choice: { x, y } | { targetId } | { skip: true }

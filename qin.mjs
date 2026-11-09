@@ -29,6 +29,7 @@ import { panToActiveOfficer, registerTurnPan } from "./module/battle/turn-pan.mj
 import { registerBattleSpeed } from "./module/battle/battle-speed.mjs";
 import { registerHealthV2, migrateHealthV2 } from "./module/health-v2.mjs";
 import { registerBattleAI } from "./module/battle/ai-driver.mjs";
+import { registerRevealPick } from "./module/battle/reveal-pick.mjs";
 import { registerFireFx, drawFires } from "./module/battle/fire-fx.mjs";
 import { HotkeyGuide } from "./module/hotkeys.mjs";
 import { registerSounds, registerSoundPack, onBattleSetting, primeBattleSounds, primeTokenPositions, onUnitTokenMoved, SoundPanel, playMoment } from "./module/sound.mjs";
@@ -122,6 +123,7 @@ Hooks.once("init", () => {
   registerDeployDrawing();
   registerHealthV2();
   registerBattleAI();
+  registerRevealPick();
   registerFireFx();
   registerTurnPan();
   registerBattleSpeed();

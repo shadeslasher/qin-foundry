@@ -1089,6 +1089,9 @@ export function aiStep(s, sides, opts = {}) {
     for (const side of ['enemy', 'ally']) if (on(side)) { const a = tacticsStep(s, side, opts); if (a) return a; }
     return null;
   }
+  // a battle-start reveal for an AI side (Inside Knowledge): it picks the strongest hidden enemy (David, 2026-11-09)
+  const rv = SK.pendingReveal(s), rsrc = rv && E.unitById(s, rv.src);
+  if (rsrc && on(rsrc.side) && !rsrc.owner) { const t = SK.aiRevealTarget(s, rsrc); return t ? { type: 'skillReveal', pickId: rv.id, targetId: t.id } : { type: 'skillReveal', pickId: rv.id, skip: true }; }
   const p = E.prompt(s);
   if (p.kind === 'activation') {
     const u = E.unitById(s, p.unitId);

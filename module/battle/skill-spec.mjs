@@ -41,14 +41,18 @@ const FILTER_KEYS = ['category', 'melee', 'levy', 'trait', 'officer', 'officerTy
   'startedNearWater', 'belowResting', 'fullMorale', 'firstAttackTaken', 'unitTier', 'unitFaction', 'officerRank', 'officerTier', 'aspectAbove',
   'ledByFactionLeader', 'sameFamily', 'allyAdjacentWhere', 'allyWithinWhere', 'noAllyWithin', 'attackFrom', 'fromHiding', 'higherGround',
   'lowerGround', 'fallKind', 'byAllyWithin', 'allyFallenThisBattle', 'nearPick',
-  'nextToTerrain', 'impassableAdjacent', 'carrying', 'onCatapult', 'arrivedAsReinforcement', 'attackedSinceItsTurn', 'empty', 'ownSide'];
+  'nextToTerrain', 'impassableAdjacent', 'carrying', 'onCatapult', 'arrivedAsReinforcement', 'attackedSinceItsTurn', 'empty', 'ownSide',
+  // 2026-11-09
+  'homeDistrict'];
 const COND_KEYS = [...FILTER_KEYS, 'attacking', 'defending', 'kind', 'moved', 'notMoved', 'movedAtLeast', 'firstAttackOfBattle',
   'firstAttackOfTurn', 'notAttackedThisBattle', 'selfOnTerrain', 'selfHidden', 'selfNotMoved', 'selfMoraleAbove', 'selfMoraleBelow'];
 const STEP_KEYS = ['morale', 'health', 'buff', 'move', 'attack', 'contest', 'status', 'push', 'reveal', 'fire', 'resetCooldown',
   'extraTurn', 'reinforce', 'swap', 'selfStatus', 'if', 'onKill', 'onWin', 'onLose', 'manual', 'hide', 'fireArea',
   // v3
   'casualties', 'turnOrder', 'setTerrain', 'openGate', 'repair', 'leave', 'convert', 'spawn', 'grantTrait', 'removeTrait', 'stealTrait',
-  'stepTrait', 'cancelTactic', 'cooldown', 'overwatchOn', 'custom', 'counter', 'forceToward', 'forceAttack', 'moveInto', 'splitMorale', 'blast', 'overwatchShot', 'cleanse', 'swapUnits', 'climb'];
+  'stepTrait', 'cancelTactic', 'cooldown', 'overwatchOn', 'custom', 'counter', 'forceToward', 'forceAttack', 'moveInto', 'splitMorale', 'blast', 'overwatchShot', 'cleanse', 'swapUnits', 'climb',
+  // 2026-11-09
+  'revealPick'];
 
 /** Check a spec; returns a list of problems (empty = fine). `kind`: 'passive' | 'active'. */
 export function validateSpec(spec, kind) {
@@ -178,6 +182,7 @@ export function validateSpec(spec, kind) {
       case 'moveInto': if (st.moveInto !== 'vacated') bad(p + '.moveInto', '"vacated"'); break;
       case 'splitMorale': if (!isNum(st.splitMorale)) bad(p + '.splitMorale', 'number'); who(p + '.who', st.who, true); break;
       case 'blast': break;
+      case 'revealPick': if (!(st.revealPick === true || isNum(st.revealPick))) bad(p + '.revealPick', 'true or a number of units'); break;
       case 'cleanse': who(p + '.cleanse', st.cleanse, true); break;
       case 'swapUnits': who(p + '.swapUnits', st.swapUnits, true); who(p + '.with', st.with, true); break;
       case 'climb': if (!st.climb || !picks.has(st.climb.pick)) bad(p + '.climb', '{"pick": id of a tile pick}'); break;
