@@ -66,10 +66,10 @@ test("battle adapter: a full officer turn through Foundry tokens", async () => {
   r = await A.runAction("alice", { type: "decide", unitId: "tokA", choice: "act" });
   assert.ok(r.ok, r.error);
   // The Battle Active signature skill works as the officer's battle skill (costs 20 morale)
-  ally.system.morale = 60;
+  ally.system.morale = 80; // actives need at least 75 morale
   r = await A.runAction("alice", { type: "useSkill", unitId: "tokA" });
   assert.ok(r.ok, r.error);
-  assert.strictEqual(ally.system.morale, 40);
+  assert.strictEqual(ally.system.morale, 60);
 
   // Alice drags her token 3 tiles down (movement 4)
   tA.y = 5 * 100;

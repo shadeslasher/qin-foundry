@@ -7,9 +7,16 @@ const unit = (morale, last, used = false) => ({ morale, fx: { skillLast: last ??
 const off = (skill) => ({ skill: { name: "S", moraleCost: 20, ...skill } });
 
 test("battle skills: must have more morale than the cost (no paying down to 0)", () => {
-  assert.equal(skillCheck(st(1), unit(20), off({})).ok, false);
-  assert.equal(skillCheck(st(1), unit(21), off({})).ok, true);
+  assert.equal(skillCheck(st(1), unit(80), off({ moraleCost: 80 })).ok, false);
+  assert.equal(skillCheck(st(1), unit(81), off({ moraleCost: 80 })).ok, true);
   assert.equal(skillCheck(st(1), unit(90, null, true), off({})).reason, "Officer skill already used this turn");
+});
+
+test("battle skills: actives need at least 75 morale; last stands 25 or less (David, 2026-11-09)", () => {
+  assert.equal(skillCheck(st(1), unit(74), off({})).reason, "Needs at least 75 morale");
+  assert.equal(skillCheck(st(1), unit(75), off({})).ok, true);
+  assert.equal(skillCheck(st(1), unit(26), off({ lastStand: true, moraleCost: 0 })).reason, "Last stand: only at 25 morale or less");
+  assert.equal(skillCheck(st(1), unit(10), off({ lastStand: true, moraleCost: 0 })).ok, true);
 });
 
 test("battle skills: cooldown in turns, once per battle, last stand", () => {

@@ -405,7 +405,10 @@ function log(s, text, detail) {
  * - recharge: turns (battle rounds) to wait after a use, so used in round R with recharge N it is ready in R+N;
  *   perBattle: once per battle
  * - lastStand: only usable at 25 morale or less (no other morale requirement)
+ * - every other active needs at least 75 morale (David, 2026-11-09), unless its own rule caps morale lower
+ *   (an automated active whose require has moraleBelow, e.g. a desperate or last-stand skill)
  */
+const ACTIVE_MIN_MORALE = 75, LAST_STAND_MAX_MORALE = 25;
 function skillCheck(s, u, o) {
   const sk = o && o.skill;
   if (!sk) return { ok: false, reason: 'No officer skill' };
@@ -419,7 +422,8 @@ function skillCheck(s, u, o) {
     const left = fx(u).skillLast + n - round;
     return { ok: false, reason: 'Recharging: ' + left + ' turn' + (left === 1 ? '' : 's'), left };
   }
-  if (sk.lastStand && u.morale > 25) return { ok: false, reason: 'Last stand: only at 25 morale or less' };
+  if (sk.lastStand) { if (u.morale > LAST_STAND_MAX_MORALE) return { ok: false, reason: 'Last stand: only at ' + LAST_STAND_MAX_MORALE + ' morale or less' }; }
+  else if (SK.activeMoraleCap(s, u) == null && u.morale < ACTIVE_MIN_MORALE) return { ok: false, reason: 'Needs at least ' + ACTIVE_MIN_MORALE + ' morale' };
   if (cost && u.morale <= cost) return { ok: false, reason: 'Needs more than ' + cost + ' morale' };
   return { ok: true, reason: '' };
 }
@@ -2933,7 +2937,7 @@ function viewFor(s, viewer) {
 export { endRound as _endRound, imperialAura as _imperialAura, hidesIn as _hidesIn, officerWeaponLevel, casualtiesOf, evasionOf, evadeCasualties, disciplinedBonus, warDrumsBonus, hornReady, hornTargets, medLeft, medTargets, medHeal, checkpointMorale, checkpointsPassed, overwatchFire as _overwatchFire, surroundAfterTurn as _surroundAfterTurn,
   moveOptions, attackTargets, actionMenu, threatArea, extinguishTiles, waterNear, TACTIC_SIDES, tileRules, ladderTiles, climbTiles, insideCity, isWallTop, gateAt, gateHp, gateTargets, stairsAt,
   newState, act, viewFor, prompt, reachable, duelTargets, movementOf, moraleState, visibleTo, rangeOk,
-  resolveAttack, buildRoll, skillCheck, setRng, yinYang, typeOf, officerOf, unitById, SIDES, settle, advance,
+  resolveAttack, buildRoll, skillCheck, ACTIVE_MIN_MORALE, LAST_STAND_MAX_MORALE, setRng, yinYang, typeOf, officerOf, unitById, SIDES, settle, advance,
   liveUnits, hostile, alliance, manhattan, unitAt, alive, trait as unitTrait, TAKE_BACK_KEYS, damageValue,
   log as _log, igniteTile as _ignite, inBounds as _inBounds, passable as _passable, endAfterAttack as _endAfterAttack, finishActivation as _finishActivation, endInterject as _endInterject, isRear as _isRear, isFront as _isFront, newRoundFlags,
 };

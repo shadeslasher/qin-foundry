@@ -1080,6 +1080,13 @@ export function useActive(s, u, a = {}) {
   runSteps(s, act.do || [], { src: u, picks, name: sp.activeName || 'active' });
   return null;
 }
+/** The highest morale an officer's active allows by its own rule (require.moraleBelow), or null if it sets none.
+ *  Such actives (desperate or last-stand ones) skip the usual 75-morale minimum (David, 2026-11-09). */
+export function activeMoraleCap(s, u) {
+  const sp = specsOf(s, u); const r = sp && sp.active && sp.active.require;
+  if (!r || r.moraleBelow == null) return null;
+  return r.moraleBelow === 'half' ? 50 : Number(r.moraleBelow);
+}
 /** Why the active can't be used now (a pick it needs has nothing to choose), or null. */
 export function activeBlocked(s, u) {
   const sp = specsOf(s, u); const act = sp && sp.active;

@@ -15,7 +15,7 @@ function setup(units, officers = []) {
   s.map.cols = 12; s.map.rows = 12; s.map.tiles = {};
   for (let x = 0; x < 12; x++) for (let y = 0; y < 12; y++) s.map.tiles[x + ',' + y] = { terrain: 'plains' };
   s.library.unitTypes.push(inf); s.library.officers.push(...officers);
-  const ids = units.map(u => must(R.act(s, HOST, { type: 'addUnit', typeId: 'inf', owner: u.side === 'player' ? 'p1' : undefined, ...u })).unitId);
+  const ids = units.map(u => must(R.act(s, HOST, { type: 'addUnit', typeId: 'inf', owner: u.side === 'player' ? 'p1' : undefined, ...(u.officerId && u.morale === undefined ? { morale: 80 } : {}), ...u })).unitId);
   must(R.act(s, HOST, { type: 'startBattle' }));
   R.setRng(() => 0.3); must(R.act(s, HOST, { type: 'startRound' }));
   return { s, ids, u: (i) => R.unitById(s, ids[i]) };
@@ -110,15 +110,15 @@ test('active with a free move waits for the choice; other actions wait; the rest
   const o = officer('a', { active: act });
   const { s, u, ids } = setup([{ side: 'player', x: 1, y: 1, officerId: 'a' }, { side: 'enemy', x: 10, y: 10 }], [o]);
   s.turn.activation = { unitId: ids[0], step: 'move', started: false, tilesMoved: 0, from: { x: 1, y: 1 } };
-  u(0).morale = 50;
+  u(0).morale = 80;
   must(R.act(s, HOST, { type: 'useSkill', unitId: ids[0] }));
   assert.ok(SK.pendingChoice(s));
-  assert.strictEqual(u(0).morale, 40, 'paid; the +5 waits for the move');
+  assert.strictEqual(u(0).morale, 70, 'paid; the +5 waits for the move');
   assert.ok(!R.act(s, { id: 'p1' }, { type: 'endTurn', unitId: ids[0] }).ok, 'must choose first');
   assert.ok(!R.act(s, HOST, { type: 'skillChoose', x: 9, y: 9 }).ok, 'too far');
   must(R.act(s, HOST, { type: 'skillChoose', x: 3, y: 1 }));
   assert.deepStrictEqual([u(0).x, u(0).y], [3, 1]);
-  assert.strictEqual(u(0).morale, 45);
+  assert.strictEqual(u(0).morale, 75);
   assert.ok(!SK.pendingChoice(s));
 });
 
@@ -213,4 +213,15 @@ test('active "attacks with +3, then can move 2": the move waits for the attack, 
   must(R.act(s, HOST, { type: 'skillChoose', x: 1, y: 3 }));
   assert.deepStrictEqual([u(0).x, u(0).y], [1, 3]);
   assert.ok(!s.turn.activation || s.turn.activation.unitId !== ids[0], 'turn over');
+});
+
+test('morale minimum (David, 2026-11-09): actives need 75+, but one whose own rule caps morale lower uses that window', () => {
+  const plain = officer('a', { active: { do: [{ morale: 5, who: { self: true } }] } });
+  const desperate = officer('b', { active: { require: { moraleBelow: 51 }, do: [{ morale: 8, who: { self: true } }] } });
+  const { s, u } = setup([{ side: 'player', x: 1, y: 1, officerId: 'a', morale: 60 }, { side: 'player', x: 3, y: 3, officerId: 'b', morale: 40 }, { side: 'enemy', x: 10, y: 10 }], [plain, desperate]);
+  const o = (i) => R.officerOf(s, u(i));
+  assert.strictEqual(R.skillCheck(s, u(0), o(0)).reason, 'Needs at least 75 morale');
+  u(0).morale = 75; assert.ok(R.skillCheck(s, u(0), o(0)).ok);
+  assert.ok(R.skillCheck(s, u(1), o(1)).ok, 'below 51 by its own rule');
+  u(1).morale = 80; assert.ok(!R.skillCheck(s, u(1), o(1)).ok, 'its own cap still applies');
 });

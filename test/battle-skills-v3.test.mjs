@@ -14,7 +14,7 @@ function setup(units, officers = []) {
   s.map.cols = 12; s.map.rows = 12; s.map.tiles = {};
   for (let x = 0; x < 12; x++) for (let y = 0; y < 12; y++) s.map.tiles[x + ',' + y] = { terrain: 'plains' };
   s.library.unitTypes.push(inf); s.library.officers.push(...officers);
-  const ids = units.map(u => must(R.act(s, HOST, { type: 'addUnit', typeId: 'inf', owner: u.side === 'player' ? 'p1' : undefined, ...u })).unitId);
+  const ids = units.map(u => must(R.act(s, HOST, { type: 'addUnit', typeId: 'inf', owner: u.side === 'player' ? 'p1' : undefined, ...(u.officerId && u.morale === undefined ? { morale: 80 } : {}), ...u })).unitId);
   must(R.act(s, HOST, { type: 'startBattle' }));
   R.setRng(() => 0.3); must(R.act(s, HOST, { type: 'startRound' }));
   return { s, ids, u: (i) => R.unitById(s, ids[i]) };
