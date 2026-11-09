@@ -201,7 +201,7 @@ export class OfficerCodex extends (globalThis.foundry?.applications?.api?.Applic
     const card = (o) => {
       const rgb = TYPE_RGB[o.type];
       const drag = gm || isPartyOfficer(o.copy);
-      return `<div class="qin-cx-card ${gm && !asPlayer && !o.shown ? "hidden" : ""}" data-uuid="${esc(o.uuid)}" data-action="open" ${drag ? `draggable="true"` : ""}>
+      return `<div class="qin-cx-card ${gm && !asPlayer && !o.shown ? "unshown" : ""}" data-uuid="${esc(o.uuid)}" data-action="open" ${drag ? `draggable="true"` : ""}>
         ${gm && !asPlayer ? `<a class="qin-cx-eye ${o.shown ? "vis" : ""}" data-action="eye" data-uuid="${esc(o.uuid)}" data-tooltip="${o.shown ? "Players can see him. Click to hide" : "Hidden from the players. Click to show"}"><i class="fa-solid ${o.shown ? "fa-eye" : "fa-eye-slash"}"></i></a>` : ""}
         <img src="${esc(o.img)}" alt="">
         <div class="nm">${esc(o.name)}</div><div class="ep">${esc(o.title)}</div>

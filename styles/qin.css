@@ -1189,7 +1189,7 @@ a.qin-stat:hover, a.qin-stat:focus-visible { border-color: var(--qin-gold); }
 .qin-cx-card .meta { display: flex; justify-content: center; gap: 5px; margin-top: 3px; font-size: 10.5px; }
 .qin-cx-card .pill { padding: 0 6px; border-radius: 8px; background: #2c2f37; color: #ccc; }
 .qin-cx-card .qin-cx-eye { position: absolute; top: 4px; right: 6px; font-size: 12px; }
-.qin-cx-card.hidden { opacity: .6; }
+.qin-cx-card.unshown { opacity: .6; }
 .qin-cx-foot { padding: 5px 10px; border-top: 1px solid #3a352a; font-size: 11.5px; color: #999; }
 .qin-cx .qin-muted { color: #888; grid-column: 1 / -1; }
 /* Party window: Units / Officers tabs (v0.104.1) */
