@@ -48,3 +48,15 @@ test('passive auras are listed (aura: true) only while in range, as buffs from a
   assert.strictEqual(SK.effectsOf(s, u(3)).length, 0, 'out of range');
   assert.ok(!SK.effectsOf(s, u(0)).some(f => f.name === 'Rally'), 'his own passive is not listed on his unit');
 });
+
+test('Sweep (Guan Yu): every other enemy in the 3x3 square around the attacker takes 5, ignoring armor; not the target, not allies, not farther away', () => {
+  const { s, u } = setup([{ side: 'player', x: 5, y: 5 }, { side: 'enemy', x: 6, y: 5 }, { side: 'enemy', x: 4, y: 4 }, { side: 'enemy', x: 7, y: 5 }, { side: 'player', x: 5, y: 6 }]);
+  SK.addBuff(s, u(0), u(0), 'Might That Shakes the Realm', { mods: [{ stat: 'attack', value: 4 }, { stat: 'enemyLoss', value: 3 }], flags: [{ flag: 'sweep:5' }] }, { rounds: 3 });
+  const men = [1, 2, 3, 4].map(i => u(i).men), morale = u(2).morale;
+  SK.onAttack(s, u(0), u(1), { winner: null, casualtiesDefender: 0, casualtiesAttacker: 0 });
+  assert.deepStrictEqual([1, 2, 3, 4].map((i, k) => men[k] - u(i).men), [0, 5, 0, 0]);
+  assert.ok(u(2).morale <= morale - 3, 'a swept unit (not the target) loses his 3 extra morale');
+  const fx = SK.effectsOf(s, u(0));
+  assert.match(fx[0].text, /5 damage to every other enemy around it when it attacks/);
+  assert.strictEqual(fx[0].kind, 'buff');
+});

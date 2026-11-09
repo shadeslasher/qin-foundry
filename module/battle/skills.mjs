@@ -453,6 +453,19 @@ export function onAttack(s, attacker, defender, res) {
     const c = Math.min(Number(sp), b.men); b.men -= c;
     say(s, 'Splash (battlefield skill): ' + b.name + ', next to ' + defender.name + ', takes ' + c + ' casualties.', { type: 'splash', unit: b.id, casualties: c });
   }
+  // Sweep (Guan Yu, David 2026-11-09): whenever it attacks, every other enemy unit in the 3x3 square around it takes N
+  // casualties, ignoring armor and evasion (Colossal still caps a hit at 1). The unit it attacked is not swept. Casualty
+  // checkpoints cost morale as usual, and its "enemies it damages lose more morale" counts on each
+  const sw = Number(flag(s, attacker, 'sweep', { role: 'attacker', ranged: !!res.ranged, other: defender })) || 0;
+  if (sw > 0) for (const b of live(s)) {
+    if (b.id === attacker.id || b.id === defender.id || !E.hostile(b, attacker) || Math.max(Math.abs(b.x - attacker.x), Math.abs(b.y - attacker.y)) !== 1 || b.men <= 0) continue;
+    const c = Math.min(E.unitTrait(b, 'colossal') ? 1 : sw, b.men); if (!c) continue;
+    b.men -= c; fxOf(b).lastHitBy = attacker.id;
+    const extra = Number(stat(s, attacker, 'enemyLoss')) || 0;
+    const ml = E.checkpointMorale(b) + extra;
+    if (ml) b.morale = Math.max(0, (b.morale || 0) - ml);
+    say(s, 'Sweep (battlefield skill): ' + b.name + ' takes ' + c + ' casualties' + (ml ? ' and loses ' + ml + ' morale' : '') + '.', { type: 'sweep', unit: b.id, by: attacker.id, casualties: c, morale: ml });
+  }
   const killed = res.killedBy === attacker.id;
   const won = res.winner === 'attacker', lost = res.winner === 'defender';
   const side = attackSide(s, attacker, defender);
@@ -1145,7 +1158,7 @@ const sgn = (n) => (n >= 0 ? '+' : '−') + Math.abs(n);
 export function describeBuff(b) {
   const parts = [];
   for (const m of b.mods || []) parts.push(STAT_TEXT[m.stat] + ' ' + (['moraleLossLess', 'checkpointLess', 'skillLossLess', 'anyLossLess', 'forcedMarchCost'].includes(m.stat) ? '−' + m.value : m.stat === 'regenCap' ? 'up to ' + m.value : sgn(m.value)));
-  for (const f of b.flags || []) parts.push(String(f.flag).replace(/([A-Z])/g, ' $1').toLowerCase());
+  for (const f of b.flags || []) { const [fn, arg] = String(f.flag).split(':'); parts.push(fn === 'sweep' ? arg + ' damage to every other enemy around it when it attacks (ignores armor and evasion)' : String(f.flag).replace(/([A-Z])/g, ' $1').toLowerCase()); }
   if (b.status) parts.push(STATUS_TEXT[b.status]);
   return parts.join(', ');
 }
@@ -1171,6 +1184,20 @@ export function buffKind(s, u, b) {
   if (b.removeTraits && b.removeTraits.length) score -= 1;
   return score < 0 ? 'debuff' : 'buff';
 }
+/**
+ * How strong an effect is, for the stand's motes (David, 2026-11-09: more motes for stronger buffs): the size of each stat
+ * change, at most 5 each (morale ones count a third), 2 for each special property (its tier if it has one, Splash:2 = 2),
+ * 3 for a status (can't move, skip turn...). Attack +4 with Splash Attack++ = 6; Command +1 = 1.
+ */
+const MORALE_LIKE = /loss|morale|regen|floor|checkpoint/i;
+export function effectPower(b) {
+  let p = 0;
+  for (const m of b.mods || []) { const v = Math.abs(Number(m.value) || 0); p += Math.min(5, MORALE_LIKE.test(m.stat) ? v / 3 : m.stat === 'fireCasualties' || m.stat === 'forcedMarchCost' ? v / 10 : v); }
+  for (const f of b.flags || []) { const arg = Number(String(f.flag).split(':')[1]); p += arg > 0 && arg <= 4 ? arg : 2; }
+  if (b.status) p += 3;
+  if (b.triggers && !p) p = 2;
+  return Math.max(1, Math.round(p));
+}
 /** How long a buff has left, in words. */
 export function untilText(s, u, b) {
   const d = b.until || {}, round = (s.turn && s.turn.round) || 0, acts = fxOf(u).acts || 0, src = E.unitById(s, d.src);
@@ -1189,7 +1216,7 @@ export function untilText(s, u, b) {
 }
 /**
  * Everything changing unit u right now, for the stand effects and the Info window:
- * [{ key, kind: 'buff'|'debuff', name, text, from, until, aura }]. key is stable while the effect lasts (a new key = it just landed).
+ * [{ key, kind: 'buff'|'debuff', power, name, text, from, until, aura }]. key is stable while the effect lasts (a new key = it just landed).
  * Skill buffs, the stat-changing trait effects (Sunder, Poison, Suppressing Fire, Deterrence, Barbed Arrows), and passive
  * auras from other officers' units (aura: true; listed, but the stands don't animate them, as they come and go with movement).
  */
@@ -1199,14 +1226,14 @@ export function effectsOf(s, u) {
     const text = describeBuff(b) || (b.triggers ? 'a lasting effect' : '');
     if (!text) continue;
     const src = E.unitById(s, b.src), o = src && E.officerOf(s, src);
-    out.push({ key: 'b:' + b.id, kind: buffKind(s, u, b), name: b.name, text, from: o ? o.name : (src && src.id !== u.id ? src.name : ''), until: untilText(s, u, b), aura: false });
+    out.push({ key: 'b:' + b.id, kind: buffKind(s, u, b), power: effectPower(b), name: b.name, text, from: o ? o.name : (src && src.id !== u.id ? src.name : ''), until: untilText(s, u, b), aura: false });
   }
-  const T = (key, name, text, from, until) => out.push({ key, kind: 'debuff', name, text, from, until, aura: false });
-  if (f.sunder) T('t:sunder:' + f.sunder, 'Sundered', 'Armor −' + f.sunder, f.sunder >= 6 ? 'Sunder++' : f.sunder >= 4 ? 'Sunder+' : 'Sunder', 'rest of the battle');
-  if (f.poison) T('t:poison:' + f.poison, 'Poisoned', 'Melee and ranged defense −' + f.poison, f.poison >= 2 ? 'Poison+' : 'Poison', 'rest of the battle');
-  if (f.suppressed) T('t:suppressed', 'Suppressed', 'Attack −1, melee defense −1, movement −2; loses Hold, Brace, Anti-Cavalry and Charge Reflection', 'Suppressing Fire', 'until the end of its next turn');
-  if (f.deterred) T('t:deterred', 'Deterred', 'Attack −2', 'Deterrence', 'its next attack');
-  if (f.slow) T('t:slow', 'Slowed', 'Movement −1', 'Barbed Arrows', 'its next turn');
+  const T = (key, name, text, from, until, power) => out.push({ key, kind: 'debuff', power, name, text, from, until, aura: false });
+  if (f.sunder) T('t:sunder:' + f.sunder, 'Sundered', 'Armor −' + f.sunder, f.sunder >= 6 ? 'Sunder++' : f.sunder >= 4 ? 'Sunder+' : 'Sunder', 'rest of the battle', f.sunder);
+  if (f.poison) T('t:poison:' + f.poison, 'Poisoned', 'Melee and ranged defense −' + f.poison, f.poison >= 2 ? 'Poison+' : 'Poison', 'rest of the battle', 2 * f.poison);
+  if (f.suppressed) T('t:suppressed', 'Suppressed', 'Attack −1, melee defense −1, movement −2; loses Hold, Brace, Anti-Cavalry and Charge Reflection', 'Suppressing Fire', 'until the end of its next turn', 4);
+  if (f.deterred) T('t:deterred', 'Deterred', 'Attack −2', 'Deterrence', 'its next attack', 2);
+  if (f.slow) T('t:slow', 'Slowed', 'Movement −1', 'Barbed Arrows', 'its next turn', 1);
   // passive auras reaching u from other units (its own officer's passive is on the officer card already)
   for (const X of live(s)) {
     if (X.id === u.id) continue;
@@ -1216,7 +1243,7 @@ export function effectsOf(s, u) {
     if (!mods.length && !flags.length) continue;
     const b = { src: X.id, mods, flags };
     const text = describeBuff(b); if (!text) continue;
-    out.push({ key: 'a:' + X.id, kind: buffKind(s, u, b), name: sp.passiveName || 'passive', text, from: (sp.officer && sp.officer.name) || X.name, until: 'while in range', aura: true });
+    out.push({ key: 'a:' + X.id, kind: buffKind(s, u, b), power: effectPower(b), name: sp.passiveName || 'passive', text, from: (sp.officer && sp.officer.name) || X.name, until: 'while in range', aura: true });
   }
   return out;
 }

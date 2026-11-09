@@ -400,7 +400,7 @@ function readyMap(battle) {
       if (u.status !== "active") continue;
       // buffs and debuffs the stand shows (not passive auras: they come and go as units move)
       const list = effectsOf(s, u).filter(e => !e.aura);
-      if (list.length) eff[u.id] = { nb: list.filter(e => e.kind === "buff").length, nd: list.filter(e => e.kind === "debuff").length, keys: list.map(e => e.key + "|" + e.kind) };
+      if (list.length) { const of = (k) => list.filter(e => e.kind === k); eff[u.id] = { nb: of("buff").length, nd: of("debuff").length, pb: of("buff").reduce((a, e) => a + e.power, 0), pd: of("debuff").reduce((a, e) => a + e.power, 0), keys: list.map(e => e.key + "|" + e.kind) }; }
       if (!u.officerId) continue;
       const o = officerOf(s, u);
       if (o?.skill && skillCheck(s, u, o).ok) map[u.id] = o.skill.lastStand ? "last" : "ready";
@@ -484,14 +484,16 @@ function drawSkillReady(c, kind, offTex, w, h, T, pad) {
   };
   tick();
   c.addChild(box);
+  c.qinReadyBox = box;
   return tick;
 }
 
 
 /* ------------------------------------------------------------ buffs and debuffs (David, 2026-11-09) */
-// When a buff or debuff from a battlefield skill or a stat-changing trait lands, the stand plays a one-second burst:
+// When a buff or debuff from a battlefield skill or a stat-changing trait lands, the stand plays a 1.5-second burst:
 // tinted, with bright chevron lines scrolling up (blue, buff) or down (red, debuff) inside its frame. While effects last,
-// motes drift up (buffs) or down (debuffs) across it, and a soft halo outside the frame grows with each one (up to 4).
+// motes drift up (buffs) or down (debuffs) across it, more for stronger effects, and a soft halo outside the frame grows
+// with each one (up to 4).
 const FX_BLUE = 0x4a9be8, FX_RED = 0xe0483c;
 let seenFx = null;           // { battleKey, keys: { tokenId: Set } } — what each unit had last time, to spot new effects
 const pendingBurst = new Map(); // tokenId -> ['buff'|'debuff', ...] waiting to play
@@ -507,6 +509,31 @@ function noteLanded(battle, eff) {
     }
   }
   seenFx = { battleKey: bkey, keys: now };
+}
+
+/* Activation hold (David, 2026-11-09): when an officer uses a battlefield active, the GM freezes that unit's stand on
+ * every client before the new state is saved, so its morale drop, ready mark and buff wait for the banner; the
+ * activation animation releases it (or it releases itself after a while, e.g. on a client looking at another scene). */
+const frozen = new Map(); // tokenId -> timeout
+export function freezeUnits(ids, ms = 15000) {
+  for (const id of ids ?? []) {
+    clearTimeout(frozen.get(id));
+    frozen.set(id, setTimeout(() => releaseUnits([id]), ms));
+  }
+}
+export function releaseUnits(ids) {
+  for (const id of ids ?? []) {
+    if (!frozen.has(id)) continue;
+    clearTimeout(frozen.get(id)); frozen.delete(id);
+    const t = canvas?.tokens?.get(id);
+    if (t) drawUnitBars(t);
+  }
+}
+/** Hide the skill-ready mark at once (the activation's flash replaces it). */
+export function hideSkillReady(token) {
+  const c = token?.[KEY];
+  if (c?.qinReadyTick) { canvas.app?.ticker?.remove(c.qinReadyTick); c.qinReadyTick = null; }
+  if (c?.qinReadyBox && !c.qinReadyBox.destroyed) c.qinReadyBox.visible = false;
 }
 
 const fxTex = {};
@@ -533,7 +560,8 @@ function tintTexture(up) {
   return (fxTex[k] = PIXI.Texture.from(cv));
 }
 
-/** Play the landing burst(s) on a token: one second each, a buff's then a debuff's. Sits on the token, above the stand. */
+/** Play the landing burst(s) on a token: 1.5 seconds each, a buff's then a debuff's. Sits on the token, above the stand.
+ *  The effect sweeps in from the bottom for a buff (from the top for a debuff), holds, then fades. */
 function playBurst(token, kinds, w, h, T, pad) {
   if (token.qinBurst && !token.qinBurst.destroyed) token.qinBurst.destroy({ children: true });
   const box = token.qinBurst = new PIXI.Container(); box.eventMode = "none";
@@ -544,26 +572,32 @@ function playBurst(token, kinds, w, h, T, pad) {
     const up = kind === "buff", L2 = new PIXI.Container();
     const tint = new PIXI.Sprite(tintTexture(up)); tint.position.set(x, y); tint.width = bw; tint.height = bh;
     const pat = new PIXI.TilingSprite(chevronTexture(up), bw, bh); pat.position.set(x, y); pat.tileScale.set(sc);
-    L2.addChild(tint, pat); L2.alpha = 0; box.addChild(L2);
-    return { L2, pat, up, start: i * 1.0 };
+    const wipe = new PIXI.Graphics(); // how much of the stand the effect has reached so far
+    L2.addChild(tint, pat, wipe); L2.mask = wipe; L2.alpha = 0; box.addChild(L2);
+    return { L2, pat, wipe, up, start: i * 1.5 };
   });
   token.addChild(box);
-  const DUR = 1.0, SPEED = 184 * sc; // the pattern moves at one steady speed for the whole burst
+  const DUR = 1.5, SWEEP = 0.35, SPEED = 184 * sc; // the pattern moves at one steady speed for the whole burst
   let t = 0;
   const tick = () => {
     if (box.destroyed) return canvas.app?.ticker?.remove(tick);
     t += (canvas.app?.ticker?.deltaMS ?? 16) / 1000;
     let done = true;
     for (const l of layers) {
-      const k = (t - l.start) / DUR;
+      const lt = t - l.start, k = lt / DUR;
       if (k < 1) done = false;
-      l.L2.alpha = k <= 0 || k >= 1 ? 0 : k < 0.12 ? k / 0.12 : k > 0.76 ? (1 - k) / 0.24 : 1;
-      l.pat.tilePosition.y = (l.up ? -1 : 1) * SPEED * Math.max(0, t - l.start);
+      l.L2.alpha = k <= 0 || k >= 1 ? 0 : k > 0.8 ? (1 - k) / 0.2 : 1;
+      const e = 1 - (1 - Math.min(1, Math.max(0, lt / SWEEP))) ** 2, reach = bh * e; // eases out as it reaches the far edge
+      l.wipe.clear().beginFill(0xffffff).drawRect(x, l.up ? y + bh - reach : y, bw, reach).endFill();
+      l.pat.tilePosition.y = (l.up ? -1 : 1) * SPEED * Math.max(0, lt);
     }
     if (done) { canvas.app?.ticker?.remove(tick); box.destroy({ children: true }); if (token.qinBurst === box) token.qinBurst = null; }
   };
   canvas.app?.ticker?.add(tick);
 }
+
+/** Motes for a kind of effect: more for stronger effects (their total power), 6 to 24. */
+export const moteCount = (power) => Math.max(6, Math.min(24, Math.round(4 + 2 * (power || 0))));
 
 /** The lingering look: a soft halo per kind (stronger with more effects) and drifting motes. Returns its ticker. */
 function drawLingering(c, eff, w, h, T, pad) {
@@ -572,14 +606,14 @@ function drawLingering(c, eff, w, h, T, pad) {
   const halos = [], motes = [];
   const under = new PIXI.Container(), over = new PIXI.Container();
   under.eventMode = over.eventMode = "none";
-  for (const [n, col, up, phase] of [[eff.nb, FX_BLUE, true, 0], [eff.nd, FX_RED, false, 1.5]]) {
+  for (const [n, pw, col, up, phase] of [[eff.nb, eff.pb, FX_BLUE, true, 0], [eff.nd, eff.pd, FX_RED, false, 1.5]]) {
     if (!n) continue;
     const k = Math.min(n, 4);
     const g = new PIXI.Graphics().lineStyle(T * (0.02 + 0.012 * k), col, 1).drawRoundedRect(x, y, bw, bh, r);
     if (Blur) g.filters = [new Blur(T * (0.03 + 0.012 * k))];
     under.addChild(g);
     halos.push({ g, peak: 0.25 + 0.17 * k, phase });
-    for (let i = 0; i < 6 + 2 * k; i++) {
+    for (let i = 0; i < moteCount(pw ?? 2 * n); i++) {
       const d = new PIXI.Graphics();
       d.beginFill(col, 0.25).drawCircle(0, 0, 1).endFill().beginFill(col, 0.85).drawCircle(0, 0, 0.62).endFill().beginFill(0xffffff, 1).drawCircle(0, 0, 0.3).endFill();
       over.addChild(d);
@@ -681,6 +715,7 @@ const gen = new WeakMap();
 export async function drawUnitBars(token) {
   const actor = token?.actor;
   if (!actor || actor.type !== "unit" || token.destroyed) return clear(token);
+  if (frozen.has(token.id) && token[KEY] && !token[KEY].destroyed) return; // held for an activation animation
   const s = actor.system;
   const men = s.men?.value ?? 0, max = s.men?.max || 100, morale = s.morale ?? 0;
   const w = token.w, h = token.h, T = Math.min(w, h);
@@ -694,7 +729,7 @@ export async function drawUnitBars(token) {
   const facing = facingOf(token);
   const ready = acted ? null : skillReady(token); // skill-ready mark: not on a unit that has already acted this round
   const eff = effectCounts(token); // buffs and debuffs on it now (counts for the lingering look)
-  const key = JSON.stringify([ready, eff ? [eff.nb, eff.nd] : null, men, max, morale, w, h, s.side, acted, active, holding, watching, st, mine, n, art, off, fac?.img ?? null, facing, battleRecord(token)?.meta?.[token.id]?.carry ?? null, !!battleRecord(token)?.meta?.[token.id]?.fx?.shocked, s.traits]); // traits: equipment icons (ladders, engine)
+  const key = JSON.stringify([ready, eff ? [eff.nb, eff.nd, eff.pb, eff.pd] : null, men, max, morale, w, h, s.side, acted, active, holding, watching, st, mine, n, art, off, fac?.img ?? null, facing, battleRecord(token)?.meta?.[token.id]?.carry ?? null, !!battleRecord(token)?.meta?.[token.id]?.fx?.shocked, s.traits]); // traits: equipment icons (ladders, engine)
   if (pendingBurst.has(token.id)) { const kinds = pendingBurst.get(token.id); pendingBurst.delete(token.id); playBurst(token, kinds, w, h, T, T * L.pad); }
   let c = token[KEY];
   if (c && !c.destroyed && c.parent === token && c.qinKey === key) return;
@@ -943,4 +978,4 @@ export function registerUnitBars() {
     if (actor.type === "character") for (const t of canvas?.tokens?.placeables ?? []) if (t.actor?.system?.officer === actor.uuid) drawUnitBars(t);
   });
 }
-export { drawLingering as _drawLingering, playBurst as _playBurst }; // for the stand harness
+export { drawLingering as _drawLingering, playBurst as _playBurst, drawSkillReady as _drawSkillReady }; // for the stand harness

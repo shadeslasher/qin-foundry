@@ -5,8 +5,9 @@ import { atSpeed } from "./battle/battle-speed.mjs";
 import { playTacticTrigger, playSetFire } from "./battle/tactics-ui.mjs";
 import { SYSTEM_ID } from "./config.mjs";
 import { playStepSounds, attackSounds, playMoment } from "./sound.mjs";
-import { playActiveBanner } from "./battle/active-banner.mjs";
-import { drawUnitBars } from "./unit-bars.mjs";
+import { drawUnitBars, freezeUnits } from "./unit-bars.mjs";
+import { playActivation } from "./battle/activation-fx.mjs";
+import { playSweep } from "./battle/unique-fx.mjs";
 
 const SOCKET = `system.${SYSTEM_ID}`;
 
@@ -75,7 +76,7 @@ function fxLayer() { return canvas.interface ?? canvas.controls ?? canvas.stage;
  * which is sorted by elevation, so the container goes there with a very high elevation.
  */
 let overRoot = null;
-function overLayer() {
+export function overLayer() {
   const primary = canvas.primary;
   if (!primary) return fxLayer();
   if (!overRoot || overRoot.destroyed || overRoot.parent !== primary) {
@@ -281,7 +282,7 @@ const FLOAT_STYLES = {
   heal: { fill: "#5fd36b", fontSize: 34 },
 };
 
-function floatLocal(at, style, text) {
+export function floatLocal(at, style, text) {
   const st = FLOAT_STYLES[style] ?? FLOAT_STYLES.hit;
   try {
     canvas.interface?.createScrollingText?.(at, text ?? st.text, {
@@ -351,7 +352,14 @@ export function registerAttackFxSocket() {
     else if (data.type === "defense") defenseLocal(data);
     else if (data.type === "slice") sliceLocal(data);
     else if (data.type === "battleAnim") playBattleAnim(data);
+    else if (data.type === "battleFreeze") freezeUnits(data.units);
   });
+}
+
+/** Hold these units' stands on every client until their activation animation releases them (see unit-bars). */
+export function broadcastFreeze(sceneId, units) {
+  game.socket?.emit(SOCKET, { type: "battleFreeze", sceneId, units });
+  if (canvas?.scene?.id === sceneId) freezeUnits(units);
 }
 
 /* ---------------------------------------- Damage indicators */
@@ -1038,7 +1046,7 @@ export async function playBattleAnim({ sceneId, steps }) {
   for (const st of steps) {
     try { playStepSounds(st); } catch (e) { console.warn("Qin | battle sound", e); }
     try {
-      if (st.kind === "activeBanner") { await playActiveBanner(st); continue; }
+      if (st.kind === "activeBanner") { await playActivation(st); continue; }
       if (st.kind === "attack") {
         const A = tok(st.attacker), D = tok(st.defender);
         if (A && D) {
@@ -1064,6 +1072,8 @@ export async function playBattleAnim({ sceneId, steps }) {
             showAll(st.attacker, st.toAttacker);
             await goD;
           } else showAll(st.attacker, st.toAttacker);
+          // Sweep (Guan Yu): the glaive comes round right after the exchange and hits every other enemy around him
+          if (st.sweep?.hits?.length) await playSweep(A, st.sweep, (id, style, text, delay = 0) => { const t = tok(id); if (t) setTimeout(() => floatLocal(t.center, style, text), delay); });
           await wait(450);
           await wait(500);
           A.qinAttackBonus = null;

@@ -18,7 +18,9 @@ export const FLAGS = ['noSurrender', 'noRout', 'cantBeSurrounded', 'noRearAgains
   'hideAnywhere', 'cantBeAmbushed', 'noRevealBySkills', 'noOverwatchAgainst', 'regenEvenIfFought', 'regenToResting', 'routLossNear',
   'casualtyHalf', 'noRearNearby', 'challengeFirstAttacker', 'drawMeleeAttacks', 'rideThrough', 'extraTactic', 'gateRange', 'gateDouble', 'noStrikeBackIfWin', 'checkpointHalf', 'ignoreTraits', 'cantRefuseDuel', 'ignoreMoveLimits',
   // 2026-11-09: Readied — its next battlefield active ignores the 75-morale minimum (not a last stand's window)
-  'readied'];
+  'readied',
+  // 2026-11-09: Sweep:N — whenever it attacks, every enemy unit in the 3x3 square around it takes N casualties, ignoring armor and evasion (Guan Yu)
+  'sweep'];
 export const EVENTS = ['battleStart', 'roundStart', 'turnStart', 'turnEnd', 'win', 'lose', 'attackWin', 'defendWin', 'kill',
   'allyFalls', 'enemyEndsAdjacent', 'alliesTurnStart', 'firstBelowHalfMorale',
   'enemyTurnStart', 'roundEnd', 'enemyFalls', 'attacked', 'allyWins',

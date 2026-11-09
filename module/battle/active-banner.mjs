@@ -2,13 +2,15 @@
 // in the side's colour sweeps in from that side's edge (enemy from the right) with the officer's name over the skill's
 // name, centred; then the officer's full art slides in from the same edge, head to waist, standing on the band. Every
 // figure is scaled by its whole height so their proportions match, and its box is as wide as its visible upper half,
-// so nothing is cut at the sides. The art is never mirrored. It plays on every client as the first step of the
+// so nothing is cut at the sides. The art is never mirrored. Since 2026-11-09 the band and art fly in fast, drift slowly
+// across, then speed up and fly off the far side; during an activation the dim is the spotlight's (activation-fx.mjs). It plays on every client as the first step of the
 // action's animation, so the skill's effects follow it. Officers without full art show their round token.
 import { fullArtInfo } from "../full-art.mjs";
+import { atSpeed } from "./battle-speed.mjs";
 
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
 export const SIDE_RGB = { player: "58,120,200", ally: "63,166,106", enemy: "200,68,58", neutral: "184,150,40" };
-export const BANNER_MS = 2300;
+export const BANNER_MS = 2600; // fly in, drift slowly, speed up and fly off the far side (David, 2026-11-09)
 export const ART_BOX = 380;      // px of figure shown above the band's bottom edge (head to waist)
 export const ART_EDGE = 24;      // px from the screen edge
 
@@ -35,15 +37,15 @@ export function artLayout(art, natW, natH) {
 const sizeOf = (src) => new Promise(res => { const i = new Image(); i.onload = () => res([i.naturalWidth, i.naturalHeight]); i.onerror = () => res([0, 0]); i.src = src; });
 
 /** Play the banner; resolves when it has gone. */
-export async function playActiveBanner(step) {
+export async function playActiveBanner(step, { dim = true } = {}) {
   let officer = null;
   try { officer = step.officerId ? fromUuidSync(step.officerId) : null; } catch { /* no officer: name only */ }
   const info = bannerInfo(step, { officer });
   const lay = info.full ? artLayout(info.art, ...(info.art.w ? [] : await sizeOf(info.img))) : null;
   const reduce = globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-  const ms = reduce ? 1400 : BANNER_MS;
+  const ms = reduce ? 1400 : atSpeed(BANNER_MS);
   const root = document.createElement("div");
-  root.className = `qin-ab ${info.fromRight ? "qin-ab-right" : ""} ${lay ? "qin-ab-full" : "qin-ab-token"}`;
+  root.className = `qin-ab ${info.fromRight ? "qin-ab-right" : ""} ${lay ? "qin-ab-full" : "qin-ab-token"} ${dim ? "" : "qin-ab-nodim"}`;
   root.style.setProperty("--c", info.rgb);
   root.style.setProperty("--ab-ms", ms + "ms");
   root.style.setProperty("--ab-edge", ART_EDGE + "px");

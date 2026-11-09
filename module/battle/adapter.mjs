@@ -1,5 +1,5 @@
 import { Chat } from "../dice.mjs";
-import { broadcastBattleAnim } from "../attack-fx.mjs";
+import { broadcastBattleAnim, broadcastFreeze } from "../attack-fx.mjs";
 import { logSoundSteps } from "../sound.mjs";
 // Bridges Foundry (scene tokens, unit actors, officer characters) and the pure battle
 // engine. Runs only on the active GM's client; players reach it through queries.
@@ -408,6 +408,12 @@ async function postLog(entries, s) {
   await Chat().create({ content: `<div class="qin-chat qin-battle-log">${parts.join("")}</div>`, speaker: { alias: "Battle" } });
 }
 
+/** The name of the buff giving a unit its Sweep (its animation is keyed to it). */
+function sweepSkillOf(s, id) {
+  const u = E.unitById(s, id);
+  return (u?.fx?.buffs ?? []).find(b => (b.flags ?? []).some(f => String(f.flag).startsWith("sweep")))?.name ?? null;
+}
+
 /**
  * After an action, animate it for everyone: for each attack the attacker lunges (casualties and morale
  * over the defender), then the defender strikes back (numbers over the attacker), then both gain XP;
@@ -435,6 +441,15 @@ function animateChanges(scene, before, s, entries, actionType = null) {
       continue;
     }
     if (e.detail?.type === "overwatch" && e.detail.fired) { overwatchShot = true; continue; }
+    // Sweep (Guan Yu): plays right after the attack that set it off
+    if (e.detail?.type === "sweep") {
+      const at = [...steps].reverse().find(x => x.kind === "attack" && x.attacker === e.detail.by);
+      if (at) {
+        (at.sweep ??= { skill: s.units.length ? sweepSkillOf(s, e.detail.by) : null, hits: [] }).hits.push([e.detail.unit, e.detail.casualties, e.detail.morale || 0]);
+        add(e.detail.unit, "men", e.detail.casualties); add(e.detail.unit, "morale", -(e.detail.morale || 0));
+      }
+      continue;
+    }
     const r = e.detail?.type === "attack" ? e.detail.result : null;
     if (!r) continue;
     const toD = [], toA = [];
@@ -609,6 +624,12 @@ async function runActionNow(userId, action) {
     const p = s.duels.pending, A = duelOfficer(scene, p.from), B = duelOfficer(scene, p.to);
     p.startStep = { from: bolStep(A), to: bolStep(B) };
     battle.duelists = [...new Set([...(battle.duelists ?? []), A?.uuid, B?.uuid].filter(Boolean))];
+  }
+  // an officer used a battlefield active: hold that unit's stand on every client until its activation animation
+  // has played, so its morale cost and buff show after the banner, not before
+  if (res.ok && scene) {
+    const acting = s.log.slice(logLen).filter(e => e.detail?.type === "skill" && e.detail.active).map(e => e.detail.unit);
+    if (acting.length) broadcastFreeze(scene.id, acting);
   }
   await writeBack(battle, s, scene);
   if (s.skillRequests?.length) await skillRequests(s, scene).catch(e => console.warn("Qin | battlefield skill requests", e));
