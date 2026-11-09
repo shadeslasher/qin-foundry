@@ -1158,7 +1158,7 @@ const sgn = (n) => (n >= 0 ? '+' : '−') + Math.abs(n);
 export function describeBuff(b) {
   const parts = [];
   for (const m of b.mods || []) parts.push(STAT_TEXT[m.stat] + ' ' + (['moraleLossLess', 'checkpointLess', 'skillLossLess', 'anyLossLess', 'forcedMarchCost'].includes(m.stat) ? '−' + m.value : m.stat === 'regenCap' ? 'up to ' + m.value : sgn(m.value)));
-  for (const f of b.flags || []) { const [fn, arg] = String(f.flag).split(':'); parts.push(fn === 'sweep' ? arg + ' damage to every other enemy around it when it attacks (ignores armor and evasion)' : String(f.flag).replace(/([A-Z])/g, ' $1').toLowerCase()); }
+  for (const f of b.flags || []) { const [fn, arg] = String(f.flag).split(':'); parts.push(fn === 'sweep' ? arg + ' damage to every other enemy around it when it attacks (ignores armor and evasion)' : fn === 'cantBeSurrounded' ? "can't be surrounded" : String(f.flag).replace(/([A-Z])/g, ' $1').toLowerCase()); }
   if (b.status) parts.push(STATUS_TEXT[b.status]);
   return parts.join(', ');
 }
