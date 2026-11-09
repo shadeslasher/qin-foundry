@@ -1133,50 +1133,49 @@ a.qin-stat:hover, a.qin-stat:focus-visible { border-color: var(--qin-gold); }
 /* Battlefield active banner (v0.103.2): dim; the side's band sweeps in from its edge (enemy from the right); the officer's
    full art (head to waist, never mirrored) slides in on the band; officer and skill names centred on top */
 /* Battlefield active banner. Sized in --u, one pixel of a 2560x1380 screen scaled to this one (the smaller of the two
-   ratios), so it looks the same at any resolution (David, 2026-11-09: bigger band, much bigger portrait, nearer the centre) */
+   ratios), so it looks the same at any resolution (David, 2026-11-09: 1.5x the old size, portrait bigger and nearer the centre, name and skill centred on the screen) */
 .qin-ab { position: fixed; inset: 0; z-index: 1000; pointer-events: none;
-  --u: min(calc(100vw / 2560), calc(100vh / 1380)); --ab-top: 36vh; --ab-h: calc(300 * var(--u)); --ab-art: calc(860 * var(--u));
-  --ab-artx: calc(260 * var(--u)); --ab-textpad: calc(760 * var(--u)); }
+  --u: min(calc(100vw / 2560), calc(100vh / 1380)); --ab-top: 36vh; --ab-h: calc(225 * var(--u)); --ab-art: calc(645 * var(--u));
+  --ab-artx: calc(150 * var(--u)); --ab-textpad: 0px; }
 .qin-ab-dim { position: absolute; inset: 0; background: #000; animation: qin-ab-dim var(--ab-ms) ease both; }
-.qin-ab-band { position: absolute; left: calc(-320 * var(--u)); right: calc(-320 * var(--u)); top: var(--ab-top); height: var(--ab-h);
+.qin-ab-band { position: absolute; left: calc(-240 * var(--u)); right: calc(-240 * var(--u)); top: var(--ab-top); height: var(--ab-h);
   background: linear-gradient(90deg, rgba(var(--c),.97), rgba(var(--c),.88) 60%, rgba(var(--c),.55));
-  border-top: calc(5 * var(--u)) solid rgba(255,255,255,.9); border-bottom: calc(5 * var(--u)) solid rgba(255,255,255,.9);
+  border-top: calc(3.8 * var(--u)) solid rgba(255,255,255,.9); border-bottom: calc(3.8 * var(--u)) solid rgba(255,255,255,.9);
   animation: qin-ab-band-l var(--ab-ms) both;
   /* both ends cut at an angle (the leading end shows flying in, the trailing end flying off) */
-  clip-path: polygon(calc(180 * var(--u)) 0, 100% 0, calc(100% - 180 * var(--u)) 100%, 0 100%); }
+  clip-path: polygon(calc(135 * var(--u)) 0, 100% 0, calc(100% - 135 * var(--u)) 100%, 0 100%); }
 .qin-ab-right .qin-ab-band { background: linear-gradient(270deg, rgba(var(--c),.97), rgba(var(--c),.88) 60%, rgba(var(--c),.55)); animation-name: qin-ab-band-r;
-  clip-path: polygon(0 0, calc(100% - 180 * var(--u)) 0, 100% 100%, calc(180 * var(--u)) 100%); }
-.qin-ab-bandwrap { position: absolute; inset: 0; pointer-events: none; filter: drop-shadow(0 calc(10 * var(--u)) calc(18 * var(--u)) rgba(0,0,0,.55)); } /* the shadow, which the cut would clip */
-.qin-ab-cut { position: absolute; left: 0; top: calc(-5 * var(--u)); width: calc(240 * var(--u)); height: calc(100% + 10 * var(--u)); overflow: visible; pointer-events: none; }
+  clip-path: polygon(0 0, calc(100% - 135 * var(--u)) 0, 100% 100%, calc(135 * var(--u)) 100%); }
+.qin-ab-bandwrap { position: absolute; inset: 0; pointer-events: none; filter: drop-shadow(0 calc(7.5 * var(--u)) calc(13.5 * var(--u)) rgba(0,0,0,.55)); } /* the shadow, which the cut would clip */
+.qin-ab-cut { position: absolute; left: 0; top: calc(-3.8 * var(--u)); width: calc(180 * var(--u)); height: calc(100% + 8 * var(--u)); overflow: visible; pointer-events: none; }
 .qin-ab-cut.lead { left: auto; right: 0; transform: rotate(180deg); }
 .qin-ab-right .qin-ab-cut.trail { left: auto; right: 0; transform: scaleX(-1); }
 .qin-ab-right .qin-ab-cut.lead { left: 0; right: auto; transform: scaleY(-1); }
 .qin-ab-label { position: absolute; left: 0; right: 0; top: var(--ab-top); height: var(--ab-h); z-index: 2; display: flex; align-items: center; justify-content: center;
   text-align: center; color: #fff; white-space: nowrap; animation: qin-ab-band-l var(--ab-ms) both; padding-left: var(--ab-textpad); }
 .qin-ab-right .qin-ab-label { animation-name: qin-ab-band-r; padding-left: 0; padding-right: var(--ab-textpad); }
-.qin-ab-token .qin-ab-label { --ab-textpad: calc(560 * var(--u)); }
 /* the officer's name: a red ribbon across the band's top edge, his epithet on a gold emblem on the ribbon's bottom edge,
    centred over the skill name */
-.qin-ab-name { position: absolute; left: calc(50% + var(--ab-textpad) / 2); top: calc(-52 * var(--u)); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; z-index: 3; }
+.qin-ab-name { position: absolute; left: calc(50% + var(--ab-textpad) / 2); top: calc(-39 * var(--u)); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; z-index: 3; }
 .qin-ab-right .qin-ab-name { left: calc(50% - var(--ab-textpad) / 2); }
-.qin-ab-ribbon { padding: calc(12 * var(--u)) calc(104 * var(--u)) calc(14 * var(--u)); background: linear-gradient(#b8261c, #7e1410);
-  border-top: calc(4 * var(--u)) solid #f0c24a; border-bottom: calc(4 * var(--u)) solid #f0c24a;
-  clip-path: polygon(0 0, 100% 0, calc(100% - 44 * var(--u)) 50%, 100% 100%, 0 100%, calc(44 * var(--u)) 50%); }
-.qin-ab-ribbon span { font: 900 calc(60 * var(--u))/1.15 "Qin Cinzel", Georgia, serif; color: #fff; letter-spacing: .06em; text-shadow: 0 calc(3 * var(--u)) calc(5 * var(--u)) rgba(0,0,0,.7); white-space: nowrap; }
-.qin-ab-epithet { position: relative; margin-top: calc(-24 * var(--u)); padding: calc(4 * var(--u)) calc(44 * var(--u)) calc(6 * var(--u)); background: linear-gradient(#f2d27e, #d8ac48);
-  border: calc(2 * var(--u)) solid #8a6420; border-radius: calc(8 * var(--u)); box-shadow: 0 calc(5 * var(--u)) calc(10 * var(--u)) rgba(0,0,0,.45); }
-.qin-ab-epithet span { font: italic 700 calc(30 * var(--u))/1.2 Georgia, serif; color: #3a2408; letter-spacing: .08em; white-space: nowrap; }
-.qin-ab-text { padding-top: calc(28 * var(--u)); animation: qin-ab-text var(--ab-ms) ease both; }
-.qin-ab-skill { font: 900 calc(84 * var(--u))/1.1 "Qin Cinzel", Georgia, serif; letter-spacing: .05em; text-shadow: 0 calc(5 * var(--u)) calc(10 * var(--u)) rgba(0,0,0,.6); }
+.qin-ab-ribbon { padding: calc(9 * var(--u)) calc(78 * var(--u)) calc(10.5 * var(--u)); background: linear-gradient(#b8261c, #7e1410);
+  border-top: calc(3 * var(--u)) solid #f0c24a; border-bottom: calc(3 * var(--u)) solid #f0c24a;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 33 * var(--u)) 50%, 100% 100%, 0 100%, calc(33 * var(--u)) 50%); }
+.qin-ab-ribbon span { font: 900 calc(45 * var(--u))/1.15 "Qin Cinzel", Georgia, serif; color: #fff; letter-spacing: .06em; text-shadow: 0 calc(2.2 * var(--u)) calc(3.8 * var(--u)) rgba(0,0,0,.7); white-space: nowrap; }
+.qin-ab-epithet { position: relative; margin-top: calc(-18 * var(--u)); padding: calc(3 * var(--u)) calc(33 * var(--u)) calc(4.5 * var(--u)); background: linear-gradient(#f2d27e, #d8ac48);
+  border: calc(1.5 * var(--u)) solid #8a6420; border-radius: calc(6 * var(--u)); box-shadow: 0 calc(3.8 * var(--u)) calc(7.5 * var(--u)) rgba(0,0,0,.45); }
+.qin-ab-epithet span { font: italic 700 calc(22.5 * var(--u))/1.2 Georgia, serif; color: #3a2408; letter-spacing: .08em; white-space: nowrap; }
+.qin-ab-text { padding-top: calc(21 * var(--u)); animation: qin-ab-text var(--ab-ms) ease both; }
+.qin-ab-skill { font: 900 calc(63 * var(--u))/1.1 "Qin Cinzel", Georgia, serif; letter-spacing: .05em; text-shadow: 0 calc(3.8 * var(--u)) calc(7.5 * var(--u)) rgba(0,0,0,.6); }
 /* the officer's full art, head to waist, standing on the band near the middle of the screen */
 .qin-ab-art { position: absolute; left: var(--ab-artx); top: calc(var(--ab-top) + var(--ab-h) - var(--ab-art)); height: var(--ab-art); overflow: hidden; z-index: 1;
   animation: qin-ab-art-l var(--ab-ms) both;
   -webkit-mask-image: linear-gradient(#000 86%, transparent); mask-image: linear-gradient(#000 86%, transparent); }
 .qin-ab-right .qin-ab-art { left: auto; right: var(--ab-artx); animation-name: qin-ab-art-r; }
-.qin-ab-art img { position: absolute; top: 0; width: auto; max-width: none; border: none; filter: drop-shadow(0 calc(8 * var(--u)) calc(14 * var(--u)) rgba(0,0,0,.7)); }
-.qin-ab-token .qin-ab-art { top: calc(var(--ab-top) + var(--ab-h) / 2 - 190 * var(--u)); width: calc(380 * var(--u)); height: calc(380 * var(--u)); left: var(--ab-artx); -webkit-mask-image: none; mask-image: none; }
+.qin-ab-art img { position: absolute; top: 0; width: auto; max-width: none; border: none; filter: drop-shadow(0 calc(6 * var(--u)) calc(10.5 * var(--u)) rgba(0,0,0,.7)); }
+.qin-ab-token .qin-ab-art { top: calc(var(--ab-top) + var(--ab-h) / 2 - 142 * var(--u)); width: calc(285 * var(--u)); height: calc(285 * var(--u)); left: var(--ab-artx); -webkit-mask-image: none; mask-image: none; }
 .qin-ab-right.qin-ab-token .qin-ab-art { left: auto; right: var(--ab-artx); }
-.qin-ab-token .qin-ab-art img { position: static; width: 100%; height: 100%; border-radius: 50%; border: calc(5 * var(--u)) solid #fff; }
+.qin-ab-token .qin-ab-art img { position: static; width: 100%; height: 100%; border-radius: 50%; border: calc(3.8 * var(--u)) solid #fff; }
 @keyframes qin-ab-dim { 0% { opacity: 0 } 10% { opacity: .45 } 85% { opacity: .45 } 100% { opacity: 0 } }
 /* fast in, a slow drift, then speeding up off the far side (David, 2026-11-09) */
 @keyframes qin-ab-band-l { 0% { transform: translateX(-105%); animation-timing-function: cubic-bezier(.15,.85,.3,1) } 12% { transform: translateX(0); animation-timing-function: linear } 80% { transform: translateX(calc(60 * var(--u))); animation-timing-function: cubic-bezier(.6,0,.9,.4) } 100% { transform: translateX(110%) } }

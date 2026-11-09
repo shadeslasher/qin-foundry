@@ -13,8 +13,8 @@ export const SIDE_RGB = { player: "58,120,200", ally: "63,166,106", enemy: "200,
 export const BANNER_MS = 2600; // fly in, drift slowly, speed up and fly off the far side (David, 2026-11-09)
 export const ART_BOX = 380;      // default px of figure shown above the band's bottom edge (head to waist)
 /** The banner is laid out for a 2560x1380 screen and scaled to this one (the smaller ratio), so it looks the same at any
- *  resolution (David, 2026-11-09); the figure box there is 860 px tall (styles: --ab-art). */
-export const DESIGN_W = 2560, DESIGN_H = 1380, ART_BOX_DESIGN = 860;
+ *  resolution (David, 2026-11-09); the figure box there is 645 px tall (styles: --ab-art). */
+export const DESIGN_W = 2560, DESIGN_H = 1380, ART_BOX_DESIGN = 645;
 export const screenScale = (w = globalThis.innerWidth || DESIGN_W, h = globalThis.innerHeight || DESIGN_H) => Math.min(w / DESIGN_W, h / DESIGN_H);
 
 /** What the banner shows (pure; exported for tests). */
