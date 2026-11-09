@@ -39,3 +39,8 @@ test("full art entries with sizes; the banner box is the visible width of the up
   assert.equal(artLayout({ src: "x" }, 0, 0), null);
   setFullArtMap(null);
 });
+
+test('the epithet comes from the officer\'s title (empty when he has none)', () => {
+  assert.strictEqual(bannerInfo({ side: 'player' }, { officer: { name: 'Guan Yu', system: { details: { title: 'God of War' } } }, artFor: () => null }).epithet, 'God of War');
+  assert.strictEqual(bannerInfo({ side: 'player' }, { officer: { name: 'Nobody', system: { details: {} } }, artFor: () => null }).epithet, '');
+});

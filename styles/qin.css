@@ -1140,11 +1140,21 @@ a.qin-stat:hover, a.qin-stat:focus-visible { border-color: var(--qin-gold); }
   animation: qin-ab-band-l var(--ab-ms) both; }
 .qin-ab-band { left: -160px; right: -160px; } /* wide enough that the slow drift never shows an end */
 /* the trailing end: an angled cut with gold stripes, seen only as the band flies away (David, 2026-11-09) */
-.qin-ab-band { clip-path: polygon(90px 0, 100% 0, 100% 100%, 0 100%); }
-.qin-ab-right .qin-ab-band { clip-path: polygon(0 0, calc(100% - 90px) 0, 100% 100%, 0 100%); }
+.qin-ab-band { clip-path: polygon(90px 0, 100% 0, calc(100% - 90px) 100%, 0 100%); } /* both ends cut, leading end too */
+.qin-ab-right .qin-ab-band { clip-path: polygon(0 0, calc(100% - 90px) 0, 100% 100%, 90px 100%); }
 .qin-ab-bandwrap { position: absolute; inset: 0; pointer-events: none; filter: drop-shadow(0 6px 12px rgba(0,0,0,.55)); } /* the shadow, which the cut would clip */
 .qin-ab-cut { position: absolute; left: 0; top: -3px; width: 120px; height: calc(100% + 6px); overflow: visible; pointer-events: none; }
-.qin-ab-right .qin-ab-cut { left: auto; right: 0; transform: scaleX(-1); }
+.qin-ab-cut.lead { left: auto; right: 0; transform: rotate(180deg); }
+.qin-ab-right .qin-ab-cut.trail { left: auto; right: 0; transform: scaleX(-1); }
+.qin-ab-right .qin-ab-cut.lead { left: 0; right: auto; transform: scaleY(-1); }
+/* the officer's name: a red ribbon across the band's top edge, his epithet on a gold emblem on the ribbon's bottom edge */
+.qin-ab-name { position: absolute; left: 50%; top: -26px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; z-index: 3; }
+.qin-ab-ribbon { padding: 6px 52px 7px; background: linear-gradient(#b8261c, #7e1410); border-top: 2px solid #f0c24a; border-bottom: 2px solid #f0c24a;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 22px) 50%, 100% 100%, 0 100%, 22px 50%); }
+.qin-ab-ribbon span { font: 900 30px/1.15 "Qin Cinzel", Georgia, serif; color: #fff; letter-spacing: .06em; text-shadow: 0 2px 3px rgba(0,0,0,.7); white-space: nowrap; }
+.qin-ab-epithet { position: relative; margin-top: -12px; padding: 2px 22px 3px; background: linear-gradient(#f2d27e, #d8ac48); border: 1px solid #8a6420; border-radius: 4px; box-shadow: 0 3px 6px rgba(0,0,0,.45); }
+.qin-ab-epithet span { font: italic 700 15px/1.2 Georgia, serif; color: #3a2408; letter-spacing: .08em; white-space: nowrap; }
+.qin-ab-text { padding-top: 14px; }
 .qin-ab-right .qin-ab-band { background: linear-gradient(270deg, rgba(var(--c),.97), rgba(var(--c),.88) 60%, rgba(var(--c),.55)); animation-name: qin-ab-band-r; }
 .qin-ab-label { position: absolute; left: 0; right: 0; top: var(--ab-top); height: var(--ab-h); z-index: 2; display: flex; align-items: center; justify-content: center; text-align: center; color: #fff; white-space: nowrap; animation: qin-ab-band-l var(--ab-ms) both; }
 .qin-ab-right .qin-ab-label { animation-name: qin-ab-band-r; }
