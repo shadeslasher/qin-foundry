@@ -386,8 +386,8 @@ async function postLog(entries, s) {
       const win = r.winner === "attacker" ? A : r.winner === "defender" ? D : null;
       const col = (roll) => roll.parts.filter(([k, v]) => v !== 0 || /Yin/.test(k)).map(([k, v]) => `<div class="qin-row"><span>${k}</span><span>${signed(v)}</span></div>`).join("");
       const line = (cls, label, a, b) => (a || b) ? `<div class="qin-bc-line ${cls}"><span>${a || "—"}</span><span class="qin-bc-label">${label}</span><span>${b || "—"}</span></div>` : "";
-      const moraleA = (r.loser === r.attacker ? -r.moraleLoss : 0) + (r.killedBy === r.attacker ? r.killMorale || 0 : 0);
-      const moraleD = (r.loser === r.defender ? -r.moraleLoss : 0) + (r.killedBy === r.defender ? r.killMorale || 0 : 0);
+      const moraleA = (r.loser === r.attacker ? -r.moraleLoss : 0) + ((r.killMoraleBy ?? r.killedBy) === r.attacker ? r.killMorale || 0 : 0);
+      const moraleD = (r.loser === r.defender ? -r.moraleLoss : 0) + ((r.killMoraleBy ?? r.killedBy) === r.defender ? r.killMorale || 0 : 0);
       parts.push(`<div class="qin-battle-card">
         <div class="qin-bc-head"><b>${A}</b> <i class="fa-solid fa-swords"></i> <b>${D}</b><div class="qin-bc-tags">${tags}</div></div>
         <div class="qin-bc-rolls"><div class="${r.winner === "attacker" ? "win" : ""}"><span>${A}</span><b>${r.attackRoll.total}</b></div><div class="qin-bc-vs">vs</div><div class="${r.winner === "defender" ? "win" : ""}"><span>${D}</span><b>${r.defendRoll.total}</b></div></div>
@@ -400,7 +400,7 @@ async function postLog(entries, s) {
       continue;
     }
     // XP and killing-blow morale for an attack are already on its card
-    if ((d?.type === "xp" || d?.type === "moraleGain") && attackIds.has(d.unit) && /XP|killing blow/.test(e.text)) continue;
+    if ((d?.type === "xp" || d?.type === "moraleGain") && attackIds.has(d.unit) && /XP|killing blow|enemy surrendered/.test(e.text)) continue;
     if (/ ends its turn\.$/.test(e.text)) continue;
     parts.push(`<p class="qin-bc-note ${d?.type === "warning" ? "qin-warn" : ""}">${e.text}</p>`);
   }
@@ -457,7 +457,7 @@ function animateChanges(scene, before, s, entries, actionType = null) {
     const gains = [];
     if (r.xpAttacker) { gains.push([r.attacker, "xp", `+${r.xpAttacker} XP`]); add(r.attacker, "xp", r.xpAttacker); }
     if (r.xpDefender) { gains.push([r.defender, "xp", `+${r.xpDefender} XP`]); add(r.defender, "xp", r.xpDefender); }
-    if (r.killedBy && r.killMorale) { gains.push([r.killedBy, "moraleUp", `+${r.killMorale} morale`]); add(r.killedBy, "morale", r.killMorale); }
+    { const kb = r.killMoraleBy ?? r.killedBy; if (kb && r.killMorale) { gains.push([kb, "moraleUp", `+${r.killMorale} morale`]); add(kb, "morale", r.killMorale); } }
     if (gains.length) steps.push({ kind: "floats", items: gains });
   }
   for (const e of entries) if (e.detail?.type === "levelUp") steps.push({ kind: "levelUp", unit: e.detail.unit, level: e.detail.level });

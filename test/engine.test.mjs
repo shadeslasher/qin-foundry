@@ -344,8 +344,8 @@ test('end-of-turn regen up to 75; kill morale can exceed 75 up to 100', () => {
   dice([5, 0, 0, 0]);
   must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
   assert.strictEqual(R.unitById(s, d).status, 'defeated');
-  // 70 + 5 (tier 1 kill) = 75, regen stops at 75
-  assert.strictEqual(R.unitById(s, a).morale, 75);
+  // 70 + 7 (a tier 2 unit beats a tier 1 unit, David 2026-11-09) = 77: kill morale goes past the 75 regen cap
+  assert.strictEqual(R.unitById(s, a).morale, 77);
   R.unitById(s, a).morale = 98;
   R.unitById(s, a).morale += 0;
 });

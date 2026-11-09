@@ -61,3 +61,20 @@ test('Inside Knowledge with nothing hidden: nothing waits', () => {
   const { s } = setup([{ side: 'player', x: 1, y: 1, officerId: 'a' }, { side: 'enemy', x: 8, y: 8 }], [off('a', INSIDE)]);
   assert.strictEqual(SK.pendingReveal(s), null);
 });
+
+// Morale for beating an enemy unit, by tier (David, 2026-11-09)
+test('killGain: same tier +10, +5 per tier above (max 25), -3 per tier below (min 2)', () => {
+  const g = (k, f) => R.killGain(k, f);
+  assert.deepStrictEqual([g(3, 3), g(2, 3), g(1, 3), g(1, 4), g(1, 5)], [10, 15, 20, 25, 25]);
+  assert.deepStrictEqual([g(3, 2), g(3, 1), g(4, 1), g(5, 1)], [7, 4, 2, 2]);
+});
+
+test('a unit that makes the enemy surrender gains morale too (not only when it is destroyed)', () => {
+  const { s, u, ids } = setup([{ side: 'player', x: 1, y: 1 }, { side: 'enemy', x: 2, y: 1 }]);
+  s.turn.activation = { unitId: ids[0], step: 'move', started: false, tilesMoved: 0, from: { ...u(0) } };
+  u(1).morale = 1; u(0).morale = 50;
+  R.setRng(() => 0.9);
+  const r = R.resolveAttack(s, u(0), u(1), { movedThisActivation: false, tilesMoved: 0 });
+  if (u(1).status === 'surrendered') { assert.strictEqual(r.killMorale, 10); assert.strictEqual(r.killMoraleBy, ids[0]); }
+  else assert.fail('the enemy should have surrendered (status ' + u(1).status + ', morale ' + u(1).morale + ')');
+});

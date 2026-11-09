@@ -1427,15 +1427,20 @@ function resolveAttack(s, attacker, defender, opts) {
   // (only the men the enemy actually had count)
   result.xpAttacker = gainXp(s, attacker, (menBefore.d - defender.men) * (dt.tier || 1) / (at.tier || 1), 'casualties dealt');
   result.xpDefender = gainXp(s, defender, (menBefore.a - attacker.men) * (at.tier || 1) / (dt.tier || 1), 'casualties dealt');
-  // Killing blows: morale 5 x enemy tier, XP 25 x (enemy tier / own tier)
-  if (defender.men <= 0 && attacker.men > 0) { result.killedBy = attacker.id; result.killMorale = trait(defender, 'expendable') ? 0 : gainMorale(s, attacker, 5 * (dt.tier || 1), 'killing blow'); result.xpAttacker += gainXp(s, attacker, 25 * (dt.tier || 1) / (at.tier || 1), 'killing blow'); }
+  // Killing blows: XP 25 x (enemy tier / own tier). The morale for beating a unit (destroyed or surrendered) comes in settle (killGain).
+  fx(defender).lastHitBy = attacker.id;
+  if (casAtt > 0 || loser === attacker) fx(attacker).lastHitBy = defender.id;
+  if (defender.men <= 0 && attacker.men > 0) { result.killedBy = attacker.id; result.xpAttacker += gainXp(s, attacker, 25 * (dt.tier || 1) / (at.tier || 1), 'killing blow'); }
   if (result.killedBy === attacker.id) killTactics(s, attacker, defender);
-  if (attacker.men <= 0 && defender.men > 0) { result.killedBy = defender.id; result.killMorale = trait(attacker, 'expendable') ? 0 : gainMorale(s, defender, 5 * (at.tier || 1), 'killing blow'); result.xpDefender += gainXp(s, defender, 25 * (at.tier || 1) / (dt.tier || 1), 'killing blow'); }
+  if (attacker.men <= 0 && defender.men > 0) { result.killedBy = defender.id; result.xpDefender += gainXp(s, defender, 25 * (at.tier || 1) / (dt.tier || 1), 'killing blow'); }
   if (result.killedBy === defender.id) killTactics(s, defender, attacker);
   delete fx(defender).traitsOff;
   SK.capAttack(s, attacker, m0a); SK.capAttack(s, defender, m0d);
   SK.onAttack(s, attacker, defender, { ...result, ranged }); // officers' battlefield skills: triggers, follow-ups, splash
   settle(s);
+  for (const [v, k] of [[defender, attacker], [attacker, defender]]) { // morale for beating the other unit in this attack (for the floats)
+    const kg = fx(v).killGain; if (kg && kg.by === k.id && !result.killMorale) { result.killMorale = kg.gain; result.killMoraleBy = k.id; }
+  }
   // All Out Attack: every unit of the side in the area that can reach the enemy attacks it for free
   for (const tc of allOut) {
     for (const o of liveUnits(s)) {
@@ -1478,6 +1483,14 @@ function gainXp(s, u, amount, why) {
   return n;
 }
 
+/**
+ * Morale for beating an enemy unit (destroyed or surrendered), by the tier difference (David, 2026-11-09):
+ * same tier +10; +5 for each tier the enemy is above (at most +25); -3 for each tier it is below (at least +2).
+ */
+export function killGain(killerTier, foeTier) {
+  const d = (Number(foeTier) || 1) - (Number(killerTier) || 1);
+  return d >= 0 ? Math.min(25, 10 + 5 * d) : Math.max(2, 10 - 3 * -d);
+}
 function gainMorale(s, u, n, why) {
   const before = u.morale;
   u.morale = clamp(u.morale + n, 0, 100); // kill morale may exceed the 75 regen cap
@@ -1532,6 +1545,12 @@ function settleLoop(s, opts) {
       if (!ended) continue;
       changed = true;
       log(s, u.name + ' ' + ended + '.', { type: 'defeat', unit: u.id });
+      // the unit that beat it (its last attacker, or the unit it last fought) gains morale by tier (David, 2026-11-09)
+      { const k = fx(u).lastHitBy ? unitById(s, fx(u).lastHitBy) : null;
+        if (k && alive(k) && k.men > 0 && hostile(k, u) && !trait(u, 'expendable')) {
+          const g = killGain((typeOf(s, k) || {}).tier, (typeOf(s, u) || {}).tier);
+          fx(u).killGain = { by: k.id, gain: gainMorale(s, k, g, ended === 'surrenders' ? 'enemy surrendered' : 'killing blow') };
+        } }
       if (u.status === 'surrendered') surrenderTactics(s, u);
       if (carrying(u)) dropEquipment(s, u, ' falls, leaving its ');
       for (const tc of s.tactics ? s.tactics.placed : []) if (tc.key === 'fear' && tc.unitId === u.id && tc.state === 'active') tc.state = 'spent';
