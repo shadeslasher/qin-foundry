@@ -405,7 +405,8 @@ function log(s, text, detail) {
  * - recharge: turns (battle rounds) to wait after a use, so used in round R with recharge N it is ready in R+N;
  *   perBattle: once per battle
  * - lastStand: only usable at 25 morale or less (no other morale requirement)
- * - every other active needs at least 75 morale (David, 2026-11-09), unless its own rule caps morale lower
+ * - every other active needs at least 75 morale (David, 2026-11-09), unless its own rule caps morale lower,
+ *   or the unit is Readied (a battlefield skill reset its active); an enemy skill may raise the 75 (skillMinUp)
  *   (an automated active whose require has moraleBelow, e.g. a desperate or last-stand skill)
  */
 const ACTIVE_MIN_MORALE = 75, LAST_STAND_MAX_MORALE = 25;
@@ -423,7 +424,10 @@ function skillCheck(s, u, o) {
     return { ok: false, reason: 'Recharging: ' + left + ' turn' + (left === 1 ? '' : 's'), left };
   }
   if (sk.lastStand) { if (u.morale > LAST_STAND_MAX_MORALE) return { ok: false, reason: 'Last stand: only at ' + LAST_STAND_MAX_MORALE + ' morale or less' }; }
-  else if (SK.activeMoraleCap(s, u) == null && u.morale < ACTIVE_MIN_MORALE) return { ok: false, reason: 'Needs at least ' + ACTIVE_MIN_MORALE + ' morale' };
+  else if (SK.activeMoraleCap(s, u) == null && !(s.units && SK.flag(s, u, 'readied'))) { // Readied (a skill reset it): no minimum this time
+    const min = ACTIVE_MIN_MORALE + ((s.units && Number(SK.stat(s, u, 'skillMinUp'))) || 0); // an enemy skill may raise it
+    if (u.morale < min) return { ok: false, reason: 'Needs at least ' + min + ' morale' };
+  }
   if (cost && u.morale <= cost) return { ok: false, reason: 'Needs more than ' + cost + ' morale' };
   return { ok: true, reason: '' };
 }

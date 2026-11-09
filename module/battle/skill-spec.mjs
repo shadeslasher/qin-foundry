@@ -7,14 +7,18 @@ export const STATS = ['attack', 'command', 'commandAtk', 'commandDef', 'meleeDef
   'startMorale', 'overwatch', 'forcedMarchCost', 'regenCap', 'moraleFloor',
   // v3
   'damageTaken', 'reflectMelee', 'moraleCapAttack', 'moraleCapRound', 'surroundLossLess', 'fireLossLess', 'fireCasualties',
-  'contestAtk', 'contestNext', 'skillCost', 'moveAway', 'moveNoAttack'];
+  'contestAtk', 'contestNext', 'skillCost', 'moveAway', 'moveNoAttack',
+  // 2026-11-09: raise the morale its battlefield active needs (above the usual 75)
+  'skillMinUp'];
 export const FLAGS = ['noSurrender', 'noRout', 'cantBeSurrounded', 'noRearAgainst', 'noChargeAgainst', 'cantBePushed',
   'ignoreLowMorale', 'ignoreStrength', 'noCounterDamage', 'noStrikeBack', 'revealHidden', 'revealTactics', 'ignoreTerrainCost',
   'splash', 'stopAdjacent', 'reroll', 'noRoutLoss', 'untargetable',
   // v3
   'asRanged', 'asRear', 'asCharge', 'noTileDefense', 'ignoreDefensiveTraits', 'passThroughEnemies', 'crossWater', 'ignoreZoc', 'stopOn',
   'hideAnywhere', 'cantBeAmbushed', 'noRevealBySkills', 'noOverwatchAgainst', 'regenEvenIfFought', 'regenToResting', 'routLossNear',
-  'casualtyHalf', 'noRearNearby', 'challengeFirstAttacker', 'drawMeleeAttacks', 'rideThrough', 'extraTactic', 'gateRange', 'gateDouble', 'noStrikeBackIfWin', 'checkpointHalf', 'ignoreTraits', 'cantRefuseDuel', 'ignoreMoveLimits'];
+  'casualtyHalf', 'noRearNearby', 'challengeFirstAttacker', 'drawMeleeAttacks', 'rideThrough', 'extraTactic', 'gateRange', 'gateDouble', 'noStrikeBackIfWin', 'checkpointHalf', 'ignoreTraits', 'cantRefuseDuel', 'ignoreMoveLimits',
+  // 2026-11-09: Readied — its next battlefield active ignores the 75-morale minimum (not a last stand's window)
+  'readied'];
 export const EVENTS = ['battleStart', 'roundStart', 'turnStart', 'turnEnd', 'win', 'lose', 'attackWin', 'defendWin', 'kill',
   'allyFalls', 'enemyEndsAdjacent', 'alliesTurnStart', 'firstBelowHalfMorale',
   'enemyTurnStart', 'roundEnd', 'enemyFalls', 'attacked', 'allyWins',
@@ -30,7 +34,7 @@ export const TERRAINS = ['plains', 'forest', 'trees', 'tall-grass', 'marsh', 'sa
   'lake', 'scorched', 'road', 'bridge', 'hill', 'city-wall', 'city-gate', 'fortress-tower', 'town', 'fort', 'camp', 'command-tent',
   'watchtower', 'ruins', 'supply-depot', 'dock', 'pass', 'water', 'wall', 'village', 'gate', 'paving', 'city', 'mountain', 'palisade', 'burning', 'catapult', 'boat'];
 const FILTER_KEYS = ['category', 'melee', 'levy', 'trait', 'officer', 'officerType', 'onTerrain', 'nearWater', 'hidden', 'notActed',
-  'acted', 'moraleBelow', 'moraleAbove', 'healthBelow', 'surroundedOrEngaged', 'notAttackedLastTurn', 'noEnemyAdjacent',
+  'acted', 'cooldownDone', 'moraleBelow', 'moraleAbove', 'healthBelow', 'surroundedOrEngaged', 'notAttackedLastTurn', 'noEnemyAdjacent',
   'attackedMeLastTurn', 'tierAbove', 'flammable',
   // v2
   'isPick', 'isSource', 'isTarget', 'allyAdjacent', 'allyWithin', 'enemyAdjacent', 'tierBelow', 'officerTierAtLeast', 'lessMoraleThanSource',
@@ -137,7 +141,7 @@ export function validateSpec(spec, kind) {
     const k = main[0];
     const allowed = { morale: ['who', 'upToResting'], health: ['who'], buff: ['who', 'for'], move: ['who', 'mode', 'toward'], attack: ['who', 'moveFirst', 'extraMove'],
       contest: ['aspect', 'lose', 'win'], status: ['who', 'for', 'from'], push: ['who', 'thenAdvance', 'ifBlocked'], reveal: [], fire: [], resetCooldown: [], extraTurn: ['moveOnly'],
-      reinforce: ['near', 'filter', 'onTerrain', 'arriveBuff'], swap: [], selfStatus: ['for'], if: ['who', 'then', 'else'], onKill: [], onWin: [], onLose: [], manual: [], hide: [], fireArea: ['from'],
+      reinforce: ['near', 'filter', 'onTerrain', 'arriveBuff'], swap: [], selfStatus: ['for'], if: ['who', 'then', 'else', 'each'], onKill: [], onWin: [], onLose: [], manual: [], hide: [], fireArea: ['from'],
       casualties: ['who', 'ignoreArmor'], turnOrder: ['who'], setTerrain: ['tiles', 'for'], openGate: ['for', 'oneSide'], repair: ['range'], leave: [], convert: [], spawn: [],
       grantTrait: ['who', 'tier', 'for'], removeTrait: ['who', 'for'], stealTrait: ['who', 'for'], stepTrait: ['who', 'for'], cancelTactic: [], cooldown: ['who'],
       overwatchOn: [], custom: ['args'], counter: ['add', 'set', 'max'], forceToward: ['who'], forceAttack: ['at'], moveInto: [], splitMorale: ['who', 'max'],

@@ -85,6 +85,9 @@ export function matches(s, f, u, ctx = {}) {
       case 'levy': if (!!E.unitTrait(u, 'levy') !== !!v) return false; break;
       case 'trait': if (!E.unitTrait(u, String(v).toLowerCase())) return false; break;
       case 'officer': if (!!u.officerId !== !!v) return false; break;
+      case 'cooldownDone': { // its officer's battlefield active is off cooldown (2026-11-09: Readied only when a cut brings it to 0)
+        const o = u.officerId ? E.officerOf(s, u) : null, n = Number(o?.skill?.recharge) || 0, last = fxOf(u).skillLast, r = (s.turn && s.turn.round) || 0;
+        if ((last == null || !n || r >= last + n) !== !!v) return false; break; }
       case 'officerType': { const o = u.officerId ? E.officerOf(s, u) : null; if (!o || String(o.ctype || '').toLowerCase() !== String(v).toLowerCase()) return false; break; }
       case 'onTerrain': if (!onTerrain(s, u.x, u.y, v)) return false; break;
       case 'nearWater': if (nearWater(s, u) !== !!v) return false; break;
@@ -824,6 +827,10 @@ function step(s, st, ctx, rest) {
     for (const u of list) { (s.skillExtra ||= []).push({ unitId: u.id, moveOnly: !!st.moveOnly }); say(s, label + ': ' + nm(u) + ' will take another ' + (st.moveOnly ? 'move' : 'turn') + ' at once.', { type: 'skill', unit: u.id }); }
     return;
   }
+  if (st.if && st.each && st.who) { // test every unit it reaches; "then"/"else" run once per unit, with that unit as the target (2026-11-09)
+    for (const u of units(st.who)) if (runSteps(s, matches(s, st.if, u, { src, self: u }) ? st.then || [] : st.else || [], { ...ctx, target: u }) === 'wait') return 'wait';
+    return;
+  }
   if (st.if) {
     const u = (st.who ? units(st.who)[0] : src) || src;
     return runSteps(s, matches(s, st.if, u, { src, self: u }) ? st.then || [] : st.else || [], ctx) === 'wait' ? 'wait' : undefined;
@@ -1133,7 +1140,7 @@ const STAT_TEXT = { attack: 'Attack', command: 'Command', commandAtk: 'Command w
   overwatch: 'Overwatch Attack', forcedMarchCost: 'forced march cost', regenCap: 'morale recovery cap', moraleFloor: 'morale floor',
   damageTaken: 'casualties taken', reflectMelee: 'damage back to melee attackers', moraleCapAttack: 'most morale lost per attack', moraleCapRound: 'most morale lost per round',
   surroundLossLess: 'morale lost when surrounded', fireLossLess: 'morale lost to fire', fireCasualties: '% casualties from fire', contestAtk: 'on its skills\' contested rolls',
-  contestNext: 'on its next contested roll', skillCost: 'morale cost of its battlefield active', moveAway: 'movement away from the enemy', moveNoAttack: 'movement if it doesn\'t attack' };
+  contestNext: 'on its next contested roll', skillCost: 'morale cost of its battlefield active', skillMinUp: 'morale its battlefield active needs', moveAway: 'movement away from the enemy', moveNoAttack: 'movement if it doesn\'t attack' };
 const sgn = (n) => (n >= 0 ? '+' : '−') + Math.abs(n);
 export function describeBuff(b) {
   const parts = [];
@@ -1237,7 +1244,7 @@ function capRound(s) {
 /** The extra cost (or a cut) on an officer's battlefield active. */
 export const skillTax = (s, u) => stat(s, u, 'skillCost');
 /** "Its next battlefield active costs N more": buffs with the nextSkill duration end once it uses one. */
-export function usedActive(u) { dropBuffs(u, b => b.until.kind === 'skill'); }
+export function usedActive(u) { dropBuffs(u, b => b.until.kind === 'skill' || (b.flags || []).some(f => String(f.flag).split(':')[0] === 'readied')); } // Readied is used up by the active it readied
 /** Is this enemy tactic cancelled by a battlefield skill? (Consumes the cancel.) */
 export function cancelsTactic(s, tacticSide) {
   const list = s.skillCancelTactic || [];

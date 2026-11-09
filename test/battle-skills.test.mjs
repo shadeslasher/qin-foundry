@@ -225,3 +225,33 @@ test('morale minimum (David, 2026-11-09): actives need 75+, but one whose own ru
   assert.ok(R.skillCheck(s, u(1), o(1)).ok, 'below 51 by its own rule');
   u(1).morale = 80; assert.ok(!R.skillCheck(s, u(1), o(1)).ok, 'its own cap still applies');
 });
+
+test('Readied (2026-11-09): a reset active ignores the 75 minimum once; an enemy skill can raise the minimum', () => {
+  const resetter = officer('r', { active: { pick: [{ id: 'a', side: 'allies', range: 3, count: 1 }], do: [{ resetCooldown: { pick: 'a' } }, { buff: { flags: [{ flag: 'readied' }] }, who: { pick: 'a' }, for: 'untilNextTurnEnd' }] } }, { name: 'Reset', text: 'x', moraleCost: 10, recharge: 0 });
+  const user = officer('u', { active: { do: [{ morale: 1, who: { self: true } }] } }, { name: 'Act', text: 'x', moraleCost: 10, recharge: 3 });
+  const { s, u, ids } = setup([{ side: 'player', x: 1, y: 1, officerId: 'r', morale: 90 }, { side: 'player', x: 2, y: 1, officerId: 'u', morale: 50 }, { side: 'enemy', x: 10, y: 10 }], [resetter, user]);
+  u(1).fx.skillLast = s.turn.round; // just used: recharging
+  assert.ok(!R.skillCheck(s, u(1), R.officerOf(s, u(1))).ok);
+  s.turn.activation = { unitId: ids[0], step: 'move', started: false, tilesMoved: 0, from: { x: 1, y: 1 } };
+  must(R.act(s, HOST, { type: 'useSkill', unitId: ids[0], picks: { a: [ids[1]] } }));
+  assert.ok(R.skillCheck(s, u(1), R.officerOf(s, u(1))).ok, 'readied: usable at 50 morale');
+  s.turn.activation = { unitId: ids[1], step: 'move', started: false, tilesMoved: 0, from: { x: 2, y: 1 } };
+  must(R.act(s, HOST, { type: 'useSkill', unitId: ids[1] }));
+  assert.ok(!SK.flag(s, u(1), 'readied'), 'used up');
+  // skillMinUp
+  delete u(1).fx.skillLast; u(1).round.skillUsed = false; u(1).morale = 78;
+  SK.addBuff(s, u(1), u(2), 'tax', { mods: [{ stat: 'skillMinUp', value: 5 }] }, 'nextSkill');
+  assert.strictEqual(R.skillCheck(s, u(1), R.officerOf(s, u(1))).reason, 'Needs at least 80 morale');
+});
+
+test('if + each (2026-11-09): Readied goes only to units whose cooldown the cut finished', () => {
+  const cutter = officer('c', { active: { pick: [{ id: 'a', side: 'allies', range: 'any', count: 2, upTo: true, filter: { officer: true } }], do: [{ cooldown: -2, who: { pick: 'a' } }, { if: { cooldownDone: true }, who: { pick: 'a' }, each: true, then: [{ buff: { flags: [{ flag: 'readied' }] }, who: { target: true }, for: 'untilNextTurnEnd' }] }] } }, { name: 'Cut', text: 'x', moraleCost: 10, recharge: 0 });
+  const a = officer('a', { active: { do: [{ morale: 1, who: { self: true } }] } }, { name: 'A', text: 'x', moraleCost: 5, recharge: 2 });
+  const b = officer('b', { active: { do: [{ morale: 1, who: { self: true } }] } }, { name: 'B', text: 'x', moraleCost: 5, recharge: 5 });
+  const { s, u, ids } = setup([{ side: 'player', x: 1, y: 1, officerId: 'c', morale: 90 }, { side: 'player', x: 2, y: 1, officerId: 'a', morale: 50 }, { side: 'player', x: 3, y: 1, officerId: 'b', morale: 50 }, { side: 'enemy', x: 10, y: 10 }], [cutter, a, b]);
+  u(1).fx.skillLast = s.turn.round; u(2).fx.skillLast = s.turn.round;
+  s.turn.activation = { unitId: ids[0], step: 'move', started: false, tilesMoved: 0, from: { x: 1, y: 1 } };
+  must(R.act(s, HOST, { type: 'useSkill', unitId: ids[0], picks: { a: [ids[1], ids[2]] } }));
+  assert.ok(SK.flag(s, u(1), 'readied'), 'recharge 2 cut by 2: done, readied');
+  assert.ok(!SK.flag(s, u(2), 'readied'), 'recharge 5 cut by 2: still waiting');
+});
