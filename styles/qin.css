@@ -1135,7 +1135,7 @@ a.qin-stat:hover, a.qin-stat:focus-visible { border-color: var(--qin-gold); }
 /* Battlefield active banner. Sized in --u, one pixel of a 2560x1380 screen scaled to this one (the smaller of the two
    ratios), so it looks the same at any resolution (David, 2026-11-09: 1.5x the old size, portrait bigger and nearer the centre, name and skill centred on the screen) */
 .qin-ab { position: fixed; inset: 0; z-index: 1000; pointer-events: none;
-  --u: min(calc(100vw / 2560), calc(100vh / 1380)); --ab-top: 36vh; --ab-h: calc(225 * var(--u)); --ab-art: calc(645 * var(--u));
+  --u: min(calc(100vw / 2560), calc(100vh / 1380)); --ab-top: calc(50vh - var(--ab-h) / 2); /* the band centred on the screen */ --ab-h: calc(225 * var(--u)); --ab-art: calc(645 * var(--u));
   --ab-artx: calc(150 * var(--u)); --ab-textpad: 0px; }
 .qin-ab-dim { position: absolute; inset: 0; background: #000; animation: qin-ab-dim var(--ab-ms) ease both; }
 .qin-ab-band { position: absolute; left: calc(-240 * var(--u)); right: calc(-240 * var(--u)); top: var(--ab-top); height: var(--ab-h);
