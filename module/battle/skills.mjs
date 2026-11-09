@@ -279,6 +279,25 @@ export function rollParts(s, u, role, ctx = {}) {
   return parts;
 }
 
+/**
+ * The always-on roll changes reaching unit u from officers' battlefield skills (buffs, its own officer's passive, other
+ * officers' auras), for the stand's icons (David, 2026-11-09): only mods with no condition (no `if`, no `vs`); the
+ * conditional ones show on the sword icon during the attack they apply to. { command, attack, meleeDef, rangedDef }.
+ */
+export function alwaysOnRolls(s, u) {
+  const r = { command: 0, attack: 0, meleeDef: 0, rangedDef: 0 };
+  for (const { entry: m, src } of reaching(s, u, 'mods')) {
+    if (m.if || m.vs) continue;
+    const v = (Number(m.value) || 0) * perOf(src, m); if (!v) continue;
+    if (m.stat === 'command') r.command += v;
+    else if (m.stat === 'attack' || m.stat === 'commandAtk') r.attack += v;
+    else if (m.stat === 'commandDef') { r.meleeDef += v; r.rangedDef += v; }
+    else if (m.stat === 'meleeDef') r.meleeDef += v;
+    else if (m.stat === 'rangedDef') r.rangedDef += v;
+  }
+  return r;
+}
+
 /** "per" on a mod: its value counts once for each point of a counter on the officer's unit (capped by max). */
 function perOf(src, m) {
   if (!m.per) return 1;

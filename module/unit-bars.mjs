@@ -3,8 +3,8 @@
 // its faction banner rolled up in the corner (it unrolls while hovered), and health/morale bars.
 import { factionOf } from "./factions.mjs";
 import { traitTiersOf } from "./battle/traits.mjs";
-import { tileRules, skillCheck, officerOf } from "./battle/engine.mjs";
-import { effectsOf } from "./battle/skills.mjs";
+import { tileRules, skillCheck, officerOf, typeOf, officerWeaponLevel } from "./battle/engine.mjs";
+import { effectsOf, alwaysOnRolls } from "./battle/skills.mjs";
 import { buildState } from "./battle/adapter.mjs";
 import { decodeTiles, FLAG as MAP_FLAG } from "./battle/battlemap.mjs";
 
@@ -133,6 +133,10 @@ function battleRecord(token) {
  *  defense - against melee attacks: Hold (+2), Brace, Shielded, Poison, Suppressing Fire.
  *  rangedDefense - against ranged attacks: Shielded, Shield Battery, Poison. (Hold does not count against ranged attacks.)
  *  range - extra range (nothing grants this automatically yet).
+ * Since 2026-11-09 they also count the officer: his Command on every roll (rolls) and his weapon skill on attacks
+ * (attack), and the always-on changes from battlefield skills (buffs, his passive, other officers' auras: rolls, attack,
+ * defense, rangedDefense). Conditional ones ("Attack +2 against cavalry") show on the sword icon only during the attack
+ * they apply to.
  */
 const tierCache = new Map();
 function tiersFor(text) {
@@ -179,6 +183,10 @@ export function unitStatus(token) {
       if (charge > 0) attack += charge + [0, 2, 4, 4, 4][fierce];
     }
   }
+  // the officer's Command and weapon skill, and the battlefield skills' always-on changes (David, 2026-11-09)
+  const ex = rollExtras(token);
+  let skDef = 0, skRanged = 0;
+  if (ex) { rolls += ex.rolls; attack += ex.attack; skDef = ex.defense; skRanged = ex.rangedDefense; }
   if (token.qinAttackBonus !== undefined && token.qinAttackBonus !== null) attack = token.qinAttackBonus;
   const both = -(Number(fx.poison) || 0); // melee & ranged defense (Poison lowers both)
   const supp = !!fx.suppressed; // Suppressing Fire: Attack -1, melee defense -1, Hold and Brace lost
@@ -196,7 +204,7 @@ export function unitStatus(token) {
     groundDef = ground.meleeDef; groundRanged = ground.rangedDef;
     if (s.range > 1) range += ground.range;
   }
-  return { rolls, attack, defense: defense + groundDef, rangedDefense: rangedDefense + groundRanged, range, holding: !!round.holding, hidden: !!s.hidden,
+  return { rolls, attack, defense: defense + groundDef + skDef, rangedDefense: rangedDefense + groundRanged + skRanged, range, holding: !!round.holding, hidden: !!s.hidden,
     reloading: !!fx.reload, suppressed: supp };
 }
 
@@ -393,11 +401,18 @@ function clear(token) {
 let readyCache = null;
 function readyMap(battle) {
   if (readyCache) return readyCache.map; // cleared by the hooks in registerUnitBars whenever anything it depends on changes
-  const map = {}, eff = {};
+  const map = {}, eff = {}, rolls = {};
   try {
     const { s } = buildState(battle);
     for (const u of s.units) {
       if (u.status !== "active") continue;
+      // what the officer and the battlefield skills add to its rolls, for the icons (David, 2026-11-09): the officer's
+      // Command on every roll, his weapon skill on its attacks, and the skills' always-on changes
+      try {
+        const o = u.officerId ? officerOf(s, u) : null, t = typeOf(s, u), sk = alwaysOnRolls(s, u);
+        const lv = o && t ? officerWeaponLevel(o, t) : 0;
+        rolls[u.id] = { rolls: (o?.command || 0) + sk.command, attack: (lv > 1 ? lv - 1 : 0) + sk.attack, defense: sk.meleeDef, rangedDefense: sk.rangedDef };
+      } catch (e) { console.warn("Qin | roll icons", e); }
       // buffs and debuffs the stand shows (not passive auras: they come and go as units move)
       const list = effectsOf(s, u).filter(e => !e.aura);
       if (list.length) { const of = (k) => list.filter(e => e.kind === k); eff[u.id] = { nb: of("buff").length, nd: of("debuff").length, pb: of("buff").reduce((a, e) => a + e.power, 0), pd: of("debuff").reduce((a, e) => a + e.power, 0), keys: list.map(e => e.key + "|" + e.kind) }; }
@@ -406,9 +421,16 @@ function readyMap(battle) {
       if (o?.skill && skillCheck(s, u, o).ok) map[u.id] = o.skill.lastStand ? "last" : "ready";
     }
   } catch (e) { console.warn("Qin | skill-ready marks", e); }
-  readyCache = { map, eff };
+  readyCache = { map, eff, rolls };
   noteLanded(battle, eff);
   return map;
+}
+/** What the officer and the battlefield skills add to the unit's rolls (see readyMap), or null outside a battle. */
+function rollExtras(token) {
+  const battle = battleRecord(token);
+  if (!battle) return null;
+  readyMap(battle);
+  return readyCache?.rolls?.[token.id] ?? null;
 }
 function effectCounts(token) {
   const battle = battleRecord(token);

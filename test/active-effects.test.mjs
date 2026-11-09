@@ -62,3 +62,11 @@ test('Sweep (Guan Yu): every other enemy in the 3x3 square around the attacker t
   assert.ok(SK.flag(s, u(0), 'cantBeSurrounded'), 'the engine sees it');
   assert.strictEqual(fx[0].kind, 'buff');
 });
+
+test('icons: always-on roll changes from skills are summed; conditional ones (if / vs) are left for the attack itself', () => {
+  const a = officer('a', { passiveName: 'Rally', passive: { mods: [{ stat: 'command', value: 2, who: { side: 'allies', range: 2, self: true } }, { stat: 'attack', value: 2, vs: { category: 'cavalry' }, who: { self: true } }] } });
+  const e = officer('e', { passiveName: 'Awe', passive: { mods: [{ stat: 'attack', value: -2, who: { side: 'enemies', range: 1 } }] } });
+  const { s, u } = setup([{ side: 'player', x: 1, y: 1, officerId: 'a' }, { side: 'enemy', x: 2, y: 1, officerId: 'e' }], [a, e]);
+  SK.addBuff(s, u(0), u(0), 'Might', { mods: [{ stat: 'attack', value: 4 }, { stat: 'commandDef', value: 1 }] }, { rounds: 3 });
+  assert.deepStrictEqual(SK.alwaysOnRolls(s, u(0)), { command: 2, attack: 4 - 2, meleeDef: 1, rangedDef: 1 });
+});

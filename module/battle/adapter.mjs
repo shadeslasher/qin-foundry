@@ -460,7 +460,7 @@ function animateChanges(scene, before, s, entries, actionType = null) {
     // the attacker's sword icon shows this attack's situational total (not the dice or the officer's stats)
     const base = /^(Yin\/Yang|Command|Fire|Skill|Unit Value|Encouraged|Demoralized|One soldier left|Two soldiers left|Modifier:)/;
     const attackBonus = (r.attackRoll?.parts ?? []).reduce((t, [label, v]) =>
-      base.test(label) || (!r.ranged && /^Attacker bonus/.test(label)) ? t : t + (Number(v) || 0), 0);
+      base.test(label) || / Command$/.test(label) || (!r.ranged && /^Attacker bonus/.test(label)) ? t : t + (Number(v) || 0), 0); // a skill's "Command" shows on the rolls icon
     const dUnit = E.unitById(s, r.defender);
     // a ranged unit strikes back with a volley, except a Hybrid caught in melee: it fights back hand to hand (lunge)
     const returnRanged = !!dUnit && E.typeOf(s, dUnit)?.weapon === "ranged" && !(!r.ranged && (dUnit.traitTiers?.hybrid || dUnit.traitTiers?.['throwing axes'] || dUnit.traitTiers?.['spear crossbow']));
