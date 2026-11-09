@@ -1042,7 +1042,9 @@ function levelUpLocal(token, level) {
 export async function playBattleAnim({ sceneId, steps }) {
   if (!canvas?.ready || (sceneId && canvas.scene?.id !== sceneId)) return;
   const tok = (id) => canvas.tokens?.get(id);
-  const showAll = (id, list) => { const t = tok(id); if (t) list.forEach(([style, text], i) => setTimeout(() => floatLocal(t.center, style, text), i * 180)); };
+  // morale changes float up a little after the damage, so the two numbers don't sit on top of each other (David, 2026-11-09)
+  const MORALE_LAG = 480;
+  const showAll = (id, list) => { const t = tok(id); if (t) list.forEach(([style, text], i) => setTimeout(() => floatLocal(t.center, style, text), atSpeed(/^morale/.test(style) ? MORALE_LAG + i * 60 : i * 180))); };
   for (const st of steps) {
     try { playStepSounds(st); } catch (e) { console.warn("Qin | battle sound", e); }
     try {

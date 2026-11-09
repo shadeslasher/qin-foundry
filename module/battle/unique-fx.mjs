@@ -214,7 +214,7 @@ export function playSweep(token, sweep, float) {
     for (const h of hits) if (!h.done && st >= h.at) {
       h.done = true; sweepHit(h.t, c);
       float(h.id, "unitDamage", `−${h.cas}`);
-      if (h.mor) float(h.id, "moraleDown", `−${h.mor} morale`, 180);
+      if (h.mor) float(h.id, "moraleDown", `−${h.mor} morale`, atSpeed(480)); // a little after the damage
     }
     if (st < SWING + 0.35) return true;
     box.destroy({ children: true });
