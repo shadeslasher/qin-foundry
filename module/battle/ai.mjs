@@ -928,6 +928,15 @@ export function nextAction(s, unitId, opts = {}) {
   if (SK.pendingChoice(s)) return skillAnswer(s, side);
   // an officer's battlefield active: weighed at the start of the turn (before moving)
   if (!opts.noSkill && ac.step === 'move' && !u.round.moved && !u.round.skillUsed) { const sk = skillOption(s, unitId, opts, P); if (sk) return sk; }
+  // Medical Supplies (2026-11-09): out of contact, tend the unit (or adjacent ally) that has lost the most, if it's down a fair share
+  if (ac.step === 'move' && !u.round.moved && !u.round.attacked) {
+    const ts = E.medTargets(s, u);
+    if (ts.length) {
+      const score = (t) => (1 - t.men / mx(t)) * (Number(E.typeOf(s, t)?.tier) || 1);
+      const t = ts.slice().sort((x, y) => score(y) - score(x))[0];
+      if (t.men / mx(t) <= 0.7) return { type: 'tendWounded', unitId, targetId: t.id };
+    }
+  }
   // an officer who goes his own way says so in the log, once a round, before he acts
   if (ac.step === 'move' && !(u.round && u.round.aiNoted)) {
     const M = mind(s, u, strategy(s, side), P);

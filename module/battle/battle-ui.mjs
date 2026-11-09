@@ -478,6 +478,10 @@ function renderMenu(sub = null) {
     html += `<div class="qin-fe-hint">War Horn: which adjacent ally acts again? Ends this unit's turn.</div>`;
     for (const t of E.hornTargets(current.s, u)) html += b("hornPick", esc(t.name), true, "", `data-target="${esc(t.id)}"`);
     html += b("back", "Back", true);
+  } else if (sub === "tend") {
+    html += `<div class="qin-fe-hint">Medical Supplies (${E.medLeft(u)} left): which unit's wounded? Ends this unit's turn.</div>`;
+    for (const t of E.medTargets(current.s, u)) html += b("tendPick", `${esc(t === u ? "This unit" : t.name)} (+${E.medHeal(u, t)})`, true, "", `data-target="${esc(t.id)}"`);
+    html += b("back", "Back", true);
   } else if (sub === "ability") {
     if (officer?.skill) { const why = flags.skill ? "" : E.skillCheck(current.s, u, officer).reason; html += b("skill", `${esc(officer.skill.name)}${officer.skill.moraleCost ? ` (${officer.skill.moraleCost} morale)` : ""}${why ? ` · ${esc(why)}` : ""}`, flags.skill, officer.skill.text || ""); }
     html += b("back", "Back", true);
@@ -493,6 +497,7 @@ function renderMenu(sub = null) {
     if (flags.placeLadder) html += b("placeLadder", "Place Ladder", true, "Set siege ladders against a city wall square next to this unit. Ends the turn.");
     if (flags.drop) html += b("drop", "Drop equipment", true, "Put down the siege equipment this unit carries (free). Another unit can pick it up.");
     if (flags.reinvigorate) html += b("horn", "Reinvigorate", true, "War Horn: an adjacent ally that has already acted takes another turn at once. Ends this unit's turn; the horn needs a round to recharge.");
+    if (flags.tend) html += b("tend", "Tend the Wounded", true, `Medical Supplies (${E.medLeft(u)} left): this unit or an adjacent ally regains some of the troops it lost this battle. Ends the turn; not with an enemy next to this unit.`);
     if (flags.raiseFlag) html += b("raiseFlag", "Raise Flag", true, "Raise Flag tactic: instead of attacking, units in the area below 50 morale rally to 50. Ends the turn.");
     if (flags.setFire) html += b("setFire", "Set Fire", true, "Set Aflame tactic: instead of attacking, set an adjacent flammable tile on fire. Ends the turn.");
     if (flags.extinguish) html += b("extinguish", "Extinguish", true, E.waterNear(current.s, current.u)
@@ -558,6 +563,8 @@ function onMenuClick(ev) {
     case "takeBack": return send({ type: "takeBack", unitId: id });
     case "horn": { const ts = E.hornTargets(current.s, current.u); return ts.length === 1 ? send({ type: "reinvigorate", unitId: id, targetId: ts[0].id }) : renderMenu("horn"); }
     case "hornPick": return send({ type: "reinvigorate", unitId: id, targetId: btn.dataset.target });
+    case "tend": { const ts = E.medTargets(current.s, current.u); return ts.length === 1 ? send({ type: "tendWounded", unitId: id, targetId: ts[0].id }) : renderMenu("tend"); }
+    case "tendPick": return send({ type: "tendWounded", unitId: id, targetId: btn.dataset.target });
     case "heroic": return renderMenu("heroic");
     case "heroicPick": return send({ type: "heroic", unitId: id, index: Number(btn.dataset.index) });
     case "ability": {

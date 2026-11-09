@@ -2,7 +2,7 @@
 // r20import/sheets/traits.json when the sheet changes). Each piece is stored on the unit as a trait-list entry flagged
 // `equip`, so the engine reads it like any other trait. Kinds (David, 2026-10-25):
 //   upgrade — Sharpened Weapons, Reinforced Armor, Saddle: one of each, a higher tier replaces a lower
-//   gear    — War Drums, Rallying Banner, War Horn: a unit carries only ONE piece of gear in all
+//   gear    — War Drums, Rallying Banner, War Horn, Medical Supplies (2026-11-09): a unit carries only ONE piece of gear in all
 //   siege   — Siege Ladders or Siege Engine, never both
 export const KIND_LABEL = { upgrade: "Upgrades", gear: "Gear (one piece)", siege: "Siege equipment (one piece)" };
 export const EQUIPMENT = [
@@ -33,6 +33,11 @@ export const EQUIPMENT = [
   ] },
   { family: "War Horn", kind: "gear", tiers: [
     { name: "War Horn", desc: "Adds the Reinvigorate action: an adjacent allied unit reactivates and takes another turn immediately. Using it ends this unit's turn. Needs 1 turn to recharge after use." },
+  ] },
+  { family: "Medical Supplies", kind: "gear", tiers: [
+    { name: "Medical Supplies", desc: "Adds the Tend the Wounded action: this unit or an adjacent ally regains 15% of its full health (never above its health at the start of the battle). 2 uses per battle. Takes the unit's turn; not while an enemy is next to it." },
+    { name: "Medical Supplies+", desc: "As Medical Supplies, 3 uses per battle." },
+    { name: "Medical Supplies++", desc: "As Medical Supplies, 3 uses per battle, and each heals 20% of full health." },
   ] },
   { family: "Siege Ladders", kind: "siege", tiers: [
     { name: "Siege Ladders", desc: "Gives the Place Ladder action next to a city wall or tower square without a ladder (not gates); it ends the turn and uses the ladders. Outside units next to a laddered wall square can fight the unit on it in melee, and can climb onto it if it is empty (all their movement; not cavalry or units carrying siege equipment). Can be dropped, and is dropped when the unit falls; an empty-handed unit on its square can pick it up (its action for the turn). No movement penalty (David, 2026-11-04)." },

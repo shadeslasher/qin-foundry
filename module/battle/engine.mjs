@@ -765,6 +765,7 @@ function actionMenu(s, u) {
     placeLadder: canStillAct && ladderTiles(s, u).length > 0,
     drop: !!carrying(u),
     reinvigorate: canStillAct && hornReady(s, u) && hornTargets(s, u).length > 0,
+    tend: canStillAct && medTargets(s, u).length > 0,
     pickUp: canStillAct && !carrying(u) && !!(s.siege && s.siege.dropped.some(d => d.x === u.x && d.y === u.y)),
     openGate: canStillAct && gatesNear(s, u).some(g => g.state === 'locked' && gateKeyHolder(s, u, g)),
     closeGate: canStillAct && gatesNear(s, u).some(g => g.state === 'open' && gateKeyHolder(s, u, g) && !g.squares.some(([x, y]) => unitAt(s, x, y))),
@@ -976,6 +977,22 @@ function hornReady(s, u) {
   if (!trait(u, 'war horn')) return false;
   const used = fx(u).hornRound;
   return used === undefined || s.turn.round - used >= 2;
+}
+/**
+ * Medical Supplies (David, 2026-11-09): the Tend the Wounded action heals the unit or an adjacent ally by a share of its
+ * full health (15% / 15% / 20% for base / + / ++), never above what it had when the battle began; 2 / 3 / 3 uses a battle.
+ * Not while an enemy is next to the unit using it; it takes the unit's turn. Checkpoint morale already lost isn't lost again.
+ */
+const MED_USES = [2, 3, 3], MED_PCT = [15, 15, 20];
+function medLeft(u) { const t = trait(u, 'medical supplies'); return t ? MED_USES[Math.min(3, t) - 1] - (fx(u).medUsed || 0) : 0; }
+function medHeal(u, t) {
+  const tier = Math.min(3, trait(u, 'medical supplies') || 1), cap = Math.min(t.maxMen || t.men, fx(t).startMen ?? t.maxMen ?? t.men);
+  return Math.max(0, Math.min(Math.max(1, Math.round((t.maxMen || 100) * MED_PCT[tier - 1] / 100)), cap - t.men));
+}
+/** Units the Medical Supplies of `u` can tend now: itself or an adjacent ally that has lost troops this battle. */
+function medTargets(s, u) {
+  if (medLeft(u) <= 0 || hostileAdjacent(s, u)) return [];
+  return liveUnits(s).filter(o => (o === u || (friendly(o, u) && manhattan(o, u) === 1)) && medHeal(u, o) > 0);
 }
 /** Allies next to `u` that have already taken their turn this round (Reinvigorate targets). */
 function hornTargets(s, u) {
@@ -2091,7 +2108,7 @@ const ACTIONS = {
     for (const u of s.units) u.round = newRoundFlags();
     for (const u of s.units) u.facing = null; // no facing until a unit attacks or is attacked
     log(s, 'Battle begins. Tacticians, choose your tactics.');
-    for (const u of s.units) { if (u.fx) delete u.fx.checkpoints; fx(u).checkpoints = Math.min(4, checkpointsPassed(u)); } // checkpoints already passed before the battle don't cost morale
+    for (const u of s.units) { if (u.fx) { delete u.fx.checkpoints; delete u.fx.medUsed; } fx(u).checkpoints = Math.min(4, checkpointsPassed(u)); fx(u).startMen = u.men; } // checkpoints already passed before the battle don't cost morale
     s.objState = freshObjState(); s.outcome = null; s.objEval = null;
     s.introAt = Date.now(); // every client plays the tour of the conditions once
     checkOutcome(s); // the tracker starts with every condition open
@@ -2632,6 +2649,21 @@ const ACTIONS = {
     target.round = Object.assign(newRoundFlags(), { wasAttacked: target.round.wasAttacked });
     startActivation(s, target, { interject: true });
   },
+  tendWounded(s, actor, a) { // Medical Supplies: heal this unit or an adjacent ally; takes the turn
+    const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
+    const { u, act: ac } = r;
+    if (u.round.attacked || ac.forcedMarched) return err('Tending the wounded takes the whole turn');
+    if (medLeft(u) <= 0) return err('No medical supplies left');
+    if (hostileAdjacent(s, u)) return err("Can't tend the wounded with an enemy next to the unit");
+    const targets = medTargets(s, u);
+    const t = targets.find(o => o.id === a.targetId) || (targets.length === 1 ? targets[0] : null);
+    if (!t) return err(targets.length ? 'Pick which unit to tend' : 'No unit here has lost troops this battle');
+    const n = medHeal(u, t);
+    t.men += n; fx(u).medUsed = (fx(u).medUsed || 0) + 1;
+    log(s, u.name + ' tends the wounded' + (t === u ? '' : ' of ' + t.name) + ': +' + n + ' health (Medical Supplies, ' + medLeft(u) + ' left).', { type: 'tend', unit: u.id, target: t.id, gain: n });
+    u.round.attacked = true;
+    finishActivation(s, u);
+  },
   dropEquipment(s, actor, a) { // free: put down siege ladders or a siege engine on the unit's square
     const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
     if (!carrying(r.u)) return err('Nothing to drop');
@@ -2898,7 +2930,7 @@ function viewFor(s, viewer) {
   return v;
 }
 
-export { endRound as _endRound, imperialAura as _imperialAura, hidesIn as _hidesIn, officerWeaponLevel, casualtiesOf, evasionOf, evadeCasualties, disciplinedBonus, warDrumsBonus, hornReady, hornTargets, checkpointMorale, checkpointsPassed, overwatchFire as _overwatchFire, surroundAfterTurn as _surroundAfterTurn,
+export { endRound as _endRound, imperialAura as _imperialAura, hidesIn as _hidesIn, officerWeaponLevel, casualtiesOf, evasionOf, evadeCasualties, disciplinedBonus, warDrumsBonus, hornReady, hornTargets, medLeft, medTargets, medHeal, checkpointMorale, checkpointsPassed, overwatchFire as _overwatchFire, surroundAfterTurn as _surroundAfterTurn,
   moveOptions, attackTargets, actionMenu, threatArea, extinguishTiles, waterNear, TACTIC_SIDES, tileRules, ladderTiles, climbTiles, insideCity, isWallTop, gateAt, gateHp, gateTargets, stairsAt,
   newState, act, viewFor, prompt, reachable, duelTargets, movementOf, moraleState, visibleTo, rangeOk,
   resolveAttack, buildRoll, skillCheck, setRng, yinYang, typeOf, officerOf, unitById, SIDES, settle, advance,
