@@ -59,7 +59,7 @@ export function validateSpec(spec, kind) {
   const errs = [];
   const bad = (path, msg) => errs.push(path + ': ' + msg);
   if (!spec || typeof spec !== 'object' || Array.isArray(spec)) return ['spec: must be an object'];
-  const top = kind === 'active' ? ['pick', 'do', 'manual', 'oncePerBattle', 'mods', 'flags', 'triggers', 'require', 'custom'] : ['mods', 'flags', 'triggers', 'manual', 'custom'];
+  const top = kind === 'active' ? ['pick', 'do', 'manual', 'oncePerBattle', 'lastStand', 'mods', 'flags', 'triggers', 'require', 'custom'] : ['mods', 'flags', 'triggers', 'manual', 'custom'];
   for (const k of Object.keys(spec)) if (!top.includes(k)) bad(k, 'unknown top-level key for a ' + kind);
   const picks = new Set((spec.pick || []).map(p => p && p.id));
   const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
