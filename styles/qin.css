@@ -1024,10 +1024,26 @@ details.qin-recent[open] > summary { margin-bottom: 4px; }
 .qin-gm-ai .qin-btns button small { opacity: .75; margin-left: 4px; }
 
 /* Signature skill hover box on the character sheet (v0.99.93) */
-#tooltip.qin-sig-tooltip { max-width: 360px; text-align: left; }
-.qin-sig-tip b { display: block; margin-bottom: 2px; }
-.qin-sig-tip .qin-sig-meta { font-style: italic; opacity: 0.85; margin-bottom: 4px; }
-.qin-sig-tip-body p { margin: 0 0 4px; }
+/* David, 2026-11-09: a dark gold-edged card; slot in small capitals, name as a title, costs as badges, one rule per line */
+#tooltip.qin-sig-tooltip { max-width: 360px; width: 360px; text-align: left; padding: 0; background: none; border: 0; box-shadow: none; }
+.qin-sig-tip { background: linear-gradient(#1f1a14, #16120e); border: 1px solid #b08a44; border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,.5);
+  color: #e9e2d4; overflow: hidden; font-family: Signika, sans-serif; }
+.qin-sig-tip-hd { padding: 9px 13px 8px; border-bottom: 1px solid rgba(176,138,68,.45); background: rgba(176,138,68,.08); }
+.qin-sig-tip-slot { font-size: 10.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: #c9a35a; }
+.qin-sig-tip-name { font-family: "Qin Cinzel", Georgia, serif; font-size: 18px; font-weight: 700; line-height: 1.15; color: #f3d48a; margin-top: 2px; }
+.qin-sig-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.qin-sig-chip { white-space: nowrap; font-size: 11.5px; padding: 1px 8px; border-radius: 10px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18); color: #e9e2d4; }
+.qin-sig-chip.morale { border-color: #4f8fd6; color: #a9cdf5; }
+.qin-sig-chip.chi { border-color: #5fb08a; color: #a8e2c4; }
+.qin-sig-chip.cd { border-color: #b08a44; color: #ead29b; }
+.qin-sig-chip.last { border-color: #d0583c; color: #f2a48e; }
+.qin-sig-tip-bd { padding: 9px 13px 11px; font-size: 13.5px; line-height: 1.45; }
+.qin-sig-rules { margin: 0; padding: 0; list-style: none; }
+.qin-sig-rules li { position: relative; padding-left: 14px; margin: 0 0 5px; }
+.qin-sig-rules li:last-child { margin-bottom: 0; }
+.qin-sig-rules li::before { content: ""; position: absolute; left: 2px; top: .55em; width: 5px; height: 5px; transform: rotate(45deg); background: #c9a35a; }
+.qin-sig-tip-html p { margin: 0 0 5px; }
+.qin-sig-rules-none { font-style: italic; opacity: .7; }
 
 /* ---------- Source tags on roll parts, sheet stat breakdowns, Combat panel (David, 2026-11-05) ---------- */
 .qin-src { display: inline-block; font-size: calc(10px * var(--qin-scale, 1.15)); line-height: 1.35; padding: 0 5px; margin-right: 5px; border-radius: 4px; border: 1px solid transparent; font-weight: 600; white-space: nowrap; vertical-align: 1px; }

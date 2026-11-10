@@ -30,19 +30,40 @@ const ITEM_GROUPS = {
 const TAO_LEVELS = { 0: "0", 1: "1", 2: "2", 3: "3", 4: "4" };
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
 
-/** Hover box for a signature skill on the character sheet: name, cost and recharge, then the description (David, 2026-11-04). */
+/** A skill description as one line per rule (sentence), or null when it holds more than plain paragraphs (lists, tables...). */
+export function ruleLines(html) {
+  const src = String(html ?? "").trim();
+  if (!src) return [];
+  if (/<(ul|ol|li|table|h\d|img|div)\b/i.test(src)) return null;
+  const text = src.replace(/<\/p>\s*<p[^>]*>/gi, "\n").replace(/<br\s*\/?>/gi, "\n").replace(/<\/?p[^>]*>/gi, "");
+  const out = [];
+  for (const para of text.split("\n")) {
+    const t = para.trim(); if (!t) continue;
+    // split after . ! ? when the next sentence starts with a capital, a digit or an opening bracket; not after "e.g." / "i.e."
+    out.push(...t.split(/(?<!\b(?:e\.g|i\.e|etc|vs))(?<=[.!?])\s+(?=[A-Z0-9(\u2212+-])/).map(x => x.trim()).filter(Boolean));
+  }
+  return out;
+}
+
+/** Hover box for a signature skill on the character sheet (David, 2026-11-09): a dark card, the slot in small capitals over
+ *  the skill's name, its costs as badges, then the description one rule per line. */
 function signatureTooltip(item, key) {
   if (!item) return "";
-  const s = item.system ?? {}, meta = [];
-  if (s.chiCost) meta.push(`${s.chiCost} Chi`);
-  if (s.moraleCost) meta.push(`${s.moraleCost} morale`);
+  const s = item.system ?? {}, chips = [];
+  if (s.chiCost) chips.push(["chi", `${s.chiCost} Chi`]);
+  if (s.moraleCost) chips.push(["morale", `${s.moraleCost} morale`]);
   if (key === "battleActive") {
-    if (s.lastStand) meta.push("Last stand");
-    if (s.perScene) meta.push("Once per battle");
-    else if (Number(s.recharge) > 0) meta.push(`${s.recharge}-turn cooldown`);
-  } else if (isActiveSlot(key)) { const r = rechargeLabel(s); if (r) meta.push(r); }
-  const body = String(s.description ?? "").trim() || "<i>No description.</i>";
-  return `<div class="qin-sig-tip"><b>${esc(item.name)}</b>${meta.length ? `<div class="qin-sig-meta">${esc(meta.join(" · "))}</div>` : ""}<div class="qin-sig-tip-body">${body}</div></div>`;
+    if (s.lastStand) chips.push(["last", "Last stand"]);
+    if (s.perScene) chips.push(["cd", "Once per battle"]);
+    else if (Number(s.recharge) > 0) chips.push(["cd", `${s.recharge}-turn cooldown`]);
+  } else if (isActiveSlot(key)) { const r = rechargeLabel(s); if (r) chips.push(["cd", r]); }
+  const lines = ruleLines(s.description);
+  const body = lines === null ? `<div class="qin-sig-tip-html">${s.description}</div>`
+    : lines.length ? `<ul class="qin-sig-rules">${lines.map(l => `<li>${l}</li>`).join("")}</ul>` : `<div class="qin-sig-rules-none">No description.</div>`;
+  const slot = SIGNATURE_SLOTS[key]?.label ?? "";
+  return `<div class="qin-sig-tip"><div class="qin-sig-tip-hd">${slot ? `<div class="qin-sig-tip-slot">${esc(slot)}</div>` : ""}<div class="qin-sig-tip-name">${esc(item.name)}</div>`
+    + `${chips.length ? `<div class="qin-sig-chips">${chips.map(([k, t]) => `<span class="qin-sig-chip ${k}">${esc(t)}</span>`).join("")}</div>` : ""}</div>`
+    + `<div class="qin-sig-tip-bd">${body}</div></div>`;
 }
 
 /** The fight running on the combat tracker ({ id, round }), or null when none has started. */
