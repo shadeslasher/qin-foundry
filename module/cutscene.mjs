@@ -24,7 +24,7 @@ export const cutsceneActive = () => !!state().active;
 /** A cast entry for an actor: the full-body painting when there is one, else the portrait. */
 function castEntry(actor) {
   const art = fullArtInfo(actor), half = art ? null : halfArtInfo(actor);       // half-body art: children, drawn smaller than the adults
-  return { key: foundry.utils.randomID(8), uuid: actor.uuid, name: actor.name, img: actor.img ?? null, src: art?.src ?? half?.src ?? null, half: !!half };
+  return { key: foundry.utils.randomID(8), uuid: actor.uuid, name: actor.name, img: actor.img ?? null, src: art?.src ?? half?.src ?? null, half: !!half, frac: art?.frac ?? null };
 }
 async function actorFromDrop(ev) {
   let d; try { d = JSON.parse(ev.dataTransfer.getData("text/plain")); } catch { return null; }
@@ -154,6 +154,7 @@ function render() {
       el = document.createElement("div"); el.className = "of" + (c.half ? " half" : c.src ? "" : " round");
       const img = document.createElement("img"); img.src = route(c.src ?? c.img ?? "icons/svg/mystery-man.svg"); img.alt = ""; img.draggable = false; el.appendChild(img);
       // the opening cast fades in where it stands; anyone added later walks in from the right
+      if (c.frac && !c.half) el.style.height = `${95.5 * c.frac}vh`;       // art cut off above the feet: keep the head the same size as everyone's
       el.style.left = fresh ? slot(i, n) : "112%";
       root.appendChild(el); shown.set(c.key, el);
       void el.offsetWidth;

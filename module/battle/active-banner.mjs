@@ -34,8 +34,9 @@ export function bannerInfo(step, { officer = null, artFor = fullArtInfo } = {}) 
 export function artLayout(art, natW, natH, box = ART_BOX) {
   const w = art?.w ?? natW, h = art?.h ?? natH;
   if (!w || !h) return null;
-  const k = (box * 2) / h, [x0, x1] = art?.up ?? [0, w];
-  return { imgH: Math.round(box * 2), boxW: Math.round((x1 - x0) * k), offX: Math.round(-x0 * k) };
+  const f = art?.frac ?? 1;                 // art that shows only part of the body (e.g. head to knees = 0.6) is drawn that much shorter
+  const k = (box * 2 * f) / h, [x0, x1] = art?.up ?? [0, w];
+  return { imgH: Math.round(box * 2 * f), boxW: Math.round((x1 - x0) * k), offX: Math.round(-x0 * k) };
 }
 
 const sizeOf = (src) => new Promise(res => { const i = new Image(); i.onload = () => res([i.naturalWidth, i.naturalHeight]); i.onerror = () => res([0, 0]); i.src = src; });
