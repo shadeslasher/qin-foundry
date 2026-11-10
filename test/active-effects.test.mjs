@@ -110,3 +110,16 @@ test('Lu Bu: end-of-turn terror — officerless units lose 5 morale, units with 
   const c = s.log.filter(l => l.detail?.type === 'skillContest');
   assert.ok(c.length === 3 && c.every(l => l.detail.src === u(0).id && l.detail.skill === 'Terror'));
 });
+
+test('Lu Bu: an enemy his attack breaks surrenders when his turn ends — another turn (David, 2026-11-09)', () => {
+  const lb = officer('l', { passiveName: 'Terror', passive: { triggers: [
+    { on: 'turnEnd', do: [{ contest: { side: 'enemies', range: 1 }, lose: [{ morale: -5, who: { target: true } }] }] },
+    { on: 'enemyFalls', range: 99, if: { myTurn: true }, limit: 'turn', do: [{ extraTurn: { self: true } }] }] } });
+  const { s, u, ids } = setup([{ side: 'player', x: 5, y: 5, officerId: 'l' }, { side: 'enemy', x: 6, y: 5 }, { side: 'enemy', x: 10, y: 10 }], [lb]);
+  u(1).morale = 12;
+  R.setRng(() => 0.9);
+  s.turn.activation = { unitId: ids[0], step: 'move', started: true, tilesMoved: 0, from: { x: 5, y: 5 } };
+  must(R.act(s, HOST, { type: 'attack', unitId: ids[0], targetId: ids[1] }));
+  assert.notStrictEqual(u(1).status, 'active');
+  assert.ok(s.log.some(l => /takes another turn/.test(l.text)), 'he takes another turn');
+});
