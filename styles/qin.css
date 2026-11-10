@@ -978,6 +978,15 @@ details.qin-recent[open] > summary { margin-bottom: 4px; }
 .qin-gm-sel li { display: flex; align-items: center; gap: 6px; }
 .qin-gm-sel img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(0,0,0,.35); }
 .qin-gm-sel b { flex: 1; }
+/* GM controls: change the selected units' side (David, 2026-11-09) */
+.qin-gm-side-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; border: 1px solid rgba(0,0,0,.4); }
+.qin-side-player { --side: #3a78c8; } .qin-side-ally { --side: #3fa66a; } .qin-side-enemy { --side: #c8443a; } .qin-side-neutral { --side: #d4a017; }
+.qin-gm-side-dot { background: var(--side); }
+.qin-gm-sidebar { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.qin-gm-sidelabel { font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; opacity: .8; }
+.qin-gm-sides { flex: 1; margin: 0; }
+.qin-gm-sides button { border-left: 4px solid var(--side); }
+.qin-gm-sides button.active { background: var(--side); color: #fff; }
 .qin-gm-lv { display: inline-flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
 .qin-gm-panel .qin-btns button[disabled] { opacity: .45; }
 

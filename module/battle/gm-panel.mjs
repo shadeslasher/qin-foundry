@@ -80,6 +80,24 @@ export async function restoreSelected(kind) {
   GmPanel.refresh();
 }
 
+/** GM: put the selected units on another side (player, ally, enemy, neutral) (David, 2026-11-09). Their token disposition
+ *  follows (friendly, hostile, neutral), so Foundry's own borders and targeting agree. */
+const SIDE_DISPOSITION = { player: 1, ally: 1, enemy: -1, neutral: 0 };
+export async function setSideSelected(side) {
+  if (!game.user.isGM || !(side in SIDE_DISPOSITION)) return;
+  const toks = selectedUnits();
+  if (!toks.length) return ui.notifications.warn("Select one or more unit tokens on the map first.");
+  const changed = [];
+  for (const t of toks) {
+    if (t.actor.system.side === side) continue;
+    await t.actor.update({ "system.side": side });
+    if (t.document.disposition !== SIDE_DISPOSITION[side]) await t.document.update({ disposition: SIDE_DISPOSITION[side] });
+    changed.push(t.name);
+  }
+  if (changed.length) ui.notifications.info(`${changed.join(", ")} ${changed.length === 1 ? "is" : "are"} now on the ${side} side.`);
+  GmPanel.refresh();
+}
+
 export class GmPanel extends api.HandlebarsApplicationMixin(api.Application ?? api.ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "qin-gm-panel",
@@ -90,6 +108,7 @@ export class GmPanel extends api.HandlebarsApplicationMixin(api.Application ?? a
       setHidden: async (ev, el) => { await setHiddenSelected(el.dataset.hidden === "1"); GmPanel.refresh(); },
       level: (ev, el) => stepLevel(Number(el.dataset.step) || 0),
       restore: (ev, el) => restoreSelected(el.dataset.kind),
+      setSide: (ev, el) => setSideSelected(el.dataset.side),
       gmFire: () => toggleGmFire(),
       aiSide: async (ev, el) => { const side = el.dataset.side; await setAI({ [side]: !aiSettings()[side] }); GmPanel.refresh(); },
       aiPause: async () => { await setAI({ paused: !aiSettings().paused }); GmPanel.refresh(); },
@@ -128,7 +147,9 @@ export class GmPanel extends api.HandlebarsApplicationMixin(api.Application ?? a
     ctx.ai = { enemy: ai.enemy, ally: ai.ally, paused: ai.paused, enemyLv: lv.enemy, allyLv: lv.ally, any: ai.enemy || ai.ally };
     const sel = selectedUnits();
     ctx.selected = sel.map(t => { const lv = Math.max(1, Math.min(MAX_LEVEL, Number(t.actor.system.level) || 1));
-      return { name: t.name, img: t.actor.img, level: lv, chev: levelChevronsSVG(lv, 13) }; });
+      return { name: t.name, img: t.actor.img, level: lv, chev: levelChevronsSVG(lv, 13), side: t.actor.system.side ?? "neutral" }; });
+    ctx.sides = ["player", "ally", "enemy", "neutral"].map(k => ({ key: k, label: k[0].toUpperCase() + k.slice(1),
+      on: sel.length > 0 && sel.every(t => t.actor.system.side === k) }));
     ctx.canUp = sel.some(t => (Number(t.actor.system.level) || 1) < MAX_LEVEL);
     ctx.canDown = sel.some(t => (Number(t.actor.system.level) || 1) > 1);
     if (battle.active) {

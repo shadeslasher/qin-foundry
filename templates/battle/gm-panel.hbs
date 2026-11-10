@@ -9,7 +9,7 @@
   </div>
   <div class="qin-card"><h4>Selected units</h4>
     {{#if selected.length}}
-      <ul class="qin-gm-sel">{{#each selected}}<li><img src="{{img}}" alt=""><b>{{name}}</b><span class="qin-gm-lv">{{{chev}}} Lv {{level}}</span></li>{{/each}}</ul>
+      <ul class="qin-gm-sel">{{#each selected}}<li><img src="{{img}}" alt=""><span class="qin-gm-side-dot qin-side-{{side}}" title="{{side}}"></span><b>{{name}}</b><span class="qin-gm-lv">{{{chev}}} Lv {{level}}</span></li>{{/each}}</ul>
     {{else}}<p class="qin-muted">Select unit tokens on the map.</p>{{/if}}
     <div class="qin-btns">
       <button type="button" data-action="setHidden" data-hidden="1" title="Hide the unit tokens you have selected"><i class="fa-solid fa-eye-slash"></i> Hide</button>
@@ -22,6 +22,9 @@
     <div class="qin-btns">
       <button type="button" data-action="restore" data-kind="heal" title="Heal the selected units to full health" {{#unless selected.length}}disabled{{/unless}}><i class="fa-solid fa-heart-pulse"></i> Heal</button>
       <button type="button" data-action="restore" data-kind="morale" title="Set the selected units' morale to their base (resting) morale: 50, or more with Disciplined" {{#unless selected.length}}disabled{{/unless}}><i class="fa-solid fa-flag"></i> Morale to base</button>
+    </div>
+    <div class="qin-gm-sidebar"><span class="qin-gm-sidelabel">Side</span>
+      <div class="qin-btns qin-gm-sides">{{#each sides}}<button type="button" data-action="setSide" data-side="{{key}}" class="qin-side-{{key}} {{#if on}}active{{/if}}" title="Put the selected units on the {{key}} side" {{#unless ../selected.length}}disabled{{/unless}}>{{label}}</button>{{/each}}</div>
     </div>
   </div>
 </div>
