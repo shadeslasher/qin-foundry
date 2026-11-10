@@ -7,7 +7,7 @@
 export const FULL_ART_PATHS = ["modules/qin-3k-characters/data/full-art.json", "qin-data/full-art.json"];
 let map = null;
 
-export function setFullArtMap(d) { map = d && (d.byId || d.byName) ? { byId: d.byId ?? {}, byName: d.byName ?? {} } : null; }
+export function setFullArtMap(d) { map = d && (d.byId || d.byName) ? { byId: d.byId ?? {}, byName: d.byName ?? {}, halfById: d.halfById ?? {} } : null; }
 export async function loadFullArt(fetchFn = globalThis.fetch) {
   for (const path of FULL_ART_PATHS) {
     try {
@@ -33,6 +33,13 @@ export function fullArtInfo(actor) {
   const src = actor._stats?.compendiumSource ?? actor.flags?.core?.sourceId ?? null;
   const e = map.byId[actor.id ?? actor._id] ?? map.byId[lastId(src)] ?? map.byId[lastId(actor._stats?.duplicateSource)] ?? map.byName[actor.name] ?? null;
   return !e ? null : typeof e === "string" ? { src: e } : e;
+}
+/** Half-body art (head to waist) for characters with no whole-figure painting, such as children: { src, w, h } or null.
+ *  Kept apart from the full art (data key halfById) so the banner and the sheet button don't treat it as a whole figure. */
+export function halfArtInfo(actor) {
+  if (!actor || !map?.halfById) return null;
+  const src = actor._stats?.compendiumSource ?? actor.flags?.core?.sourceId ?? null;
+  return map.halfById[actor.id ?? actor._id] ?? map.halfById[lastId(src)] ?? map.halfById[lastId(actor._stats?.duplicateSource)] ?? null;
 }
 /** Just the image path, or null. */
 export const fullArtFor = (actor) => fullArtInfo(actor)?.src ?? null;

@@ -6,7 +6,7 @@
 // the GM can, and the camera tools still move the players' views.
 // The running scene lives in a world setting, so every client (and anyone joining late) draws the same thing.
 import { SYSTEM_ID } from "./config.mjs";
-import { fullArtInfo } from "./full-art.mjs";
+import { fullArtInfo, halfArtInfo } from "./full-art.mjs";
 
 const STATE = "cutscene", SAVED = "cutsceneSaved";
 export const MAX_CAST = 5;
@@ -23,8 +23,8 @@ export const cutsceneActive = () => !!state().active;
 
 /** A cast entry for an actor: the full-body painting when there is one, else the portrait. */
 function castEntry(actor) {
-  const art = fullArtInfo(actor);
-  return { key: foundry.utils.randomID(8), uuid: actor.uuid, name: actor.name, img: actor.img ?? null, src: art?.src ?? null };
+  const art = fullArtInfo(actor), half = art ? null : halfArtInfo(actor);       // half-body art: children, drawn smaller than the adults
+  return { key: foundry.utils.randomID(8), uuid: actor.uuid, name: actor.name, img: actor.img ?? null, src: art?.src ?? half?.src ?? null, half: !!half };
 }
 async function actorFromDrop(ev) {
   let d; try { d = JSON.parse(ev.dataTransfer.getData("text/plain")); } catch { return null; }
@@ -79,6 +79,7 @@ function css() {
     transition: left .7s cubic-bezier(.3,.7,.3,1), opacity .6s, filter .35s; filter: brightness(.38) saturate(.6); pointer-events: none; }
   #qin-cutscene .of img { height: 100%; display: block; }
   #qin-cutscene .of.round { top: 31vh; height: 38vh; } #qin-cutscene .of.round img { border-radius: 50%; border: 3px solid #c9a85c; box-shadow: 0 6px 24px rgba(0,0,0,.7); }
+  #qin-cutscene .of.half { top: auto; bottom: 25vh; height: 33vh; }      /* head-to-waist art standing on the lower bar, about two thirds of an adult */
   #qin-cutscene .of.here { opacity: 1; }
   #qin-cutscene .of.lit { filter: drop-shadow(0 0 18px rgba(255,236,170,.55)); z-index: 4; }
   #qin-cutscene .of.gone { opacity: 0; }
@@ -150,7 +151,7 @@ function render() {
   cast.forEach((c, i) => {
     let el = shown.get(c.key);
     if (!el) {
-      el = document.createElement("div"); el.className = "of" + (c.src ? "" : " round");
+      el = document.createElement("div"); el.className = "of" + (c.half ? " half" : c.src ? "" : " round");
       const img = document.createElement("img"); img.src = route(c.src ?? c.img ?? "icons/svg/mystery-man.svg"); img.alt = ""; img.draggable = false; el.appendChild(img);
       // the opening cast fades in where it stands; anyone added later walks in from the right
       el.style.left = fresh ? slot(i, n) : "112%";
