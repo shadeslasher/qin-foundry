@@ -1,7 +1,7 @@
 // Special animations for tier 1+ battlefield actives (David, 2026-11-09): each such officer can have his own. They are
 // keyed by the active's name. So far: Guan Yu's Might That Shakes the Realm — the ground cracks around his unit as the
 // buff lands, and while it lasts the Green Dragon Crescent Blade sweeps a full circle after each of his attacks.
-// Lu Bu's None Can Stand Before Him — a ring of fire bursts out around him, and while it lasts the Sky Piercer drives
+// Lu Bu's None Can Stand Before Him — tall flames roar up from him as a wave of fire rolls out leaving trails of fire, and while it lasts the Sky Piercer drives
 // through each target as its shield shatters; his Terror of the Battlefield — a dread pulse at the end of his turn
 // (who flinched, who resisted) and ANOTHER TURN when a rout earns him one.
 import { atSpeed } from "./battle-speed.mjs";
@@ -228,7 +228,7 @@ export function playSweep(token, sweep, float) {
 }
 
 
-/* ------------------------------------------------------------ ring of fire (Lu Bu, on activation) */
+/* ------------------------------------------------------------ fire eruption (Lu Bu, on activation) */
 
 const fireTex = {};
 /** A licking flame tongue: wavy sides, white-hot root, orange body, ragged red tip. */
@@ -255,65 +255,83 @@ function softTexture(key, col) {
 }
 function lerpCol(a, b, k) { const ch = (c, s) => (c >> s) & 255, m = (s) => Math.round(ch(a, s) + (ch(b, s) - ch(a, s)) * k); return (m(16) << 16) | (m(8) << 8) | m(0); }
 
-/** Fire bursts off his square and races out into a ring a little under two squares wide, burns, and dies down, leaving
- *  scorched ground (David, 2026-11-09). */
-function ringOfFire(token) {
-  const G = Math.min(token.w, token.h), k = G / 120, R = G * 1.75, ADD = PIXI.BLEND_MODES.ADD, B = Blur();
+/** Tall flames roar up from his square while a wave of fire rolls out from him, leaving trails of fire burning behind
+ *  it along the ground; then it all dies down (David, 2026-11-09). */
+function fireEruption(token) {
+  const G = Math.min(token.w, token.h), k = G / 120, ADD = PIXI.BLEND_MODES.ADD, B = Blur();
   const ground = groundLayer(); ground.position.set(token.center.x, token.center.y);
-  const burn = new PIXI.Graphics(); if (B) burn.filters = [new B(16 * k)]; ground.addChild(burn);
+  const burn = new PIXI.Graphics(); if (B) burn.filters = [new B(10 * k)]; ground.addChild(burn);
   const over = new PIXI.Container(); over.position.set(token.center.x, token.center.y); overLayer().addChild(over);
   const smokeL = new PIXI.Container(), glowL = new PIXI.Container(), fireL = new PIXI.Container(); over.addChild(smokeL, glowL, fireL);
   const FLAME = flameTexture(), SMOKE = softTexture("smoke", "rgba(40,22,18,0.9)"), GLOW = softTexture("glow", "rgba(255,120,40,1)");
-  const hot = new PIXI.Sprite(GLOW); hot.anchor.set(0.5); hot.blendMode = ADD; glowL.addChild(hot);
-  const radAt = (t) => t < 0.35 ? G * 0.5 + (R - G * 0.5) * (1 - (1 - t / 0.35) ** 3) : R;   // bursts out, then holds
-  const SPAWN_END = 1.55, parts = [], embers = [];
-  let acc = 0, sacc = 0, eacc = 0;
-  const spawn = (t, smoke) => {
-    const th = rnd(0, Math.PI * 2), r = radAt(t) + rnd(-G * 0.12, G * 0.12);
-    const sp = new PIXI.Sprite(smoke ? SMOKE : FLAME); sp.anchor.set(0.5, 0.92); if (!smoke) sp.blendMode = ADD;
-    (smoke ? smokeL : fireL).addChild(sp);
-    parts.push({ sp, smoke, x: Math.cos(th) * r, y: Math.sin(th) * r, vx: Math.cos(th) * rnd(4, 14) * k, vy: -rnd(smoke ? 25 : 35, smoke ? 45 : 80) * k,
-      life: smoke ? rnd(1, 1.6) : rnd(0.45, 0.85), t: 0, sz: (smoke ? rnd(0.7, 1.2) : rnd(0.45, 0.85)) * k, sway: rnd(0, 6), flip: Math.random() < 0.5 ? -1 : 1 });
-  };
-  for (let i = 0; i < 16; i++) { // a flare off the edges of his own square as the ring leaves him
-    const s2 = rnd(-0.5, 0.5) * G, h = G * 0.48, [x, y] = [[s2, -h], [h, s2], [s2, h], [-h, s2]][i % 4];
+  const core = new PIXI.Sprite(GLOW); core.anchor.set(0.5); core.blendMode = ADD; glowL.addChild(core);
+  const waveGlow = new PIXI.Graphics(); waveGlow.blendMode = ADD; if (B) waveGlow.filters = [new B(14 * k)]; glowL.addChild(waveGlow);
+  const R = G * 2.6, WAVE = 0.95, PILLAR = 1.5;                      // the wave reaches ~2.6 squares in under a second
+  const waveAt = (t) => G * 0.45 + (R - G * 0.45) * (1 - (1 - Math.min(1, t / WAVE)) ** 2);
+  const RAYS = 12, rays = Array.from({ length: RAYS }, (_, i) => ({ a: (i / RAYS) * Math.PI * 2 + rnd(-0.08, 0.08), next: G * 0.55, wob: rnd(0, 6) }));
+  const parts = [], embers = [], spots = [];
+  let pacc = 0, wacc = 0, sacc = 0, eacc = 0;
+  const flame = (x, y, o) => {
     const sp = new PIXI.Sprite(FLAME); sp.anchor.set(0.5, 0.92); sp.blendMode = ADD; fireL.addChild(sp);
-    parts.push({ sp, smoke: false, x, y, vx: x * 0.2, vy: -rnd(50, 100) * k, life: rnd(0.4, 0.7), t: -rnd(0, 0.15), sz: rnd(0.4, 0.7) * k, sway: rnd(0, 6), flip: 1 });
-  }
+    parts.push({ sp, smoke: false, x, y, vx: o.vx ?? 0, vy: o.vy, life: o.life, t: 0, sz: o.sz * k, sw: rnd(0, 6), flip: Math.random() < 0.5 ? -1 : 1, stretch: o.stretch ?? 1, hot: o.hot ?? 0xffffff });
+  };
+  const smoke = (x, y, big) => {
+    const sp = new PIXI.Sprite(SMOKE); sp.anchor.set(0.5); smokeL.addChild(sp);
+    parts.push({ sp, smoke: true, x, y, vx: rnd(-8, 8) * k, vy: -rnd(30, 55) * k, life: rnd(1.1, 1.7), t: 0, sz: (big ? rnd(1.1, 1.6) : rnd(0.6, 1)) * k });
+  };
   return run((dt, t) => {
-    const ring = radAt(t), fade = t < SPAWN_END ? 1 : Math.max(0, 1 - (t - SPAWN_END) / 0.9);
-    if (t < SPAWN_END) {
-      acc += dt * (t < 0.4 ? 380 : 300); while (acc >= 1) { acc--; spawn(t, false); }
-      sacc += dt * 55; while (sacc >= 1) { sacc--; spawn(t, true); }
+    const w = waveAt(t);
+    // the pillar: tall flames roaring straight up out of his square
+    if (t < PILLAR) {
+      pacc += dt * (t < 0.3 ? 70 : 45);
+      while (pacc >= 1) { pacc--; const x = rnd(-0.42, 0.42) * G, y = rnd(-0.3, 0.42) * G;
+        flame(x, y, { vy: -rnd(150, 250) * k, vx: -x * 0.5, life: rnd(0.5, 0.8), sz: rnd(0.8, 1.3), stretch: 1.6, hot: 0xffd890 }); }
+      if (Math.random() < dt * 6) smoke(rnd(-0.3, 0.3) * G, -G * rnd(1.7, 2.2), true);
     }
-    if (t < SPAWN_END + 0.3) {
-      eacc += dt * 60;
-      while (eacc >= 1) {
-        eacc--; const th = rnd(0, Math.PI * 2), r = ring + rnd(-G * 0.1, G * 0.1);
-        const e = new PIXI.Graphics().beginFill(Math.random() < 0.5 ? 0xffd27a : 0xff7a2a).drawCircle(0, 0, rnd(1.2, 2.6) * k).endFill(); e.blendMode = ADD; fireL.addChild(e);
-        embers.push({ e, x: Math.cos(th) * r, y: Math.sin(th) * r, vx: rnd(-20, 20) * k, vy: -rnd(70, 150) * k, t: 0, life: rnd(0.8, 1.4), w: rnd(0, 6) });
+    // the wave front: a dense wall of flame racing outward
+    if (t < WAVE + 0.05) {
+      wacc += dt * 280;
+      while (wacc >= 1) { wacc--; const a = rnd(0, Math.PI * 2), r = w + rnd(-G * 0.1, G * 0.06);
+        flame(Math.cos(a) * r, Math.sin(a) * r, { vx: Math.cos(a) * 60 * k, vy: -rnd(40, 90) * k, life: rnd(0.3, 0.5), sz: rnd(0.45, 0.7) }); }
+      // trails: fire left burning along each ray as the front passes
+      for (const ry of rays) while (ry.next <= w) {
+        const a = ry.a + Math.sin(ry.next / G * 2 + ry.wob) * 0.07;
+        spots.push({ x: Math.cos(a) * ry.next, y: Math.sin(a) * ry.next, born: t, life: rnd(0.9, 1.3) * (1 - 0.25 * ry.next / R), acc: rnd(0, 1) });
+        ry.next += G * rnd(0.26, 0.34);
       }
+    }
+    for (const sp of spots) {
+      const age = (t - sp.born) / sp.life; if (age >= 1) continue;
+      sp.acc += dt * 5 * (1 - age);
+      while (sp.acc >= 1) { sp.acc--; flame(sp.x + rnd(-4, 4) * k, sp.y + rnd(-4, 4) * k, { vy: -rnd(30, 60) * k, life: rnd(0.35, 0.6), sz: rnd(0.3, 0.45) * (1 - 0.5 * age) }); }
+    }
+    if (t < 1.9) { sacc += dt * 7; while (sacc >= 1) { sacc--; const a = rnd(0, Math.PI * 2), r = rnd(0.3, 1) * Math.min(w, R); smoke(Math.cos(a) * r, Math.sin(a) * r, false); } }
+    if (t < 2.2) {
+      eacc += dt * 70;
+      while (eacc >= 1) { eacc--; const a = rnd(0, Math.PI * 2), r = rnd(0, 1) * w;
+        const e = new PIXI.Graphics().beginFill(Math.random() < 0.5 ? 0xffd27a : 0xff7a2a).drawCircle(0, 0, rnd(1.2, 2.6) * k).endFill(); e.blendMode = ADD; fireL.addChild(e);
+        embers.push({ e, x: Math.cos(a) * r, y: Math.sin(a) * r, vx: rnd(-20, 20) * k, vy: -rnd(80, 170) * k, t: 0, life: rnd(0.8, 1.4), w: rnd(0, 6) }); }
     }
     for (let i = parts.length - 1; i >= 0; i--) {
       const p = parts[i]; p.t += dt; const tt = p.t / p.life;
       if (tt >= 1) { p.sp.destroy(); parts.splice(i, 1); continue; }
-      if (tt < 0) { p.sp.alpha = 0; continue; }
-      if (p.smoke) { p.sp.position.set(p.x + p.vx * p.t, p.y + p.vy * p.t); p.sp.scale.set(p.sz * (1 + tt * 1.4)); p.sp.alpha = 0.55 * (tt < 0.2 ? tt / 0.2 : 1 - (tt - 0.2) / 0.8); continue; }
-      p.sp.position.set(p.x + p.vx * p.t + Math.sin(p.t * 14 + p.sway) * 3 * k, p.y + p.vy * p.t);
-      const s = p.sz * (tt < 0.25 ? 0.6 + 1.6 * tt : 1 - (tt - 0.25) * 0.9);
-      p.sp.scale.set(s * (0.85 + 0.15 * Math.sin(p.t * 30 + p.sway)) * p.flip, s * (1.1 + 0.3 * tt));
+      if (p.smoke) { p.sp.position.set(p.x + p.vx * p.t, p.y + p.vy * p.t); p.sp.scale.set(p.sz * (1 + tt * 1.4)); p.sp.alpha = 0.3 * (tt < 0.2 ? tt / 0.2 : 1 - (tt - 0.2) / 0.8); continue; }
+      p.sp.position.set(p.x + p.vx * p.t + Math.sin(p.t * 14 + p.sw) * 3 * k, p.y + p.vy * p.t);
+      const sc = p.sz * (tt < 0.25 ? 0.6 + 1.6 * tt : 1 - (tt - 0.25) * 0.9);
+      p.sp.scale.set(sc * (0.85 + 0.15 * Math.sin(p.t * 30 + p.sw)) * p.flip, sc * (1.1 + 0.3 * tt) * p.stretch);
       p.sp.alpha = tt < 0.12 ? tt / 0.12 : 1 - (tt - 0.12) / 0.88;
-      p.sp.tint = tt < 0.45 ? lerpCol(0xffffff, 0xffa060, tt / 0.45) : lerpCol(0xffa060, 0xd03018, (tt - 0.45) / 0.55);
+      p.sp.tint = tt < 0.45 ? lerpCol(p.hot, 0xffa060, tt / 0.45) : lerpCol(0xffa060, 0xd03018, (tt - 0.45) / 0.55);
     }
     for (let i = embers.length - 1; i >= 0; i--) {
       const m = embers[i]; m.t += dt; const tt = m.t / m.life;
       if (tt >= 1) { m.e.destroy(); embers.splice(i, 1); continue; }
       m.e.position.set(m.x + m.vx * m.t + Math.sin(m.t * 6 + m.w) * 8 * k, m.y + m.vy * m.t); m.e.alpha = 1 - tt;
     }
-    hot.width = hot.height = ring * 2.9; hot.alpha = 0.35 * fade * (0.9 + 0.1 * Math.sin(t * 25));
-    const sa = t < 0.3 ? t / 0.3 : Math.max(0, 1 - (t - 1.6) / 1.0);
-    burn.clear().lineStyle(G * 0.55, 0x1a0402, 0.55 * sa).drawCircle(0, 0, ring); burn.beginFill(0x200402, 0.25 * sa).drawCircle(0, 0, ring).endFill();
-    if (t < 4 && (t < 2.8 || parts.length || embers.length)) return true;
+    // glows: a hot core under the pillar, a bright band riding the wave
+    core.width = core.height = G * 2.2; core.alpha = 0.3 * (t < 0.2 ? t / 0.2 : Math.max(0, 1 - (t - PILLAR + 0.3) / 0.6)) * (0.9 + 0.1 * Math.sin(t * 25));
+    waveGlow.clear(); if (t < WAVE + 0.3) waveGlow.lineStyle(G * 0.4, 0xff6a20, 0.3 * (t < WAVE ? 1 : 1 - (t - WAVE) / 0.3)).drawCircle(0, 0, w);
+    // no scorch marks at all: no streaks along the trails, no dark patch over him (David, 2026-11-09)
+    if (t < 4.5 && (t < 3.2 || parts.length || embers.length)) return true;
     ground.destroy({ children: true }); over.destroy({ children: true });
     return false;
   });
@@ -465,7 +483,7 @@ export function playAnotherTurn(token) {
 /** Special animations played when a tier 1+ active is used, by the active's name. */
 const ON_ACTIVATE = {
   "Might That Shakes the Realm": (token) => groundCrack(token),
-  "None Can Stand Before Him": (token) => ringOfFire(token),
+  "None Can Stand Before Him": (token) => fireEruption(token),
 };
 /** An attack made while one of these actives is on plays its own strike alongside the lunge. */
 const ON_ATTACK = { "None Can Stand Before Him": playSkyPiercer };
