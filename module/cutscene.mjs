@@ -140,7 +140,7 @@ function render() {
     root.innerHTML = `<div class="bg"></div><div class="bar t"></div><div class="bar b"></div><div class="nm"></div>`;
     for (const t of ["wheel", "pointerdown", "contextmenu", "dblclick"]) root.addEventListener(t, (e) => { if (!game.user.isGM) { e.preventDefault(); e.stopPropagation(); } }, { passive: false });
     document.body.appendChild(root);
-    void root.offsetWidth; requestAnimationFrame(() => root?.classList.add("in"));
+    void root.offsetWidth; setTimeout(() => root?.classList.add("in"), 30);    // not rAF: a hidden or background tab may never fire it
   }
   const bg = BACKGROUNDS.find(b => b.key === st.bg), bgEl = root.querySelector(".bg");
   bgEl.classList.toggle("on", !!bg); bgEl.style.backgroundImage = bg ? `url('${route(bg.src)}')` : "";
@@ -160,7 +160,7 @@ function render() {
       void el.offsetWidth;
       setTimeout(() => el.classList.add("here"), fresh ? 650 : 30);
     }
-    requestAnimationFrame(() => { el.style.left = slot(i, n); });
+    setTimeout(() => { el.style.left = slot(i, n); }, 30);
     el.classList.toggle("lit", st.lit === c.key);
   });
   const nm = root.querySelector(".nm"), li = cast.findIndex(c => c.key === st.lit);
