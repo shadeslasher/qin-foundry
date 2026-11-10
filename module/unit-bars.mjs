@@ -4,7 +4,8 @@
 import { factionOf } from "./factions.mjs";
 import { traitTiersOf } from "./battle/traits.mjs";
 import { tileRules, skillCheck, officerOf, typeOf, officerWeaponLevel } from "./battle/engine.mjs";
-import { effectsOf, alwaysOnRolls } from "./battle/skills.mjs";
+import { effectsOf, alwaysOnRolls, status as skStatus } from "./battle/skills.mjs";
+import { BOOT } from "./icons.mjs";
 import { buildState } from "./battle/adapter.mjs";
 import { decodeTiles, FLAG as MAP_FLAG } from "./battle/battlemap.mjs";
 
@@ -230,6 +231,41 @@ function drawSword(size) {
   return g;
 }
 
+/** The red "no" sign drawn over a status icon: a ring and a slash, outlined dark so it reads on any colour. */
+function noSign(g, u) {
+  for (const [w, col] of [[3.6, 0x1a140e], [2.1, 0xff4a3c]]) {
+    g.lineStyle({ width: Math.max(1, w * u * 0.75), color: col, alpha: 1, cap: "round" }).drawCircle(0, 0, 9 * u * 0.83);
+    g.moveTo(-6.4 * u * 0.83, -6.4 * u * 0.83).lineTo(6.4 * u * 0.83, 6.4 * u * 0.83);
+  }
+}
+/** Can't attack (David, 2026-11-09): the stand's attack sword with the red sign over it. */
+function drawCantAttack(size) {
+  const c = new PIXI.Container(), u = size / 20;
+  c.addChild(drawSword(size * 0.86));
+  const g = new PIXI.Graphics(); noSign(g, u); c.addChild(g);
+  return c;
+}
+/** Can't move (David, 2026-11-09): the Move boot (the stat icon) with the red sign over it. */
+let bootTexP = null;
+function bootTexture() {
+  return bootTexP ??= new Promise(res => {
+    try {
+      const svg = BOOT.replace("<svg ", '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" ');
+      const img = new Image();
+      img.onload = () => { const cv = document.createElement("canvas"); cv.width = cv.height = 96; cv.getContext("2d").drawImage(img, 0, 0, 96, 96); res(PIXI.Texture.from(cv)); };
+      img.onerror = () => res(null);
+      img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+    } catch { res(null); }
+  });
+}
+let bootTex = null; bootTexture().then(t => { bootTex = t; });
+function drawCantMove(size) {
+  const c = new PIXI.Container(), u = size / 20;
+  if (bootTex) { const b = new PIXI.Sprite(bootTex); b.anchor.set(0.5); b.width = b.height = size * 0.78; c.addChild(b); }
+  const g = new PIXI.Graphics(); noSign(g, u); c.addChild(g);
+  return c;
+}
+
 /** A wooden siege ladder, centred on (0,0), about size tall. */
 export function drawLadder(size) {
   const g = new PIXI.Graphics(), h = size * 0.68, wd = size * 0.3, lw = Math.max(1.5, size * 0.07);
@@ -401,7 +437,7 @@ function clear(token) {
 let readyCache = null;
 function readyMap(battle) {
   if (readyCache) return readyCache.map; // cleared by the hooks in registerUnitBars whenever anything it depends on changes
-  const map = {}, eff = {}, rolls = {};
+  const map = {}, eff = {}, rolls = {}, locks = {};
   try {
     const { s } = buildState(battle);
     for (const u of s.units) {
@@ -414,6 +450,8 @@ function readyMap(battle) {
         rolls[u.id] = { rolls: (o?.command || 0) + sk.command, attack: (lv > 1 ? lv - 1 : 0) + sk.attack, defense: sk.meleeDef, rangedDefense: sk.rangedDef };
       } catch (e) { console.warn("Qin | roll icons", e); }
       // buffs and debuffs the stand shows (not passive auras: they come and go as units move)
+      // can't move / can't attack from a battlefield skill (David, 2026-11-09): icons on the stand
+      try { const m = !!skStatus(s, u, "cantMove"), a = !!skStatus(s, u, "cantAttack"); if (m || a) locks[u.id] = { move: m, attack: a }; } catch { /* fine */ }
       // each part on its own: one unit's problem must not take the marks off every other unit (David, 2026-11-09)
       try {
         const list = effectsOf(s, u).filter(e => !e.aura);
@@ -426,11 +464,17 @@ function readyMap(battle) {
       } catch (e) { console.warn("Qin | skill-ready mark on " + u.id, e); }
     }
   } catch (e) { console.warn("Qin | skill-ready marks", e); }
-  readyCache = { map, eff, rolls };
+  readyCache = { map, eff, rolls, locks };
   noteLanded(battle, eff);
   return map;
 }
 /** What the officer and the battlefield skills add to the unit's rolls (see readyMap), or null outside a battle. */
+function lockStatus(token) {
+  const battle = battleRecord(token);
+  if (!battle) return null;
+  readyMap(battle);
+  return readyCache?.locks?.[token.id] ?? null;
+}
 function rollExtras(token) {
   const battle = battleRecord(token);
   if (!battle) return null;
@@ -757,7 +801,9 @@ export async function drawUnitBars(token) {
   const facing = facingOf(token);
   const ready = acted ? null : skillReady(token); // skill-ready mark: not on a unit that has already acted this round
   const eff = effectCounts(token); // buffs and debuffs on it now (counts for the lingering look)
-  const key = JSON.stringify([ready, eff ? [eff.nb, eff.nd, eff.pb, eff.pd] : null, men, max, morale, w, h, s.side, acted, active, holding, watching, st, mine, n, art, off, fac?.img ?? null, facing, battleRecord(token)?.meta?.[token.id]?.carry ?? null, !!battleRecord(token)?.meta?.[token.id]?.fx?.shocked, s.traits]); // traits: equipment icons (ladders, engine)
+  const locks = lockStatus(token); // can't move / can't attack
+  if (locks?.move && !bootTex) await bootTexture().then(t => { bootTex = t; });
+  const key = JSON.stringify([ready, locks, eff ? [eff.nb, eff.nd, eff.pb, eff.pd] : null, men, max, morale, w, h, s.side, acted, active, holding, watching, st, mine, n, art, off, fac?.img ?? null, facing, battleRecord(token)?.meta?.[token.id]?.carry ?? null, !!battleRecord(token)?.meta?.[token.id]?.fx?.shocked, s.traits]); // traits: equipment icons (ladders, engine)
   if (pendingBurst.has(token.id)) { const kinds = pendingBurst.get(token.id); pendingBurst.delete(token.id); playBurst(token, kinds, w, h, T, T * L.pad); }
   let c = token[KEY];
   // (a ready mark that was hidden for an activation, e.g. one undone or replayed, is drawn again: David, 2026-11-09)
@@ -878,6 +924,8 @@ export async function drawUnitBars(token) {
   if (st.hidden) icons.push([drawHiddenEye, "", false]);
   if (watching) icons.push([drawOverwatch, "", false]);
   if (battleRecord(token)?.meta?.[token.id]?.fx?.shocked) icons.push([drawShock, "", true]);
+  if (locks?.move) icons.push([drawCantMove, "", true]);
+  if (locks?.attack) icons.push([drawCantAttack, "", true]);
   // siege equipment it carries: the battle's record once a battle runs (it can drop or pick it up), else its traits
   const tiers = tiersFor(s.traits);
   const carried = battleRecord(token)?.meta?.[token.id]?.carry;
@@ -1007,4 +1055,4 @@ export function registerUnitBars() {
     if (actor.type === "character") for (const t of canvas?.tokens?.placeables ?? []) if (t.actor?.system?.officer === actor.uuid) drawUnitBars(t);
   });
 }
-export { drawLingering as _drawLingering, playBurst as _playBurst, drawSkillReady as _drawSkillReady }; // for the stand harness
+export { drawLingering as _drawLingering, playBurst as _playBurst, drawSkillReady as _drawSkillReady, drawCantMove as _drawCantMove, drawCantAttack as _drawCantAttack, bootTexture as _bootTexture }; // for the stand harness
