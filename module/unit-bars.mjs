@@ -414,11 +414,16 @@ function readyMap(battle) {
         rolls[u.id] = { rolls: (o?.command || 0) + sk.command, attack: (lv > 1 ? lv - 1 : 0) + sk.attack, defense: sk.meleeDef, rangedDefense: sk.rangedDef };
       } catch (e) { console.warn("Qin | roll icons", e); }
       // buffs and debuffs the stand shows (not passive auras: they come and go as units move)
-      const list = effectsOf(s, u).filter(e => !e.aura);
-      if (list.length) { const of = (k) => list.filter(e => e.kind === k); eff[u.id] = { nb: of("buff").length, nd: of("debuff").length, pb: of("buff").reduce((a, e) => a + e.power, 0), pd: of("debuff").reduce((a, e) => a + e.power, 0), keys: list.map(e => e.key + "|" + e.kind) }; }
+      // each part on its own: one unit's problem must not take the marks off every other unit (David, 2026-11-09)
+      try {
+        const list = effectsOf(s, u).filter(e => !e.aura);
+        if (list.length) { const of = (k) => list.filter(e => e.kind === k); eff[u.id] = { nb: of("buff").length, nd: of("debuff").length, pb: of("buff").reduce((a, e) => a + e.power, 0), pd: of("debuff").reduce((a, e) => a + e.power, 0), keys: list.map(e => e.key + "|" + e.kind) }; }
+      } catch (e) { console.warn("Qin | effects on " + u.id, e); }
       if (!u.officerId) continue;
-      const o = officerOf(s, u);
-      if (o?.skill && skillCheck(s, u, o).ok) map[u.id] = o.skill.lastStand ? "last" : "ready";
+      try {
+        const o = officerOf(s, u);
+        if (o?.skill && skillCheck(s, u, o).ok) map[u.id] = o.skill.lastStand ? "last" : "ready";
+      } catch (e) { console.warn("Qin | skill-ready mark on " + u.id, e); }
     }
   } catch (e) { console.warn("Qin | skill-ready marks", e); }
   readyCache = { map, eff, rolls };
@@ -556,6 +561,7 @@ export function hideSkillReady(token) {
   const c = token?.[KEY];
   if (c?.qinReadyTick) { canvas.app?.ticker?.remove(c.qinReadyTick); c.qinReadyTick = null; }
   if (c?.qinReadyBox && !c.qinReadyBox.destroyed) c.qinReadyBox.visible = false;
+  if (c) c.qinKey = null; // the next draw puts it back if the unit is still ready
 }
 
 const fxTex = {};
@@ -754,7 +760,8 @@ export async function drawUnitBars(token) {
   const key = JSON.stringify([ready, eff ? [eff.nb, eff.nd, eff.pb, eff.pd] : null, men, max, morale, w, h, s.side, acted, active, holding, watching, st, mine, n, art, off, fac?.img ?? null, facing, battleRecord(token)?.meta?.[token.id]?.carry ?? null, !!battleRecord(token)?.meta?.[token.id]?.fx?.shocked, s.traits]); // traits: equipment icons (ladders, engine)
   if (pendingBurst.has(token.id)) { const kinds = pendingBurst.get(token.id); pendingBurst.delete(token.id); playBurst(token, kinds, w, h, T, T * L.pad); }
   let c = token[KEY];
-  if (c && !c.destroyed && c.parent === token && c.qinKey === key) return;
+  // (a ready mark that was hidden for an activation, e.g. one undone or replayed, is drawn again: David, 2026-11-09)
+  if (c && !c.destroyed && c.parent === token && c.qinKey === key && !(ready && !c.qinReadyTick)) return;
   const my = (gen.get(token) ?? 0) + 1;
   gen.set(token, my);
 
