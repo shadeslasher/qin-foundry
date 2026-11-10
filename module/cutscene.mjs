@@ -154,7 +154,7 @@ function render() {
       el = document.createElement("div"); el.className = "of" + (c.half ? " half" : c.src ? "" : " round");
       const img = document.createElement("img"); img.src = route(c.src ?? c.img ?? "icons/svg/mystery-man.svg"); img.alt = ""; img.draggable = false; el.appendChild(img);
       // the opening cast fades in where it stands; anyone added later walks in from the right
-      if (c.frac && !c.half) el.style.height = `${95.5 * c.frac}vh`;       // art cut off above the feet: keep the head the same size as everyone's
+      if (c.frac && !c.half) el.style.height = `${95.5 * Math.max(c.frac, 0.53)}vh`;   // never so short that its bottom edge shows above the lower bar       // art cut off above the feet: keep the head the same size as everyone's
       el.style.left = fresh ? slot(i, n) : "112%";
       root.appendChild(el); shown.set(c.key, el);
       void el.offsetWidth;
