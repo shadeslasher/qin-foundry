@@ -13,6 +13,20 @@ import { playMoment } from "../sound.mjs";
 const rnd = (a, b) => a + Math.random() * (b - a);
 const Blur = () => PIXI.BlurFilter ?? PIXI.filters?.BlurFilter;
 
+/** A container above the tokens and their unit stands (the interface group, sorted over the token layer). */
+let topRoot = null;
+function topLayer() {
+  const ui = canvas.interface;
+  if (!ui) return overLayer();
+  if (!topRoot || topRoot.destroyed || topRoot.parent !== ui) {
+    topRoot = new PIXI.Container();
+    Object.assign(topRoot, { zIndex: 1e6, sort: 1e6, eventMode: "none" });
+    ui.addChild(topRoot);
+  }
+  ui.sortDirty = true;
+  return topRoot;
+}
+
 /** Run draw(dt seconds, elapsed seconds) every frame until it returns false. */
 function run(step) {
   return new Promise(resolve => {
@@ -572,8 +586,9 @@ function stoneTexture(w, h, seed) {
 function stoneSentinel(token, resisted, i, float) {
   if (!token || token.destroyed) return Promise.resolve();
   const G = Math.min(token.w, token.h), k = G / 120, B = Blur(), ADD = PIXI.BLEND_MODES.ADD;
-  // above the unit stands: they are drawn on the token objects, which sit over the primary group's overLayer
-  const root = new PIXI.Container(); root.position.set(token.center.x, token.center.y); (canvas.interface ?? overLayer()).addChild(root);
+  // above the unit stands: they are drawn on the token objects (token layer, interface group), which sit over the
+  // primary group's overLayer, so the slab goes into the interface group sorted above the token layer
+  const root = new PIXI.Container(); root.position.set(token.center.x, token.center.y); topLayer().addChild(root);
   const W = G * 0.74, H = G * 0.8, tex = stoneTexture(W, H, i * 3 + 1), base = G * 0.36;
   const shadow = new PIXI.Graphics().beginFill(0x000000, 0.35).drawEllipse(0, G * 0.32, W * 0.9, W * 0.3).endFill(); if (B) shadow.filters = [new B(4 * k)];
   const seal = new PIXI.Graphics(); seal.blendMode = ADD; if (B) seal.filters = [new B(2 * k)];
