@@ -123,3 +123,14 @@ test('Lu Bu: an enemy his attack breaks surrenders when his turn ends — anothe
   assert.notStrictEqual(u(1).status, 'active');
   assert.ok(s.log.some(l => /takes another turn/.test(l.text)), 'he takes another turn');
 });
+
+test('Sima Yi: the picked unit is logged so the hunt can play on it (David, 2026-11-10)', () => {
+  const sy = officer('y', { activeName: 'The Wolf Bares His Fangs', active: { pick: [{ id: 'e', side: 'enemies', range: 'any', count: 1, filter: { allyAdjacent: false } }],
+    do: [{ status: 'cantMoveOrAttack', who: { pick: 'e' }, for: { rounds: 2 } }] } });
+  sy.skill = { name: 'The Wolf Bares His Fangs', text: 'x', moraleCost: 25, recharge: 5 };
+  const { s, ids } = setup([{ side: 'player', x: 0, y: 0, officerId: 'y' }, { side: 'enemy', x: 6, y: 6 }], [sy]);
+  s.turn.activation = { unitId: ids[0], step: 'move', started: true, tilesMoved: 0, from: { x: 0, y: 0 } };
+  must(R.act(s, HOST, { type: 'useSkill', unitId: ids[0], picks: { e: [ids[1]] } }));
+  const e = s.log.find(l => l.detail?.type === 'skill' && l.detail.active);
+  assert.deepStrictEqual(e.detail.picks, { e: [ids[1]] });
+});

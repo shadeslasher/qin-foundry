@@ -616,6 +616,168 @@ export function playSentinels(results, tokOf, float) {
   return Promise.all(all);
 }
 
+/* ------------------------------------------------------------ Sima Yi: the wolf pack (No Herd to Hide In) */
+
+const sm = (k) => (k <= 0 ? 0 : k >= 1 ? 1 : k * k * (3 - 2 * k));
+/* A wolf seen from above, sitting, facing up (-y). h = how far its head is thrown back to howl (0..1). */
+function drawWolf(g, u, h, t){
+  const FUR=0x6f757c, DARK=0x454a50, LIGHT=0xaab0b6, OUT=0x1c1e21;
+  g.clear();
+  // tail, curled round to its right
+  g.lineStyle({width:5.5*u,color:OUT,cap:'round'}).moveTo(2*u,15*u).bezierCurveTo(10*u,22*u,17*u,14*u,13*u,5*u);
+  g.lineStyle({width:4*u,color:FUR,cap:'round'}).moveTo(2*u,15*u).bezierCurveTo(10*u,22*u,17*u,14*u,13*u,5*u);
+  g.lineStyle({width:2.2*u,color:LIGHT,cap:'round'}).moveTo(14.2*u,9*u).lineTo(13*u,5*u);
+  g.lineStyle(1.2*u,OUT,1);
+  // hind paws, haunches
+  for(const s of [-1,1]) g.beginFill(FUR).drawEllipse(s*9.5*u,3*u,2.6*u,4*u).endFill();
+  g.beginFill(FUR).drawEllipse(0,8*u,11*u,9*u).endFill();
+  // front paws, shoulders and chest
+  for(const s of [-1,1]) g.beginFill(LIGHT).drawEllipse(s*4.2*u,-10.5*u,2.3*u,3.4*u).endFill();
+  g.beginFill(FUR).drawEllipse(0,-2*u,8.2*u,9.5*u).endFill();
+  // the dark saddle down its back
+  g.lineStyle(0).beginFill(DARK,0.85).drawEllipse(0,4*u,4.6*u,11*u).endFill();
+  // head: pulls back over the shoulders as it lifts
+  const hy=(-13+6*h)*u, tremble=h>0.9?Math.sin(t*38)*0.35*u:0, hx=tremble;
+  // ears: back and smaller when the head is thrown back
+  g.lineStyle(1.1*u,OUT,1);
+  for(const s of [-1,1]){ const ex=hx+s*5.2*u, ey=hy+(1.5+3.5*h)*u, L=(6-2.2*h)*u;
+    g.beginFill(DARK).drawPolygon([ex-s*2.4*u,ey-2.2*u, ex+s*2.2*u,ey-1.2*u, ex+s*1.6*u,ey+L]).endFill();
+    g.lineStyle(0).beginFill(0xc89a8e,0.8).drawPolygon([ex-s*0.8*u,ey-0.8*u, ex+s*1.2*u,ey-0.4*u, ex+s*1.1*u,ey+L*0.6]).endFill(); g.lineStyle(1.1*u,OUT,1); }
+  // skull
+  g.beginFill(FUR).drawEllipse(hx,hy,6.6*u,(6.6-0.8*h)*u).endFill();
+  g.lineStyle(0).beginFill(DARK,0.8).drawEllipse(hx,hy+1.5*u,3.4*u,3.6*u).endFill();
+  // muzzle: long when it looks ahead, a short upturned stub when it howls at the sky
+  const mL=(10-6.5*h)*u, mW=(3.6+0.9*h)*u, my=hy-(3.5-1.5*h)*u;
+  g.lineStyle(1.1*u,OUT,1).beginFill(LIGHT).drawPolygon([hx-mW,my, hx+mW,my, hx+mW*0.62,my-mL, hx-mW*0.62,my-mL]).endFill();
+  g.beginFill(LIGHT).drawEllipse(hx,my-mL,mW*0.62,1.6*u).endFill();
+  // the open mouth, seen down the throat
+  if(h>0.35){ const o=sm((h-0.35)/0.5); g.lineStyle(0.8*u,OUT,1).beginFill(0x3a0f12).drawEllipse(hx,my-mL*0.45,mW*0.62*o,(mL*0.42+0.6*u)*o).endFill();
+    g.lineStyle(0).beginFill(0xc85a5e,0.9*o).drawEllipse(hx,my-mL*0.3,mW*0.34*o,mL*0.2*o).endFill();           // tongue
+    g.beginFill(0xffffff,o); for(const s of [-1,1]) g.drawPolygon([hx+s*mW*0.5,my-mL*0.8, hx+s*mW*0.32,my-mL*0.8, hx+s*mW*0.4,my-mL*0.55]); g.endFill(); } // fangs
+  // nose
+  g.lineStyle(0).beginFill(0x111214).drawEllipse(hx,my-mL-0.6*u,1.5*u,1.1*u).endFill();
+  // eyes: amber and open, closing as it howls
+  for(const s of [-1,1]){ const ex=hx+s*2.9*u, ey=hy-(1.6-2.2*h)*u;
+    if(h<0.5) g.beginFill(0xffc93c).drawEllipse(ex,ey,1.15*u,(0.85*(1-h*1.6))*u).endFill().beginFill(0x111111).drawCircle(ex,ey,0.42*u).endFill();
+    else g.lineStyle(0.8*u,OUT,1).moveTo(ex-1.1*u,ey).lineTo(ex+1.1*u,ey).lineStyle(0); }
+}
+
+
+/* A wolf seen from above, running, facing up (-y): stretched low, tail streaming out behind, no legs drawn
+   (David, 2026-11-10). ph = stride phase (radians); leap = 0..1 blends into the stretched pounce, jaws open. */
+function drawWolfRun(g, u, ph, leap = 0) {
+  const FUR = 0x6f757c, DARK = 0x454a50, LIGHT = 0xaab0b6, OUT = 0x1c1e21;
+  const mix = (a, b) => a + (b - a) * leap;
+  g.clear();
+  // tail: straight out behind, swaying with the stride
+  const sway = Math.sin(ph) * 3.2 * u * (1 - leap);
+  for (const [w, col] of [[5.2, OUT], [3.7, FUR]]) g.lineStyle({ width: w * u, color: col, cap: "round" }).moveTo(0, 15 * u).bezierCurveTo(-sway * 0.6, 21 * u, sway, 26 * u, sway * 1.5, 31 * u);
+  g.lineStyle({ width: 2 * u, color: LIGHT, cap: "round" }).moveTo(sway * 1.15, 27.5 * u).lineTo(sway * 1.5, 31 * u);
+  // body: lean and stretched, flexing a little with each stride
+  const fl = 1 + 0.07 * Math.sin(ph * 2) * (1 - leap) + 0.08 * leap;
+  g.lineStyle(1.2 * u, OUT, 1);
+  g.beginFill(FUR).drawEllipse(0, 8 * u, 7.8 * u, 9 * u * fl).endFill();
+  g.beginFill(FUR).drawEllipse(0, -4 * u, 7.2 * u, 9.5 * u * fl).endFill();
+  g.lineStyle(0).beginFill(FUR).drawRect(-6.4 * u, -3 * u, 12.8 * u, 9 * u).endFill();
+  g.beginFill(DARK, 0.6).drawEllipse(0, 3 * u, 2.6 * u, 13 * u).endFill();
+  // head low and forward, ears back, muzzle long
+  const hy = -15.5 * u - 1.2 * u * leap, hx = Math.sin(ph) * 0.6 * u * (1 - leap);
+  g.lineStyle(1.1 * u, OUT, 1);
+  for (const sd of [-1, 1]) { const ex = hx + sd * 4.6 * u, ey = hy + 2.6 * u;
+    g.beginFill(DARK).drawPolygon([ex - sd * 2.2 * u, ey - 2 * u, ex + sd * 2 * u, ey - 1 * u, ex + sd * 1.2 * u, ey + 5 * u]).endFill(); }
+  g.beginFill(FUR).drawEllipse(hx, hy, 5.8 * u, 6.2 * u).endFill();
+  g.lineStyle(0).beginFill(DARK, 0.8).drawEllipse(hx, hy + 1.5 * u, 3 * u, 3.4 * u).endFill();
+  const my = hy - 3.4 * u, mL = 9.5 * u, mW = 3.2 * u;
+  g.lineStyle(1.1 * u, OUT, 1).beginFill(LIGHT).drawPolygon([hx - mW, my, hx + mW, my, hx + mW * 0.6, my - mL, hx - mW * 0.6, my - mL]).endFill();
+  g.beginFill(LIGHT).drawEllipse(hx, my - mL, mW * 0.6, 1.5 * u).endFill();
+  if (leap > 0.3) { // jaws open for the bite
+    g.lineStyle(0).beginFill(0x3a0f12).drawPolygon([hx - mW * 0.5, my - mL * 0.35, hx + mW * 0.5, my - mL * 0.35, hx, my - mL * 0.95]).endFill();
+    g.beginFill(0xffffff); for (const sd of [-1, 1]) g.drawPolygon([hx + sd * mW * 0.5, my - mL * 0.4, hx + sd * mW * 0.25, my - mL * 0.4, hx + sd * mW * 0.36, my - mL * 0.62]); g.endFill();
+  }
+  g.lineStyle(0).beginFill(0x111214).drawEllipse(hx, my - mL - 0.6 * u, 1.4 * u, 1.05 * u).endFill();
+  for (const sd of [-1, 1]) g.beginFill(0xffc93c).drawEllipse(hx + sd * 2.7 * u, hy - 1.6 * u, 1.1 * u, 0.8 * u).endFill().beginFill(0x111111).drawCircle(hx + sd * 2.7 * u, hy - 1.6 * u, 0.4 * u).endFill();
+}
+
+/** Eight wolves appear one after another, clockwise, out of dark mist around his unit, throw back their heads and howl
+ *  (rings of sound), then fade (David, 2026-11-10). */
+function wolfPack(token) {
+  const G = Math.min(token.w, token.h), u = G / 120 * 1.5, B = Blur(), ADD = PIXI.BLEND_MODES.ADD, c = token.center;
+  const moon = new PIXI.Graphics().beginFill(0x9fc4ff, 0.13).drawCircle(0, 0, G * 1.5).endFill(); if (B) moon.filters = [new B(26)]; moon.blendMode = ADD;
+  const ground = groundLayer(); ground.position.set(c.x, c.y); ground.addChild(moon);
+  const wolves = [0, 1, 2, 3, 4, 5, 6, 7].map(i => {
+    const ang = i * Math.PI / 4, R = G * (i % 2 ? 0.94 : 0.8);
+    const root = new PIXI.Container(); root.position.set(c.x + Math.sin(ang) * R, c.y - Math.cos(ang) * R); root.rotation = ang; overLayer().addChild(root);
+    const mist = new PIXI.Graphics().beginFill(0x1b2230, 0.75).drawCircle(0, 0, G * 0.3).endFill(); if (B) mist.filters = [new B(10)];
+    const shadow = new PIXI.Graphics().beginFill(0x000000, 0.4).drawEllipse(0, 3 * u, 13 * u, 15 * u).endFill(); if (B) shadow.filters = [new B(4)];
+    const g = new PIXI.Graphics(), rings = new PIXI.Graphics(); rings.blendMode = ADD; if (B) rings.filters = [new B(1.5)];
+    root.addChild(mist, shadow, g, rings);
+    return { root, mist, shadow, g, rings, delay: i * 0.1 };
+  });
+  return run((dt, a) => {
+    moon.alpha = sm(a / 0.5) * (1 - sm((a - 2.8) / 0.6));
+    for (const w of wolves) {
+      const t = a - w.delay, appear = sm(t / 0.4), gone = sm((t - 2.75) / 0.5), h = sm((t - 0.55) / 0.4) * (1 - sm((t - 2.3) / 0.3));
+      w.g.alpha = w.shadow.alpha = appear * (1 - gone);
+      w.mist.alpha = Math.max(0, appear * (1 - sm((t - 0.3) / 0.5))) + gone * (1 - sm((t - 3.0) / 0.3)) * 0.8;
+      w.g.scale.set(0.85 + 0.15 * appear);
+      drawWolf(w.g, u, h, t);
+      w.rings.clear();
+      if (t > 0.9 && t < 2.5) {
+        const hy = (-13 + 6) * u - 2 * u, env = sm((t - 0.9) / 0.2) * (1 - sm((t - 2.2) / 0.3));
+        for (let r = 0; r < 3; r++) { const q = ((t - 0.9) / 0.75 + r / 3) % 1; w.rings.lineStyle((3.2 * (1 - q) + 0.8) * u * 0.6, 0xd8ecff, 0.85 * (1 - q) * env).drawCircle(0, hy, (4 + 30 * q) * u); }
+      }
+    }
+    if (a < 4.3) return true;
+    ground.destroy({ children: true }); for (const w of wolves) w.root.destroy({ children: true });
+    return false;
+  });
+}
+
+/** The hunt: six wolves circle the unit he picked, closing in, then pounce on it together ("Hunted"). */
+export function playHunt(token, float) {
+  if (!token || token.destroyed) return Promise.resolve();
+  const G = Math.min(token.w, token.h), u = G / 120 * 1.5, B = Blur(), N = 6, CIRCLE = 2.2, c = token.center, k = G / 120;
+  const ground = groundLayer(); ground.position.set(c.x, c.y);
+  const mark = new PIXI.Graphics(); if (B) mark.filters = [new B(10)]; ground.addChild(mark);
+  const over = new PIXI.Container(); overLayer().addChild(over);
+  const flash = new PIXI.Graphics().beginFill(0xb01008).drawRoundedRect(-G / 2 + 4 * k, -G / 2 + 4 * k, G - 8 * k, G - 8 * k, G * 0.1).endFill(); flash.position.set(c.x, c.y); flash.alpha = 0; over.addChild(flash);
+  const dust = new PIXI.Graphics(); dust.position.set(c.x, c.y); if (B) dust.filters = [new B(3)]; over.addChild(dust);
+  const wolves = Array.from({ length: N }, (_, i) => {
+    const root = new PIXI.Container(); over.addChild(root);
+    const shadow = new PIXI.Graphics().beginFill(0x000000, 0.35).drawEllipse(0, 4 * u, 10 * u, 20 * u).endFill(); if (B) shadow.filters = [new B(4)];
+    const g = new PIXI.Graphics(); root.addChild(shadow, g);
+    return { root, g, off: i * Math.PI * 2 / N, ph: rnd(0, 6) }; // evenly spaced round the ring
+  });
+  const mesh = token.mesh, x0 = mesh?.position.x;
+  let hit = -1;
+  return run((dt, a) => {
+    const close = sm(a / CIRCLE), spin = a * (1.6 + 1.4 * close), R0 = G * (1.85 - 0.9 * close);
+    const ma = sm(a / 0.4) * (1 - sm((a - CIRCLE - 0.2) / 0.6));
+    mark.clear().lineStyle(G * 0.35, 0x0d1018, 0.45 * ma).drawCircle(0, 0, R0);
+    for (const w of wolves) {
+      const th = w.off + spin; let R = R0, rot = th + Math.PI, sc = 1, al = sm(a / 0.35);
+      const leap = sm((a - CIRCLE + 0.12) / 0.2);
+      if (a > CIRCLE) { const p = Math.min(1, (a - CIRCLE) / 0.2); R = R0 + (G * 0.32 - R0) * sm(p); rot = th + Math.PI + (Math.PI / 2) * sm(p); sc = 1 + 0.35 * Math.sin(Math.PI * p); }
+      if (a > CIRCLE + 0.45) al *= 1 - sm((a - CIRCLE - 0.45) / 0.5);
+      w.root.position.set(c.x + Math.cos(th) * R, c.y + Math.sin(th) * R);
+      w.root.rotation = rot; w.root.scale.set(sc); w.root.alpha = al;
+      w.ph += dt * (13 + 9 * close);   // the stride quickens as they close
+      drawWolfRun(w.g, u, w.ph, leap);
+    }
+    if (hit < 0 && a >= CIRCLE + 0.2) { hit = a; float?.("unitDamage", "Hunted"); }
+    if (hit >= 0) {
+      const q = a - hit, kk = Math.min(1, q / 0.7);
+      flash.alpha = 0.5 * (1 - kk);
+      dust.clear().lineStyle(8 * k * (1 - kk) + 1, 0xbdb39a, 0.6 * (1 - kk)).drawCircle(0, 0, G * 0.5 + G * 0.5 * kk);
+      if (mesh && !mesh.destroyed && x0 !== undefined) mesh.position.x = x0 + (q < 0.4 ? Math.sin(q * 70) * 6 * k * (1 - q / 0.4) : 0);
+    }
+    if (a < CIRCLE + 1.2) return true;
+    if (mesh && !mesh.destroyed && x0 !== undefined) mesh.position.x = x0;
+    ground.destroy({ children: true }); over.destroy({ children: true });
+    return false;
+  });
+}
+
 /* ------------------------------------------------------------ registry */
 
 /** Special animations played when a tier 1+ active is used, by the active's name. */
@@ -623,6 +785,7 @@ const ON_ACTIVATE = {
   "Might That Shakes the Realm": (token) => groundCrack(token),
   "None Can Stand Before Him": (token) => fireEruption(token),
   "Stone Sentinel Maze": (token) => eightTrigrams(token),
+  "The Wolf Bares His Fangs": (token) => wolfPack(token),
 };
 /** An attack made while one of these actives is on plays its own strike alongside the lunge. */
 const ON_ATTACK = { "None Can Stand Before Him": playSkyPiercer };
@@ -630,6 +793,9 @@ const ON_ATTACK = { "None Can Stand Before Him": playSkyPiercer };
 const ON_CONTEST = {
   "Terror of the Battlefield": (token, results, tokOf, float) => playTerror(token, results, tokOf, float),
   "Stone Sentinel Maze": (token, results, tokOf, float) => playSentinels(results, tokOf, float),
+  // the hunt starts as the howl dies away
+  "The Wolf Bares His Fangs": (token, results, tokOf, float) => new Promise(r => setTimeout(r, atSpeed(3200)))
+    .then(() => Promise.all(results.map(([id]) => playHunt(tokOf(id), (st, tx) => float?.(id, st, tx))))),
 };
 export function playUniqueContest(skill, token, results, tokOf, float) {
   const fn = ON_CONTEST[skill];

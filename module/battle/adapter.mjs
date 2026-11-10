@@ -410,7 +410,8 @@ async function postLog(entries, s) {
 
 /** Skills with their own animations (David, 2026-11-09; played by battle/unique-fx.mjs): attacks made while the active's
  *  buff is on, contested rolls a passive makes everyone around it take (the end-of-turn terror), and its extra turns. */
-export const UNIQUE_ATTACK = ["None Can Stand Before Him"], UNIQUE_CONTEST = ["Terror of the Battlefield", "Stone Sentinel Maze"], UNIQUE_EXTRA = ["Terror of the Battlefield"];
+export const UNIQUE_ATTACK = ["None Can Stand Before Him"], UNIQUE_CONTEST = ["Terror of the Battlefield", "Stone Sentinel Maze"], UNIQUE_EXTRA = ["Terror of the Battlefield"],
+  UNIQUE_PICKED = ["The Wolf Bares His Fangs"];
 function uniqueAttackOf(s, id) {
   const u = E.unitById(s, id);
   return (u?.fx?.buffs ?? []).map(b => b.name).find(n => UNIQUE_ATTACK.includes(n)) ?? null;
@@ -439,6 +440,11 @@ function animateChanges(scene, before, s, entries, actionType = null) {
     if (e.detail?.type === "skill" && e.detail.active) {
       const u = E.unitById(s, e.detail.unit);
       steps.push({ kind: "activeBanner", unit: e.detail.unit, side: u?.side ?? "neutral", skill: e.detail.skill, officerId: u?.officerId ?? null, officerName: u?.name ?? "" });
+      // an active whose animation plays on the units picked for it (Sima Yi's hunt), after the banner
+      if (UNIQUE_PICKED.includes(e.detail.skill) && e.detail.picks) {
+        const ids = [...new Set(Object.values(e.detail.picks).flat())].filter(id => E.unitById(s, id));
+        if (ids.length) steps.push({ kind: "terror", unit: e.detail.unit, skill: e.detail.skill, results: ids.map(id => [id, true]), closed: true });
+      }
       continue;
     }
     // a tactic plays where it fired: before the attack that set it off
