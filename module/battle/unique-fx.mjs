@@ -20,7 +20,8 @@ function topLayer() {
   if (!ui) return overLayer();
   if (!topRoot || topRoot.destroyed || topRoot.parent !== ui) {
     topRoot = new PIXI.Container();
-    Object.assign(topRoot, { zIndex: 1e6, sort: 1e6, eventMode: "none" });
+    // above the token layer (200) and controls (1000), under the floating text (1100) so "Held" reads over the slab
+    Object.assign(topRoot, { zIndex: 1050, sort: 1050, eventMode: "none" });
     ui.addChild(topRoot);
   }
   ui.sortDirty = true;
