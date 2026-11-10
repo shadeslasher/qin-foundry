@@ -4,6 +4,8 @@
 // Lu Bu's None Can Stand Before Him — tall flames roar up from him as a wave of fire rolls out leaving trails of fire, and while it lasts the Sky Piercer drives
 // through each target as its shield shatters; his Terror of the Battlefield — a dread pulse at the end of his turn
 // (who flinched, who resisted) and ANOTHER TURN when a rout earns him one.
+// Zhuge Liang's Stone Sentinel Maze — the Eight Trigrams formation draws itself beneath him, then a carved stone slab
+// rises over each unit he picked: "Held" ones stand and fade, a unit that won its roll sees its stone crack and fall.
 import { atSpeed } from "./battle-speed.mjs";
 import { overLayer } from "../attack-fx.mjs";
 import { playMoment } from "../sound.mjs";
@@ -478,15 +480,161 @@ export function playAnotherTurn(token) {
   });
 }
 
+/* ------------------------------------------------------------ Zhuge Liang: Eight Trigrams and stone sentinels */
+
+// the eight trigrams (Later Heaven order), 1 = solid line, 0 = broken; from the inside line out
+const TRI=[[1,1,1],[0,1,1],[1,0,1],[0,0,1],[1,1,0],[0,1,0],[1,0,0],[0,0,0]];
+const baguaCache = new Map();
+function baguaTextureRaw(R){
+  const S=2, D=Math.ceil(R*2.2*S), cv=document.createElement('canvas'); cv.width=cv.height=D; const g=cv.getContext('2d');
+  const c=D/2, r=R*S;
+  g.translate(c,c); g.strokeStyle='#fff'; g.fillStyle='#fff'; g.lineCap='round';
+  const ring=(rr,w)=>{ g.lineWidth=w*S; g.beginPath(); g.arc(0,0,rr*S,0,Math.PI*2); g.stroke(); };
+  const oct=(rr,w)=>{ g.lineWidth=w*S; g.beginPath(); for(let i=0;i<=8;i++){ const a=(i+0.5)/8*Math.PI*2-Math.PI/2; const x=Math.cos(a)*rr*S, y=Math.sin(a)*rr*S; i?g.lineTo(x,y):g.moveTo(x,y); } g.closePath(); g.stroke(); };
+  ring(R,2.5); ring(R*0.94,1); oct(R*0.86,2); oct(R*0.52,1.6); ring(R*0.3,1.6);
+  // spokes between the trigrams
+  g.lineWidth=1*S; for(let i=0;i<8;i++){ const a=(i+0.5)/8*Math.PI*2-Math.PI/2; g.beginPath(); g.moveTo(Math.cos(a)*R*0.3*S,Math.sin(a)*R*0.3*S); g.lineTo(Math.cos(a)*R*0.86*S,Math.sin(a)*R*0.86*S); g.stroke(); }
+  // trigrams
+  for(let i=0;i<8;i++){
+    g.save(); g.rotate(i/8*Math.PI*2);
+    const w=R*0.26*S, th=R*0.045*S;
+    TRI[i].forEach((solid,j)=>{ const y=-(R*0.58+j*R*0.085)*S;
+      if(solid) g.fillRect(-w/2,y-th/2,w,th); else { g.fillRect(-w/2,y-th/2,w*0.42,th); g.fillRect(w*0.08,y-th/2,w*0.42,th); } });
+    g.restore();
+  }
+  // small tick marks on the outer band
+  g.lineWidth=1*S; for(let i=0;i<64;i++){ const a=i/64*Math.PI*2; g.beginPath(); g.moveTo(Math.cos(a)*R*0.94*S,Math.sin(a)*R*0.94*S); g.lineTo(Math.cos(a)*R*(i%8===0?0.88:0.91)*S,Math.sin(a)*R*(i%8===0?0.88:0.91)*S); g.stroke(); }
+  // the taiji in the centre
+  const tr=R*0.22*S;
+  g.beginPath(); g.arc(0,0,tr,0,Math.PI*2); g.lineWidth=1.5*S; g.stroke();
+  g.beginPath(); g.arc(0,0,tr,-Math.PI/2,Math.PI/2); g.arc(0,tr/2,tr/2,Math.PI/2,-Math.PI/2,true); g.arc(0,-tr/2,tr/2,Math.PI/2,-Math.PI/2); g.fill();
+  g.beginPath(); g.arc(0,-tr/2,tr*0.14,0,Math.PI*2); g.fill();
+  g.globalCompositeOperation='destination-out'; g.beginPath(); g.arc(0,tr/2,tr*0.14,0,Math.PI*2); g.fill();
+  const tex=PIXI.Texture.from(cv); tex.qS=S; return tex;
+}
+function baguaTexture(R) { const k = Math.round(R); if (!baguaCache.has(k)) baguaCache.set(k, baguaTextureRaw(R)); return baguaCache.get(k); }
+
+/** The Eight Trigrams formation draws itself in on the ground beneath his unit, turns slowly with light rising off it,
+ *  then fades (David, 2026-11-09). */
+function eightTrigrams(token) {
+  const G = Math.min(token.w, token.h), R = G * 1.45, tex = baguaTexture(R), B = Blur(), ADD = PIXI.BLEND_MODES.ADD;
+  const root = groundLayer(); root.position.set(token.center.x, token.center.y);
+  const glow = new PIXI.Sprite(tex); glow.anchor.set(0.5); glow.tint = 0x59d6ff; glow.blendMode = ADD; if (B) glow.filters = [new B(8 * G / 120)];
+  const lines = new PIXI.Sprite(tex); lines.anchor.set(0.5); lines.tint = 0xfff1c2; lines.blendMode = ADD;
+  const disc = new PIXI.Graphics().beginFill(0x0b1a2a, 0.35).drawCircle(0, 0, R * 1.02).endFill(); if (B) disc.filters = [new B(6)];
+  const draw = new PIXI.Graphics(); draw.blendMode = ADD; if (B) draw.filters = [new B(3)];
+  root.addChild(disc, glow, lines, draw);
+  const over = new PIXI.Container(); over.position.set(token.center.x, token.center.y); overLayer().addChild(over);
+  const motes = [];
+  return run((dt, a) => {
+    const grow = 1 - (1 - Math.min(1, a / 0.55)) ** 3, fade = a < 2.4 ? 1 : Math.max(0, 1 - (a - 2.4) / 0.8);
+    root.rotation = a * 0.25;
+    for (const sp of [glow, lines]) sp.scale.set(grow / tex.qS);
+    lines.alpha = fade * (0.85 + 0.15 * Math.sin(a * 6)); glow.alpha = fade * (0.9 + 0.1 * Math.sin(a * 4)); disc.alpha = fade * grow;
+    draw.clear(); if (a < 0.7) { const q = a / 0.7; draw.lineStyle(G * 0.08, 0xbff0ff, 1 - q).arc(0, 0, R * grow, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * q); }
+    if (a < 2.4 && Math.random() < dt * 15) {
+      const ang = rnd(0, Math.PI * 2), r = R * rnd(0.55, 0.95) * grow;
+      const m = new PIXI.Graphics().beginFill(Math.random() < 0.5 ? 0xbff0ff : 0xfff1c2).drawCircle(0, 0, rnd(1.2, 2.4) * G / 120).endFill(); m.blendMode = ADD; over.addChild(m);
+      motes.push({ m, x: Math.cos(ang) * r, y: Math.sin(ang) * r, t: 0, life: rnd(0.8, 1.3) });
+    }
+    for (let i = motes.length - 1; i >= 0; i--) { const o = motes[i]; o.t += dt; const q = o.t / o.life; if (q >= 1) { o.m.destroy(); motes.splice(i, 1); continue; } o.m.position.set(o.x, o.y - q * G * 0.6); o.m.alpha = 1 - q; }
+    if (a < 3.2) return true;
+    root.destroy({ children: true }); over.destroy({ children: true });
+    return false;
+  });
+}
+
+function stoneTexture(w, h, seed) {
+  // a broad, squat standing slab: wider than tall at its base, a flat sloping top with chipped corners (drawn in a 100 x 100 box, scaled to w x h)
+  const S=2, cv=document.createElement('canvas'); cv.width=w*S; cv.height=h*S; const g=cv.getContext('2d'); g.scale(S*w/100,S*h/100);
+  const P=(pts)=>{ g.beginPath(); pts.forEach(([x,y],i)=>i?g.lineTo(x,y):g.moveTo(x,y)); g.closePath(); };
+  const stone=(x0,x1)=>{ const gr=g.createLinearGradient(x0,0,x1,0); gr.addColorStop(0,'#55585a'); gr.addColorStop(0.35,'#a7a9a3'); gr.addColorStop(0.62,'#8c8f8a'); gr.addColorStop(1,'#46494a'); return gr; };
+  const slab=[[10,100],[6,40],[14,20],[30,14],[62,8],[84,12],[92,24],[95,62],[90,100]];
+  P(slab); g.fillStyle=stone(6,95); g.fill();
+  // the top face, lit
+  P([[14,20],[30,14],[62,8],[84,12],[92,24],[60,22],[28,26]]); g.fillStyle='rgba(235,235,225,.28)'; g.fill();
+  // a darker right side face for depth
+  P([[84,12],[92,24],[95,62],[90,100],[78,100],[80,40]]); g.fillStyle='rgba(0,0,0,.18)'; g.fill();
+  P(slab); g.lineWidth=1.6; g.strokeStyle='#2a2c2c'; g.stroke();
+  g.save(); P(slab); g.clip();
+  for(let i=0;i<220;i++){ g.fillStyle=`rgba(${Math.random()<0.5?'25,25,25':'235,235,225'},${Math.random()*0.14})`; g.fillRect(Math.random()*100,Math.random()*100,1.6,1.6); }
+  g.strokeStyle='rgba(25,25,25,.55)'; g.lineWidth=0.9;
+  for(let i=0;i<4;i++){ let x=12+Math.random()*70, y=18+Math.random()*40; g.beginPath(); g.moveTo(x,y); for(let j=0;j<4;j++){ x+=rnd(-6,6); y+=rnd(4,9); g.lineTo(x,y); } g.stroke(); }
+  g.restore();
+  // a carved trigram glowing on its face
+  const tri=TRI[seed%8]; g.fillStyle='#8ff0ff'; g.shadowColor='#59d6ff'; g.shadowBlur=7;
+  tri.forEach((solid,j)=>{ const y=42+j*11; if(solid) g.fillRect(32,y,34,5); else { g.fillRect(32,y,14.5,5); g.fillRect(51.5,y,14.5,5); } });
+  const tex=PIXI.Texture.from(cv); tex.qS=S; return tex;
+}
+
+/** A carved stone slab rises out of the ground over a target with dust and a seal closing round its square: it stands a
+ *  moment ("Held") and fades; on a unit that won its roll it cracks apart and falls ("Resisted"). */
+function stoneSentinel(token, resisted, i, float) {
+  if (!token || token.destroyed) return Promise.resolve();
+  const G = Math.min(token.w, token.h), k = G / 120, B = Blur(), ADD = PIXI.BLEND_MODES.ADD;
+  const root = new PIXI.Container(); root.position.set(token.center.x, token.center.y); overLayer().addChild(root);
+  const W = G * 0.74, H = G * 0.8, tex = stoneTexture(W, H, i * 3 + 1), base = G * 0.36;
+  const shadow = new PIXI.Graphics().beginFill(0x000000, 0.35).drawEllipse(0, G * 0.32, W * 0.9, W * 0.3).endFill(); if (B) shadow.filters = [new B(4 * k)];
+  const seal = new PIXI.Graphics(); seal.blendMode = ADD; if (B) seal.filters = [new B(2 * k)];
+  const mask = new PIXI.Graphics().beginFill(0xffffff).drawRect(-G, -G * 1.5, G * 2, G * 1.5 + base).endFill();
+  const stone = new PIXI.Sprite(tex); stone.scale.set(1 / tex.qS); stone.anchor.set(0.5, 1); stone.mask = mask;
+  root.addChild(shadow, seal, stone, mask);
+  const dust = [], pieces = [];
+  let said = false;
+  return run((dt, a) => {
+    const rise = 1 - (1 - Math.min(1, a / 0.35)) ** 3;
+    stone.y = base + H * (1 - rise); stone.x = a < 0.4 ? Math.sin(a * 90) * 2 * k * (1 - a / 0.4) : 0;
+    shadow.alpha = rise;
+    seal.clear();
+    if (a > 0.1) { const q = Math.min(1, (a - 0.1) / 0.35), al = a < 1.4 ? 1 : Math.max(0, 1 - (a - 1.4) / 0.5), sz = G * (1.3 - 0.3 * q);
+      seal.lineStyle(3 * k, resisted ? 0xffd27a : 0x8ff0ff, 0.85 * al).drawRoundedRect(-sz / 2, -sz / 2, sz, sz, G * 0.12); }
+    if (!said && a >= 0.45) { said = true; float?.(resisted ? "moraleUp" : "levelUp", resisted ? "Resisted" : "Held"); }
+    if (a < 0.45 && Math.random() < dt * 20) {
+      const d = new PIXI.Graphics().beginFill(0xbdb39a, 0.5).drawCircle(0, 0, rnd(3, 6) * k).endFill(); if (B) d.filters = [new B(3 * k)]; root.addChild(d);
+      dust.push({ d, x: rnd(-W * 0.7, W * 0.7), y: base, vx: rnd(-40, 40) * k, vy: -rnd(10, 40) * k, t: 0 });
+    }
+    for (let j = dust.length - 1; j >= 0; j--) { const o = dust[j]; o.t += dt; if (o.t > 0.9) { o.d.destroy(); dust.splice(j, 1); continue; } o.d.position.set(o.x + o.vx * o.t, o.y + o.vy * o.t); o.d.alpha = 0.6 * (1 - o.t / 0.9); o.d.scale.set(1 + o.t * 2); }
+    if (resisted) {
+      if (a >= 0.8 && !pieces.length) {
+        stone.visible = false;
+        for (let p = 0; p < 9; p++) {
+          const g = new PIXI.Graphics().beginFill(Math.random() < 0.5 ? 0x8a8d88 : 0x5d605f).drawPolygon([0, 0, rnd(8, 16) * k, rnd(-4, 4) * k, rnd(6, 14) * k, rnd(10, 18) * k, rnd(-4, 4) * k, rnd(8, 14) * k]).endFill();
+          g.position.set(rnd(-W / 2, W / 2), base - rnd(0, H)); root.addChild(g);
+          pieces.push({ g, vx: rnd(-60, 60) * k, vy: rnd(-80, -10) * k, r: rnd(-6, 6), x0: g.x, y0: g.y });
+        }
+      }
+      for (const p of pieces) { const q = a - 0.8; p.g.position.set(p.x0 + p.vx * q, p.y0 + p.vy * q + 400 * k * q * q); p.g.rotation = p.r * q; p.g.alpha = Math.max(0, 1 - q / 0.8); }
+    } else stone.alpha = a < 1.3 ? 1 : Math.max(0, 1 - (a - 1.3) / 0.7);
+    if (a < 2.0) return true;
+    root.destroy({ children: true });
+    return false;
+  });
+}
+/** Stone Sentinel Maze: a stone on each unit it was used on, one after another. */
+export function playSentinels(results, tokOf, float) {
+  const all = results.map(([id, lost], i) => new Promise(res => setTimeout(() => res(stoneSentinel(tokOf(id), !lost, i, (style, text) => float?.(id, style, text))), atSpeed(i * 120))));
+  return Promise.all(all);
+}
+
 /* ------------------------------------------------------------ registry */
 
 /** Special animations played when a tier 1+ active is used, by the active's name. */
 const ON_ACTIVATE = {
   "Might That Shakes the Realm": (token) => groundCrack(token),
   "None Can Stand Before Him": (token) => fireEruption(token),
+  "Stone Sentinel Maze": (token) => eightTrigrams(token),
 };
 /** An attack made while one of these actives is on plays its own strike alongside the lunge. */
 const ON_ATTACK = { "None Can Stand Before Him": playSkyPiercer };
+/** A skill's contested rolls on several units at once (David, 2026-11-09), by the skill's name. */
+const ON_CONTEST = {
+  "Terror of the Battlefield": (token, results, tokOf, float) => playTerror(token, results, tokOf, float),
+  "Stone Sentinel Maze": (token, results, tokOf, float) => playSentinels(results, tokOf, float),
+};
+export function playUniqueContest(skill, token, results, tokOf, float) {
+  const fn = ON_CONTEST[skill];
+  return fn ? fn(token, results, tokOf, float) : null;
+}
 export function playUniqueAttack(skill, attacker, defender) {
   const fn = ON_ATTACK[skill];
   return fn ? fn(attacker, defender) : null;
