@@ -7,7 +7,7 @@ import { SYSTEM_ID } from "./config.mjs";
 import { playStepSounds, attackSounds, playMoment } from "./sound.mjs";
 import { drawUnitBars, freezeUnits } from "./unit-bars.mjs";
 import { playActivation } from "./battle/activation-fx.mjs";
-import { playSweep } from "./battle/unique-fx.mjs";
+import { playSweep, playUniqueAttack, playTerror, playAnotherTurn } from "./battle/unique-fx.mjs";
 
 const SOCKET = `system.${SYSTEM_ID}`;
 
@@ -1061,6 +1061,7 @@ export async function playBattleAnim({ sceneId, steps }) {
           const snd = attackSounds(st);
           if (snd.start) playMoment(snd.start, { minGap: 0 });
           const goA = strike(A, D, st.ranged);
+          if (st.special && !st.ranged) playUniqueAttack(st.special, A, D); // e.g. the Sky Piercer, landing with the lunge
           await wait(hitAt(st.ranged));
           playMoment(snd.hit, { minGap: 0 });
           showAll(st.defender, st.toDefender);
@@ -1081,6 +1082,10 @@ export async function playBattleAnim({ sceneId, steps }) {
           A.qinAttackBonus = null;
           if (!A.destroyed) drawUnitBars(A);
         }
+      } else if (st.kind === "terror") {
+        await playTerror(tok(st.unit), st.results ?? [], tok, (id, style, text) => { const t = tok(id); if (t) floatLocal(t.center, style, text); });
+      } else if (st.kind === "anotherTurn") {
+        await playAnotherTurn(tok(st.unit));
       } else if (st.kind === "floats") {
         for (const [id, style, text] of st.items) { const t = tok(id); if (t) floatLocal(t.center, style, text); }
         await wait(500);

@@ -408,6 +408,14 @@ async function postLog(entries, s) {
   await Chat().create({ content: `<div class="qin-chat qin-battle-log">${parts.join("")}</div>`, speaker: { alias: "Battle" } });
 }
 
+/** Skills with their own animations (David, 2026-11-09; played by battle/unique-fx.mjs): attacks made while the active's
+ *  buff is on, contested rolls a passive makes everyone around it take (the end-of-turn terror), and its extra turns. */
+export const UNIQUE_ATTACK = ["None Can Stand Before Him"], UNIQUE_CONTEST = ["Terror of the Battlefield"], UNIQUE_EXTRA = ["Terror of the Battlefield"];
+function uniqueAttackOf(s, id) {
+  const u = E.unitById(s, id);
+  return (u?.fx?.buffs ?? []).map(b => b.name).find(n => UNIQUE_ATTACK.includes(n)) ?? null;
+}
+
 /** The name of the buff giving a unit its Sweep (its animation is keyed to it). */
 function sweepSkillOf(s, id) {
   const u = E.unitById(s, id);
@@ -425,6 +433,7 @@ function animateChanges(scene, before, s, entries, actionType = null) {
   let overwatchShot = false; // the next attack is an overwatch shot
   const covered = {}; // what the attack steps already showed, per unit
   const add = (id, k, n) => { (covered[id] ??= { men: 0, morale: 0, xp: 0 })[k] += n; };
+  const extraTurns = []; // "Another turn" plays after the rout that earned it
   for (const e of entries) {
     // a battlefield active opens with its banner (dim, the side's band, the officer's art); its effects play after it
     if (e.detail?.type === "skill" && e.detail.active) {
@@ -441,6 +450,14 @@ function animateChanges(scene, before, s, entries, actionType = null) {
       continue;
     }
     if (e.detail?.type === "overwatch" && e.detail.fired) { overwatchShot = true; continue; }
+    // a passive's contested rolls on everyone around it (Lu Bu's end-of-turn terror): one pulse, then who resisted
+    if (e.detail?.type === "skillContest" && UNIQUE_CONTEST.includes(e.detail.skill)) {
+      let tr = steps.find(x => x.kind === "terror" && x.unit === e.detail.src && x.skill === e.detail.skill && !x.closed);
+      if (!tr) steps.push(tr = { kind: "terror", unit: e.detail.src, skill: e.detail.skill, results: [] });
+      tr.results.push([e.detail.unit, !!e.detail.lost]);
+      continue;
+    }
+    if (e.detail?.type === "skill" && e.detail.extraTurn && UNIQUE_EXTRA.includes(e.detail.skill)) { extraTurns.push({ kind: "anotherTurn", unit: e.detail.unit, skill: e.detail.skill }); continue; }
     // Sweep (Guan Yu): plays right after the attack that set it off
     if (e.detail?.type === "sweep") {
       const at = [...steps].reverse().find(x => x.kind === "attack" && x.attacker === e.detail.by);
@@ -466,7 +483,8 @@ function animateChanges(scene, before, s, entries, actionType = null) {
     const returnRanged = !!dUnit && E.typeOf(s, dUnit)?.weapon === "ranged" && !(!r.ranged && (dUnit.traitTiers?.hybrid || dUnit.traitTiers?.['throwing axes'] || dUnit.traitTiers?.['spear crossbow']));
     const aType = E.unitById(s, r.attacker) ? E.typeOf(s, E.unitById(s, r.attacker)) : null;
     steps.push({ kind: "attack", attacker: r.attacker, defender: r.defender, toDefender: toD, toAttacker: toA, returnStrike: r.damageToAttacker > 0, attackBonus, ranged: !!r.ranged, returnRanged,
-      crossbow: /nushu/i.test(aType?.skill ?? ""), charge: !!r.charge && aType?.category === "cavalry", overwatch: overwatchShot });
+      crossbow: /nushu/i.test(aType?.skill ?? ""), charge: !!r.charge && aType?.category === "cavalry", overwatch: overwatchShot,
+      special: !r.ranged && s.units.length ? uniqueAttackOf(s, r.attacker) : null });
     overwatchShot = false;
     if (r.suppressed) steps.push({ kind: "suppressed", unit: r.defender }); // Suppressing Fire landed
     const gains = [];
@@ -504,6 +522,7 @@ function animateChanges(scene, before, s, entries, actionType = null) {
   const fallen = s.units.filter(u => before[u.id]?.status === "active" && u.status !== "active")
     .map(u => [u.id, u.status === "surrendered" ? "flag" : "skull"]);
   if (fallen.length) steps.push({ kind: "fallen", units: fallen });
+  steps.push(...extraTurns);
   steps.push(...logSoundSteps(entries, actionType));
   return broadcastBattleAnim(scene.id, steps);
 }

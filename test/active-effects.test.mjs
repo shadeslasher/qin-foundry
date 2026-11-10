@@ -91,6 +91,7 @@ test('Lu Bu: a rout gives him another turn only on his own turn (myTurn)', () =>
   s.turn.activation = { unitId: ids[0], step: 'move', started: true, tilesMoved: 0, from: { x: 5, y: 5 } };
   u(2).morale = 0; u(2).status = 'routed'; SK.onFall(s, u(2));
   assert.ok((s.skillExtra || []).some(e => e.unitId === ids[0]), 'on his own turn');
+  assert.ok(s.log.some(l => l.detail?.extraTurn && l.detail.unit === ids[0] && l.detail.skill === 'Terror'), 'logged for the ANOTHER TURN animation');
 });
 
 test('Lu Bu: end-of-turn terror — officerless units lose 5 morale, units with an officer roll a contested Command roll', () => {
@@ -105,4 +106,7 @@ test('Lu Bu: end-of-turn terror — officerless units lose 5 morale, units with 
   assert.strictEqual(u(3).morale, before[2] - 5, 'officer loses the roll: loses 5');
   assert.strictEqual(u(4).morale, before[3], 'not adjacent');
   assert.ok(s.log.some(l => /has no officer to resist/.test(l.text || l.msg || JSON.stringify(l))));
+  // the animation groups these by the passive that rolled them
+  const c = s.log.filter(l => l.detail?.type === 'skillContest');
+  assert.ok(c.length === 3 && c.every(l => l.detail.src === u(0).id && l.detail.skill === 'Terror'));
 });

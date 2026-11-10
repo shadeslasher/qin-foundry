@@ -658,7 +658,7 @@ function step(s, st, ctx, rest) {
   if (st.contest) {
     for (const t of units(st.contest)) {
       const lost = contest(s, src, t, st.aspect);
-      say(s, label + ': ' + nm(t) + (!t.officerId ? ' has no officer to resist.' : (lost ? ' loses' : ' wins') + ' the contested Command roll.'), { type: 'skillContest', unit: t.id, lost });
+      say(s, label + ': ' + nm(t) + (!t.officerId ? ' has no officer to resist.' : (lost ? ' loses' : ' wins') + ' the contested Command roll.'), { type: 'skillContest', unit: t.id, lost, src: src.id, skill: ctx.name || '' });
       const next = lost ? st.lose : st.win;
       if (next && next.length) runSteps(s, next, { ...ctx, target: t });
     }
@@ -858,7 +858,7 @@ function step(s, st, ctx, rest) {
   if (st.reinforce !== undefined) { say(s, label + ' (GM): up to ' + st.reinforce + ' allied unit(s) waiting as reinforcements arrive now, at the map edge nearest ' + nm(src) + '.', { type: 'skillManual', unit: src.id }); return; }
   if (st.extraTurn) {
     const list = units(st.extraTurn);
-    for (const u of list) { (s.skillExtra ||= []).push({ unitId: u.id, moveOnly: !!st.moveOnly }); say(s, label + ': ' + nm(u) + ' will take another ' + (st.moveOnly ? 'move' : 'turn') + ' at once.', { type: 'skill', unit: u.id }); }
+    for (const u of list) { (s.skillExtra ||= []).push({ unitId: u.id, moveOnly: !!st.moveOnly }); say(s, label + ': ' + nm(u) + ' will take another ' + (st.moveOnly ? 'move' : 'turn') + ' at once.', { type: 'skill', unit: u.id, extraTurn: !st.moveOnly, skill: ctx.name || '' }); }
     return;
   }
   if (st.if && st.each && st.who) { // test every unit it reaches; "then"/"else" run once per unit, with that unit as the target (2026-11-09)
