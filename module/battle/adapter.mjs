@@ -1,5 +1,5 @@
 import { Chat } from "../dice.mjs";
-import { broadcastBattleAnim, broadcastFreeze } from "../attack-fx.mjs";
+import { broadcastBattleAnim, broadcastFreeze, broadcastAnimHold } from "../attack-fx.mjs";
 import { logSoundSteps } from "../sound.mjs";
 // Bridges Foundry (scene tokens, unit actors, officer characters) and the pure battle
 // engine. Runs only on the active GM's client; players reach it through queries.
@@ -649,6 +649,7 @@ async function runActionNow(userId, action) {
   if (res.ok && scene) {
     const acting = s.log.slice(logLen).filter(e => e.detail?.type === "skill" && e.detail.active).map(e => e.detail.unit);
     if (acting.length) broadcastFreeze(scene.id, acting);
+    broadcastAnimHold(scene.id); // the action menu waits until this action's animations have played
   }
   await writeBack(battle, s, scene);
   if (s.skillRequests?.length) await skillRequests(s, scene).catch(e => console.warn("Qin | battlefield skill requests", e));

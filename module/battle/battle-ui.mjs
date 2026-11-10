@@ -6,6 +6,7 @@ import * as SK from "./skills.mjs";
 import { getBattle, buildState, isWritingBack } from "./adapter.mjs";
 import { SYSTEM_ID } from "../config.mjs";
 import { playMoment } from "../sound.mjs";
+import { menuHeld, whenMenuFree } from "../attack-fx.mjs";
 import { openUnitInfo, unitVisible, setPickingCheck, canPinThreat, threatPinned, toggleThreatRange } from "../unit-info.mjs";
 import { deployMoveCheck, zoneSet, DEPLOY_FLAG, vanguardInputs } from "./deploy-rules.mjs";
 import { traitTiersOf } from "./traits.mjs";
@@ -420,8 +421,16 @@ function showPickHint(html) {
 }
 function hidePickHint() { pickHintEl?.remove(); pickHintEl = null; }
 
+let menuWaiting = false;
 function renderMenu(sub = null) {
   if (!current) return hideMenu();
+  // wait for the action's animations (attacks, routs, ANOTHER TURN...) before the menu comes up (David, 2026-11-09)
+  if (menuHeld()) {
+    if (menuEl) menuEl.style.display = "none";
+    hidePickHint();
+    if (!menuWaiting) { menuWaiting = true; whenMenuFree().then(() => { menuWaiting = false; renderMenu(); }); }
+    return;
+  }
   const { u, flags, officer } = current;
   if (!menuEl) {
     menuEl = document.createElement("div");

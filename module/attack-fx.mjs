@@ -353,6 +353,7 @@ export function registerAttackFxSocket() {
     else if (data.type === "slice") sliceLocal(data);
     else if (data.type === "battleAnim") playBattleAnim(data);
     else if (data.type === "battleFreeze") freezeUnits(data.units);
+    else if (data.type === "animHold") holdLocal(!!data.on);
   });
 }
 
@@ -802,9 +803,23 @@ function burst(at, size) {
 
 const wait = (ms) => new Promise(r => setTimeout(r, atSpeed(ms)));
 
+/* The action menu waits for the animations (David, 2026-11-09): the GM's client says "hold" before it writes the new
+ * battle state, and the hold lasts until that action's animations have played (or it turns out there are none). */
+let animCount = 0, holdUntil = 0;
+export const menuHeld = () => animCount > 0 || Date.now() < holdUntil;
+export function whenMenuFree() {
+  return new Promise(res => { const check = () => (menuHeld() ? setTimeout(check, 80) : res()); check(); });
+}
+function holdLocal(on) { holdUntil = on ? Date.now() + 4000 : 0; } // the cap: never stuck if the animation never comes
+/** Before an action's new state goes out: hold every client's action menu until its animations have played. */
+export function broadcastAnimHold(sceneId) {
+  game.socket?.emit(SOCKET, { type: "animHold", sceneId, on: true });
+  holdLocal(true);
+}
+
 /** Send a battle animation script to everyone (the battle runs on the GM's client). */
 export function broadcastBattleAnim(sceneId, steps) {
-  if (!steps?.length) return;
+  if (!steps?.length) { game.socket?.emit(SOCKET, { type: "animHold", sceneId, on: false }); holdLocal(false); return; }
   const data = { type: "battleAnim", sceneId, steps };
   game.socket?.emit(SOCKET, data);
   return playBattleAnim(data);
@@ -1039,7 +1054,11 @@ function levelUpLocal(token, level) {
  *        { kind: "fallen", units: [[tokenId, "skull" | "flag"], ...] }
  *        { kind: "surrounded", units: [tokenId, ...] }
  */
-export async function playBattleAnim({ sceneId, steps }) {
+export async function playBattleAnim(data) {
+  animCount++;
+  try { await playBattleAnimNow(data); } finally { animCount--; holdLocal(false); }
+}
+async function playBattleAnimNow({ sceneId, steps }) {
   if (!canvas?.ready || (sceneId && canvas.scene?.id !== sceneId)) return;
   const tok = (id) => canvas.tokens?.get(id);
   // morale changes float up a little after the damage, so the two numbers don't sit on top of each other (David, 2026-11-09)
