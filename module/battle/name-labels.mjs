@@ -1,9 +1,10 @@
 // Unit names (L): a dark pill under every unit stand you can see, with the unit's name and, in gold, its officer.
-// A toggle that stays on until pressed again (per computer).
+// A toggle that stays on until pressed again (per computer). Holding Alt (Foundry's "highlight objects") shows the same
+// labels for as long as it's held when L is off, instead of Foundry's own name plates (David, 2026-11-09).
 import { SIDE_COLORS } from "../unit-bars.mjs";
 
 const KEY = "qin.nameLabels";
-let on = false, layer = null, pending = null;
+let on = false, held = false, layer = null, pending = null;
 
 /** What a unit's label says (pure; exported for tests): the unit name, and the officer's name when it has one. */
 export function labelLines(name, officerName) {
@@ -17,7 +18,7 @@ function clear() { if (layer && !layer.destroyed) layer.destroy({ children: true
 
 export function drawNameLabels() {
   clear();
-  if (!on || !canvas?.ready) return;
+  if (!(on || held) || !canvas?.ready) return;
   const Txt = textClass(), T = canvas.scene?.grid?.size ?? 100;
   layer = new PIXI.Container(); layer.eventMode = "none";
   const f1 = Math.max(10, Math.round(T * 0.15)), f2 = Math.max(9, Math.round(T * 0.125));
@@ -44,14 +45,29 @@ export function drawNameLabels() {
 
 export function nameLabelsOn() { return on; }
 export function toggleNameLabels() {
-  on = !on;
+  on = !on; held = false;
   try { localStorage.setItem(KEY, on ? "1" : "0"); } catch { /* fine */ }
+  drawNameLabels();
+}
+
+/** While Alt is held, a unit's own Foundry name plate stays hidden: our labels show its name. */
+function hidePlate(tok) {
+  if (!(held || (on && canvas?.tokens?.highlightObjects)) || tok?.actor?.type !== "unit") return;
+  if (tok.nameplate && !tok.nameplate.destroyed) tok.nameplate.visible = false;
+}
+function setHeld(active) {
+  const want = !!active && !on; // only when L isn't already on
+  if (want === held) return;
+  held = want;
   drawNameLabels();
 }
 
 export function registerNameLabels() {
   try { on = localStorage.getItem(KEY) === "1"; } catch { on = false; }
-  const redraw = () => { if (!on) return; clearTimeout(pending); pending = setTimeout(drawNameLabels, 60); };
+  const redraw = () => { if (!(on || held)) return; clearTimeout(pending); pending = setTimeout(drawNameLabels, 60); };
+  Hooks.on("highlightObjects", (active) => { setHeld(active); for (const t of canvas?.tokens?.placeables ?? []) hidePlate(t); });
+  Hooks.on("refreshToken", (tok) => hidePlate(tok));
+  window.addEventListener("blur", () => setHeld(false));
   for (const h of ["createToken", "updateToken", "deleteToken", "updateActor", "canvasReady", "refreshToken"]) Hooks.on(h, redraw);
   Hooks.on("canvasTearDown", clear);
 }

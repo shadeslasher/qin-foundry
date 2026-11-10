@@ -230,7 +230,7 @@ Hooks.once("init", () => {
   registerTileTip();
   registerSounds();
   game.keybindings.register(SYSTEM_ID, "nameLabels", {
-    name: "Unit names", hint: "Show every unit's name (and its officer) under its stand. Press again to hide them.",
+    name: "Unit names", hint: "Show every unit's name (and its officer) under its stand. Press again to hide them. Holding Alt shows them while it's held.",
     editable: [{ key: "KeyL" }], precedence: CONST.KEYBINDING_PRECEDENCE?.NORMAL,
     onDown: () => { if (!canvas?.ready) return false; toggleNameLabels(); return true; },
   });
