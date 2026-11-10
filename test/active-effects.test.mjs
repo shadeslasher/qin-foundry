@@ -92,3 +92,17 @@ test('Lu Bu: a rout gives him another turn only on his own turn (myTurn)', () =>
   u(2).morale = 0; u(2).status = 'routed'; SK.onFall(s, u(2));
   assert.ok((s.skillExtra || []).some(e => e.unitId === ids[0]), 'on his own turn');
 });
+
+test('Lu Bu: end-of-turn terror — officerless units lose 5 morale, units with an officer roll a contested Command roll', () => {
+  const lb = officer('l', { passiveName: 'Terror', passive: { triggers: [
+    { on: 'turnEnd', do: [{ contest: { side: 'enemies', range: 1 }, lose: [{ morale: -5, who: { target: true } }] }] }] } });
+  const strong = { ...officer('s'), command: 12 }, weak = { ...officer('w'), command: 0 };
+  const { s, u } = setup([{ side: 'player', x: 5, y: 5, officerId: 'l' }, { side: 'enemy', x: 6, y: 5 }, { side: 'enemy', x: 4, y: 5, officerId: 's' }, { side: 'enemy', x: 5, y: 6, officerId: 'w' }, { side: 'enemy', x: 8, y: 8 }], [lb, strong, weak]);
+  const before = [1, 2, 3, 4].map(i => u(i).morale);
+  SK.onActivationEnd(s, u(0));
+  assert.strictEqual(u(1).morale, before[0] - 5, 'no officer: loses 5');
+  assert.strictEqual(u(2).morale, before[1], 'officer wins the roll: no loss');
+  assert.strictEqual(u(3).morale, before[2] - 5, 'officer loses the roll: loses 5');
+  assert.strictEqual(u(4).morale, before[3], 'not adjacent');
+  assert.ok(s.log.some(l => /has no officer to resist/.test(l.text || l.msg || JSON.stringify(l))));
+});

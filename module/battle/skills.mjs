@@ -658,7 +658,7 @@ function step(s, st, ctx, rest) {
   if (st.contest) {
     for (const t of units(st.contest)) {
       const lost = contest(s, src, t, st.aspect);
-      say(s, label + ': ' + nm(t) + (lost ? ' loses' : ' wins') + ' the contested Command roll.', { type: 'skillContest', unit: t.id, lost });
+      say(s, label + ': ' + nm(t) + (!t.officerId ? ' has no officer to resist.' : (lost ? ' loses' : ' wins') + ' the contested Command roll.'), { type: 'skillContest', unit: t.id, lost });
       const next = lost ? st.lose : st.win;
       if (next && next.length) runSteps(s, next, { ...ctx, target: t });
     }
