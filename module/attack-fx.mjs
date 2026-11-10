@@ -913,11 +913,18 @@ function fadeOutToken(token, ms = 1200) {
       t += canvas.app.ticker.deltaMS;
       const k = Math.min(1, t / ms);
       parts.forEach((p, i) => { if (!p.destroyed) p.alpha = start[i] * (1 - k); });
-      if (k >= 1) { canvas.app.ticker.remove(tick); resolve(); }
+      if (k >= 1) { canvas.app.ticker.remove(tick); token.qinGone = true; resolve(); } // stays gone until its token is deleted
     };
     canvas.app.ticker.add(tick);
   });
 }
+/* A unit that has faded out stays invisible until its token is deleted, which waits for the rest of the action's
+ * animations (e.g. ANOTHER TURN): Foundry's own token refresh would otherwise bring it back for a moment (David, 2026-11-09). */
+globalThis.Hooks?.on("refreshToken", (token) => {
+  if (!token?.qinGone) return;
+  token.alpha = 0;
+  if (token.mesh && !token.mesh.destroyed) token.mesh.alpha = 0;
+});
 
 /**
  * A volley: a dozen arrows leave the shooter's tile at staggered moments, arc through the air and come
