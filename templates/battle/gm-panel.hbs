@@ -7,6 +7,11 @@
     </div>
     {{#if ai.any}}<div class="qin-btns"><button type="button" data-action="aiPause" title="Stop or restart the AI">{{#if ai.paused}}<i class="fa-solid fa-play"></i> Resume AI{{else}}<i class="fa-solid fa-pause"></i> Pause AI{{/if}}</button></div>{{/if}}
   </div>
+  <div class="qin-card qin-gm-camera"><h4>Camera</h4>
+    <div class="qin-btns">
+      <button type="button" data-action="pullCamera" class="{{#if cameraPick}}active{{/if}}" title="Then click a tile: every player's view pans there (Shift+C)"><i class="fa-solid fa-{{#if cameraPick}}crosshairs{{else}}video{{/if}}"></i> {{#if cameraPick}}Click a tile… (Esc cancels){{else}}Move everyone's camera to a tile{{/if}}</button>
+    </div>
+  </div>
   <div class="qin-card"><h4>Selected units</h4>
     {{#if selected.length}}
       <ul class="qin-gm-sel">{{#each selected}}<li><img src="{{img}}" alt=""><span class="qin-gm-side-dot qin-side-{{side}}" title="{{side}}"></span><b>{{name}}</b><span class="qin-gm-lv">{{{chev}}} Lv {{level}}</span></li>{{/each}}</ul>

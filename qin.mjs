@@ -66,6 +66,7 @@ import { registerGameYear } from "./module/game-year.mjs";
 import { DuelScenesConfig } from "./module/battle/duel-scene.mjs";
 import { loadSpecData, specCount } from "./module/battle/skill-data.mjs";
 import { loadFullArt } from "./module/full-art.mjs";
+import "./module/battle/camera-pull.mjs";   // GM: move everyone's camera to a tile
 registerCompendiumSync();
 registerPlacedTag();
 Hooks.once("init", () => {

@@ -11,6 +11,7 @@ import { levelChevronsSVG } from "../icons.mjs";
 import { broadcastBattleAnim } from "../attack-fx.mjs";
 import { pickRandomChoices, traitTiersOf } from "./traits.mjs";
 import { aiSettings, setAI, aiLevels } from "./ai-driver.mjs";
+import { toggleCameraPick, cameraPicking, setCameraPickListener } from "./camera-pull.mjs";
 
 const { api } = foundry.applications;
 const MAX_LEVEL = E.MAX_LEVEL ?? 5;
@@ -113,6 +114,7 @@ export class GmPanel extends api.HandlebarsApplicationMixin(api.Application ?? a
       aiSide: async (ev, el) => { const side = el.dataset.side; await setAI({ [side]: !aiSettings()[side] }); GmPanel.refresh(); },
       aiPause: async () => { await setAI({ paused: !aiSettings().paused }); GmPanel.refresh(); },
       endBattle: () => confirmEndBattle(),
+      pullCamera: () => toggleCameraPick(),
       do: async (ev, el) => {
         const d = el.dataset;
         if (d.type === "openTactics") return TacticsApp.open();
@@ -142,7 +144,7 @@ export class GmPanel extends api.HandlebarsApplicationMixin(api.Application ?? a
 
   async _prepareContext() {
     const battle = getBattle();
-    const ctx = { isGM: game.user.isGM, active: battle.active, gmFireOn: gmFireActive() };
+    const ctx = { isGM: game.user.isGM, active: battle.active, gmFireOn: gmFireActive(), cameraPick: cameraPicking() };
     const ai = aiSettings(), lv = aiLevels();
     ctx.ai = { enemy: ai.enemy, ally: ai.ally, paused: ai.paused, enemyLv: lv.enemy, allyLv: lv.ally, any: ai.enemy || ai.ally };
     const sel = selectedUnits();
@@ -166,6 +168,7 @@ export class GmPanel extends api.HandlebarsApplicationMixin(api.Application ?? a
 }
 
 setGmRefresh(() => GmPanel.refresh());
+setCameraPickListener(() => GmPanel.refresh());
 // the selection list follows the tokens the GM picks
 const refreshSoon = foundry.utils.debounce ? foundry.utils.debounce(() => GmPanel.refresh(), 60) : () => GmPanel.refresh();
 Hooks.on("controlToken", () => { if (GmPanel.instance?.rendered) refreshSoon(); });
