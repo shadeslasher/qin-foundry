@@ -30,7 +30,8 @@ export function matches(o, { q = "", types = [], tier = "", faction = "", group 
   if (group && o.group !== group) return false;
   if (types.length && !types.includes(o.type)) return false;
   if (tier !== "" && tier != null && String(o.tier) !== String(tier)) return false;
-  if (q) { const hay = `${o.name} ${o.title} ${o.faction} ${o.group}`.toLowerCase(); if (!q.toLowerCase().split(/\s+/).every(w => hay.includes(w))) return false; }
+  // the search box matches the name only, not the faction or epithet (David, 2026-11-10)
+  if (q) { const hay = String(o.name ?? '').toLowerCase(); if (!q.toLowerCase().split(/\s+/).every(w => hay.includes(w))) return false; }
   return true;
 }
 
