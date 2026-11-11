@@ -197,7 +197,7 @@
         {{#unless arrived}}<span class="qin-rz-btns">
           <button type="button" data-action="rzPaint" data-id="{{id}}" class="{{#if painting}}qin-on{{/if}}" title="Paint squares for this zone (click or drag; right-click or Esc stops)"><i class="fa-solid fa-paintbrush"></i></button>
           <button type="button" data-action="rzErase" data-id="{{id}}" class="{{#if erasing}}qin-on{{/if}}" title="Erase squares"><i class="fa-solid fa-eraser"></i></button>
-          <button type="button" data-action="rzNow" data-id="{{id}}" title="Reveal the waiting units now"><i class="fa-solid fa-person-running"></i></button>
+          <button type="button" data-action="rzShow" data-id="{{id}}" class="{{#if shown}}qin-on{{/if}}" title="{{#if shown}}Hide these squares from the players again{{else}}Show these squares to the players (the units waiting there stay hidden){{/if}}"><i class="fa-solid fa-eye{{#unless shown}}-slash{{/unless}}"></i></button>
           <button type="button" data-action="rzRemove" data-id="{{id}}" title="Remove the zone (waiting units become visible)"><i class="fa-solid fa-xmark"></i></button></span>{{/unless}}
       </div>
       {{/each}}

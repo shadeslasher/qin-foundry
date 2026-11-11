@@ -10,7 +10,7 @@ import { TacticsApp } from "./tactics-ui.mjs";
 import { importBattleMap } from "./battlemap.mjs";
 import { deployListState, deployUnit, undeployUnit } from "./deploy-drop.mjs";
 import { deployCardState, startZoneBrush, clearZones, confirmZones, discardZones, savedZones } from "./deploy.mjs";
-import { reinforceCardState, newZone, removeZone, startReinforceBrush, arriveNow, setZoneRound } from "./reinforce.mjs";
+import { reinforceCardState, newZone, removeZone, startReinforceBrush, arriveNow, setZoneRound, toggleZoneShown } from "./reinforce.mjs";
 import { objectivesCardState, addCondition, removeCondition, setRounds, startPick, startExtractionBrush } from "./objectives-ui.mjs";
 
 const QUERY = `${SYSTEM_ID}.battle`;
@@ -145,6 +145,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
       rzPaint: (ev, el) => startReinforceBrush(el.dataset.id, "paint"),
       rzErase: (ev, el) => startReinforceBrush(el.dataset.id, "erase"),
       rzNow: (ev, el) => arriveNow(el.dataset.id),
+      rzShow: (ev, el) => toggleZoneShown(el.dataset.id),
       rzRemove: (ev, el) => removeZone(el.dataset.id),
     },
   };

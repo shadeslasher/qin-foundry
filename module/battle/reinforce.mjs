@@ -40,7 +40,7 @@ export function reinforceCardState(scene = canvas.scene) {
   return {
     round,
     zones: zonesOn(scene).map(z => ({
-      id: z.id, name: z.name, squares: (z.squares ?? []).length, round: z.round, arrived: !!z.arrived,
+      id: z.id, name: z.name, squares: (z.squares ?? []).length, round: z.round, arrived: !!z.arrived, shown: !!z.shown,
       waiting: waitingTokens(scene, z.id).length,
       painting: brush?.zoneId === z.id && brush.mode === "paint", erasing: brush?.zoneId === z.id && brush.mode === "erase",
       when: z.arrived ? "arrived" : z.round <= round ? "arrives when the next round starts" : `arrives at the start of round ${z.round}`,
@@ -67,6 +67,12 @@ export async function removeZone(zoneId) {
 export async function setZoneRound(zoneId, round) {
   const scene = canvas.scene; if (!scene) return;
   await saveZones(scene, zonesOn(scene).map(z => z.id === zoneId ? { ...z, round: Math.max(1, Math.round(Number(round) || 1)) } : z));
+}
+
+/** Show a zone's squares to the players, or hide them again (David, 2026-11-10). The units waiting there stay hidden. */
+export async function toggleZoneShown(zoneId) {
+  const scene = canvas.scene; if (!scene) return;
+  await saveZones(scene, zonesOn(scene).map(z => z.id === zoneId ? { ...z, shown: !z.shown } : z));
 }
 
 /* ------------------------------------------------------------ arrival */
@@ -219,13 +225,14 @@ export function startReinforceBrush(zoneId, mode) {
   onChange();
 }
 
-/* ------------------------------------------------------------ drawing (GM only) */
+/* ------------------------------------------------------------ drawing (GM; players see the zones the GM shows them) */
 
 export function drawReinforceZones(override = null) {
   if (layer && !layer.destroyed) layer.destroy({ children: true });
   layer = null;
-  if (!canvas?.ready || !game.user.isGM) return;
-  const scene = canvas.scene, zones = zonesOn(scene).filter(z => !z.arrived);
+  if (!canvas?.ready) return;
+  const gm = game.user.isGM;
+  const scene = canvas.scene, zones = zonesOn(scene).filter(z => !z.arrived && (gm || z.shown));
   if (!zones.length || !inBattle(scene)) return;
   const size = gridSize();
   layer = new PIXI.Container(); layer.eventMode = "none";
@@ -243,7 +250,7 @@ export function drawReinforceZones(override = null) {
     for (const [x, y] of tiles) g.drawRect(x * size + inset, y * size + inset, size - 2 * inset, size - 2 * inset);
     if (tiles.length) { // label on the top-left-most square
       const [lx, ly] = tiles.slice().sort((a, b) => a[1] - b[1] || a[0] - b[0])[0];
-      const t = new PIXI.Text(`${z.name} · round ${z.round}`, { fontFamily: "Signika, sans-serif", fontSize: Math.max(11, size * 0.16), fontWeight: "bold", fill: 0xfff1cc, stroke: SHADOW, strokeThickness: 3 });
+      const t = new PIXI.Text(gm ? `${z.name} · round ${z.round}${z.shown ? " · shown" : ""}` : `Reinforcements · round ${z.round}`, { fontFamily: "Signika, sans-serif", fontSize: Math.max(11, size * 0.16), fontWeight: "bold", fill: 0xfff1cc, stroke: SHADOW, strokeThickness: 3 });
       t.position.set(lx * size + size * 0.08, ly * size + size * 0.06);
       layer.addChild(t);
     }
@@ -259,4 +266,7 @@ export function registerReinforcements() {
   Hooks.on("createToken", (doc) => checkToken(doc));
   Hooks.on("updateToken", (doc, change) => { if ("x" in change || "y" in change) checkToken(doc, change); });
   Hooks.on("deleteToken", () => onChange());
+  // players: shown zones appear once the battle is under way and go when it ends (the GM redraws through the panel)
+  let was = null;
+  Hooks.on("updateSetting", (st) => { if (st.key !== `${SYSTEM_ID}.battle` || game.user.isGM) return; const now = inBattle(); if (now !== was) { was = now; drawReinforceZones(); } });
 }
