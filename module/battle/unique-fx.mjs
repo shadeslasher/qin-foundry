@@ -8,8 +8,8 @@
 // rises over each unit he picked: "Held" ones stand and fade, a unit that won its roll sees its stone crack and fall.
 // Zhang Fei's Terror of Changban — he draws breath and roars: the screen shakes, diamond shockwaves roll out to the
 // edge of his 5-square reach, and each unit it reaches flinches as a spiked ring locks round it ("Can't move").
-// Cao Cao's The Hero Commands — his war banner rises on the left of his stand and flies, three gold drum-beat waves roll
-// out to the edge of his 4-square reach, and each allied unit it reaches lights up in a column of gold as its buff lands.
+// Cao Cao's The Hero Commands — his hanging banner is raised in the middle of his stand, then a wave of small flags and
+// banners springs up over his 4-square reach, and each allied unit it reaches lights up in a column of gold as its buff lands.
 import { atSpeed } from "./battle-speed.mjs";
 import { overLayer, floatLocal } from "../attack-fx.mjs";
 import { playMoment } from "../sound.mjs";
@@ -901,69 +901,135 @@ export function playRooted(src, results, tokOf, float, reach = 5) {
 
 /* ------------------------------------------------------------ Cao Cao: The Hero Commands (David, 2026-11-11) */
 
-/** His banner rises on a pole at the left edge of his stand and unfurls, flying to the right; a gold glow gathers on
- *  him; three drum-beat waves (diamonds, out to `reach` squares across + down) roll out with a small screen shake and
- *  a gold flash on the squares in reach. Each allied unit he buffed (`touched`) is released as the last wave reaches
- *  it: a column of gold light, its stand swells, its buff burst plays (with the Buff lands sound) and its gains float up. */
+// The cloths are drawn once into canvases and cut into strips (sprites) so they can wave. The clan character comes from
+// the unit's faction banner: its centre panel (the same place on every RTK13-style banner), as fractions of the
+// banner's opaque area.
+const PANEL = [0.128, 0.125, 0.604, 0.804];
+const HC_NAVY = "rgb(33,38,64)", HC_RED = "#8a1c18", HC_GOLD = "#e0b040", HC_BLACK = "#141414";
+const HC_PAL = [[HC_NAVY, HC_RED, HC_GOLD], [HC_RED, HC_GOLD, HC_NAVY], [HC_BLACK, HC_RED, HC_GOLD], [HC_GOLD, HC_RED, HC_NAVY]];
+const HC_KINDS = ["pennant", "swallow", "streamer", "flag", "stripes"];
+const hcCloth = new Map();
+/** One cloth (a canvas turned into a texture), cached by style, colours and banner. */
+function clothTexture(kind, pal, panel) {
+  const key = kind + pal.join() + (panel?.src ?? "");
+  if (hcCloth.has(key)) return hcCloth.get(key);
+  const [A, B, C] = pal, cv = document.createElement("canvas"), sizes = { hang: [240, 446], side: [270, 500], pennant: [200, 120], swallow: [220, 110], streamer: [260, 46], flag: [200, 140], stripes: [200, 150] };
+  const [w, h] = sizes[kind]; cv.width = w; cv.height = h; const g = cv.getContext("2d");
+  const drawPanel = (x, y, pw) => { if (panel) g.drawImage(panel.img, panel.x, panel.y, panel.w, panel.h, x, y, pw, pw * panel.h / panel.w); };
+  if (kind === "hang") { // hanging banner: red border with gold studs, gold trim, swallowtail bottom
+    const tail = h * 0.14, b = w * 0.09;
+    g.beginPath(); g.moveTo(0, 0); g.lineTo(w, 0); g.lineTo(w, h); g.lineTo(w / 2, h - tail); g.lineTo(0, h); g.closePath(); g.fillStyle = HC_RED; g.fill();
+    g.beginPath(); g.moveTo(b, b); g.lineTo(w - b, b); g.lineTo(w - b, h - b * 1.2); g.lineTo(w / 2, h - tail - b * 0.6); g.lineTo(b, h - b * 1.2); g.closePath(); g.fillStyle = HC_NAVY; g.fill();
+    g.strokeStyle = HC_GOLD; g.lineWidth = 6; g.stroke();
+    drawPanel(w * 0.16, h * 0.2, w * 0.68);
+    g.fillStyle = HC_GOLD; for (let y = b * 1.5; y < h - tail - b; y += b * 1.4) for (const x of [b / 2, w - b / 2]) { g.beginPath(); g.arc(x, y, b * 0.18, 0, 7); g.fill(); }
+  } else if (kind === "side") { // side banner: saw-tooth trim on the free edge and the bottom
+    const body = w * 0.8, n = 7;
+    g.fillStyle = HC_NAVY; g.fillRect(0, 0, body, h * 0.9); g.fillStyle = HC_RED;
+    for (let i = 0; i < n; i++) { const y0 = i * h * 0.9 / n, y1 = (i + 1) * h * 0.9 / n; g.beginPath(); g.moveTo(body, y0); g.lineTo(w, (y0 + y1) / 2); g.lineTo(body, y1); g.fill(); }
+    for (let i = 0; i < 4; i++) { const x0 = i * body / 4, x1 = (i + 1) * body / 4; g.beginPath(); g.moveTo(x0, h * 0.9); g.lineTo((x0 + x1) / 2, h); g.lineTo(x1, h * 0.9); g.fill(); }
+    g.strokeStyle = HC_GOLD; g.lineWidth = 8; g.strokeRect(w * 0.05, w * 0.05, body - w * 0.1, h * 0.9 - w * 0.1);
+    drawPanel(body * 0.1, h * 0.18, body * 0.8);
+  } else if (kind === "pennant") { g.beginPath(); g.moveTo(0, 0); g.lineTo(w, h / 2); g.lineTo(0, h); g.closePath(); g.fillStyle = A; g.fill(); g.strokeStyle = C; g.lineWidth = 8; g.stroke();
+    g.beginPath(); g.moveTo(0, h * 0.3); g.lineTo(w * 0.55, h / 2); g.lineTo(0, h * 0.7); g.fillStyle = B; g.fill();
+  } else if (kind === "swallow") { g.beginPath(); g.moveTo(0, 0); g.lineTo(w, 0); g.lineTo(w * 0.72, h / 2); g.lineTo(w, h); g.lineTo(0, h); g.closePath(); g.fillStyle = A; g.fill();
+    g.fillStyle = B; g.fillRect(0, h * 0.38, w * 0.8, h * 0.24); g.strokeStyle = C; g.lineWidth = 6; g.stroke();
+  } else if (kind === "streamer") { g.beginPath(); g.moveTo(0, 0); g.lineTo(w, h * 0.35); g.lineTo(w * 0.92, h / 2); g.lineTo(w, h * 0.65); g.lineTo(0, h); g.closePath(); g.fillStyle = B; g.fill();
+    g.fillStyle = C; g.fillRect(0, h * 0.4, w * 0.85, h * 0.2);
+  } else if (kind === "flag") { g.fillStyle = B; g.fillRect(0, 0, w, h); g.fillStyle = A; g.fillRect(14, 14, w - 28, h - 28); drawPanel((w - h * 0.62) / 2, h * 0.19, h * 0.62);
+  } else { for (let i = 0; i < 5; i++) { g.fillStyle = i % 2 ? B : A; g.fillRect(0, i * h / 5, w, h / 5); } g.strokeStyle = C; g.lineWidth = 8; g.strokeRect(4, 4, w - 8, h - 8); }
+  const tex = PIXI.Texture.from(cv); hcCloth.set(key, tex); return tex;
+}
+/** A cloth on a pole as strips: `vertical` strips wave up and down (a flag flying to the right), horizontal ones sway. */
+function waving(tex, w, h, n, vertical) {
+  const c = new PIXI.Container(), base = tex.baseTexture ?? tex, W = tex.width, H = tex.height, strips = [];
+  for (let i = 0; i < n; i++) {
+    const fr = vertical ? new PIXI.Rectangle(i * W / n, 0, W / n, H) : new PIXI.Rectangle(0, i * H / n, W, H / n);
+    const sp = new PIXI.Sprite(new PIXI.Texture(base, fr));
+    if (vertical) { sp.width = w / n + 0.6; sp.height = h; sp.x = i * w / n; } else { sp.width = w; sp.height = h / n + 0.6; sp.y = i * h / n; }
+    c.addChild(sp); strips.push(sp);
+  }
+  c.qinWave = (t, amp, speed, ph) => strips.forEach((sp, i) => { const q = i / n; if (vertical) sp.y = Math.sin(q * 5 - t * speed + ph) * amp * q; else sp.x = Math.sin(t * 3.2 + q * 2.4) * amp * q; });
+  return c;
+}
+const hcRnd = (n) => { const v = Math.sin(n * 12.9898) * 43758.5453; return v - Math.floor(v); };
+
+/** His hanging banner is raised in the middle of his stand; then a wave of small flags and banners of mixed styles
+ *  springs up over every tile in `reach` (2-3 per tile), rippling out from him, waves a moment and sinks away. Each
+ *  allied unit he buffed (`touched`) is released as the wave reaches its tile: a column of gold light, its stand
+ *  swells, its buff burst plays (with the Buff lands sound) and its gains float up. */
 function heroCommands(token, touched = [], release = () => {}, reach = 4) {
   const G = Math.min(token.w, token.h), k = G / 120, ADD = PIXI.BLEND_MODES.ADD, BF = Blur(), c = token.center;
-  const ground = groundLayer(); ground.position.set(c.x, c.y);
-  const tint = new PIXI.Graphics(); ground.addChild(tint);
-  for (let dx = -reach; dx <= reach; dx++) for (let dy = -reach; dy <= reach; dy++)
-    if ((dx || dy) && Math.abs(dx) + Math.abs(dy) <= reach) tint.beginFill(0xf0be3c, 1).drawRect(dx * G - G / 2 + 1, dy * G - G / 2 + 1, G - 2, G - 2).endFill();
-  tint.alpha = 0;
+  const RAISE = [0.1, 0.55], UNROLL = [0.5, 0.8], WAVE0 = 0.95, RING = 0.16, LIVE = 1.5;
+  const ringAt = (d) => WAVE0 + (d - 1) * RING, END = ringAt(reach) + LIVE + 0.8;
+  const ground = groundLayer(); ground.position.set(c.x, c.y); ground.sortableChildren = true;
   const root = new PIXI.Container(); root.position.set(c.x, c.y); topLayer().addChild(root);
   const glow = new PIXI.Graphics(); glow.blendMode = ADD; if (BF) glow.filters = [new BF(16 * k)];
   glow.beginFill(0xffc846, 1).drawCircle(0, 0, G * 0.95).endFill(); glow.alpha = 0;
-  const waves = new PIXI.Graphics(); if (BF) waves.filters = [new BF(2.5 * k)];
-  const pole = new PIXI.Graphics(), cloth = new PIXI.Container();
-  root.addChild(glow, waves, pole, cloth);
-  // the banner: the unit's faction flag, cut into strips so it can wave
-  const actor = token.actor, fac = factionOf(actor?.system?.faction), N = 24, strips = [];
-  let fw0 = G * 0.95, fh = G * 0.72;
-  if (fac?.img) {
-    Promise.all([loadTexture(fac.img), analyseFlag(fac.img)]).then(([tex, info]) => {
-      if (!tex || cloth.destroyed) return;
-      const base = tex.baseTexture ?? tex, [x0, y0, w0, h0] = info?.rect ?? [0, 0, base.width, base.height];
-      fh = fw0 * h0 / w0 > G * 0.8 ? G * 0.8 : fw0 * h0 / w0;
-      for (let i = 0; i < N; i++) {
-        const sp = new PIXI.Sprite(new PIXI.Texture(base, new PIXI.Rectangle(x0 + i * w0 / N, y0, w0 / N, h0)));
-        sp.height = fh; sp.visible = false; cloth.addChild(sp); strips.push(sp);
+  const mast = new PIXI.Container(); root.addChild(glow, mast);
+  // the central banner and the small flags, built once the faction banner's picture is in
+  const hs = k * 1.6, hang = { pole: new PIXI.Graphics(), cloth: null, bar: new PIXI.Graphics(), tassels: new PIXI.Graphics() };
+  mast.addChild(hang.pole, hang.bar, hang.tassels);
+  const flags = [];
+  const fac = factionOf(token.actor?.system?.faction);
+  (async () => {
+    let panel = null;
+    if (fac?.img) try {
+      const [img, info] = await Promise.all([new Promise((res, rej) => { const i = new Image(); i.crossOrigin = "anonymous"; i.onload = () => res(i); i.onerror = rej; i.src = fac.img; }), analyseFlag(fac.img)]);
+      const [x0, y0, w0, h0] = info?.rect ?? [0, 0, img.naturalWidth, img.naturalHeight];
+      panel = { img, src: fac.img, x: x0 + PANEL[0] * w0, y: y0 + PANEL[1] * h0, w: (PANEL[2] - PANEL[0]) * w0, h: (PANEL[3] - PANEL[1]) * h0 };
+    } catch { /* no picture: plain cloths */ }
+    if (mast.destroyed) return;
+    hang.cloth = waving(clothTexture("hang", HC_PAL[0], panel), 56 * hs, 104 * hs, 30, false); mast.addChildAt(hang.cloth, 1);
+    // 2-3 per tile in reach, each a little offset in place and time; the same every time
+    for (let dx = -reach; dx <= reach; dx++) for (let dy = -reach; dy <= reach; dy++) {
+      const d = Math.abs(dx) + Math.abs(dy); if (!d || d > reach) continue;
+      const tx = Math.round(c.x / G) * 1000 + dx, ty = Math.round(c.y / G) * 1000 + dy, n = 2 + Math.floor(hcRnd(tx * 31 + ty * 7) * 2);
+      for (let j = 0; j < n; j++) {
+        const r = (q) => hcRnd(tx * 101 + ty * 37 + j * 13 + q);
+        const kind = r(4) < 0.18 ? "side" : HC_KINDS[Math.floor(r(5) * HC_KINDS.length)], pal = HC_PAL[Math.floor(r(6) * HC_PAL.length)];
+        const s = k * (0.42 + 0.22 * r(7)), poleH = (kind === "side" ? 150 : 85 + 50 * r(8)) * s;
+        const tex = clothTexture(kind, kind === "side" ? HC_PAL[0] : pal, panel);
+        const w = kind === "side" ? 64 * s : tex.width * 0.3 * s, h = kind === "side" ? 118 * s : tex.height * 0.3 * s;
+        const box = new PIXI.Container(); box.position.set((dx - 0.5 + 0.15 + 0.62 * r(1)) * G, (dy - 0.5 + 0.55 + 0.4 * r(2)) * G); box.zIndex = box.y; box.scale.y = 0;
+        const pole = new PIXI.Graphics().beginFill(0x3a2a18).drawRect(-1.2 * k, -poleH, 2.4 * k, poleH).endFill().beginFill(0xd8b040).drawCircle(0, -poleH - 1.5 * s, 2.8 * s).endFill();
+        const cl = waving(tex, w, h, 10, true); cl.position.set(1.2 * k, -poleH + 2 * s);
+        box.addChild(pole, cl); ground.addChild(box);
+        flags.push({ box, cl, at: ringAt(d) + r(3) * 0.12, ph: r(9) * 6, amp: (kind === "side" ? 4 : 3) * s, speed: kind === "streamer" ? 10 : 8 });
       }
-    }).catch(() => {});
-  }
+    }
+  })();
   // the allies it reaches, and when
   const hits = touched.map(id => canvas.tokens?.get(id)).filter(u => u && !u.destroyed).map(u => {
-    const d = (Math.abs(u.center.x - c.x) + Math.abs(u.center.y - c.y)) / G;
+    const d = Math.round((Math.abs(u.center.x - c.x) + Math.abs(u.center.y - c.y)) / G);
     const col = new PIXI.Graphics(); col.blendMode = ADD; if (BF) col.filters = [new BF(6 * k)]; col.alpha = 0;
     col.position.set(u.center.x, u.center.y); topLayer().addChild(col);
     for (let j = 0; j < 12; j++) col.beginFill(0xffd25a, 0.07 + j * 0.022).drawRect(-G * 0.38, G * 0.5 - (j + 1) * G * 2.2 / 12, G * 0.76, G * 2.2 / 12).endFill();
-    return { u, col, at: BEATS[2] + Math.min(d, reach + 0.5) / (reach + 0.5) * 0.55, done: false };
+    return { u, col, at: ringAt(Math.max(1, d)) + 0.12, done: false };
   });
-  const view = canvas.app.view, myStand = token.qinUnitBars;
-  const left = -token.w / 2 + G * 0.06, poleBase = token.h / 2 - G * 0.15; // in root space (root sits on his centre)
-  const diamond = (g, r) => { g.moveTo(r, 0).lineTo(0, r).lineTo(-r, 0).lineTo(0, -r).closePath(); };
-  const swell = (stand, sc) => { if (stand && !stand.destroyed) { stand.pivot.set(token.w / 2, token.h / 2); stand.position.set(token.w / 2, token.h / 2); stand.scale.set(sc); } };
-  const END = BEATS[2] + 0.55 + 1.6;
+  const swell = (stand, sc) => { if (stand && !stand.destroyed) { const t = stand.parent; stand.pivot.set(t.w / 2, t.h / 2); stand.position.set(t.w / 2, t.h / 2); stand.scale.set(sc); } };
   return run((dt, t) => {
-    // gold glow builds, holds on the beats, then settles
-    glow.alpha = t < BEATS[0] ? 0.5 * t / BEATS[0] : Math.max(0.12, 0.5 * (1 - (t - BEATS[0]) / 1.2)) * (t > END - 0.5 ? (END - t) / 0.5 : 1);
-    // the pole rises, the flag snaps open and flies to the right
-    const rise = ease((t - 0.1) / 0.4), top = poleBase - rise * G * 1.45;
-    pole.clear();
-    if (rise > 0) pole.beginFill(0x3a2a18, 1).drawRect(left - 1.5 * k, top, 3 * k, poleBase - top).endFill().beginFill(0xd8b040, 1).drawCircle(left, top, 4 * k).endFill();
-    const un = ease((t - 0.45) / 0.15), fw = fw0 * un;
-    strips.forEach((sp, i) => { sp.visible = un > 0; sp.width = fw / N + 0.6; sp.position.set(left + 1.5 * k + i / N * fw, top - 2 * k + Math.sin(i * 0.45 - t * 9) * 4 * k * (i / N)); });
-    const fade = t > END - 0.5 ? Math.max(0, (END - t) / 0.5) : 1; pole.alpha = cloth.alpha = fade;
-    // drum beats: a small shake, gold squares, a diamond wave each (the last one strongest); he swells on each
-    let sk = 0, za = 0, sc = 1;
-    for (const b of BEATS) { const q = t - b; if (q > 0 && q < 0.18) sk = Math.max(sk, 1 - q / 0.18); if (q > 0 && q < 0.5) za = Math.max(za, 0.28 * (1 - q / 0.5)); if (q > 0 && q < 0.2) sc = Math.max(sc, 1 + 0.08 * (1 - q / 0.2)); }
-    view.style.translate = sk ? `${(Math.sin(t * 80) * 3 * sk).toFixed(1)}px ${(Math.cos(t * 71) * 2 * sk).toFixed(1)}px` : "";
-    tint.alpha = za; swell(myStand, sc);
-    waves.clear();
-    BEATS.forEach((b, i) => { const q = (t - b) / 0.55; if (q < 0 || q > 1) return; const last = i === 2;
-      waves.lineStyle((last ? 12 : 7) * k * (1 - q * 0.5), last ? 0xfff0b8 : 0xf0c050, (1 - q) * (last ? 1 : 0.75)); diamond(waves, G * 0.6 + q * (reach + 0.5) * G); });
-    // the allies: release each as the last wave reaches it
+    glow.alpha = (t < 0.6 ? 0.5 * t / 0.6 : Math.max(0.1, 0.5 * (1 - (t - 0.6) / 1.4))) * (t > END - 0.5 ? Math.max(0, (END - t) / 0.5) : 1);
+    // the central banner: the pole rises from the middle of his stand, the cloth unrolls from the crossbar
+    const rise = ease((t - RAISE[0]) / (RAISE[1] - RAISE[0])), unroll = ease((t - UNROLL[0]) / (UNROLL[1] - UNROLL[0]));
+    const foot = G * 0.3, poleH = 150 * hs * rise, top = foot - poleH + 8 * hs, w = 56 * hs;
+    hang.pole.clear(); hang.bar.clear(); hang.tassels.clear();
+    if (rise > 0) hang.pole.beginFill(0x3a2a18).drawRect(-1.5 * hs, foot - poleH, 3 * hs, poleH).endFill().beginFill(0xd8b040).drawCircle(0, foot - poleH - 3 * hs, 4 * hs).endFill();
+    if (unroll > 0) {
+      hang.bar.beginFill(0x3a2a18).drawRect(-w / 2 - 5 * hs, top - 3 * hs, w + 10 * hs, 3 * hs).endFill().beginFill(0xd8b040).drawCircle(-w / 2 - 5 * hs, top - 1.5 * hs, 3 * hs).drawCircle(w / 2 + 5 * hs, top - 1.5 * hs, 3 * hs).endFill();
+      for (const x of [-w / 2 - 5 * hs, w / 2 + 5 * hs]) hang.tassels.lineStyle(2 * hs, 0xc8302a).moveTo(x, top).lineTo(x + Math.sin(t * 3) * 2 * hs, top + 14 * hs);
+    }
+    if (hang.cloth) { hang.cloth.visible = unroll > 0; hang.cloth.position.set(-w / 2, top); hang.cloth.qinWave(t, 5 * hs, 0, 0);
+      const m = hang.cloth.mask ?? (hang.cloth.mask = new PIXI.Graphics()); if (!m.parent) mast.addChild(m);
+      m.clear().beginFill(0xffffff).drawRect(-w, top - 2, w * 2, 104 * hs * unroll + 4).endFill(); }
+    mast.alpha = t > END - 0.5 ? Math.max(0, (END - t) / 0.5) : 1;
+    // the wave of small flags: each springs up with a little overshoot, waves, then sinks away
+    for (const f of flags) {
+      const q = t - f.at; if (q < 0) continue;
+      const grow = q < 0.2 ? ease(q / 0.2) * 1.1 : q < 0.3 ? 1.1 - 0.1 * ((q - 0.2) / 0.1) : 1, out = q > LIVE ? Math.max(0, 1 - (q - LIVE) / 0.4) : 1;
+      f.box.scale.y = grow * (0.6 + 0.4 * out); f.box.alpha = out; f.cl.qinWave(t, f.amp, f.speed, f.ph);
+    }
+    // the allies: released as the wave reaches their tile
     for (const h of hits) {
       const q = t - h.at; if (q < 0) continue;
       if (!h.done) { h.done = true; release([h.u.id]); floatLocal({ x: h.u.center.x, y: h.u.center.y - G * 0.5 }, "xp", "Attack +5"); setTimeout(() => floatLocal({ x: h.u.center.x, y: h.u.center.y - G * 0.2 }, "surrounded", "Move +1 · Morale ≥ 10"), atSpeed(120)); }
@@ -971,15 +1037,12 @@ function heroCommands(token, touched = [], release = () => {}, reach = 4) {
       swell(h.u.qinUnitBars, 1 + 0.12 * Math.sin(Math.min(1, q / 0.3) * Math.PI));
     }
     if (t < END) return true;
-    view.style.translate = ""; swell(myStand, 1);
     for (const h of hits) { swell(h.u.qinUnitBars, 1); h.col.destroy(); if (!h.done) release([h.u.id]); }
     root.destroy({ children: true }); ground.destroy({ children: true });
     return false;
   });
 }
-const BEATS = [0.55, 0.85, 1.15];
 const ease = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : 1 - (1 - x) ** 3);
-async function loadTexture(src) { try { return await (foundry.canvas?.loadTexture ?? globalThis.loadTexture)(src); } catch { return null; } }
 
 /* ------------------------------------------------------------ registry */
 
