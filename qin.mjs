@@ -454,6 +454,16 @@ Hooks.on("preCreateToken", (doc, data) => {
   if (doc.disposition !== want) doc.updateSource({ disposition: want });
 });
 
+/* Officers placed on a map come in with full Chi (David, 2026-11-10: they arrived with 0). Only characters no player owns,
+ * and only when they have none: a player's character keeps what it has. Runs on the active GM's client. */
+Hooks.on("createToken", async (doc) => {
+  if (!game.user.isGM || (game.users.activeGM && game.users.activeGM !== game.user)) return;
+  const a = doc.actor;
+  if (a?.type !== "character" || a.hasPlayerOwner) return;
+  const max = Number(a.system.chi?.max) || 0, cur = Number(a.system.chi?.value) || 0;
+  if (max > 0 && cur <= 0) await a.update({ "system.chi.value": max });
+});
+
 // Changing a unit's side updates what its future tokens do
 Hooks.on("preUpdateActor", (actor, change) => {
   const side = foundry.utils.getProperty(change, "system.side");
