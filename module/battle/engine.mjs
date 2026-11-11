@@ -1017,8 +1017,17 @@ function disciplinedBonus(u) { return tierVal(trait(u, 'disciplined'), [5, 10, 1
 function buildRoll(s, unit, role, ctx) {
   const t = typeOf(s, unit), o = officerOf(s, unit), p = passive(s, unit);
   const other = role === 'attacker' ? ctx.defender : ctx.attacker;
-  const dice = yinYang();
-  const parts = [['Yin/Yang (' + dice.yin + ' vs ' + dice.yang + ')', dice.value]];
+  let dice = yinYang(), diceNote = '';
+  // Best / worst of two (officers' battlefield passives, David, 2026-11-11): Zhang Fei's attacks roll twice and keep the
+  // higher; an attack on Sun Jian's unit rolls twice and keeps the lower. Both at once cancel out.
+  if (role === 'attacker') {
+    const best = SK.flag(s, unit, 'bestOfTwoAttack', { role: 'attacker', ranged: ctx.ranged, charge: ctx.charge, other }), worst = !!other && SK.flag(s, other, 'worstOfTwoAgainst', { role: 'defender', ranged: ctx.ranged, charge: ctx.charge, other: unit });
+    if (best !== worst && (best || worst)) {
+      const d2 = yinYang(), keep = best ? (d2.value > dice.value ? d2 : dice) : (d2.value < dice.value ? d2 : dice);
+      diceNote = (best ? ', best of ' : ', worst of ') + dice.value + ' and ' + d2.value; dice = keep;
+    }
+  }
+  const parts = [['Yin/Yang (' + dice.yin + ' vs ' + dice.yang + diceNote + ')', dice.value]];
   parts.push(['Command', o ? o.command : 0]); // the officer's Command at full value (Fire and weapon skill don't add to the roll)
   parts.push(['Unit Value', t.unitValue || 0]);
 

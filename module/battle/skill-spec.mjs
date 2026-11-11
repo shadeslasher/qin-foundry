@@ -22,7 +22,9 @@ export const FLAGS = ['noSurrender', 'noRout', 'cantBeSurrounded', 'noRearAgains
   // 2026-11-09: Sweep:N — whenever it attacks, every enemy unit in the 3x3 square around it takes N casualties, ignoring armor and evasion (Guan Yu)
   'sweep',
   // sweepMorale:N — each unit its sweep hits also loses N morale (Guan Yu, 2026-11-09)
-  'sweepMorale'];
+  'sweepMorale',
+  // 2026-11-11: its attacks roll twice and keep the higher (Zhang Fei) / attacks on it roll twice and keep the lower (Sun Jian)
+  'bestOfTwoAttack', 'worstOfTwoAgainst'];
 export const EVENTS = ['battleStart', 'roundStart', 'turnStart', 'turnEnd', 'win', 'lose', 'attackWin', 'defendWin', 'kill',
   'allyFalls', 'enemyEndsAdjacent', 'alliesTurnStart', 'firstBelowHalfMorale',
   'enemyTurnStart', 'roundEnd', 'enemyFalls', 'attacked', 'allyWins',
@@ -53,7 +55,9 @@ const FILTER_KEYS = ['myTurn', 'category', 'melee', 'levy', 'trait', 'officer', 
   'lowerGround', 'fallKind', 'byAllyWithin', 'allyFallenThisBattle', 'nearPick',
   'nextToTerrain', 'impassableAdjacent', 'carrying', 'onCatapult', 'arrivedAsReinforcement', 'attackedSinceItsTurn', 'empty', 'ownSide',
   // 2026-11-09
-  'homeDistrict'];
+  'homeDistrict',
+  // 2026-11-11: attacks already made on it this round (Zhang Liao's growing damage reduction)
+  'attacksTakenAtLeast'];
 const COND_KEYS = [...FILTER_KEYS, 'attacking', 'defending', 'kind', 'moved', 'notMoved', 'movedAtLeast', 'firstAttackOfBattle',
   'firstAttackOfTurn', 'notAttackedThisBattle', 'selfOnTerrain', 'selfHidden', 'selfNotMoved', 'selfMoraleAbove', 'selfMoraleBelow'];
 const STEP_KEYS = ['morale', 'health', 'buff', 'move', 'attack', 'contest', 'status', 'push', 'reveal', 'fire', 'resetCooldown',

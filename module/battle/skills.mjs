@@ -120,6 +120,7 @@ export function matches(s, f, u, ctx = {}) {
       case 'officerTierAtLeast': { const o = u.officerId ? E.officerOf(s, u) : null; if (!o || (Number(o.tier) || 0) < Number(v)) return false; break; }
       case 'lessMoraleThanSource': if (!(ctx.src && (u.morale ?? 50) < (ctx.src.morale ?? 50)) === !!v) return false; break;
       case 'holding': if (!!(u.round && u.round.holding) !== !!v) return false; break;
+      case 'attacksTakenAtLeast': if (!(((u.round && u.round.attacksTaken) || 0) >= Number(v))) return false; break; // attacks already made on it this round (2026-11-11)
       case 'wasAttackedThisTurn': if (!!(u.round && u.round.wasAttacked) !== !!v) return false; break;
       case 'attackedThisTurn': if (!!(u.round && u.round.madeAttack) !== !!v) return false; break;
       // v3: what happened earlier in the battle (fx memory, kept by skills.mjs)
@@ -1179,7 +1180,7 @@ const sgn = (n) => (n >= 0 ? '+' : '−') + Math.abs(n);
 export function describeBuff(b) {
   const parts = [];
   for (const m of b.mods || []) parts.push(STAT_TEXT[m.stat] + ' ' + (['moraleLossLess', 'checkpointLess', 'skillLossLess', 'anyLossLess', 'forcedMarchCost'].includes(m.stat) ? '−' + m.value : m.stat === 'regenCap' ? 'up to ' + m.value : sgn(m.value)));
-  for (const f of b.flags || []) { const [fn, arg] = String(f.flag).split(':'); parts.push(fn === 'sweep' ? arg + ' damage to every other enemy around it when it attacks (ignores armor and evasion)' : fn === 'cantBeSurrounded' ? "can't be surrounded" : fn === 'sweepMorale' ? 'enemies its sweep hits lose ' + arg + ' morale' : String(f.flag).replace(/([A-Z])/g, ' $1').toLowerCase()); }
+  for (const f of b.flags || []) { const [fn, arg] = String(f.flag).split(':'); parts.push(fn === 'sweep' ? arg + ' damage to every other enemy around it when it attacks (ignores armor and evasion)' : fn === 'cantBeSurrounded' ? "can't be surrounded" : fn === 'sweepMorale' ? 'enemies its sweep hits lose ' + arg + ' morale' : fn === 'bestOfTwoAttack' ? 'its attacks roll twice and keep the higher' : fn === 'worstOfTwoAgainst' ? 'attacks on it roll twice and keep the lower' : String(f.flag).replace(/([A-Z])/g, ' $1').toLowerCase()); }
   if (b.status) parts.push(STATUS_TEXT[b.status]);
   return parts.join(', ');
 }
