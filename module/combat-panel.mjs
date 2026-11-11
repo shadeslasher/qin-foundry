@@ -190,7 +190,22 @@ export class CombatPanel extends api.HandlebarsApplicationMixin(api.ApplicationV
 }
 
 /** Live updates: the actor, its items and the combat. */
+/** I (David, 2026-11-10; C is Foundry's own character-sheet key): the Combat panel of the selected token's character, else your own character; press again to close it. */
+function togglePanelKey() {
+  const tok = canvas?.tokens?.controlled?.find(t => t.actor && t.actor.type !== "unit");
+  const actor = tok?.actor ?? game.user.character;
+  if (!actor || actor.type === "unit") return ui.notifications.info("Select a character's token first (or have a character assigned to you).");
+  const app = CombatPanel.instances.get(actor.uuid);
+  if (app?.rendered) return app.close();
+  CombatPanel.open(actor);
+}
+
 export function registerCombatPanel() {
+  Hooks.once("init", () => game.keybindings.register("qin", "combatPanel", {
+    name: "Open the Combat panel", hint: "Of the selected token's character, or your own character if none is selected; press again to close it.",
+    editable: [{ key: "KeyI" }], precedence: CONST.KEYBINDING_PRECEDENCE?.NORMAL,
+    onDown: () => { togglePanelKey(); return true; },
+  }));
   let pending = null;
   const all = () => { clearTimeout(pending); pending = setTimeout(() => CombatPanel.refresh(), 30); };
   setCombatStateChangeHandler(all);
