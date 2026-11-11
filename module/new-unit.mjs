@@ -267,7 +267,7 @@ async function sideFolder(side) {
 }
 
 /** The owner's folder: "Player Units" / "<player>'s units", or "Player Units" / "No owner" for a unit nobody owns yet (made when first needed). */
-async function ownerFolder(userId) {
+export async function ownerFolder(userId) {
   const user = userId ? game.users.get(userId) : null;
   const find = findFolder;
   const top = find("Player Units", null) ?? await Folder.create({ name: "Player Units", type: "Actor", sorting: "a" });

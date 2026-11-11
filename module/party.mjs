@@ -5,6 +5,7 @@
 import { officerEligibility } from "./officer-rules.mjs";
 import { RecruitApp, pickArmies, armiesFor } from "./recruit.mjs";
 import { EquipmentPicker, equipmentOf } from "./equipment.mjs";
+import { ownerFolder } from "./new-unit.mjs";
 import { partyOfficers, addToParty, removeFromParty, assignOfficer, isPartyOfficer } from "./officer-codex.mjs";
 
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
@@ -47,6 +48,21 @@ export function restoreUpdate(actor, what) {
   return Object.keys(u).length ? u : null;
 }
 
+/** GM: take a unit out of the party. The player loses ownership, its officer steps down and it moves to
+ *  "Player Units / No owner"; the actor itself is kept (delete it from the Actors list to get rid of it). David, 2026-11-10. */
+export async function removeUnit(actor) {
+  if (!game.user.isGM || !actor) return;
+  const owner = ownerOf(actor);
+  const ok = await foundry.applications.api.DialogV2.confirm({ window: { title: "Remove from party" }, rejectClose: false,
+    content: `<p>Take <b>${esc(actor.name)}</b> out of ${owner ? `${esc(owner.name)}'s units` : "the party"}?</p><p class="qin-muted">The unit is kept in the Actors list, under Player Units / No owner, with nobody owning it. Its officer steps down. No coin is refunded.</p>` });
+  if (!ok) return;
+  const upd = { "ownership.default": 0, folder: null, "system.officer": "" };
+  for (const id of Object.keys(actor.ownership ?? {})) if (id !== "default" && !game.users.get(id)?.isGM) upd[`ownership.${id}`] = 0;
+  upd.folder = (await ownerFolder(null))?.id ?? null;
+  await actor.update(upd);
+  ui.notifications.info(`${actor.name} has left the party.`);
+}
+
 async function restore(actors, what) {
   if (!game.user.isGM) return;
   const updates = actors.map(a => { const u = restoreUpdate(a, what); return u ? { _id: a.id, ...u } : null; }).filter(Boolean);
@@ -64,6 +80,7 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
     actions: {
       heal: PartyPanel.#act, morale: PartyPanel.#act, open: PartyPanel.#open,
       recruit: PartyPanel.#recruit, armies: PartyPanel.#armies, coin: PartyPanel.#coin,
+      removeUnit: (ev, el) => removeUnit(game.actors.get(el.dataset.id)),
       equip: (ev, el) => EquipmentPicker.open(game.actors.get(el.dataset.id)),
       tab: (ev, el) => { setTab(el.dataset.tab); PartyPanel.refresh(); },
       offSheet: (ev, el) => fromUuidSync(el.dataset.uuid)?.sheet?.render(true),
@@ -113,7 +130,8 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
     const btns = (scope, id = "", a = null) => gm ? `<span class="qin-party-btns">
         ${scope === "unit" ? equipBtn(a) : ""}
         <button type="button" data-action="heal" data-scope="${scope}" data-id="${id}" data-tooltip="Heal to full"><i class="fa-solid fa-heart-pulse"></i></button>
-        <button type="button" data-action="morale" data-scope="${scope}" data-id="${id}" data-tooltip="Set morale to its default (${DEFAULT_MORALE}, more for Disciplined units)"><i class="fa-solid fa-flag"></i></button></span>`
+        <button type="button" data-action="morale" data-scope="${scope}" data-id="${id}" data-tooltip="Set morale to its default (${DEFAULT_MORALE}, more for Disciplined units)"><i class="fa-solid fa-flag"></i></button>
+        ${scope === "unit" ? `<button type="button" class="qin-party-remove" data-action="removeUnit" data-id="${id}" data-tooltip="Remove from the party"><i class="fa-solid fa-user-minus"></i></button>` : ""}</span>`
       : scope === "unit" && a?.isOwner ? `<span class="qin-party-btns">${equipBtn(a)}</span>` : ""; // a player equips their own units
     // officer: the owning player's characters (eligible ones only), editable by whoever owns the unit
     const officerPicker = (a, g) => {
