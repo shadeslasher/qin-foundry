@@ -141,7 +141,7 @@ function outcomeScore(a, b, side, S, M) {
 /** Raw-numbers guess at the casualties of a melee or ranged hit (no traits beyond the charge, no holds). */
 function naiveHit(s, att, def, tiles) {
   const ta = E.typeOf(s, att), td = E.typeOf(s, def);
-  const charge = ta.category === 'cavalry' && ta.weapon !== 'ranged' && tiles >= 2 ? Math.max(0, tiles - 1) + [0, 4, 6, 8, 10][att.fierceCharge || 0] : 0;
+  const charge = ta.category === 'cavalry' && ta.weapon !== 'ranged' && tiles >= 2 ? [0, 4, 6, 8, 8][att.fierceCharge || 0] : 0; // charges add only the Fierce Charge bonus (0.123.0)
   return E.casualtiesOf((ta.damage || 0) + 2 + charge, td.armor || 0, ta.armorPen || 0, 0, 0);
 }
 
@@ -149,7 +149,7 @@ function naiveHit(s, att, def, tiles) {
 function traitHit(s, att, def, tiles, holding) {
   const ta = E.typeOf(s, att), td = E.typeOf(s, def);
   const cav = ta.category === 'cavalry' && ta.weapon !== 'ranged';
-  const charge = cav && tiles >= 2 ? Math.max(0, tiles - 1) + [0, 4, 6, 8, 10][att.fierceCharge || 0] : 0;
+  const charge = cav && tiles >= 2 ? [0, 4, 6, 8, 8][att.fierceCharge || 0] : 0;
   let armor = (td.armor || 0) + [0, 1, 2, 3][Math.min(3, E.unitTrait(def, 'reinforced armor'))];
   if (td.shield && E.unitTrait(att, 'shield breaker')) armor -= [0, 1, 2, 3, 4][Math.min(4, E.unitTrait(att, 'shield breaker'))];
   if (cav && E.unitTrait(def, 'anti-cavalry')) armor += 2 * Math.min(3, E.unitTrait(def, 'anti-cavalry'));
@@ -371,7 +371,9 @@ export function strategy(s, side) {
   const siegeS = { take: [...take.keys()].map(ptOf), keep: [...keep.keys()].map(ptOf) };
   const siege = siegeRoles(s, side, siegeS);
   const reinforceSquares = coming.filter(r => Number.isFinite(r.x) && Number.isFinite(r.y)).map(r => ({ x: r.x, y: r.y }));
-  return { posture, ...POSTURE[posture], aggr, reinforceSquares, burn, siege, keep: [...keep.keys()].map(ptOf), take: [...take.keys()].map(ptOf), jobs, protect, hunt, reinforceRound, why };
+  const team = teamPlan(s, side, jobs, protect);
+  if (team.why) why.push(...team.why);
+  return { posture, ...POSTURE[posture], aggr, reinforceSquares, burn, siege, focus: team.focus, converge: team.converge, keep: [...keep.keys()].map(ptOf), take: [...take.keys()].map(ptOf), jobs, protect, hunt, reinforceRound, why };
 }
 
 /**
@@ -648,6 +650,130 @@ function routeDist(s, u, p, pts) {
   return Number.isFinite(d) ? d : 40 + nearest(p, pts); // no way in at all: far, but still prefer nearer
 }
 
+// ---------------------------------------------------------------- working together (David, 2026-11-11)
+//
+// Combined moves (Art of War 3+): the side picks one enemy unit that several of its units can reach this turn and
+// that none of them would break alone, and gives them roles in order: ranged units soften it, foot close its sides
+// and pin it, cavalry come last for the finishing blow. Members are drawn to attack it and to close in on its sides;
+// officer units whose partners still have to act Hold to go after them, and officer-less units are picked in order.
+// Level 3 pairs two units, 4 up to three, 5 up to four.
+// Reading ahead (Art of War 4+): units that can't strike anything worth it this turn converge on a target they can
+// reach together within two rounds (three at level 5): they gather just outside its army's reach, on its open side,
+// so they strike together next round rather than arriving one at a time.
+
+const ROLE_ORDER = { soften: 0, pin: 1, finish: 2 };
+function roleOf(s, u) {
+  const t = E.typeOf(s, u);
+  if (t.weapon === 'ranged') return 'soften';
+  return t.category === 'cavalry' || E.unitTrait(u, 'fierce charge') ? 'finish' : 'pin';
+}
+const reachOf = (s, u) => E.movementOf(s, u) + (E.typeOf(s, u).weapon === 'ranged' ? Math.max(1, E.typeOf(s, u).rangeMax || 1) : 1);
+
+/** The side's combined attack this turn and its convergence for the next rounds: { focus, converge, why }. */
+export function teamPlan(s, side, jobs = new Map(), protect = new Set()) {
+  const lvl = sideLevel(s, side), out = { focus: null, converge: null, why: [] };
+  if (lvl < 3) return out;
+  const al = E.alliance(side), live = E.liveUnits(s);
+  const mine = live.filter(u => E.alliance(u.side) === al && u.side === side);
+  const foes = live.filter(e => E.alliance(e.side) !== al && E.hostile(e, mine[0] || e) && (E.visibleTo ? E.visibleTo(s, e, al) : !e.hidden));
+  if (mine.length < 2 || !foes.length) return out;
+  // units free to join: not tied to a square they anchor, not kept out of harm's way, not too shaken
+  const free = mine.filter(u => !(jobs.get(u.id)?.anchor) && !protect.has(u.id) && Number(u.morale ?? 50) >= 25);
+  const maxN = [0, 0, 0, 2, 3, 4][lvl];
+  const hit = (u, e) => traitHit(s, u, e, Math.max(0, E.manhattan(u, e) - 1), !!(e.round && e.round.holding));
+  // this turn: who can still act and reach each enemy
+  const ready = free.filter(u => !(u.round && u.round.activated));
+  let best = null;
+  for (const e of foes) {
+    const can = ready.filter(u => E.manhattan(u, e) <= reachOf(s, u)).map(u => ({ u, dmg: hit(u, e), role: roleOf(s, u) }));
+    // partners who already struck it this round still count towards the kill
+    const done = free.filter(u => u.round && u.round.activated && u.round.attacked && u.round.attackedId === e.id).length;
+    if (can.length + done < 2) continue;
+    can.sort((a, b) => b.dmg - a.dmg);
+    if (can[0].dmg >= e.men && !done) continue; // one unit breaks it alone: no need to combine
+    const team = can.slice(0, maxN - done);
+    if (!team.length) continue;
+    const dmg = team.reduce((t, m) => t + m.dmg, 0);
+    const kills = dmg >= e.men;
+    const melee = team.filter(m => m.role !== 'soften').length;
+    const ringable = !cantBeRinged(s, e) ? Math.min(4, melee + closedSides(s, e, al)) : 0;
+    let v = worth(s, e) * (kills ? 1.6 : Math.min(1, dmg / Math.max(1, e.men)) * 0.8) + worth(s, e) * RING[ringable] * 2;
+    if (protect.has(e.id)) v *= 0.5;
+    // weakened units are worth finishing together; fresh ones mostly for the ring around them
+    v += worth(s, e) * 0.4 * (1 - e.men / mx(e));
+    v -= 0.05 * team.reduce((t, m) => t + E.manhattan(m.u, e), 0); // nearer teams first
+    if (!best || v > best.v) best = { v, e, team, kills };
+  }
+  if (best) {
+    const members = best.team.map(m => ({ id: m.u.id, role: m.role, order: ROLE_ORDER[m.role] }))
+      .sort((a, b) => a.order - b.order);
+    out.focus = { targetId: best.e.id, members, kills: best.kills };
+    out.why.push('combined attack on ' + (best.e.name || best.e.id) + ': ' + members.map(m => m.role).join(', '));
+  }
+  // reading ahead: units with nothing in reach converge on a target for the next rounds
+  if (lvl >= 4) {
+    const ahead = lvl >= 5 ? 3 : 2;
+    const inFocus = new Set((out.focus?.members || []).map(m => m.id));
+    const idle = ready.filter(u => !inFocus.has(u.id) && !foes.some(e => E.manhattan(u, e) <= reachOf(s, u)));
+    let bc = null;
+    for (const e of foes) {
+      const team = idle.filter(u => E.manhattan(u, e) <= reachOf(s, u) + E.movementOf(s, u) * (ahead - 1))
+        .map(u => ({ u, dmg: hit(u, e) })).sort((a, b) => b.dmg - a.dmg).slice(0, maxN);
+      if (team.length < 2) continue;
+      const dmg = team.reduce((t, m) => t + m.dmg, 0);
+      const v = worth(s, e) * (dmg >= e.men ? 1.4 : Math.min(1, dmg / Math.max(1, e.men)) * 0.7) - 0.03 * team.reduce((t, m) => t + E.manhattan(m.u, e), 0);
+      if (!bc || v > bc.v) bc = { v, e, team };
+    }
+    if (bc) {
+      // the open side: away from the target's friends
+      const friends = foes.filter(f => f.id !== bc.e.id && E.manhattan(f, bc.e) <= 6);
+      const cx = friends.length ? friends.reduce((t, f) => t + f.x, 0) / friends.length : bc.e.x, cy = friends.length ? friends.reduce((t, f) => t + f.y, 0) / friends.length : bc.e.y;
+      out.converge = { targetId: bc.e.id, members: new Set(bc.team.map(m => m.u.id)), away: { x: Math.sign(bc.e.x - cx), y: Math.sign(bc.e.y - cy) }, ahead };
+      out.why.push('gathering ' + bc.team.length + ' units to strike ' + (bc.e.name || bc.e.id) + ' together within ' + ahead + ' rounds');
+    }
+  }
+  return out;
+}
+
+/** A member of the combined attack: is anyone ahead of it in the order still to act? */
+function waitingFor(s, S, unitId) {
+  const f = S.focus; if (!f) return false;
+  const me = f.members.find(m => m.id === unitId); if (!me) return false;
+  return f.members.some(m => m.order < me.order && (() => { const o = E.unitById(s, m.id); return o && o.status === 'active' && !(o.round && o.round.activated); })());
+}
+
+/** Plan bonuses for the combined attack and the convergence (added in plans and positionScore). */
+function teamScore(s0, s1, u0, u1, S, P, act) {
+  if (!u1) return 0;
+  const w = worth(s0, u0); let v = 0;
+  const f = S.focus, me = f && f.members.find(m => m.id === u0.id);
+  if (me) {
+    const t0 = E.unitById(s0, f.targetId), t1 = E.unitById(s1, f.targetId);
+    if (t0) {
+      const lw = [0, 0, 0, 0.8, 1, 1.15][P.level];
+      if (act && act.type === 'attack' && act.targetId === f.targetId) v += lw * 0.18 * worth(s0, t0);
+      if (t1 && t1.status !== 'active') v += lw * 0.25 * worth(s0, t0); // the team's work done
+      // foot that couldn't strike yet: stand on a side of the target (pinning it for the others)
+      if (me.role === 'pin' && t1 && t1.status === 'active') v += lw * 0.06 * w * ((E.manhattan(u0, t0) > 1 ? 1 : 0) - (E.manhattan(u1, t1) > 1 ? 1 : 0)) + lw * 0.01 * w * (E.manhattan(u0, t0) - E.manhattan(u1, t1));
+    }
+  }
+  const c = S.converge;
+  if (c && c.members.has(u0.id) && !(act && act.type === 'attack')) {
+    const t = E.unitById(s0, c.targetId);
+    if (t) {
+      const lw = P.level >= 5 ? 1.2 : 1;
+      const r = reachOf(s0, u0);
+      // the staging ring: just within striking reach next round
+      const ring = (p) => Math.abs(E.manhattan(p, t) - (r + 1));
+      v += lw * 0.05 * w * (ring(u0) - ring(u1));
+      // on the target's open side
+      const side = (p) => (Math.sign(p.x - t.x) === c.away.x && c.away.x ? 1 : 0) + (Math.sign(p.y - t.y) === c.away.y && c.away.y ? 1 : 0);
+      v += lw * 0.02 * w * (side(u1) - side(u0));
+    }
+  }
+  return v;
+}
+
 /** Where the unit stands at the end of its turn: its job, closing on enemies, good ground, and (level 5) next round's strikes. */
 function positionScore(s0, s1, u0, u1, side, P, S, M) {
   if (!u1 || u1.status !== 'active') return 0;
@@ -820,7 +946,7 @@ export function plans(s, unitId, opts = {}) {
   const consider = (actions, f) => {
     const u1 = E.unitById(f, unitId);
     const o1 = outcomeScore(base, f, side, S, M), p1 = positionScore(base, f, u0, u1, side, P, S, M) + traitPosition(base, f, u0, u1, P, S), t1 = threatOf(f, u1, side, P, areas, S, M) + pressureOf(f, u1, P);
-    let sc = o1 + p1 + t1;
+    let sc = o1 + p1 + t1 + teamScore(base, f, u0, u1, S, P, actions[actions.length - 1]);
     out.push({ actions, score: sc, state: f });
   };
   // reload first if the weapon needs it
@@ -894,7 +1020,8 @@ export function plans(s, unitId, opts = {}) {
       };
       const scores = runs.map(g => { const u1 = E.unitById(g, unitId); return outcomeScore(base, g, side, S, M) + positionScore(base, g, u0, u1, side, P, S, M) + traitPosition(base, g, u0, u1, P, S) + threatOf(g, u1, side, P, areas, S, M) + pressureOf(g, u1, P) + fireGain(g); });
       const sup = P.level >= 2 ? suppressValue(f, u, target) * [0, 0, 0.6, 0.85, 1, 1.1][P.level] : 0;
-      out.push({ actions: [...pre, act], score: scores.reduce((t, x) => t + x, 0) / scores.length + sup, state: runs[0] });
+      const team = runs.reduce((t, g) => t + teamScore(base, g, u0, E.unitById(g, unitId), S, P, act), 0) / runs.length;
+      out.push({ actions: [...pre, act], score: scores.reduce((t, x) => t + x, 0) / scores.length + sup + team, state: runs[0] });
     }
     // hold position (defensive stance)
     if (!u.round.attacked && !acf.forcedMarched) {
@@ -1132,6 +1259,8 @@ export function decision(s, unitId, opts = {}) {
   const p = E.prompt(s);
   const u = E.unitById(s, unitId), side = u.side, P = profile(opts.level ?? sideLevel(s, side));
   if (p.kind === 'final' || !P.delay) return { type: 'decide', unitId, choice: 'act' };
+  // a combined attack: wait for the partners ahead of him in the order (ranged first, cavalry last)
+  if (waitingFor(s, strategy(s, side), unitId)) return { type: 'decide', unitId, choice: 'hold' };
   const foesToCome = E.liveUnits(s).filter(e => E.hostile(e, u) && !e.round.activated && E.manhattan(e, u) <= 12);
   if (!foesToCome.length) return { type: 'decide', unitId, choice: 'act' };
   const sc = bestScore(s, unitId, { ...opts, level: P.level });
@@ -1145,10 +1274,13 @@ export function pickUnit(s, side, opts = {}) {
   if (!mine.length) return null;
   if (P.naive) return { type: 'begin', unitId: mine[Math.floor(seeded(hashStr(side + s.turn.round + mine.length))() * mine.length)].id };
   let best = mine[0], bestV = -Infinity;
+  const S = P.level >= 3 ? strategy(s, side) : null;
   for (const u of mine) {
     let v = bestScore(s, u.id, { ...opts, level: Math.min(P.level, 3) });
     // thinking a move ahead: Suppressing Fire goes before the charge it opens up
     if (P.level >= 3) for (const e of E.liveUnits(s)) if (E.hostile(e, u) && E.manhattan(e, u) <= E.movementOf(s, u) + (E.typeOf(s, u).rangeMax || 1)) v = Math.max(v, v + 3 * suppressValue(s, u, e));
+    // a combined attack goes in its order: those still waiting for partners go after them
+    if (P.level >= 3 && waitingFor(s, S, u.id)) v -= 1000;
     if (v > bestV) { bestV = v; best = u; }
   }
   return { type: 'begin', unitId: best.id };

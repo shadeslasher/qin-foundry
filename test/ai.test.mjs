@@ -418,3 +418,45 @@ test('AI strategy: guards leave a quiet square to help one under attack, more of
   assert.ok(hi.helped === hi.rounds, 'Art of War 5 always sends help: ' + hi.helped);
   assert.ok(mid.helped > 0 && mid.helped < hi.helped, 'in between: ' + mid.helped);
 });
+
+// ---- combined moves and reading ahead (David, 2026-11-11)
+const tough = unitType('tough', { armor: 4, tier: 3 });
+const archer = unitType('archer', { weapon: 'ranged', rangeMax: 4, damage: 5 });
+const footT = unitType('footT', { damage: 5 });
+const horse = unitType('horse', { category: 'cavalry', move: 5, damage: 5 });
+function teamCase(aow, far = false) {
+  const off = far ? 5 : 0;
+  const { s, ids } = battle([tough, archer, footT, horse], [
+    { typeId: 'tough', side: 'player', owner: 'p1', x: 6, y: 3 },
+    { typeId: 'horse', side: 'enemy', x: 6, y: 7 + off },
+    { typeId: 'archer', side: 'enemy', x: 4, y: 6 + off },
+    { typeId: 'footT', side: 'enemy', x: 8, y: 5 + off },
+  ]);
+  s.tactics = { sides: { enemy: { aow, name: 'T' } } };
+  return { s, ids, T: AI.teamPlan(s, 'enemy') };
+}
+
+test('AI teamwork: Art of War 3+ picks a target several units can break together, in order: ranged, foot, cavalry', () => {
+  assert.strictEqual(teamCase(2).T.focus, null, 'Art of War 2 does not combine');
+  const three = teamCase(3);
+  assert.ok(three.T.focus && three.T.focus.targetId === three.ids[0], 'a combined attack on the player unit');
+  assert.strictEqual(three.T.focus.members.length, 2, 'level 3 pairs two units');
+  const five = teamCase(5).T.focus;
+  assert.strictEqual(five.members.length, 3, 'level 5 takes all three');
+  assert.deepStrictEqual(five.members.map(m => m.role), ['soften', 'pin', 'finish']);
+});
+
+test('AI teamwork: officer-less units go in the order of the combined attack (the cavalry last)', () => {
+  const { s, ids } = teamCase(5);
+  const P1u = R.unitById(s, ids[0]);
+  must(R.act(s, P1, { type: 'begin', unitId: P1u.id })); must(R.act(s, P1, { type: 'endTurn', unitId: P1u.id }));
+  const first = AI.pickUnit(s, 'enemy', { level: 5 });
+  assert.notStrictEqual(first.unitId, ids[1], 'the cavalry waits for its partners');
+});
+
+test('AI reading ahead: Art of War 4+ gathers units that are out of reach to strike together later', () => {
+  assert.strictEqual(teamCase(3, true).T.converge, null, 'level 3 does not plan ahead');
+  const four = teamCase(4, true).T;
+  assert.ok(four.converge && four.converge.members.size >= 2 && four.converge.ahead === 2, JSON.stringify(four.why));
+  assert.strictEqual(teamCase(5, true).T.converge.ahead, 3, 'level 5 looks three rounds ahead');
+});

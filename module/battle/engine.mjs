@@ -1421,6 +1421,7 @@ function resolveAttack(s, attacker, defender, opts) {
 
   // Facing and memory for this round (a free attack doesn't use up the unit's attack)
   if (!free) attacker.round.attacked = true;
+  attacker.round.attackedId = defender.id; // the AI's combined attacks count partners who already struck (2026-11-11)
   if (!ranged) {
     attacker.round.meleeTarget = defender.id;
     defender.round.meleeAttacker = attacker.id;
