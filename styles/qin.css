@@ -1284,7 +1284,7 @@ a.qin-stat:hover, a.qin-stat:focus-visible { border-color: var(--qin-gold); }
 
 /* Battle overlays scale with the screen (--qin-vs, set by module/ui-scale.mjs; 1 on a 2560x1380 screen). Placed by their
    anchor: the scale keeps that point where the code put it. */
-.qin-fe-menu, .qin-tile-tip, .qin-tac-banner, .qin-token-hover, .qin-target-banner, .qin-tour-card, .qin-tac-menu { scale: var(--qin-vs, 1); transform-origin: 0 0; }
+.qin-fe-menu, .qin-tac-banner, .qin-target-banner, .qin-tour-card, .qin-tac-menu { scale: var(--qin-vs, 1); transform-origin: 0 0; }
 .qin-fe-menu.qin-left { transform-origin: 100% 0; }
 .qin-obj-tracker { scale: var(--qin-vs, 1); transform-origin: 100% 0; }
 .qin-turn-banner { scale: var(--qin-vs, 1); transform-origin: 50% 0; }
@@ -1292,7 +1292,9 @@ a.qin-stat:hover, a.qin-stat:focus-visible { border-color: var(--qin-gold); }
 .qin-tour-strip { height: calc(80px * var(--qin-vs, 1)); gap: calc(18px * var(--qin-vs, 1)); }
 .qin-tour-strip b { font-size: calc(38px * var(--qin-vs, 1)); }
 .qin-tour-strip span { font-size: calc(22px * var(--qin-vs, 1)); }
-.qin-tt { zoom: var(--qin-vs, 1); }
+.qin-tt { zoom: var(--qin-ib, var(--qin-vs, 1)); }
+/* info boxes also follow Foundry's Font Size setting (--qin-ib = screen scale x font size, module/ui-scale.mjs) */
+.qin-tile-tip, .qin-token-hover { scale: var(--qin-ib, var(--qin-vs, 1)); transform-origin: 0 0; }
 .qin-party-btns button.qin-party-remove:hover { color: #e06a5a; }
 /* Unique-skill picker (v0.120.0) */
 .qin-sigpick .window-content { padding: 0; display: flex; flex-direction: column; }
@@ -1316,3 +1318,4 @@ a.qin-stat:hover, a.qin-stat:focus-visible { border-color: var(--qin-gold); }
 .qin-sigpick .qin-sp-detail h3 { margin: 0 0 4px; display: flex; gap: 8px; align-items: center; }
 .qin-sigpick .qin-sp-meta, .qin-sigpick .qin-sp-from { font-size: .9em; opacity: .75; }
 .qin-sigpick .qin-sp-desc { margin: 8px 0 12px; }
+.qin-token-hover.qin-tt-box { scale: 1; }          /* the unit card inside scales itself (.qin-tt): once, not twice */
