@@ -1145,13 +1145,13 @@ a.qin-stat:hover, a.qin-stat:focus-visible { border-color: var(--qin-gold); }
 .qin-cp-row.qin-cp-reminder { border: 1px dashed #b98a2e; }
 .qin-effect-card .qin-effect-roll { margin-top: 4px; padding: 4px 6px; border-radius: 6px; background: rgba(0, 0, 0, 0.04); }
 .qin-effect-result { margin: 4px 0; padding: 4px 0; border-top: 1px solid rgba(0, 0, 0, 0.1); }
-.qin-result-inline.ok, .qin-picker .ok { color: #2e7d32; font-weight: bold; }
-.qin-result-inline.fail, .qin-picker .fail { color: #b3261e; font-weight: bold; }
-.qin-picker { display: flex; flex-direction: column; gap: 6px; padding: 6px; }
-.qin-picker-list { max-height: 360px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
-.qin-picker-row { display: flex; gap: 6px; align-items: center; padding: 2px 4px; }
-.qin-picker-results { margin: 0; padding-left: 18px; }
-.qin-picker .qin-buttons { display: flex; gap: 4px; flex-wrap: wrap; }
+.qin-result-inline.ok, .qin-effect-picker .qin-picker .ok { color: #2e7d32; font-weight: bold; }
+.qin-result-inline.fail, .qin-effect-picker .qin-picker .fail { color: #b3261e; font-weight: bold; }
+.qin-effect-picker .qin-picker { display: flex; flex-direction: column; gap: 6px; padding: 6px; }
+.qin-effect-picker .qin-picker-list { max-height: 360px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.qin-effect-picker .qin-picker-row { display: flex; gap: 6px; align-items: center; padding: 2px 4px; }
+.qin-effect-picker .qin-picker-results { margin: 0; padding-left: 18px; }
+.qin-effect-picker .qin-picker .qin-buttons { display: flex; gap: 4px; flex-wrap: wrap; }
 /* Full art button on character sheets (v0.103.2): under the portrait; drag it onto the map, click to view */
 .qin-portrait-wrap { display: flex; flex-direction: column; align-items: center; gap: 3px; flex: none; }
 .qin-full-art { font-size: 11px; line-height: 1.6; padding: 0 6px; border: 1px solid var(--qin-gold); border-radius: 4px; background: rgba(255,255,255,.55); color: #3a2a12; cursor: grab; white-space: nowrap; }
