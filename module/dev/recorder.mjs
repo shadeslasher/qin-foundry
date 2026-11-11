@@ -185,7 +185,8 @@ export async function record({ start = null, fps = 20, preMs = 600, tailMs = 900
     let idleSince = null;
     while (V.now - t0 < maxMs) {
       await advance();
-      const busy = battleAnimBusy() || uniqueFxBusy() || [...document.querySelectorAll(BUSY_OVERLAYS.join(","))].some(shown);
+      const bursting = (canvas.tokens?.placeables ?? []).some(t => t.qinBurst && !t.qinBurst.destroyed); // a buff/debuff burst still playing
+      const busy = battleAnimBusy() || uniqueFxBusy() || bursting || [...document.querySelectorAll(BUSY_OVERLAYS.join(","))].some(shown);
       if (busy) idleSince = null; else if (idleSince === null) idleSince = V.now; else if (V.now - idleSince >= tailMs) break;
     }
     const meta = { fps, width: W, height: H, start: t0, frames: frames.map((f, i) => ({ i, t: f.t, file: `f${String(i).padStart(4, "0")}.jpg` })), sounds: V.sounds, result };

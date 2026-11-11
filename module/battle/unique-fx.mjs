@@ -15,7 +15,7 @@ import { overLayer, floatLocal } from "../attack-fx.mjs";
 import { playMoment } from "../sound.mjs";
 
 import { factionOf } from "../factions.mjs";
-import { analyseFlag } from "../unit-bars.mjs";
+import { analyseFlag, releaseUnits } from "../unit-bars.mjs";
 
 const rnd = (a, b) => a + Math.random() * (b - a);
 const Blur = () => PIXI.BlurFilter ?? PIXI.filters?.BlurFilter;
@@ -645,7 +645,9 @@ function stoneSentinel(token, resisted, i, float) {
 }
 /** Stone Sentinel Maze: a stone on each unit it was used on, one after another. */
 export function playSentinels(results, tokOf, float) {
-  const all = results.map(([id, lost], i) => new Promise(res => setTimeout(() => res(stoneSentinel(tokOf(id), !lost, i, (style, text) => float?.(id, style, text))), atSpeed(i * 120))));
+  // each unit's debuff lands (its stand is released) once its stone has risen and gone (David, 2026-11-11)
+  const all = results.map(([id, lost], i) => new Promise(res => setTimeout(() => res(stoneSentinel(tokOf(id), !lost, i, (style, text) => float?.(id, style, text))), atSpeed(i * 120)))
+    .then(() => releaseUnits([id])));
   return Promise.all(all);
 }
 
@@ -992,6 +994,8 @@ const ON_ACTIVATE = {
 /** Animations that release the units the active touched themselves, as their effect reaches them. */
 const ON_ACTIVATE_SPREAD = {
   "The Hero Commands": (token, touched, release) => heroCommands(token, touched, release, 4),
+  // the units it holds are released by the stones (playSentinels), not at the end of the banner
+  "Stone Sentinel Maze": (token) => eightTrigrams(token),
 };
 /** An attack made while one of these actives is on plays its own strike alongside the lunge. */
 const ON_ATTACK = { "None Can Stand Before Him": playSkyPiercer };
