@@ -25,16 +25,16 @@
   <section class="qin-derived">
     <div class="qin-stat"><span>Chi</span>
       <div class="qin-chi"><input type="number" name="system.chi.value" value="{{system.chi.value}}"> / {{system.chi.max}}</div>
-      <div class="qin-mini"><a data-action="meditate">Meditate</a> · <a data-action="restChi">Sleep</a></div>
+      <div class="qin-mini"><a data-action="meditate" data-tooltip="Meditate"><i class="fa-solid fa-yin-yang"></i></a> <a data-action="restChi" data-tooltip="Sleep (full Chi)"><i class="fa-solid fa-bed"></i></a></div>
     </div>
-    <a class="qin-stat qin-stat-bd {{#if stats.pd.gold}}qin-stat-gold{{/if}}" data-action="statBreakdown" data-stat="pd" data-tooltip="{{stats.pd.tip}}" data-tooltip-direction="DOWN"><span>Passive Defense</span><b>{{system.passiveDefense}}</b>{{#if stats.pd.gold}}<em class="qin-stat-badge">{{signed stats.pd.extra}}</em>{{/if}}</a>
+    <a class="qin-stat qin-stat-bd {{#if stats.pd.gold}}qin-stat-gold{{/if}}" data-action="statBreakdown" data-stat="pd" data-tooltip="{{stats.pd.tip}}" data-tooltip-direction="DOWN"><span>Passive Def.</span><b>{{system.passiveDefense}}</b>{{#if stats.pd.gold}}<em class="qin-stat-badge">{{signed stats.pd.extra}}</em>{{/if}}</a>
     <div class="qin-stat"><span>Resistance</span><b>{{system.resistance}}</b><div class="qin-mini"><a data-action="rollResist" title="Resistance + Yin/Yang (resist bonuses as tick boxes)">Resist</a></div></div>
     <div class="qin-stat"><span>Balance</span><b>{{system.balance}}</b></div>
     <a class="qin-stat qin-stat-bd {{#if stats.armor.gold}}qin-stat-gold{{/if}}" data-action="statBreakdown" data-stat="armor" data-tooltip="{{stats.armor.tip}}" data-tooltip-direction="DOWN"><span>Armor</span><b>{{system.armor.protection}}</b>{{#if system.armor.movementPenalty}}<small>move −{{system.armor.movementPenalty}}</small>{{/if}}{{#if stats.armor.gold}}<em class="qin-stat-badge">−{{stats.armor.extra}}/hit</em>{{/if}}</a>
-    <a class="qin-stat qin-stat-bd {{#if stats.ad.gold}}qin-stat-gold{{/if}}" data-action="statBreakdown" data-stat="ad" data-tooltip="{{stats.ad.tip}}" data-tooltip-direction="DOWN"><span>Active Defense</span><b>{{stats.ad.shown}}</b>{{#if stats.ad.gold}}<em class="qin-stat-badge">{{signed stats.ad.extra}}</em>{{/if}}</a>
+    <a class="qin-stat qin-stat-bd {{#if stats.ad.gold}}qin-stat-gold{{/if}}" data-action="statBreakdown" data-stat="ad" data-tooltip="{{stats.ad.tip}}" data-tooltip-direction="DOWN"><span>Active Def.</span><b>{{stats.ad.shown}}</b>{{#if stats.ad.gold}}<em class="qin-stat-badge">{{signed stats.ad.extra}}</em>{{/if}}</a>
     <div class="qin-stat"><span>Renown</span><input type="number" name="system.renown" value="{{system.renown}}"></div>
-    <div class="qin-stat"><span>Experience</span><input type="number" name="system.experience.value" value="{{system.experience.value}}"></div>
-    <div class="qin-stat qin-coin"><span><i class="fa-solid fa-coins"></i> Coin</span><input type="number" name="system.coin" value="{{system.coin}}" min="0"></div>
+    <div class="qin-stat"><span>XP</span><input type="number" name="system.experience.value" value="{{system.experience.value}}"></div>
+    <div class="qin-stat qin-coin" data-tooltip="Coin"><span><i class="fa-solid fa-coins"></i></span><input type="number" name="system.coin" value="{{system.coin}}" min="0"></div>
   </section>
 
   <section class="qin-signature">
@@ -54,8 +54,8 @@
   {{/if}}
 
   {{#if (or uniqueBonuses.always.length uniqueBonuses.situational.length uniqueBonuses.gives.length uniqueBonuses.fromAllies.length)}}
-  <section class="qin-unique-bonuses">
-    <h3>Bonuses from unique skills</h3>
+  <details class="qin-unique-bonuses">
+    <summary><h3>Bonuses from unique skills <small class="qin-muted">{{#if uniqueBonuses.always.length}}{{uniqueBonuses.always.length}} always on{{/if}}{{#if uniqueBonuses.situational.length}}{{#if uniqueBonuses.always.length}} · {{/if}}{{uniqueBonuses.situational.length}} situational{{/if}}{{#if uniqueBonuses.gives.length}} · {{uniqueBonuses.gives.length}} aura{{/if}}{{#if uniqueBonuses.fromAllies.length}} · {{uniqueBonuses.fromAllies.length}} from allies{{/if}}</small></h3></summary>
     {{#if uniqueBonuses.always.length}}<div class="qin-muted">Always on: added to rolls automatically</div>
     <ul class="qin-list">{{#each uniqueBonuses.always}}<li><span class="qin-src qin-src-unique">Unique</span> <b>{{source}}</b> · {{text}}</li>{{/each}}</ul>{{/if}}
     {{#if uniqueBonuses.situational.length}}<div class="qin-muted">Situational: tick on the card or in the Combat panel when it applies</div>
@@ -64,7 +64,7 @@
     <ul class="qin-list">{{#each uniqueBonuses.gives}}<li><span class="qin-src qin-src-unique">Unique</span> <b>{{source}}</b> · {{text}}</li>{{/each}}</ul>{{/if}}
     {{#if uniqueBonuses.fromAllies.length}}<div class="qin-muted">Auras from allies here (this scene, worked out from the tokens)</div>
     <ul class="qin-list">{{#each uniqueBonuses.fromAllies}}<li><span class="qin-src qin-src-unique">Unique</span> <b>{{source}}</b> · {{text}}</li>{{/each}}</ul>{{/if}}
-  </section>
+  </details>
   {{/if}}
 
   <section class="qin-bol">

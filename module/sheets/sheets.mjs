@@ -366,6 +366,13 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
 
   _onRender(context, options) {
     super._onRender(context, options);
+    // "Bonuses from unique skills" folds away (David, 2026-11-10); folded by default, remembered in this browser
+    const ub = this.element.querySelector("details.qin-unique-bonuses");
+    if (ub) {
+      let open = false; try { open = localStorage.getItem("qin-ub-open") === "1"; } catch { /* */ }
+      ub.open = open;
+      ub.addEventListener("toggle", () => { try { localStorage.setItem("qin-ub-open", ub.open ? "1" : "0"); } catch { /* */ } });
+    }
     const el = this.element;
     // Office cards save the whole list when one of their fields changes (the inputs carry no form name)
     el.querySelectorAll(".qin-office-card input[data-office-field]").forEach(inp => inp.addEventListener("change", (ev) => {

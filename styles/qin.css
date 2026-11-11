@@ -1335,3 +1335,27 @@ a.qin-stat:hover, a.qin-stat:focus-visible { border-color: var(--qin-gold); }
 /* Combat tracker side dot (GM, before the fight) */
 .qin-side-dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 6px; vertical-align: middle; border: 1px solid rgba(0,0,0,.5); box-shadow: 0 0 0 1px rgba(255,255,255,.35); cursor: pointer; }
 .qin-side-dot:hover { box-shadow: 0 0 0 2px #fff; }
+/* ---------- Compact sheet top (David, 2026-11-10; mockup approved): slim aspects, one-line stats, unique skills in one row ---------- */
+.qin-aspects { gap: 6px; padding: 6px 10px 4px; }
+.qin-aspect { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 3px 6px; border-radius: 6px; }
+.qin-aspect .qin-aspect-label { display: inline; font-size: calc(14px * var(--qin-scale, 1.15)); }
+.qin-aspect input { width: calc(38px * var(--qin-scale, 1.15)); height: calc(24px * var(--qin-scale, 1.15)); font-size: calc(16px * var(--qin-scale, 1.15)); padding: 0; }
+.qin-derived { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 10px 4px; }
+.qin-derived .qin-stat { flex: 1 1 auto; min-width: max-content; flex-direction: row; flex-wrap: nowrap; align-items: center; justify-content: space-between; gap: 4px;
+  padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
+.qin-derived .qin-stat > span { font-size: calc(11px * var(--qin-scale, 1.15)); }
+.qin-derived .qin-stat b { font-size: calc(15px * var(--qin-scale, 1.15)); }
+.qin-derived .qin-stat input { width: calc(34px * var(--qin-scale, 1.15)); height: calc(20px * var(--qin-scale, 1.15)); padding: 0 2px; font-size: calc(12px * var(--qin-scale, 1.15)); }
+.qin-derived .qin-chi { display: flex; align-items: center; gap: 3px; font-size: calc(11px * var(--qin-scale, 1.15)); }
+.qin-derived .qin-mini { font-size: calc(10px * var(--qin-scale, 1.15)); }
+.qin-derived .qin-stat.qin-stat-gold { padding: 1px 5px; }
+.qin-signature { display: flex; flex-wrap: nowrap; gap: 4px; padding: 0 10px 6px; }
+.qin-signature .qin-sig-slot { flex: 1 1 0; min-width: 0; padding: 2px 5px; border-radius: 4px; }
+.qin-signature .qin-sig-label { font-size: calc(9px * var(--qin-scale, 1.15)); text-transform: uppercase; letter-spacing: .5px; line-height: 1.2; }
+.qin-signature .qin-sig-name { display: block; font-size: calc(12px * var(--qin-scale, 1.15)); line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+details.qin-unique-bonuses > summary { cursor: pointer; list-style: none; }
+details.qin-unique-bonuses > summary::-webkit-details-marker { display: none; }
+details.qin-unique-bonuses > summary h3 { display: flex; align-items: baseline; gap: 6px; margin: 2px 0 4px; }
+details.qin-unique-bonuses > summary h3::before { content: "▸"; font-size: .8em; transition: transform .15s; }
+details.qin-unique-bonuses[open] > summary h3::before { transform: rotate(90deg); }
+details.qin-unique-bonuses > summary small { font-weight: normal; font-size: calc(11px * var(--qin-scale, 1.15)); }
