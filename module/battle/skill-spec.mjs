@@ -6,7 +6,7 @@ export const STATS = ['attack', 'command', 'commandAtk', 'commandDef', 'meleeDef
   'damage', 'resist', 'moraleLossLess', 'checkpointLess', 'skillLossLess', 'anyLossLess', 'enemyLoss', 'enemyLossAtk',
   'startMorale', 'overwatch', 'forcedMarchCost', 'regenCap', 'moraleFloor',
   // v3
-  'damageTaken', 'reflectMelee', 'moraleCapAttack', 'moraleCapRound', 'surroundLossLess', 'fireLossLess', 'fireCasualties',
+  'damageTaken', 'reflectMelee', 'moraleCapAttack', 'moraleCapSkill', 'moraleCapRound', 'surroundLossLess', 'fireLossLess', 'fireCasualties',
   'contestAtk', 'contestNext', 'skillCost', 'moveAway', 'moveNoAttack',
   // 2026-11-09: raise the morale its battlefield active needs (above the usual 75)
   'skillMinUp'];

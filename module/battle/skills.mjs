@@ -624,6 +624,7 @@ const nm = (u) => u.name;
 function loseMorale(s, u, n, src) {
   let loss = Math.max(0, n);
   if (src && E.hostile(src, u)) loss = Math.max(0, loss - stat(s, u, 'skillLossLess') - stat(s, u, 'anyLossLess'));
+  if (src && E.hostile(src, u)) { const cap = stat(s, u, 'moraleCapSkill'); if (cap > 0 && loss > cap) loss = cap; } // at most N from one enemy skill (2026-11-11)
   u.morale = Math.max(0, (u.morale ?? 50) - loss);
   onMorale(s, u);
   return loss;
@@ -1173,7 +1174,7 @@ const STAT_TEXT = { attack: 'Attack', command: 'Command', commandAtk: 'Command w
   moraleLossLess: 'morale lost from lost rolls', checkpointLess: 'morale lost at casualty checkpoints', skillLossLess: 'morale lost to enemy skills',
   anyLossLess: 'morale losses', enemyLoss: 'morale enemies lose to it', enemyLossAtk: 'morale enemies it attacks lose', startMorale: 'starting morale',
   overwatch: 'Overwatch Attack', forcedMarchCost: 'forced march cost', regenCap: 'morale recovery cap', moraleFloor: 'morale floor',
-  damageTaken: 'casualties taken', reflectMelee: 'damage back to melee attackers', moraleCapAttack: 'most morale lost per attack', moraleCapRound: 'most morale lost per round',
+  damageTaken: 'casualties taken', reflectMelee: 'damage back to melee attackers', moraleCapAttack: 'most morale lost per attack', moraleCapSkill: 'most morale lost to one enemy skill', moraleCapRound: 'most morale lost per round',
   surroundLossLess: 'morale lost when surrounded', fireLossLess: 'morale lost to fire', fireCasualties: '% casualties from fire', contestAtk: 'on its skills\' contested rolls',
   contestNext: 'on its next contested roll', skillCost: 'morale cost of its battlefield active', skillMinUp: 'morale its battlefield active needs', moveAway: 'movement away from the enemy', moveNoAttack: 'movement if it doesn\'t attack' };
 const sgn = (n) => (n >= 0 ? '+' : '−') + Math.abs(n);

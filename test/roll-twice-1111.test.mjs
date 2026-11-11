@@ -58,3 +58,17 @@ test('damage reduction grows with each attack it takes in a round', () => {
   u(0).round.attacksTaken = 3; assert.strictEqual(red(), -8);
   u(0).round.attacksTaken = 6; assert.strictEqual(red(), -8, 'at most 8');
 });
+
+test('a cap on the morale one enemy skill can take from it', () => {
+  const capSpec = { mods: [{ stat: 'moraleCapSkill', value: 10, who: { side: 'allies', range: 4, self: true } }] };
+  assert.deepStrictEqual(validateSpec(capSpec, 'passive'), []);
+  const hit = { do: [{ morale: -25, who: { side: 'enemies', range: 6 } }] };
+  const caster = { id: 'c', name: 'C', command: 3, fire: 2, skills: {}, passive: { effects: {} }, skill: { name: 'Act', text: 'x', moraleCost: 10, recharge: 0 }, battle: { active: hit } };
+  const { s, u, ids } = setup([{ side: 'player', x: 1, y: 1, officerId: 'k' }, { side: 'player', x: 2, y: 1 }, { side: 'player', x: 8, y: 4 }, { side: 'enemy', x: 3, y: 3, officerId: 'c', morale: 80 }],
+    [officer('k', { passive: capSpec }), caster]);
+  for (const i of [0, 1, 2]) u(i).morale = 60;
+  s.turn.activation = { unitId: ids[3], step: 'move', started: false, tilesMoved: 0, from: { x: 3, y: 3 } };
+  must(R.act(s, HOST, { type: 'useSkill', unitId: ids[3] }));
+  assert.strictEqual(u(0).morale, 50, 'capped at 10'); assert.strictEqual(u(1).morale, 50, 'ally next to him capped too');
+  assert.strictEqual(u(2).morale, 35, 'far away: the full 25');
+});
