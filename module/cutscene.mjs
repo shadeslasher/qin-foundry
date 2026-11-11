@@ -1,7 +1,7 @@
 // Cutscene Maker (David, 2026-11-10). The GM builds a scene in a panel in the top left (officers dragged in from the
 // compendium or found by search, a background, saved setups) and presses Play. Black bars slide over the top and bottom
 // quarters of everyone's screen; the officers stand in the band between, cut off at the waist by the lower bar, dimmed
-// until the GM "displays" one (the speaker lights up, one at a time). Officers can leave or join (from the right) and the
+// until the GM "displays" them (Display lights one up or dims him, several at once; Switch lights only him). Officers can leave or join (from the right) and the
 // rest space out again. Works on any scene, battle or world map. While a scene plays the players can't move the map;
 // the GM can, and the camera tools still move the players' views.
 // The running scene lives in a world setting, so every client (and anyone joining late) draws the same thing.
@@ -75,7 +75,9 @@ function wireSearch(input, list, onPick) {
 }
 
 /* ------------------------------------------------------------------ the scene on screen (every client) */
-let root = null, shown = new Map(), ending = null;
+let root = null, shown = new Map(), names = new Map(), ending = null;
+/** The displayed officers' keys (several can be lit at once; older scenes stored one key). */
+const litOf = (st) => Array.isArray(st.lit) ? st.lit : st.lit ? [st.lit] : [];
 function css() {
   if (document.getElementById("qin-cutscene-css")) return;
   const s = document.createElement("style"); s.id = "qin-cutscene-css";
@@ -89,7 +91,8 @@ function css() {
   #qin-cutscene.in .bg.on { opacity: 1; }
   #qin-cutscene .of { position: absolute; top: 26.5vh; height: 95.5vh; z-index: 3; transform: translateX(-50%); opacity: 0;
     transition: left .7s cubic-bezier(.3,.7,.3,1), opacity .6s, filter .35s; filter: brightness(.38) saturate(.6); pointer-events: none; }
-  #qin-cutscene .of img { height: 100%; display: block; }
+  #qin-cutscene .of { width: max-content; max-width: none; }                /* never squeezed near the edge (5 officers) */
+  #qin-cutscene .of img { height: 100%; width: auto; max-width: none; display: block; }
   #qin-cutscene .of.round { top: 31vh; height: 38vh; } #qin-cutscene .of.round img { border-radius: 50%; border: 3px solid #c9a85c; box-shadow: 0 6px 24px rgba(0,0,0,.7); }
   #qin-cutscene .of.half { top: auto; bottom: 25vh; height: 33vh; }      /* head-to-waist art standing on the lower bar, about two thirds of an adult */
   #qin-cutscene .of.here { opacity: 1; }
@@ -105,6 +108,7 @@ function css() {
   #qin-cs-ctl { position: fixed; z-index: 96; left: 50%; bottom: 12px; transform: translateX(-50%); display: flex; gap: 8px; align-items: stretch; padding: 8px 10px; max-width: 96vw; }
   #qin-cs-ctl .card { width: 138px; padding: 6px; border: 1px solid rgba(201,168,92,.35); border-radius: 4px; text-align: center; }
   #qin-cs-ctl .card.on { border-color: #e8c45a; background: rgba(201,168,92,.16); }
+  #qin-cs-ctl .card .two { display: flex; gap: 4px; } #qin-cs-ctl .card .two .btn { flex: 1; }
   #qin-cs-ctl .h { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; text-align: left; font-weight: 600; line-height: 1.1; min-height: 32px; }
   .qin-cs-panel i.pt { width: 30px; height: 30px; border-radius: 50%; background-size: cover; background-position: 50% 10%; border: 1px solid #c9a85c; flex: none; }
   .qin-cs-panel .btn { display: block; padding: 4px 6px; margin-top: 4px; border: 1px solid rgba(201,168,92,.6); border-radius: 3px; cursor: pointer; text-align: center; }
@@ -146,10 +150,10 @@ function render() {
   if (ending) { clearTimeout(ending.t); ending.r.remove(); ending = null; }
   const fresh = !root || root.dataset.id !== st.id;
   if (fresh) {
-    root?.remove(); shown = new Map();
+    root?.remove(); shown = new Map(); names = new Map();
     root = document.createElement("div"); root.id = "qin-cutscene"; root.dataset.id = st.id;
     root.classList.toggle("gm", game.user.isGM);
-    root.innerHTML = `<div class="bg"></div><div class="bar t"></div><div class="bar b"></div><div class="nm"></div>`;
+    root.innerHTML = `<div class="bg"></div><div class="bar t"></div><div class="bar b"></div>`;
     for (const t of ["wheel", "pointerdown", "contextmenu", "dblclick"]) root.addEventListener(t, (e) => { if (!game.user.isGM) { e.preventDefault(); e.stopPropagation(); } }, { passive: false });
     document.body.appendChild(root);
     void root.offsetWidth; setTimeout(() => root?.classList.add("in"), 30);    // not rAF: a hidden or background tab may never fire it
@@ -157,8 +161,10 @@ function render() {
   const bg = BACKGROUNDS.find(b => b.key === st.bg), bgEl = root.querySelector(".bg");
   bgEl.classList.toggle("on", !!bg); bgEl.style.backgroundImage = bg ? `url('${route(bg.src)}')` : "";
   const cast = st.cast ?? [], n = cast.length;
+  const lit = litOf(st);
   for (const [key, el] of shown) if (!cast.some(c => c.key === key)) {          // left the scene
     shown.delete(key); el.classList.remove("here", "lit"); el.classList.add("gone"); setTimeout(() => el.remove(), 700);
+    const nm = names.get(key); names.delete(key); if (nm) { nm.classList.remove("on"); setTimeout(() => nm.remove(), 400); }
   }
   cast.forEach((c, i) => {
     let el = shown.get(c.key);
@@ -176,18 +182,21 @@ function render() {
       setTimeout(() => el.classList.add("here"), fresh ? 650 : 30);
     }
     setTimeout(() => { el.style.left = slot(i, n); }, 30);
-    el.classList.toggle("lit", st.lit === c.key);
+    el.classList.toggle("lit", lit.includes(c.key));
+    // every displayed officer gets his name under him
+    let nm = names.get(c.key);
+    if (!nm) { nm = document.createElement("div"); nm.className = "nm"; root.appendChild(nm); names.set(c.key, nm); }
+    nm.textContent = c.name; nm.style.left = slot(i, n); nm.classList.toggle("on", lit.includes(c.key));
   });
-  const nm = root.querySelector(".nm"), li = cast.findIndex(c => c.key === st.lit);
-  if (li >= 0) { nm.textContent = cast[li].name; nm.style.left = slot(li, n); nm.classList.add("on"); } else nm.classList.remove("on");
   renderControls(st);
 }
 function teardown() {
   ctl?.remove(); ctl = null;
   if (!root || ending) return;
-  const r = root; root = null; shown = new Map();
+  const r = root; root = null; shown = new Map(); names = new Map();
   for (const el of r.querySelectorAll(".of")) el.classList.remove("here", "lit");
-  r.querySelector(".nm")?.classList.remove("on"); r.classList.remove("in");
+  for (const nm of r.querySelectorAll(".nm")) nm.classList.remove("on");
+  r.classList.remove("in");
   ending = { r, t: setTimeout(() => { r.remove(); ending = null; }, 800) };
   Builder.refresh();
 }
@@ -203,12 +212,14 @@ export async function playCutscene(cast, bg = null) {
   if (!game.user.isGM) return;
   const list = (cast ?? []).slice(0, MAX_CAST).map(c => ({ ...c, key: foundry.utils.randomID(8) }));
   if (!list.length) return ui.notifications.warn("Add at least one officer to the scene first.");
-  await setState({ active: true, id: foundry.utils.randomID(8), bg: bg || null, cast: list, lit: null });
+  await setState({ active: true, id: foundry.utils.randomID(8), bg: bg || null, cast: list, lit: [] });
 }
 export async function endCutscene() { if (game.user.isGM) await setState({ active: false }); }
 async function patch(fn) { const st = foundry.utils.deepClone(state()); if (!st.active) return; fn(st); await setState(st); }
-const display = (key) => patch(st => { st.lit = st.lit === key ? null : key; });
-const leave = (key) => patch(st => { st.cast = st.cast.filter(c => c.key !== key); if (st.lit === key) st.lit = null; });
+// Display toggles one officer on or off (several can be lit); Switch makes him the only one lit (David, 2026-11-11)
+const display = (key) => patch(st => { const l = litOf(st); st.lit = l.includes(key) ? l.filter(k => k !== key) : [...l, key]; });
+const switchTo = (key) => patch(st => { st.lit = [key]; });
+const leave = (key) => patch(st => { st.cast = st.cast.filter(c => c.key !== key); st.lit = litOf(st).filter(k => k !== key); });
 async function join(actor) {
   if ((state().cast?.length ?? 0) >= MAX_CAST) return ui.notifications.warn(`A scene holds up to ${MAX_CAST} officers. Have one leave first.`);
   await patch(st => { st.cast.push(castEntry(actor)); });
@@ -221,14 +232,17 @@ function renderControls(st) {
   if (!ctl.isConnected) document.body.appendChild(ctl);
   const typing = ctl.querySelector("input") === document.activeElement ? ctl.querySelector("input").value : null;
   const full = st.cast.length >= MAX_CAST;
-  ctl.innerHTML = st.cast.map(c => `<div class="card ${st.lit === c.key ? "on" : ""}" data-k="${c.key}">
+  const lit = litOf(st);
+  ctl.innerHTML = st.cast.map(c => { const on = lit.includes(c.key); return `<div class="card ${on ? "on" : ""}" data-k="${c.key}">
       <div class="h"><i class="pt" style="background-image:url('${esc(route(c.img ?? c.src))}')"></i><span>${esc(c.name)}</span></div>
-      <span class="btn ${st.lit === c.key ? "on" : ""}" data-a="display" title="Light this officer up as the one talking; the others dim">${st.lit === c.key ? "Displayed" : "Display"}</span>
-      <span class="btn red" data-a="leave" title="This officer leaves the scene; the others space out again">Leave</span></div>`).join("")
+      <div class="two"><span class="btn ${on ? "on" : ""}" data-a="display" title="Light this officer up or dim him again; several can be lit at once">${on ? "Displayed" : "Display"}</span>
+      <span class="btn ${on && lit.length === 1 ? "on" : ""}" data-a="switch" title="Light only this officer; everyone else dims">Switch</span></div>
+      <span class="btn red" data-a="leave" title="This officer leaves the scene; the others space out again">Leave</span></div>`; }).join("")
     + `<div class="add" title="Drag an officer here from the compendium or the Actors tab; they walk in from the right">${full ? `Scene is full (${MAX_CAST})` : `<span><i class="fa-solid fa-user-plus"></i> Drag an officer here</span><input placeholder="or search…"><div class="hits"></div>`}</div>
     <div class="end" data-a="end"><span><i class="fa-solid fa-stop"></i> End scene</span></div>`;
   for (const card of ctl.querySelectorAll(".card")) {
     card.querySelector('[data-a="display"]').onclick = () => display(card.dataset.k);
+    card.querySelector('[data-a="switch"]').onclick = () => switchTo(card.dataset.k);
     card.querySelector('[data-a="leave"]').onclick = () => leave(card.dataset.k);
   }
   ctl.querySelector(".end").onclick = () => endCutscene();
