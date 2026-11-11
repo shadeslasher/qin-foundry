@@ -200,7 +200,19 @@ function togglePanelKey() {
   CombatPanel.open(actor);
 }
 
+/** Alt+click on a character's token (David, 2026-11-10): its Combat panel (shift-click stays Foundry's add-to-selection). */
+function onAltClick(ev) {
+  if (!ev.altKey || ev.button !== 0 || ev.shiftKey || ev.ctrlKey || !canvas?.ready || ev.target !== canvas.app?.view) return;
+  const p = canvas.canvasCoordinatesFromClient?.({ x: ev.clientX, y: ev.clientY }) ?? canvas.stage.worldTransform.applyInverse({ x: ev.clientX, y: ev.clientY });
+  const hits = (canvas.tokens?.placeables ?? []).filter(t => t.visible && t.actor && t.actor.type !== "unit" && t.actor.isOwner && t.bounds?.contains(p.x, p.y));
+  const tok = hits.sort((a, b) => (b.document.sort ?? 0) - (a.document.sort ?? 0))[0];
+  if (!tok) return;
+  ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
+  CombatPanel.open(tok.actor);
+}
+
 export function registerCombatPanel() {
+  Hooks.once("ready", () => document.addEventListener("pointerdown", onAltClick, true));
   Hooks.once("init", () => game.keybindings.register("qin", "combatPanel", {
     name: "Open the Combat panel", hint: "Of the selected token's character, or your own character if none is selected; press again to close it.",
     editable: [{ key: "KeyI" }], precedence: CONST.KEYBINDING_PRECEDENCE?.NORMAL,
