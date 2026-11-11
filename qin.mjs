@@ -221,6 +221,11 @@ Hooks.once("init", () => {
     editable: [{ key: "KeyP" }], precedence: CONST.KEYBINDING_PRECEDENCE?.NORMAL,
     onDown: () => { PartyPanel.toggle(); return true; },
   });
+  game.keybindings.register(SYSTEM_ID, "officerCodex", {
+    name: "Open the officers compendium", hint: "Every officer by faction, with search and filters; press again to close it.",
+    editable: [{ key: "KeyO" }], precedence: CONST.KEYBINDING_PRECEDENCE?.NORMAL,
+    onDown: () => { OfficerCodex.toggle(); return true; },
+  });
   registerParty();
   registerOfficerCodex();
   registerOfficerLimit();
@@ -333,7 +338,7 @@ Hooks.on("getSceneControlButtons", (controls) => {
     name: "qinBattle", title: "Battle panel", icon: "fa-solid fa-chess-rook", order: 99,
     button: true, visible: true, onChange: () => BattlePanel.open(),
   };
-  const codexTool = { name: "qinOfficers", title: "Officers", icon: "fa-solid fa-book-open", order: 100, button: true, visible: true, onChange: () => OfficerCodex.toggle() };
+  const codexTool = { name: "qinOfficers", title: "Officers (O)", icon: "fa-solid fa-book-open", order: 100, button: true, visible: true, onChange: () => OfficerCodex.toggle() };
   const unitTool = { ...NEW_UNIT_TOOL, visible: !!game.user?.isGM }, editTool = { ...UNIT_EDITOR_TOOL, visible: !!game.user?.isGM };
   if (Array.isArray(controls)) controls.find(c => c.name === "token")?.tools.push({ ...tool, onClick: tool.onChange }, { ...codexTool, onClick: codexTool.onChange }, { ...unitTool, onClick: unitTool.onChange }, { ...editTool, onClick: editTool.onChange });
   else if (controls.tokens?.tools) { controls.tokens.tools.qinBattle = tool; controls.tokens.tools.qinOfficers = codexTool; controls.tokens.tools.qinNewUnit = unitTool; controls.tokens.tools.qinUnitEditor = editTool; }
