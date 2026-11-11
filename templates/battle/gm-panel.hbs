@@ -5,7 +5,7 @@
       <button type="button" data-action="aiSide" data-side="enemy" class="{{#if ai.enemy}}active{{/if}}" title="Let the AI play the enemy side"><i class="fa-solid fa-{{#if ai.enemy}}toggle-on{{else}}toggle-off{{/if}}"></i> Enemy <small>AoW {{ai.enemyLv}}</small></button>
       <button type="button" data-action="aiSide" data-side="ally" class="{{#if ai.ally}}active{{/if}}" title="Let the AI play the allied side"><i class="fa-solid fa-{{#if ai.ally}}toggle-on{{else}}toggle-off{{/if}}"></i> Ally <small>AoW {{ai.allyLv}}</small></button>
     </div>
-    <div class="qin-btns"><button type="button" data-action="aiStep" class="{{#if ai.step}}active{{/if}}" title="On: the AI shows its next move and plays it when you click Next move (G). Off: it plays by itself."><i class="fa-solid fa-{{#if ai.step}}toggle-on{{else}}toggle-off{{/if}}"></i> Suggest moves (G plays)</button></div>
+    <div class="qin-btns"><button type="button" data-action="aiStep" class="{{#if ai.step}}active{{/if}}" title="On: the AI shows its next move and plays it when you click Play turn (G). Off: it plays by itself."><i class="fa-solid fa-{{#if ai.step}}toggle-on{{else}}toggle-off{{/if}}"></i> Suggest moves (G plays)</button></div>
     {{#if ai.any}}<div class="qin-btns"><button type="button" data-action="aiPause" title="Stop or restart the AI">{{#if ai.paused}}<i class="fa-solid fa-play"></i> Resume AI{{else}}<i class="fa-solid fa-pause"></i> Pause AI{{/if}}</button></div>{{/if}}
   </div>
   <div class="qin-card qin-gm-camera"><h4>Camera</h4>

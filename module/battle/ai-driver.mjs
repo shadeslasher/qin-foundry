@@ -23,7 +23,7 @@ export function registerBattleAI() {
     onDown: () => { toggleAIPause(); return true; },
   });
   game.keybindings.register(SYSTEM_ID, "aiNextMove", {
-    name: "Battle AI: play the suggested move (GM)", hint: "When the AI suggests moves instead of playing by itself, plays the move it suggests.",
+    name: "Battle AI: play the suggested turn (GM)", hint: "When the AI suggests moves instead of playing by itself, plays the whole turn it suggests.",
     editable: [{ key: "KeyG" }], restricted: true, precedence: CONST.KEYBINDING_PRECEDENCE?.NORMAL,
     onDown: () => { if (!suggestion) return false; playSuggestion(); return true; },
   });
@@ -103,7 +103,7 @@ async function tick() {
   const p = plan(cfg); if (!p) return;
   await perform(p.action);
 }
-async function perform(action) {
+async function perform(action, { quiet = false } = {}) {
   busy = true;
   try {
     const res = await runAction(game.user.id, action);
@@ -120,7 +120,7 @@ async function perform(action) {
     }
   } finally {
     busy = false;
-    schedule();
+    if (!quiet) schedule();
   }
 }
 
@@ -165,33 +165,51 @@ function clearSuggestion() {
   gfx = null;
 }
 async function suggest() {
-  if (busy || !isRunner()) return;
+  if (busy || playing || !isRunner()) return;
   const cfg = aiSettings();
   if (cfg.paused || (!cfg.enemy && !cfg.ally) || !cfg.step) return clearSuggestion();
   const p = plan(cfg);
   if (!p) return clearSuggestion();
   // a few steps need no decision of the GM's (the "act" prompt, skill choices with nothing to pick): still asked, as a move
   suggestion = p;
-  showCard(describeAction(p.s, p.action));
+  const k = turnKey(p.s, p.action), who = k?.startsWith("side:") ? `The ${k.slice(5)} side's tactics` : k ? `${unitName(p.s, k)}'s turn` : "Next move";
+  showCard(who, `First: ${describeAction(p.s, p.action)}`);
   drawMarks(p.s, p.action);
 }
+/** Whose turn an action belongs to: a unit, or a side (tactics phase). */
+const turnKey = (s, a) => a.unitId ?? (s.turn?.activation?.unitId) ?? (a.side ? `side:${a.side}` : null);
+let playing = false;
+/** G / Next move: plays the whole turn the suggestion belongs to (David, 2026-11-10), one action after another
+ *  at the AI's usual pace, until that unit's (or side's) turn is over. */
 async function playSuggestion() {
-  if (busy || !suggestion) return;
-  const fresh = plan();                                   // the battle may have moved on since it was shown
+  if (busy || playing || !suggestion) return;
+  let next = plan();                                      // the battle may have moved on since it was shown
   clearSuggestion();
-  if (fresh) await perform(fresh.action); else schedule();
+  if (!next) return schedule();
+  const key = turnKey(next.s, next.action);
+  playing = true;
+  try {
+    for (let i = 0; i < 40 && next; i++) {
+      if (aiSettings().paused) break;
+      await perform(next.action, { quiet: true });
+      await new Promise(r => setTimeout(r, atSpeed(Math.max(150, Number(aiSettings().delay) || 900))));
+      next = plan();
+      if (!next || !key || turnKey(next.s, next.action) !== key) break;
+    }
+  } finally { playing = false; schedule(); }
 }
-function showCard(text) {
+function showCard(title, text) {
   if (!card) {
     card = document.createElement("div"); card.className = "qin qin-ai-suggest";
-    card.innerHTML = `<div class="hd"><i class="fa-solid fa-robot"></i> AI suggests</div><div class="tx"></div>
-      <div class="bt"><button type="button" data-a="play"><i class="fa-solid fa-forward-step"></i> Next move <kbd>G</kbd></button>
+    card.innerHTML = `<div class="hd"><i class="fa-solid fa-robot"></i> AI suggests</div><div class="tx"></div><div class="sub"></div>
+      <div class="bt"><button type="button" data-a="play"><i class="fa-solid fa-forward-step"></i> Play turn <kbd>G</kbd></button>
       <button type="button" data-a="auto" data-tooltip="Let the AI play by itself"><i class="fa-solid fa-forward-fast"></i> Auto</button></div>`;
     card.querySelector('[data-a="play"]').onclick = () => playSuggestion();
     card.querySelector('[data-a="auto"]').onclick = async () => { await setAI({ step: false }); try { (await import("./gm-panel.mjs")).GmPanel?.refresh?.(); } catch { /* */ } };
     document.body.appendChild(card);
   }
-  card.querySelector(".tx").textContent = text;
+  card.querySelector(".tx").textContent = title;
+  card.querySelector(".sub").textContent = text;
 }
 /** Mark the unit, and where it goes or whom it hits. */
 function drawMarks(s, a) {

@@ -1328,3 +1328,4 @@ a.qin-stat:hover, a.qin-stat:focus-visible { border-color: var(--qin-gold); }
 .qin-ai-suggest .bt { display: flex; gap: 6px; justify-content: center; }
 .qin-ai-suggest button { width: auto; padding: 3px 12px; }
 .qin-ai-suggest kbd { font-size: 11px; padding: 0 4px; border: 1px solid rgba(255,255,255,.4); border-radius: 3px; margin-left: 4px; }
+.qin-ai-suggest .sub { font-size: 13px; opacity: .8; margin: -4px 0 8px; }
