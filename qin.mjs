@@ -442,6 +442,18 @@ Hooks.on("preCreateToken", (doc, data) => {
   pendingLinked.add(key); setTimeout(() => pendingLinked.delete(key), 0);
 });
 
+/* Characters and henchmen (David, 2026-11-10): henchmen and officers come in as enemies (Hostile); a player's own character
+ * and the party's officers stay Friendly. Only on creation: the GM changes it afterwards (token config, or the Combat
+ * tracker's side dot before the fight starts). */
+Hooks.on("preCreateToken", (doc, data) => {
+  const actor = doc.actor ?? game.actors.get(data.actorId);
+  if (!actor || !["character", "henchman"].includes(actor.type)) return;
+  const D = CONST.TOKEN_DISPOSITIONS;
+  const friendly = actor.hasPlayerOwner || (actor.folder?.name === "Party Officers" && !actor.folder?.folder);
+  const want = friendly ? D.FRIENDLY : D.HOSTILE;
+  if (doc.disposition !== want) doc.updateSource({ disposition: want });
+});
+
 // Changing a unit's side updates what its future tokens do
 Hooks.on("preUpdateActor", (actor, change) => {
   const side = foundry.utils.getProperty(change, "system.side");

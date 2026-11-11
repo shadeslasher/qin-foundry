@@ -207,6 +207,30 @@ export function onRenderCombatTracker(app, html) {
     const anchor = li.querySelector(".token-name") ?? li;
     anchor.append(el);
   }
+  sideDots(root, combat);
+}
+
+/* GM, before the fight starts (David, 2026-11-10): a coloured dot by each character's name sets its token's side
+ * (disposition): click cycles Friendly → Neutral → Hostile. Allies' auras follow it. */
+const SIDE = [[1, "Friendly", "#3fa66a"], [0, "Neutral", "#d4a017"], [-1, "Hostile", "#c8443a"]];
+function sideDots(root, combat) {
+  root.querySelectorAll(".qin-side-dot").forEach(e => e.remove());
+  if (!game.user.isGM || combat.started) return;
+  for (const li of root.querySelectorAll("li.combatant[data-combatant-id]")) {
+    const c = combat.combatants.get(li.dataset.combatantId), tok = c?.token;
+    if (!tok || c.actor?.type === "unit") continue;
+    const cur = SIDE.find(x => x[0] === tok.disposition) ?? [tok.disposition, "Secret", "#888"];
+    const dot = document.createElement("a");
+    dot.className = "qin-side-dot"; dot.style.background = cur[2];
+    dot.dataset.tooltip = `${cur[1]}. Click to change the side (Friendly, Neutral, Hostile)`;
+    dot.addEventListener("click", async (ev) => {
+      ev.preventDefault(); ev.stopPropagation();
+      const i = SIDE.findIndex(x => x[0] === tok.disposition);
+      await tok.update({ disposition: SIDE[(i + 1) % SIDE.length][0] });
+      ui.combat?.render();
+    });
+    (li.querySelector(".token-name") ?? li).prepend(dot);
+  }
 }
 
 async function declareDialog(c) {
