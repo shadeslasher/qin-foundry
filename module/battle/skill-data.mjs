@@ -27,6 +27,13 @@ export const specCount = () => (data ? Object.keys(data.specs).length : 0);
 /** The spec for a signature item ({ _id or id, system.description }), or null. */
 export function specForItem(item) {
   if (!data || !item) return null;
-  const key = data.byItem[item._id ?? item.id] ?? data.byText[textHash(normText(item.system?.description))];
+  const own = item.flags?.qin?.specKey;               // a skill taken from another officer remembers its spec
+  const key = (own && data.specs[own] ? own : null) ?? data.byItem[item._id ?? item.id] ?? data.byText[textHash(normText(item.system?.description))];
   return key ? data.specs[key] ?? null : null;
+}
+/** The spec key for a signature item, or null (kept on a copy so it stays automated whatever its id). */
+export function specKeyForItem(item) {
+  if (!data || !item) return null;
+  const own = item.flags?.qin?.specKey;
+  return (own && data.specs[own] ? own : null) ?? data.byItem[item._id ?? item.id] ?? data.byText[textHash(normText(item.system?.description))] ?? null;
 }

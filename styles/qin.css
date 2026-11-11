@@ -1294,3 +1294,25 @@ a.qin-stat:hover, a.qin-stat:focus-visible { border-color: var(--qin-gold); }
 .qin-tour-strip span { font-size: calc(22px * var(--qin-vs, 1)); }
 .qin-tt { zoom: var(--qin-vs, 1); }
 .qin-party-btns button.qin-party-remove:hover { color: #e06a5a; }
+/* Unique-skill picker (v0.120.0) */
+.qin-sigpick .window-content { padding: 0; display: flex; flex-direction: column; }
+.qin-sigpick .qin-sp-wait { padding: 20px; }
+.qin-sigpick .qin-sp-top { display: flex; gap: 8px; align-items: center; padding: 8px; border-bottom: 1px solid rgba(0,0,0,.15); }
+.qin-sigpick .qin-sp-top input { flex: 1; }
+.qin-sigpick .qin-sp-top nav { display: flex; gap: 2px; }
+.qin-sigpick .qin-sp-top nav a { padding: 3px 8px; border-radius: 3px; white-space: nowrap; }
+.qin-sigpick .qin-sp-top nav a.on { background: #8b2a1f; color: #fff; }
+.qin-sigpick .qin-sp-top button { flex: none; width: auto; white-space: nowrap; }
+.qin-sigpick .qin-sp-body { flex: 1; display: flex; min-height: 0; }
+.qin-sigpick .qin-sp-list { width: 42%; margin: 0; padding: 0; list-style: none; overflow-y: auto; border-right: 1px solid rgba(0,0,0,.15); }
+.qin-sigpick .qin-sp-list li { padding: 5px 8px; cursor: pointer; border-bottom: 1px dotted rgba(0,0,0,.15); display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
+.qin-sigpick .qin-sp-list li:hover { background: rgba(184,134,43,.15); }
+.qin-sigpick .qin-sp-list li.on { background: rgba(184,134,43,.3); }
+.qin-sigpick .qin-sp-list li small { flex-basis: 100%; opacity: .7; }
+.qin-sigpick .qin-sp-auto, .qin-sigpick .qin-sp-manual { font-size: .75em; padding: 0 5px; border-radius: 8px; font-weight: bold; }
+.qin-sigpick .qin-sp-auto { background: #2e7d32; color: #fff; }
+.qin-sigpick .qin-sp-manual { background: rgba(0,0,0,.15); }
+.qin-sigpick .qin-sp-detail { flex: 1; padding: 10px 14px; overflow-y: auto; }
+.qin-sigpick .qin-sp-detail h3 { margin: 0 0 4px; display: flex; gap: 8px; align-items: center; }
+.qin-sigpick .qin-sp-meta, .qin-sigpick .qin-sp-from { font-size: .9em; opacity: .75; }
+.qin-sigpick .qin-sp-desc { margin: 8px 0 12px; }

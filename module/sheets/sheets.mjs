@@ -1,4 +1,5 @@
 import { sourceUuid, syncFromCompendium } from "../compendium-sync.mjs";
+import { SignaturePicker } from "../signature-picker.mjs";
 import { ASPECTS, SKILLS, DOMAINS, SKILL_LEVELS, BOL_LEVELS, MAGIC_WAYS, OFFICER_ABILITY_KINDS, OFFICER_EFFECTS, UNIT_CATEGORIES, SIDES, SIGNATURE_SLOTS, extraActivesForTier, isActiveSlot, rechargeStatus, rechargeLabel, systemPath } from "../config.mjs";
 import { factionOf, openFactionPicker } from "../factions.mjs";
 import { actionsPerRound } from "../rules/qin-rules.mjs";
@@ -452,7 +453,8 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
     const item = this.actor.items.find(i => i.type === "signature" && i.system.slot === slot);
     if (!item) {
       if (!this.isEditable) return;
-      return openItemDraft(this.actor, { name: `New ${label}`, type: "signature", system: { slot } });
+      const own = () => openItemDraft(this.actor, { name: `New ${label}`, type: "signature", system: { slot } });
+      return SignaturePicker.open(this.actor, slot, { onOwn: own });     // every officer's skills of this kind (David, 2026-11-10)
     }
     const meta = [label];
     if (item.system.chiCost) meta.push(`${item.system.chiCost} Chi`);
@@ -463,7 +465,7 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
     const buttons = [{ action: "close", label: "Close", default: true }];
     if (active && this.isEditable && status.ready) buttons.unshift({ action: "use", label: item.system.chiCost ? `Use (${item.system.chiCost} Chi)` : "Use", icon: "fa-solid fa-bolt" });
     buttons.push({ action: "chat", label: "Post to chat", icon: "fa-solid fa-comment" });
-    if (this.isEditable) buttons.push({ action: "edit", label: "Change", icon: "fa-solid fa-pen" }, { action: "remove", label: "Remove", icon: "fa-solid fa-trash" });
+    if (this.isEditable) buttons.push({ action: "edit", label: "Change", icon: "fa-solid fa-right-left" }, { action: "rewrite", label: "Edit", icon: "fa-solid fa-pen" }, { action: "remove", label: "Remove", icon: "fa-solid fa-trash" });
     const cd = status.text ? `<div class="qin-sig-cooldown"><i class="fa-solid fa-hourglass-half"></i> ${esc(status.text)}</div>` : "";
     const choice = await (api.Dialog ?? api.DialogV2).wait({
       window: { title: item.name },
@@ -474,7 +476,8 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
       rejectClose: false,
     });
     if (choice === "use") await useSignature(this.actor, item);
-    else if (choice === "edit") item.sheet.render(true);
+    else if (choice === "edit") SignaturePicker.open(this.actor, slot, { onOwn: () => item.sheet.render(true) });
+    else if (choice === "rewrite") item.sheet.render(true);
     else if (choice === "chat") item.toChat();
     else if (choice === "remove") item.delete();
   }
