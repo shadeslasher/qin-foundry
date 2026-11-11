@@ -1104,44 +1104,69 @@ a.qin-stat:hover, a.qin-stat:focus-visible { border-color: var(--qin-gold); }
 .qin-bonus-row { display: grid; grid-template-columns: 1.6fr 0.5fr 0.8fr 0.9fr 1.4fr 1.2fr auto; gap: 4px; align-items: center; }
 .qin-bonus-row input, .qin-bonus-row select { min-width: 0; height: calc(24px * var(--qin-scale, 1.15)); font-size: calc(12px * var(--qin-scale, 1.15)); }
 
-/* Combat panel */
-.qin-combat-panel .window-content { background: var(--qin-paper); color: var(--qin-ink); padding: 0; }
-.qin-cp { display: flex; flex-direction: column; font-size: calc(13px * var(--qin-scale, 1.15)); }
-.qin-cp-head { display: flex; gap: 8px; align-items: center; padding: 8px 12px; border-bottom: 2px solid var(--qin-red); background: linear-gradient(#efe2c6, var(--qin-paper)); }
-.qin-cp-head img { width: 44px; height: 44px; object-fit: cover; border: 2px solid var(--qin-gold); border-radius: 6px; cursor: pointer; }
-.qin-cp-fight { font-size: calc(12px * var(--qin-scale, 1.15)); color: var(--qin-red); font-weight: 600; }
-.qin-cp-body { overflow-y: auto; max-height: calc(100vh - 120px); }
-.qin-cp section { padding: 8px 12px; border-bottom: 1px solid var(--qin-line); display: flex; flex-direction: column; gap: 5px; }
-.qin-cp h4 { margin: 0; font-weight: 700; color: var(--qin-red); font-size: calc(14px * var(--qin-scale, 1.15)); border: 0; }
-.qin-cp-status { flex-direction: row !important; gap: 10px !important; }
-.qin-cp-meter { flex: 1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px; }
-.qin-cp-meter > span { width: 100%; font-size: calc(11px * var(--qin-scale, 1.15)); color: var(--qin-muted); }
-.qin-cp-meter b { font-size: calc(18px * var(--qin-scale, 1.15)); }
-.qin-cp-bar { width: 100%; height: 6px; background: #ddd2bb; border-radius: 3px; overflow: hidden; }
-.qin-cp-bar i { display: block; height: 100%; }
-.qin-cp-bar.chi i { background: #2f5f8a; } .qin-cp-bar.bol i { background: #9b2c22; }
-.qin-cp-pips { width: 100%; display: flex; gap: 3px; flex-wrap: wrap; }
-.qin-cp-pips .qin-pip { width: 10px; height: 10px; border-radius: 50%; border: 1px solid #8a6420; display: inline-block; }
-.qin-cp-pips .qin-pip.full { background: var(--qin-gold); }
-.qin-cp-row { display: flex; gap: 6px; align-items: center; border-radius: 6px; padding: 4px 6px; }
-.qin-cp-row.qin-cp-tao { background: #e6eef6; } .qin-cp-row.qin-cp-unique { background: #fbf3df; }
-.qin-cp-row.qin-cp-plain { padding: 2px 6px; }
+/* Combat panel: the all-in-one combat hub, dark, two columns (David, 2026-11-10) */
+.qin-combat-panel { --cp-s: var(--qin-scale, 1.15); }
+.qin-combat-panel .window-content { background: #1c1915; color: #efe6d2; padding: 0; }
+.qin-cp { display: flex; flex-direction: column; font-size: calc(13px * var(--cp-s)); container-type: inline-size; }
+.qin-cp-head { display: flex; gap: 12px; align-items: center; padding: 10px 14px; background: linear-gradient(#2a241c, #211c16); border-bottom: 1px solid #4d3f26; }
+.qin-cp-head img { width: 52px; height: 52px; object-fit: cover; border: 2px solid #c9a35a; border-radius: 50%; cursor: pointer; flex: none; }
+.qin-cp-who b { font-size: calc(17px * var(--cp-s)); color: #f6e7bf; }
+.qin-cp-sub { color: #c8bba1; font-size: calc(12px * var(--cp-s)); }
+.qin-cp-fight { display: inline-block; margin-top: 3px; font-size: calc(11px * var(--cp-s)); font-weight: 700; color: #e8c45a; border: 1px solid #8a6420; border-radius: 10px; padding: 0 8px; }
+.qin-cp-fight.mine { background: #e8c45a; color: #1b140b; }
+.qin-cp-meters { margin-left: auto; display: flex; gap: 16px; }
+.qin-cp-meter { width: calc(130px * var(--cp-s)); display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; }
+.qin-cp-meter.narrow { width: calc(90px * var(--cp-s)); }
+.qin-cp-meter > span { width: 100%; font-size: calc(11px * var(--cp-s)); color: #c8bba1; text-transform: uppercase; letter-spacing: .06em; }
+.qin-cp-meter b { font-size: calc(20px * var(--cp-s)); color: #fff; } .qin-cp-meter small { color: #a99b80; }
+.qin-cp-bar { width: 100%; height: 6px; background: #3a3226; border-radius: 3px; overflow: hidden; }
+.qin-cp-bar i { display: block; height: 100%; } .qin-cp-bar.chi i { background: #4f8fd6; } .qin-cp-bar.bol i { background: #c0453a; }
+.qin-cp-pips { width: 100%; display: flex; gap: 3px; }
+.qin-cp-pips .qin-pip { width: 11px; height: 11px; border-radius: 50%; border: 2px solid #c9a35a; display: inline-block; }
+.qin-cp-pips .qin-pip.full { background: #e8c45a; }
+.qin-cp-body { display: grid; grid-template-columns: 1.05fr 1fr; gap: 10px; padding: 10px; overflow-y: auto; max-height: calc(100vh - 140px); align-items: start; }
+@container (max-width: 620px) { .qin-cp-body { grid-template-columns: 1fr; } .qin-cp-head { flex-wrap: wrap; } .qin-cp-meters { margin-left: 0; } }
+.qin-cp-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.qin-cp-card { background: #25211b; border: 1px solid #3d3324; border-radius: 7px; padding: 9px 11px; display: flex; flex-direction: column; gap: 6px; }
+.qin-cp h4 { margin: 0 0 2px; border: 0; font-size: calc(11px * var(--cp-s)); font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #e0b65c; display: flex; justify-content: space-between; gap: 8px; }
+.qin-cp h4 small { letter-spacing: 0; text-transform: none; font-weight: 400; color: #a99b80; }
+.qin-cp-dim { color: #b3a68c; font-size: calc(12px * var(--cp-s)); }
+.qin-cp p { margin: 0; }
+.qin-cp-stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.qin-cp-stat { background: #1a1713; border: 1px solid #3d3324; border-radius: 6px; text-align: center; padding: 5px 2px; cursor: help; }
+.qin-cp-stat span { display: block; font-size: calc(10.5px * var(--cp-s)); color: #c8bba1; white-space: nowrap; }
+.qin-cp-stat b { font-size: calc(18px * var(--cp-s)); color: #fff; }
+.qin-cp-incoming { background: #3a1d18; border: 1px solid #c0573f; border-radius: 6px; padding: 7px 9px; }
+.qin-cp-incoming > b { color: #ffb39d; }
+.qin-cp-btnrow { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; align-items: center; } .qin-cp-btnrow.end { justify-content: flex-end; }
+.qin-cp-target { background: #1a1713; border-radius: 5px; padding: 5px 9px; color: #d8cfbd; } .qin-cp-target b { color: #fff; }
+.qin-cp-weapon, .qin-cp-active { display: flex; align-items: center; gap: 9px; padding: 6px 0; border-top: 1px solid #3d3324; }
+.qin-cp-weapon img { width: 32px; height: 32px; border: 1px solid #6b5530; border-radius: 4px; background: #1a1713; }
+.qin-cp-weapon b, .qin-cp-active b { color: #fff; font-size: calc(14px * var(--cp-s)); }
 .qin-cp-grow { flex: 1; min-width: 0; }
-.qin-cp-slot { color: var(--qin-muted); width: 92px; flex: none; font-size: calc(12px * var(--qin-scale, 1.15)); }
-.qin-cp-ready { background: #fffaf0; }
-.qin-cp button { width: auto; flex: none; min-height: 26px; line-height: 1.2; border: 1px solid var(--qin-line); background: #fffaf0; border-radius: 4px; font-family: inherit; padding: 2px 8px; }
-.qin-cp button.qin-primary { background: var(--qin-gold); color: #1b140b; border-color: #8a6420; font-weight: 700; }
-.qin-cp-x { min-width: 26px; }
-.qin-cp-tao-name { font-weight: 700; margin-bottom: 3px; }
-.qin-cp-tao-name a { font-weight: 400; font-size: calc(12px * var(--qin-scale, 1.15)); margin-left: 6px; color: var(--qin-red); }
-.qin-cp-btns { display: flex; flex-wrap: wrap; gap: 4px; }
-/* Tao buttons: level and name only; the details are in the hover card (David, 2026-11-10) */
-.qin-cp-btns button { flex: 0 1 auto; width: auto; max-width: 100%; min-width: 0; padding: 2px 9px; line-height: 1.5; font-weight: 600;
-  color: #2a2118; background: #fffaf0; border: 1px solid #b9a77f; border-radius: 4px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
-.qin-cp-btns button.off { color: #8a7d66; background: #ece3cf; border-style: dashed; cursor: help; }
-.qin-cp-btns button:not(.off):hover { background: #fff; }
-.qin-cp-btns button:not(.off):hover { border-color: #2f5f8a; }
+.qin-cp-row { display: flex; gap: 7px; align-items: center; padding: 2px 0; }
+.qin-cp-row input[type=checkbox] { flex: none; margin: 0; }
+.qin-cp-row.qin-cp-reminder { border: 1px dashed #b98a2e; border-radius: 5px; padding: 2px 5px; }
+.qin-cp-tag { flex: none; font-size: calc(10px * var(--cp-s)); font-weight: 700; border-radius: 4px; padding: 0 6px; background: #e8c45a; color: #1b140b; }
+.qin-cp-tag.tao { background: #4f8fd6; color: #fff; }
+.qin-cp-ready { border-top: 1px solid #3d3324; padding-top: 5px; color: #d8cfbd; }
+.qin-cp-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.qin-cp-chip { border: 1px solid #6b5530; background: #2f2920; border-radius: 12px; padding: 1px 10px; font-weight: 600; cursor: help; }
+.qin-cp-tao + .qin-cp-tao { margin-top: 4px; }
+.qin-cp-tao-name { font-weight: 700; color: #fff; margin-bottom: 3px; }
+.qin-cp-cost { font-size: calc(11px * var(--cp-s)); color: #a8e2c4; border: 1px solid #5fb08a; border-radius: 10px; padding: 0 7px; flex: none; }
+.qin-cp button { width: auto; flex: none; min-height: 0; height: auto; line-height: 1.5; font-family: inherit; font-size: calc(12.5px * var(--cp-s)); font-weight: 700;
+  border: 1px solid #6b5530; background: #2f2920; color: #efe6d2; border-radius: 5px; padding: 2px 11px; box-shadow: none; }
+.qin-cp button:hover:not(:disabled) { background: #3b3328; border-color: #c9a35a; }
+.qin-cp button.qin-cp-gold { background: #e8c45a; color: #1b140b; border-color: #e8c45a; } .qin-cp button.qin-cp-gold:hover { background: #f2d27e; }
+.qin-cp button.qin-cp-red { background: #b23a2c; color: #fff; border-color: #b23a2c; } .qin-cp button.qin-cp-red:hover { background: #c94a3a; }
+.qin-cp button.qin-cp-small, .qin-cp button.qin-cp-x, .qin-cp button.qin-cp-step { padding: 0 7px; font-size: calc(11.5px * var(--cp-s)); }
+.qin-cp button:disabled { opacity: .4; }
+.qin-cp button.qin-cp-taobtn { border-radius: 12px; border-color: #4f8fd6; color: #cfe3fa; background: #1f2a36; font-weight: 600; padding: 1px 10px;
+  max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qin-cp button.qin-cp-taobtn:hover { background: #28394b; border-color: #7fb2ea; }
+.qin-cp button.qin-cp-taobtn.manual { border-color: #8a7a5a; color: #e6dcc6; background: #2a251d; }
+.qin-cp button.qin-cp-taobtn.off { opacity: .5; border-style: dashed; cursor: help; }
 
 /* Growing bonuses and effects on others (0.100.9) */
 .qin-cp-step { min-width: 26px; flex: 0 0 auto; font-weight: bold; }

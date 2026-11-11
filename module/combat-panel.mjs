@@ -1,7 +1,8 @@
 // The Combat panel (David, 2026-11-05): one character's fight at a glance, docked beside the chat. Status (Chi,
 // Breath of Life, actions, round and exchange), effects in force, effects ready for the next roll, Tao buttons,
 // unique actives and situational tick boxes. Owners and the GM can open it.
-import { systemPath, rechargeStatus, rechargeLabel, isActiveSlot, SIGNATURE_SLOTS } from "./config.mjs";
+import { systemPath, rechargeStatus, rechargeLabel, isActiveSlot, SIGNATURE_SLOTS, SKILL_LEVELS } from "./config.mjs";
+import { damageDialog } from "./chat.mjs";
 import { taoActionsFor, roundsLeft, QUEUE_SLOTS } from "./rules/tao-rules.mjs";
 import { collectBonuses } from "./rules/bonuses.mjs";
 import { getState, currentFight, activateTao, endEffect, removeQueued, setSituational, tickedOf, useActive, setCombatStateChangeHandler, shortTao, growingRows, adjustStack, auraBonuses } from "./combat-state.mjs";
@@ -16,7 +17,7 @@ export class CombatPanel extends api.HandlebarsApplicationMixin(api.ApplicationV
 
   static DEFAULT_OPTIONS = {
     classes: ["qin", "qin-combat-panel"],
-    position: { width: 360, height: "auto" },
+    position: { width: 820, height: "auto" },
     window: { resizable: true, icon: "fa-solid fa-shield-halved" },
     actions: {
       tao: CombatPanel.#onTao,
@@ -27,6 +28,11 @@ export class CombatPanel extends api.HandlebarsApplicationMixin(api.ApplicationV
       stackUp: CombatPanel.#onStackUp,
       stackDown: CombatPanel.#onStackDown,
       openSheet: function () { this.actor.sheet.render(true); },
+      attack: CombatPanel.#onAttack,
+      defend: CombatPanel.#onDefend,
+      takeHit: CombatPanel.#onTakeHit,
+      dismissIncoming: CombatPanel.#onDismiss,
+      endTurn: CombatPanel.#onEndTurn,
     },
   };
   static PARTS = { body: { template: systemPath("templates/combat-panel.hbs"), scrollable: [".qin-cp-body"] } };
@@ -63,7 +69,7 @@ export class CombatPanel extends api.HandlebarsApplicationMixin(api.ApplicationV
     const o = super._initializeApplicationOptions(options);
     let pct = 115;
     try { pct = Number(game.settings.get("qin", "textScale")) || 115; } catch { /* fine */ }
-    o.position.width = Math.round(360 * pct / 100);
+    o.position.width = Math.min(window.innerWidth - 320, Math.round(820 * pct / 100));
     const sb = document.getElementById("sidebar")?.getBoundingClientRect();
     const right = sb && sb.width ? sb.left : window.innerWidth - 300;
     o.position.left = Math.max(0, right - o.position.width - 8);
@@ -138,7 +144,16 @@ export class CombatPanel extends api.HandlebarsApplicationMixin(api.ApplicationV
           + `<div class="qin-sig-tip-name">${e(a.name)}</div><div class="qin-sig-chips"><span class="qin-sig-chip chi">${e(a.cost)} Chi</span>${a.when ? `<span class="qin-sig-chip cd">${e(a.when)}</span>` : ""}</div></div>`
           + `<div class="qin-sig-tip-bd"><ul class="qin-sig-rules"><li>${e(a.text)}</li>${disabled ? `<li><i>Not now: ${e(reason)}</i></li>` : ""}</ul></div></div>`;
         return { level: a.level, label: `${a.level === "any" ? "" : `${a.level} · `}${a.name}`, disabled, reason, tip };
-      }),
+      }).concat(t.other.map(l => {
+        // Levels not automated (Six Directions...): the button takes the Chi (= the level) and posts the text; the rest is by hand
+        const item = actor.items.get(t.taoId);
+        const text = item?.system.effects?.[`l${l}`] ?? "";
+        const e = (x) => foundry.utils.escapeHTML(String(x ?? ""));
+        const tip = `<div class="qin-sig-tip"><div class="qin-sig-tip-hd"><div class="qin-sig-tip-slot">${e(shortTao(t.taoName))} · level ${l}</div>`
+          + `<div class="qin-sig-tip-name">Level ${l}</div><div class="qin-sig-chips"><span class="qin-sig-chip chi">${l} Chi</span><span class="qin-sig-chip cd">applied by hand</span></div></div>`
+          + `<div class="qin-sig-tip-bd"><ul class="qin-sig-rules"><li>${e(text) || "<i>No text on the Tao.</i>"}</li><li><i>The Chi is taken and the level posted to chat; movement and the rest are done by hand.</i></li></ul></div></div>`;
+        return { level: l, label: `${l} · ${text ? shortLevelName(text) : `Level ${l}`}`, manual: true, tip };
+      })).sort((a, b) => (a.level === "any" ? 0 : a.level) - (b.level === "any" ? 0 : b.level)),
     }));
 
     // Unique actives
@@ -163,6 +178,9 @@ export class CombatPanel extends api.HandlebarsApplicationMixin(api.ApplicationV
       bol: sys.bol?.total ? { value: sys.bol.remaining, max: sys.bol.total, pct: pct(sys.bol.remaining, sys.bol.total) } : sys.hp ? { value: sys.hp.value, max: sys.hp.max, pct: pct(sys.hp.value, sys.hp.max), henchman: true } : null,
       actions: acts ? { left, max: acts.max, pips: Array.from({ length: acts.max }, (_, i) => i < left) } : null,
       inEffect, alwaysRows, growing, queued, taos, actives, situational,
+      glance: glanceOf(actor, combatant), incoming: incomingFor(actor, fight), target: targetInfo(actor),
+      weapons: weaponsOf(actor), techniques: techniquesOf(actor),
+      myTurn: !!(combatant && game.combat?.combatant === combatant), inFight: !!combatant,
     };
   }
 
@@ -183,10 +201,96 @@ export class CombatPanel extends api.HandlebarsApplicationMixin(api.ApplicationV
   static async #onUnqueue(event, target) { await removeQueued(this.actor, target.dataset.id); }
   static async #onStackUp(event, target) { await adjustStack(this.actor, target.dataset.key, 1); }
   static async #onStackDown(event, target) { await adjustStack(this.actor, target.dataset.key, -1); }
+  static async #onAttack(event, target) {
+    const w = this.actor.items.get(target.dataset.id);
+    if (w) await this.actor.rollAttack(w);
+  }
+  static async #onDefend(event, target) {
+    const msg = game.messages.get(target.dataset.msg);
+    if (msg) await this.actor.rollDefense(target.dataset.type, { ...msg.flags.qin, msgId: msg.id });
+  }
+  static async #onTakeHit(event, target) {
+    const msg = game.messages.get(target.dataset.msg);
+    if (msg) await damageDialog(msg.flags.qin, this.actor);
+  }
+  static async #onDismiss(event, target) { DISMISSED.add(target.dataset.msg); this.render(); }
+  static async #onEndTurn() { await game.combat?.nextTurn(); }
   static async #onUseActive(event, target) {
     const item = this.actor.items.get(target.dataset.id);
     if (item) await useActive(this.actor, item);
   }
+}
+
+
+/* ---------------------------------------- the all-in-one parts (David, 2026-11-10) */
+
+const DISMISSED = new Set();
+const esc = (x) => foundry.utils.escapeHTML(String(x ?? ""));
+const sgn = (n) => (n > 0 ? `+${n}` : `${n}`);
+const tipList = (title, rows) => `<div class="qin-sig-tip"><div class="qin-sig-tip-hd"><div class="qin-sig-tip-name">${esc(title)}</div></div><div class="qin-sig-tip-bd"><ul class="qin-sig-rules">${rows.map(r => `<li>${esc(r)}</li>`).join("")}</ul></div></div>`;
+
+/** A short name for a level from its text: the words before the first colon or full stop, at most four words. */
+function shortLevelName(text) {
+  const head = String(text).split(/[:.(]/)[0].trim();
+  const words = head.split(/\s+/);
+  return words.length <= 4 ? head : `${words.slice(0, 4).join(" ")}…`;
+}
+
+function glanceOf(actor, combatant) {
+  const sys = actor.system;
+  const pdRows = (sys.pdParts ?? []).map(p => `${p.label} ${sgn(p.value)}`);
+  const adRows = (sys.bonusList ?? []).filter(b => b.stat === "ad" && b.mode !== "situational").map(b => `${b.label}: ${b.text}`);
+  const water = sys.aspects?.water ?? 0, pen = sys.armor?.movementPenalty ?? 0;
+  const move = Math.max(0, water - pen);
+  return [
+    { label: "Passive Def.", value: sys.passiveDefense ?? "—", tip: tipList(`Passive Defense ${sys.passiveDefense}`, pdRows.length ? pdRows : ["Water + Wood + 2"]) },
+    { label: "Active Def.", value: sgn(sys.activeDefenseBonus || 0), tip: tipList("Active Defense bonus", adRows.length ? adRows : ["Block: Water + weapon Skill + Yin/Yang", "Dodge: Water + Dodging + Yin/Yang", "No standing bonus"]) },
+    { label: "Armor", value: sys.armor?.protection ?? 0, tip: tipList(`Protection ${sys.armor?.protection ?? 0}`, [sys.armor?.name || "No armour", ...(sys.armor?.defenseBonus ? [`Shield: Block +${sys.armor.defenseBonus}`] : []), ...(pen ? [`Movement −${pen} (protection over Metal)`] : [])]) },
+    { label: "Initiative", value: combatant?.initiative ?? "—", tip: tipList("Initiative", ["Water + Yin/Yang die, rerolled every round", combatant?.initiative == null ? "Not rolled yet" : `This round: ${combatant.initiative}`]) },
+    { label: "Move", value: `${move} yd`, tip: tipList(`Movement ${move} yards`, [`Water ${water}${pen ? `, armour −${pen}` : ""}`, "Moved by hand on the map"]) },
+  ];
+}
+
+/** The newest hit against him this round that he hasn't defended or taken yet. */
+function incomingFor(actor, fight) {
+  if (!fight) return null;
+  const msgs = game.messages.contents;
+  for (let i = msgs.length - 1, n = 0; i >= 0 && n < 60; i--, n++) {
+    const f = msgs[i].flags?.qin;
+    if (!f?.kind) continue;
+    if (f.kind === "damage" && f.target === actor.uuid) return null;
+    if (f.kind === "defense" && f.defender === actor.uuid) return null;
+    if (f.kind !== "attack" || f.target !== actor.uuid) continue;
+    if (!f.hit || DISMISSED.has(msgs[i].id) || f.fight?.id !== fight.id || f.fight?.round !== fight.round) return null;
+    const who = f.attacker ? fromUuidSync(f.attacker) : null;
+    return { msg: msgs[i].id, attacker: who?.name ?? "Someone", total: f.total, st: f.st, damage: f.damage, ranged: f.ranged, isGM: game.user.isGM };
+  }
+  return null;
+}
+
+function targetInfo(actor) {
+  const t = [...game.user.targets][0];
+  if (!t?.actor || t.actor === actor) return null;
+  const me = canvas.tokens?.placeables.find(p => p.actor === actor);
+  let yd = null;
+  try { if (me) yd = Math.round(canvas.grid.measurePath([me.center, t.center]).distance); } catch { /* no grid */ }
+  const pd = t.actor.type === "unit" ? null : t.actor.system.passiveDefense;
+  return { name: t.name, pd, yd, units: canvas.scene?.grid?.units || "yd" };
+}
+
+function weaponsOf(actor) {
+  return actor.items.filter(i => i.type === "weapon" && i.system.equipped).map(w => {
+    const sk = actor.getSkill(w.system.skill), r = w.system.range;
+    const range = w.system.isRanged ? [r.c, r.m, r.l, r.e].filter(Boolean).join(" / ") + " yd" : "close combat";
+    return { id: w.id, name: w.name, img: w.img, sub: `${sk.label} ${SKILL_LEVELS[sk.value] ?? ""} · damage ${w.system.damage}${w.system.attackModifier ? ` · attack ${sgn(w.system.attackModifier)}` : ""} · ${range}` };
+  });
+}
+
+function techniquesOf(actor) {
+  return actor.items.filter(i => i.type === "technique").map(t => {
+    const text = (t.system.description ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    return { name: t.name, tip: tipList(t.name, [`${t.system.roll === "defense" ? "Block / Dodge" : t.system.roll === "attack" ? "Attack" : "Other"} · ST +${t.system.stIncrease}`, ...(text ? [text] : []), "Chosen in the Attack or Block window"]) };
+  });
 }
 
 /** Live updates: the actor, its items and the combat. */
@@ -223,7 +327,9 @@ export function registerCombatPanel() {
   setCombatStateChangeHandler(all);
   Hooks.on("updateActor", (actor) => CombatPanel.refresh(actor));
   for (const h of ["createItem", "updateItem", "deleteItem"]) Hooks.on(h, (item) => { if (item.parent?.documentName === "Actor") CombatPanel.refresh(item.parent); });
-  for (const h of ["updateCombatant", "createCombatant", "deleteCombatant", "createCombat", "combatStart"]) Hooks.on(h, all);
+  Hooks.on("createChatMessage", (m) => { if (m.flags?.qin?.kind) all(); });
+  Hooks.on("targetToken", (user) => { if (user === game.user) all(); });
+  for (const h of ["updateCombat", "updateCombatant", "createCombatant", "deleteCombatant", "createCombat", "combatStart"]) Hooks.on(h, all);
   // Unlinked tokens' actors change through their token
   // Token moves change who is engaged with whom: refresh every open panel
   Hooks.on("updateToken", (tok, change) => { if ("x" in change || "y" in change) all(); else if (tok.actor) CombatPanel.refresh(tok.actor); });

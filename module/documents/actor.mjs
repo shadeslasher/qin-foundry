@@ -530,6 +530,7 @@ export class QinActor extends foundry.documents.Actor {
     const situational = sitOpts.map((s, i) => ({ kind: "unique", situational: true, ticked: sitOn[i], text: s.text + (s.condition ? ` (${s.condition})` : "") }));
     await this._postRoll({
       title: type === "block" ? "Block" : "Dodge", roll, dice, parts, total, st, success, notes, situational,
+      flags: { kind: "defense", defender: this.uuid, against: attack.msgId ?? null, success },
       extra: (tech ? `<p><b>Technique:</b> ${esc(tech.name)} (ST +${tech.system.stIncrease})</p>` : "")
         + (success ? "<p><b>Success: the blow is turned aside.</b></p>" : "<p><b>The attack lands.</b></p>")
         + (act.note ? `<p class="qin-muted">${esc(act.note)}</p>` : ""),
