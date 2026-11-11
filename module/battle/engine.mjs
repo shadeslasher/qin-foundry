@@ -693,11 +693,13 @@ function moveOptions(s, u) {
   const nearest = (x, y) => Math.min(99, ...foes.map(o => manhattan(o, { x, y })));
   const d0 = nearest(u.x, u.y);
   const pinner = (s.units || []).find(o => alive(o) && (u.fx && u.fx.buffs || []).some(b => b.status === 'cantMoveAway' && b.src === o.id));
+  const keepOff = (s.units || []).filter(o => alive(o) && (u.fx && u.fx.buffs || []).some(b => b.status === 'cantApproachSource' && b.src === o.id)); // can't come closer to these
   for (const [k, d] of reach) {
     const n = reach.steps.get(k);
     const burn = (reach.fire.get(k) || 0) * FIRE_CROSS_MORALE;
     const [kx, ky] = k.split(',').map(Number);
     if (pinner && manhattan({ x: kx, y: ky }, pinner) > manhattan(u, pinner)) continue; // can't move away from the unit holding it
+    if (keepOff.some(o => manhattan({ x: kx, y: ky }, o) < manhattan(u, o))) continue; // can't move closer to the unit that warned it off
     const extraOk = d <= move || (d <= move + away && nearest(kx, ky) > d0) || (d <= move + noAtk);
     if (d > move && extraOk && !(d <= move + away && nearest(kx, ky) > d0)) noAttack.add(k);
     if (extraOk) { blue.set(k, n); if (reach.rough.has(k)) rough.add(k); if (burn) fire.set(k, burn); continue; }

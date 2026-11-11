@@ -1165,7 +1165,7 @@ export function pickCandidates(s, u, pk, earlier = {}) {
 
 // ---------------------------------------------------------------- words for the log and the UI
 const STATUS_TEXT = { cantMove: "can't move", cantAttack: "can't attack", cantMoveOrAttack: "can't move or attack", skipTurn: 'skips its turn',
-  isolated: 'gets nothing from allied traits and abilities', cantAttackNearSource: "can't attack his unit or units next to it", noTactics: "can't set off tactics", noOverwatchAgainst: "overwatch can't target it", cantMoveAway: "can't move away",
+  isolated: 'gets nothing from allied traits and abilities', cantAttackNearSource: "can't attack his unit or units next to it", noTactics: "can't set off tactics", noOverwatchAgainst: "overwatch can't target it", cantMoveAway: "can't move away", cantApproachSource: "can't move closer to his unit",
   moveOrAttack: 'can move or attack, not both', noSkills: "can't use battlefield actives", stripDefenses: 'loses Brace, Hold, Charge Reflection and Anti-Cavalry' };
 const STAT_TEXT = { attack: 'Attack', command: 'Command', commandAtk: 'Command when attacking', commandDef: 'Command when defending', meleeDef: 'melee defense',
   rangedDef: 'ranged defense', move: 'movement', range: 'range', armor: 'armor', pen: 'pen', damage: 'damage', resist: 'vs enemy skills',

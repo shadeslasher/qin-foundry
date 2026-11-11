@@ -31,7 +31,9 @@ export const EVENTS = ['battleStart', 'roundStart', 'turnStart', 'turnEnd', 'win
 export const STATUSES = ['cantMove', 'cantAttack', 'cantMoveOrAttack', 'skipTurn', 'moveOrAttack', 'noSkills', 'stripDefenses',
   'halfMove', 'cantAttackSource', 'maxMove1',
   // v3
-  'isolated', 'noTactics', 'noOverwatchAgainst', 'cantMoveAway', 'cantAttackNearSource'];
+  'isolated', 'noTactics', 'noOverwatchAgainst', 'cantMoveAway', 'cantAttackNearSource',
+  // 2026-11-10: can't end a move closer to the unit that put it on 
+  'cantApproachSource'];
 export const DURATIONS = ['thisTurn', 'nextAttack', 'nextRoll', 'untilNextTurnEnd', 'untilNextTurnStart', 'battle', 'nextTurn',
   'untilSourceTurnStart', 'untilSourceTurnEnd', 'nextContest', 'nextSkill'];
 export const TERRAINS = ['plains', 'forest', 'trees', 'tall-grass', 'marsh', 'sand', 'rocky', 'steppe', 'farmland', 'ford', 'river',
