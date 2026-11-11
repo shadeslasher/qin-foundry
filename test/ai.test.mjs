@@ -436,22 +436,25 @@ function teamCase(aow, far = false) {
   return { s, ids, T: AI.teamPlan(s, 'enemy') };
 }
 
-test('AI teamwork: Art of War 3+ picks a target several units can break together, in order: ranged, foot, cavalry', () => {
+test('AI teamwork: Art of War 3+ picks a target several units can break together', () => {
   assert.strictEqual(teamCase(2).T.focus, null, 'Art of War 2 does not combine');
   const three = teamCase(3);
   assert.ok(three.T.focus && three.T.focus.targetId === three.ids[0], 'a combined attack on the player unit');
   assert.strictEqual(three.T.focus.members.length, 2, 'level 3 pairs two units');
   const five = teamCase(5).T.focus;
   assert.strictEqual(five.members.length, 3, 'level 5 takes all three');
-  assert.deepStrictEqual(five.members.map(m => m.role), ['soften', 'pin', 'finish']);
+  assert.deepStrictEqual(five.members.map(m => m.role).sort(), ['finish', 'pin', 'soften']);
 });
 
-test('AI teamwork: officer-less units go in the order of the combined attack (the cavalry last)', () => {
+test('AI teamwork: no set order: waiting is scored (the unit that could finish the target gains by going last)', () => {
   const { s, ids } = teamCase(5);
-  const P1u = R.unitById(s, ids[0]);
-  must(R.act(s, P1, { type: 'begin', unitId: P1u.id })); must(R.act(s, P1, { type: 'endTurn', unitId: P1u.id }));
-  const first = AI.pickUnit(s, 'enemy', { level: 5 });
-  assert.notStrictEqual(first.unitId, ids[1], 'the cavalry waits for its partners');
+  R.unitById(s, ids[0]).men = 14; // worn down: one hit won't break it, three will
+  const S = AI.strategy(s, 'enemy');
+  assert.ok(S.focus && S.focus.members.length === 3, JSON.stringify(S.focus));
+  const gain = (id) => AI._waitGain(s, id);
+  assert.ok(gain(ids[1]) > 0, 'the cavalry gains by finishing it: ' + gain(ids[1]));
+  const fresh = teamCase(5); // a fresh target nobody can finish: little to gain from any order
+  assert.ok(Math.abs(AI._waitGain(fresh.s, fresh.ids[2])) < gain(ids[1]), 'the archers gain less');
 });
 
 test('AI reading ahead: Art of War 4+ gathers units that are out of reach to strike together later', () => {

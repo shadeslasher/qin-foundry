@@ -653,8 +653,8 @@ function routeDist(s, u, p, pts) {
 // ---------------------------------------------------------------- working together (David, 2026-11-11)
 //
 // Combined moves (Art of War 3+): the side picks one enemy unit that several of its units can reach this turn and
-// that none of them would break alone, and gives them roles in order: ranged units soften it, foot close its sides
-// and pin it, cavalry come last for the finishing blow. Members are drawn to attack it and to close in on its sides;
+// that none of them would break alone. Members are drawn to attack it and to close in on its sides. Who goes first
+// is scored, not set: each weighs what he'd gain by striking after the others (a finishing blow, closed sides);
 // nothing is forced: each unit still weighs the team's bonus against the danger it would be in, waiting is weighed
 // against what it could do now, and members who'd risk more than they add aren't asked (David, 2026-11-11).
 // Level 3 pairs two units, 4 up to three, 5 up to four.
@@ -662,7 +662,6 @@ function routeDist(s, u, p, pts) {
 // reach together within two rounds (three at level 5): they gather just outside its army's reach, on its open side,
 // so they strike together next round rather than arriving one at a time.
 
-const ROLE_ORDER = { soften: 0, pin: 1, finish: 2 };
 function roleOf(s, u) {
   const t = E.typeOf(s, u);
   if (t.weapon === 'ranged') return 'soften';
@@ -716,8 +715,7 @@ export function teamPlan(s, side, jobs = new Map(), protect = new Set()) {
     if (!best || v > best.v) best = { v, e, team, kills };
   }
   if (best) {
-    const members = best.team.map(m => ({ id: m.u.id, role: m.role, order: ROLE_ORDER[m.role] }))
-      .sort((a, b) => a.order - b.order);
+    const members = best.team.map(m => ({ id: m.u.id, role: m.role }));
     out.focus = { targetId: best.e.id, members, kills: best.kills };
     out.why.push('combined attack on ' + (best.e.name || best.e.id) + ': ' + members.map(m => m.role).join(', '));
   }
@@ -746,18 +744,32 @@ export function teamPlan(s, side, jobs = new Map(), protect = new Set()) {
   return out;
 }
 
-/** What going after his partners is worth to a waiting member: the team bonus he'd gain on the softened target. */
+/**
+ * What a member gains by striking after the partners still to act rather than now (no set order, David, 2026-11-11):
+ * his hit on the target is worth more once they have worn it down (a finishing blow) and closed its sides. Ranged
+ * units that can't finish anything gain little by waiting; cavalry that can finish it gain a lot. Can be negative.
+ */
 function waitGain(s, S, unitId) {
-  const f = S.focus, t = f && E.unitById(s, f.targetId); if (!t) return 0;
-  const lw = [0, 0, 0, 0.8, 1, 1.15][sideLevel(s, E.unitById(s, unitId)?.side)];
-  return lw * 0.18 * worth(s, t) * (f.kills ? 1.4 : 1);
+  const f = S.focus, t = f && E.unitById(s, f.targetId), me = E.unitById(s, unitId);
+  if (!t || !me || !f.members.some(m => m.id === unitId)) return 0;
+  const others = f.members.filter(m => m.id !== unitId).map(m => E.unitById(s, m.id)).filter(o => o && o.status === 'active' && !(o.round && o.round.activated));
+  if (!others.length) return 0;
+  const hitOf = (a) => traitHit(s, a, t, Math.max(0, E.manhattan(a, t) - 1), !!(t.round && t.round.holding));
+  const mine = hitOf(me), w = worth(s, t);
+  const value = (men, sides) => w * (Math.min(mine, men) / mx(t) + (mine >= men ? 0.9 : 0) + RING[Math.min(4, sides + (E.typeOf(s, me).weapon === 'ranged' ? 0 : 1))] * 0.5);
+  const sidesNow = cantBeRinged(s, t) ? 0 : closedSides(s, t, E.alliance(me.side));
+  const after = Math.max(0, t.men - others.reduce((n, o) => n + hitOf(o), 0));
+  const sidesAfter = cantBeRinged(s, t) ? 0 : Math.min(3, sidesNow + others.filter(o => E.typeOf(s, o).weapon !== 'ranged').length);
+  const lw = [0, 0, 0, 0.8, 1, 1.15][sideLevel(s, me.side)];
+  return lw * (value(after, sidesAfter) - value(t.men, sidesNow));
 }
 
-/** A member of the combined attack: is anyone ahead of it in the order still to act? */
+export const _waitGain = (s, unitId) => waitGain(s, strategy(s, E.unitById(s, unitId).side), unitId);
+
+/** A member of the combined attack whose partners haven't all acted yet. */
 function waitingFor(s, S, unitId) {
-  const f = S.focus; if (!f) return false;
-  const me = f.members.find(m => m.id === unitId); if (!me) return false;
-  return f.members.some(m => m.order < me.order && (() => { const o = E.unitById(s, m.id); return o && o.status === 'active' && !(o.round && o.round.activated); })());
+  const f = S.focus; if (!f || !f.members.some(m => m.id === unitId)) return false;
+  return f.members.some(m => m.id !== unitId && (() => { const o = E.unitById(s, m.id); return o && o.status === 'active' && !(o.round && o.round.activated); })());
 }
 
 /** Plan bonuses for the combined attack and the convergence (added in plans and positionScore). */
@@ -972,6 +984,15 @@ export function plans(s, unitId, opts = {}) {
     const f = fork(base); E.act(f, HOST, { type: 'reload', unitId });
     consider([{ type: 'reload', unitId }], f);
   }
+  // Medical Supplies: tending the wounded (it takes the turn) is one more plan, scored by the troops it brings back
+  // against everything else the unit could do (David, 2026-11-11; was a set rule)
+  if (ac.step === 'move' && !u0.round.moved && !u0.round.attacked && E.medTargets) for (const t of E.medTargets(base, u0)) {
+    const f = fork(base); const act = { type: 'tendWounded', unitId, targetId: t.id };
+    if (!E.act(f, HOST, act).ok) continue;
+    const t1 = E.unitById(f, t.id), gained = Math.max(0, (t1?.men ?? t.men) - t.men);
+    consider([act], f);
+    out[out.length - 1].score += worth(base, t) * gained / mx(t) * (S.protect.has(t.id) ? 1.8 : 1);
+  }
   // where to stand
   let starts = [{ pre: [], f: base }];
   if (ac.step === 'move' && !u0.round.cannotMove) {
@@ -1119,8 +1140,15 @@ export function nextAction(s, unitId, opts = {}) {
   const side = u.side, P = profile(opts.level ?? sideLevel(s, side));
   // follow-up choices inside an attack
   if (ac.step === 'second' && ac.second) {
-    const ids = ac.second.targets.filter(id => E.unitById(s, id));
-    const best = ids.sort((a, b) => (E.unitById(s, a).men / mx(E.unitById(s, a))) - (E.unitById(s, b).men / mx(E.unitById(s, b))))[0];
+    // scored like any attack: played out, the outcome for the side (was: always the weakest target)
+    const ids = ac.second.targets.filter(id => E.unitById(s, id)), S = strategy(s, side);
+    let best = ids[0], bv = -Infinity;
+    for (const id of ids) {
+      let v = 0; const n = Math.max(1, Math.min(4, P.samples));
+      for (let i = 0; i < n; i++) { const f = fork(s); E.setRng(seeded(hashStr(unitId + id + i))); if (!E.act(f, HOST, { type: 'secondAttack', unitId, targetId: id }).ok) { v = -Infinity; break; } v += outcomeScore(s, f, side, S) + teamScore(s, f, u, E.unitById(f, unitId), S, P, { type: 'attack', targetId: id }); }
+      if (v / n > bv) { bv = v / n; best = id; }
+    }
+    E.setRng(Math.random);
     return { type: 'secondAttack', unitId, targetId: best };
   }
   if (ac.step === 'reposition' && ac.reposition) {
@@ -1138,15 +1166,6 @@ export function nextAction(s, unitId, opts = {}) {
   if (SK.pendingChoice(s)) return skillAnswer(s, side);
   // an officer's battlefield active: weighed at the start of the turn (before moving)
   if (!opts.noSkill && ac.step === 'move' && !u.round.moved && !u.round.skillUsed) { const sk = skillOption(s, unitId, opts, P); if (sk) return sk; }
-  // Medical Supplies (2026-11-09): out of contact, tend the unit (or adjacent ally) that has lost the most, if it's down a fair share
-  if (ac.step === 'move' && !u.round.moved && !u.round.attacked) {
-    const ts = E.medTargets(s, u);
-    if (ts.length) {
-      const score = (t) => (1 - t.men / mx(t)) * (Number(E.typeOf(s, t)?.tier) || 1);
-      const t = ts.slice().sort((x, y) => score(y) - score(x))[0];
-      if (t.men / mx(t) <= 0.7) return { type: 'tendWounded', unitId, targetId: t.id };
-    }
-  }
   // an officer who goes his own way says so in the log, once a round, before he acts
   if (ac.step === 'move' && !(u.round && u.round.aiNoted)) {
     const M = mind(s, u, strategy(s, side), P);
@@ -1247,13 +1266,14 @@ function skillAnswer(s, side) {
     return best && best.v > 0 ? { type: 'skillChoose', targetId: best.id } : pass;
   }
   const sq = SK.choiceSquares(s, ch); if (!sq.length) return pass;
-  const foes = E.liveUnits(s).filter(e => E.hostile(e, u));
-  const d = ([x, y]) => Math.min(99, ...foes.map(e => E.manhattan(e, { x, y })));
-  const ranged = (E.typeOf(s, u) || {}).weapon === 'ranged';
-  const cost = (p) => ch.mode === 'away' ? -d(p) : ranged ? Math.abs(d(p) - 3) : d(p) <= 1 ? 1 : d(p);
-  sq.sort((a, b) => cost(a) - cost(b));
-  if (cost(sq[0]) >= cost([u.x, u.y])) return pass; // nothing better than where it stands
-  return { type: 'skillChoose', x: sq[0][0], y: sq[0][1] };
+  // scored like a move: where it ends up (job, ground, ring, formations) and the danger there (David, 2026-11-11)
+  const P = profile(sideLevel(s, u.side));
+  const areas = new Map(E.liveUnits(s).filter(e => E.hostile(e, u)).map(e => [e.id, E.threatArea(s, e)]));
+  const M = mind(s, u, S, P); M.areas = areas;
+  const at = (x, y) => { const f = fork(s); const fu = E.unitById(f, u.id); fu.x = x; fu.y = y; return positionScore(s, f, u, fu, u.side, P, S, M) + threatOf(f, fu, u.side, P, areas, S, M); };
+  let best = null, bv = at(u.x, u.y);
+  for (const [x, y] of sq) { const v = at(x, y); if (v > bv) { bv = v; best = [x, y]; } }
+  return best ? { type: 'skillChoose', x: best[0], y: best[1] } : pass;
 }
 
 /** Best score this unit could get if it acted now (used for Hold decisions and for picking which unit goes). */
@@ -1305,7 +1325,7 @@ export function pickUnit(s, side, opts = {}) {
     // thinking a move ahead: Suppressing Fire goes before the charge it opens up
     if (P.level >= 3) for (const e of E.liveUnits(s)) if (E.hostile(e, u) && E.manhattan(e, u) <= E.movementOf(s, u) + (E.typeOf(s, u).rangeMax || 1)) v = Math.max(v, v + 3 * suppressValue(s, u, e));
     // a combined attack goes in its order: those still waiting for partners go after them
-    if (P.level >= 3 && waitingFor(s, S, u.id)) v -= waitGain(s, S, u.id); // he'd gain that by going after them
+    if (P.level >= 3 && waitingFor(s, S, u.id)) v -= Math.max(0, waitGain(s, S, u.id)); // what he'd gain by going after them
     if (v > bestV) { bestV = v; best = u; }
   }
   return { type: 'begin', unitId: best.id };
