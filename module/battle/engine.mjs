@@ -548,6 +548,7 @@ function movementOf(s, u) {
   const free = SK.flag(s, u, 'ignoreMoveLimits'); // enemy effects that halve or stop its movement don't apply
   if (!free && SK.status(s, u, 'halfMove')) m = Math.max(1, Math.floor(m / 2)); // officers' battlefield skills (David, 2026-11-05)
   if (!free && SK.status(s, u, 'maxMove1')) m = 1;
+  if (u.round && u.round.shocked) m = 1; // shocked by a charge: 1 tile this turn (David, 2026-11-10; was no movement)
   return m;
 }
 
@@ -558,7 +559,7 @@ function newRoundFlags() {
   return { activated: false, moved: false, cannotMove: false, holding: false, attacked: false,
     skillUsed: false, heroicUsed: false, meleeTarget: null, meleeAttacker: null,
     madeAttack: false, wasAttacked: false, // for facing: has it attacked / been attacked this round
-    attacksTaken: 0, rangedTaken: 0 }; // attacks against it this round; ranged ones for Deflect
+    attacksTaken: 0, rangedTaken: 0, shocked: false }; // attacks against it this round; ranged ones for Deflect
 }
 
 // ---------------------------------------------------------------- dice
@@ -1348,10 +1349,10 @@ function resolveAttack(s, attacker, defender, opts) {
   // Fierce Charge++: the enemy unit right behind the defender (in the charge's direction) takes half the damage
   let trample = null;
   // Shock (David, 2026-10-31, a cavalry rule): any cavalry charge that wins the roll against foot troops leaves them
-  // shocked: they can't move on their next activation.
+  // shocked: they can move only 1 tile on their next activation (David, 2026-11-10; was no movement).
   if (charge && winner === 'attacker' && dt.category !== 'cavalry' && alive(defender) && !fx(defender).shocked) {
     fx(defender).shocked = true;
-    log(s, defender.name + ' is shocked by the charge and cannot move on its next activation.', { type: 'shocked', unit: defender.id });
+    log(s, defender.name + ' is shocked by the charge and can move only 1 tile on its next activation.', { type: 'shocked', unit: defender.id });
   }
   // Fierce Charge++ / EX: only a successful charge (the attacker wins the roll) hits the unit behind (David, 2026-10-31)
   if (charge && fierce >= 3 && winner === 'attacker' && dmgToDef > 0) {
@@ -1827,9 +1828,9 @@ function endRound(s) {
 
 function startActivation(s, u, extra) {
   if (u.round && u.round.holding) u.round.holding = false; // Hold ends when the unit acts again
-  if (u.fx && u.fx.shocked) { // shocked by a charge: no movement this activation
-    delete u.fx.shocked; u.round.cannotMove = true;
-    log(s, u.name + ' is shocked and cannot move this turn.', { type: 'shocked', unit: u.id });
+  if (u.fx && u.fx.shocked) { // shocked by a charge: 1 tile of movement this activation
+    delete u.fx.shocked; u.round.shocked = true;
+    log(s, u.name + ' is shocked and can move only 1 tile this turn.', { type: 'shocked', unit: u.id });
   }
   if (u.overwatch) { delete u.overwatch; log(s, u.name + ' stands down from overwatch.', { type: 'overwatch', unit: u.id, on: false }); }
   s.turn.activation = Object.assign({ unitId: u.id, step: 'move', started: false, startedHidden: !!u.hidden,

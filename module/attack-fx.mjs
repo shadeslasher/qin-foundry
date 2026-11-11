@@ -273,6 +273,7 @@ const FLOAT_STYLES = {
   levelUp: { fill: "#ffe680", fontSize: 44 },
   surrounded: { fill: "#ffffff", fontSize: 34 },
   suppressed: { fill: "#f2b84b", fontSize: 32 },
+  charged: { fill: "#ff9a3a", fontSize: 38 },
   miss: { text: "Miss", fill: "#dddddd", fontSize: 28 },
   block: { text: "Blocked", fill: "#8ab8ff", fontSize: 30 },
   dodge: { text: "Dodged", fill: "#8fe08f", fontSize: 30 },
@@ -1124,6 +1125,10 @@ async function playBattleAnimNow({ sceneId, steps }) {
         await playSetFire(st.x, st.y);
       } else if (st.kind === "gateHit") {
         await playGateHit(tok(st.unit), st);
+      } else if (st.kind === "charged") {
+        const t = tok(st.unit);
+        if (t) floatLocal({ x: t.x + t.w / 2, y: t.y + t.h * 0.3 }, "charged", "Charged!");
+        await wait(800);
       } else if (st.kind === "suppressed") {
         suppressedLocal(tok(st.unit));
         await wait(1100);

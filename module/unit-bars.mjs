@@ -64,7 +64,7 @@ function drawOverwatch(size) {
   return g;
 }
 
-/** Shock (David, 2026-10-31): a lightning bolt, the unit was hit by a winning charge and can't move on its next activation. */
+/** Shock (David, 2026-10-31): a lightning bolt, the unit was hit by a winning charge and can move only 1 tile on its next activation (2026-11-10). */
 function drawShock(size) {
   const g = new PIXI.Graphics(), u = size / 20;
   g.lineStyle(Math.max(1, u * 0.9), 0x3a2400, 1).beginFill(0xffd84a, 1)

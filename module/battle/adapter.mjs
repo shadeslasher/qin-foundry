@@ -493,6 +493,7 @@ function animateChanges(scene, before, s, entries, actionType = null) {
       special: !r.ranged && s.units.length ? uniqueAttackOf(s, r.attacker) : null });
     overwatchShot = false;
     if (r.suppressed) steps.push({ kind: "suppressed", unit: r.defender }); // Suppressing Fire landed
+    if (r.charge && !r.ranged && r.loser === r.defender) steps.push({ kind: "charged", unit: r.defender }); // a charge that won: "Charged!" (David, 2026-11-10)
     const gains = [];
     if (r.xpAttacker) { gains.push([r.attacker, "xp", `+${r.xpAttacker} XP`]); add(r.attacker, "xp", r.xpAttacker); }
     if (r.xpDefender) { gains.push([r.defender, "xp", `+${r.xpDefender} XP`]); add(r.defender, "xp", r.xpDefender); }
