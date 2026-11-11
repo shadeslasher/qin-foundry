@@ -76,7 +76,7 @@ function wireSearch(input, list, onPick) {
 }
 
 /* ------------------------------------------------------------------ the scene on screen (every client) */
-let root = null, shown = new Map(), names = new Map(), ending = null, seenHurt = null;
+let root = null, shown = new Map(), names = new Map(), ending = null, seenHurt = null, seenClash = null;
 /** The displayed officers' keys (several can be lit at once; older scenes stored one key). */
 const litOf = (st) => Array.isArray(st.lit) ? st.lit : st.lit ? [st.lit] : [];
 function css() {
@@ -91,7 +91,7 @@ function css() {
   #qin-cutscene .bg { position: absolute; left: 0; right: 0; top: 25vh; height: 50vh; background-size: cover; background-position: center; opacity: 0; transition: opacity .7s; z-index: 1; }
   #qin-cutscene.in .bg.on { opacity: 1; }
   #qin-cutscene .of { position: absolute; top: 26.5vh; height: 95.5vh; z-index: 3; transform: translateX(-50%); opacity: 0;
-    transition: left .7s cubic-bezier(.3,.7,.3,1), opacity .6s, filter .35s; filter: brightness(.38) saturate(.6); pointer-events: none; }
+    transition: left .7s cubic-bezier(.3,.7,.3,1), transform .7s cubic-bezier(.3,.7,.3,1), opacity .6s, filter .35s; filter: brightness(.38) saturate(.6); pointer-events: none; }
   #qin-cutscene .of { width: max-content; max-width: none; }                /* never squeezed near the edge (5 officers) */
   #qin-cutscene .of img { height: 100%; width: auto; max-width: none; display: block; }
   #qin-cutscene .of.round { top: 31vh; height: 38vh; } #qin-cutscene .of.round img { border-radius: 50%; border: 3px solid #c9a85c; box-shadow: 0 6px 24px rgba(0,0,0,.7); }
@@ -107,6 +107,25 @@ function css() {
     background: linear-gradient(90deg, transparent, rgba(0,0,0,.85) 20%, rgba(0,0,0,.85) 80%, transparent); border-top: 1px solid #c9a85c; border-bottom: 1px solid #c9a85c;
     transition: opacity .3s, left .7s cubic-bezier(.3,.7,.3,1); }
   #qin-cutscene .nm.on { opacity: 1; }
+  /* Battle (David, 2026-11-11): the fighters face off in the middle, the others stand aside smaller; Clash plays three quick blows */
+  #qin-cutscene .clash { position: absolute; z-index: 7; width: 0; height: 0; pointer-events: none; }
+  #qin-cutscene .clash svg { position: absolute; transform: translate(-50%, -50%); overflow: visible; }
+  #qin-cs-ctl.battle { left: 0; right: 0; transform: none; max-width: none; background: none; border: 0; box-shadow: none; padding: 0; height: 0; bottom: 12px; overflow: visible; }
+  #qin-cs-ctl.battle .card { position: absolute; bottom: 0; transition: left .7s cubic-bezier(.3,.7,.3,1); background: linear-gradient(180deg, rgba(30,28,26,.96), rgba(16,15,14,.96)); border-color: rgba(201,168,92,.6); }
+  #qin-cs-ctl.battle .card.on { background: linear-gradient(180deg, rgba(64,54,30,.97), rgba(36,30,18,.97)); border-color: #e8c45a; }
+  #qin-cs-ctl.battle .mid { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; width: 132px; }
+  #qin-cs-ctl .clashbtn { height: 70px; display: flex; align-items: center; justify-content: center; border: 2px solid #ffb39d; border-radius: 5px; cursor: pointer;
+    background: linear-gradient(#c94a3a, #8a2418); color: #fff; font-weight: 800; font-size: 18px; letter-spacing: 1px; box-shadow: 0 4px 16px rgba(0,0,0,.6); }
+  #qin-cs-ctl .clashbtn:hover { filter: brightness(1.15); }
+  #qin-cs-ctl .mid .end { width: auto; height: 30px; background: rgba(60,20,14,.95); }
+  #qin-cs-ctl .battlebtn { width: 96px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 1px solid #c9a85c; border-radius: 4px; background: rgba(201,168,92,.18); font-weight: 700; color: #fff4d6; cursor: pointer; text-align: center; }
+  #qin-cs-ctl .battlebtn:hover { background: rgba(201,168,92,.35); }
+  #qin-cs-ctl .battlebtn.go { background: #e8c45a; color: #1b140b; border-color: #e8c45a; } #qin-cs-ctl .battlebtn.go small { font-weight: 400; }
+  #qin-cs-ctl .battlebtn.off { opacity: .45; pointer-events: none; }
+  #qin-cs-ctl .side { display: flex; margin-top: 4px; border: 1px solid rgba(201,168,92,.6); border-radius: 3px; overflow: hidden; }
+  #qin-cs-ctl .side span { flex: 1; padding: 3px 0; cursor: pointer; text-align: center; } #qin-cs-ctl .side span + span { border-left: 1px solid rgba(201,168,92,.4); }
+  #qin-cs-ctl .side span:hover { background: rgba(201,168,92,.22); }
+  #qin-cs-ctl .side .L { background: #2f5f8a; color: #fff; font-weight: 700; } #qin-cs-ctl .side .R { background: #a8402f; color: #fff; font-weight: 700; }
   .qin-cs-panel { background: linear-gradient(180deg, rgba(30,28,26,.96), rgba(16,15,14,.96)); border: 1px solid rgba(201,168,92,.6); border-radius: 5px;
     box-shadow: 0 4px 16px rgba(0,0,0,.6); color: #ece6d6; font-family: var(--qin-font, Signika, sans-serif); font-size: 13px; user-select: none; }
   #qin-cs-ctl { position: fixed; z-index: 96; left: 50%; bottom: 12px; transform: translateX(-50%); display: flex; gap: 8px; align-items: stretch; padding: 8px 10px; max-width: 96vw; }
@@ -147,6 +166,77 @@ function css() {
 }
 const slot = (i, n) => `${((i + 1) / (n + 1)) * 100}%`;
 
+/**
+ * Where an officer stands: { x (0-1 across the screen), anchor (0-1 across his painting: the point put at x), scale, origin }.
+ * Normally spaced out evenly. In a battle the fighters face off in the middle on their sides (lined up by the face), and the
+ * others step out to the edges, half each side, at about 60% size, still standing on the lower bar (David, 2026-11-11).
+ */
+function layout(st, cast, i, c) {
+  const n = cast.length, b = st.battle;
+  if (!b?.on) return { x: (i + 1) / (n + 1), anchor: 0.5, scale: 1, origin: "50% 50%", lunge: 0 };
+  const side = b.sides?.[c.key];
+  const fx = c.fx ?? 0.5, eye = c.eye ?? 0.15;
+  if (side === "L" || side === "R") {
+    const team = cast.filter(o => b.sides[o.key] === side), j = team.indexOf(c);
+    const x = side === "L" ? 0.36 - 0.1 * j : 0.64 + 0.1 * j;
+    return { x, anchor: fx, scale: 1.08, origin: `${fx * 100}% ${eye * 100}%`, side };
+  }
+  const spect = cast.filter(o => !b.sides?.[o.key]), j = spect.indexOf(c), half = Math.ceil(spect.length / 2);
+  const left = j < half, k = left ? j : j - half;
+  // shrink towards the lower bar's line so they keep standing on it
+  const bx = c.half ? { top: 42, height: 33 } : !c.src ? { top: 31, height: 38 } : figureBox(c);
+  const top = bx.top, h = bx.height, barAt = Math.max(0.3, Math.min(0.95, (75 - top) / h));
+  const gap = Math.max(0.09, 150 / (window.innerWidth || 1920)), edge = Math.max(0.07, 75 / (window.innerWidth || 1920)); // room for each one's control card
+  return { x: left ? edge + gap * k : 1 - edge - gap * k, anchor: fx, scale: 0.58, origin: `${fx * 100}% ${barAt * 100}%`, spect: true };
+}
+function placeOfficer(el, L) {
+  el.style.left = `${L.x * 100}%`;
+  el.style.transformOrigin = L.origin;
+  el.style.transform = `translateX(-${L.anchor * 100}%) scale(${L.scale})`;
+  el.dataset.side = L.side ?? "";
+}
+
+/** Clash: three quick blows (the Duel clash sound has them at 0, 0.26 and 0.52 s); the fighters lunge, sparks fly in the middle. */
+function clashFx(st, cast) {
+  playMoment("Duel clash", { minGap: 0 });
+  const b = st.battle, fighters = cast.filter(c => b.sides?.[c.key]).map(c => ({ c, el: shown.get(c.key), side: b.sides[c.key] })).filter(f => f.el);
+  if (!root || !fighters.length) return;
+  const W = window.innerWidth, H = window.innerHeight;
+  // the meeting point: between the two front fighters, at chest height
+  const front = (s) => fighters.filter(f => f.side === s).map(f => f.el.getBoundingClientRect()).map(r => s === "L" ? r.right : r.left);
+  const lx = Math.max(...front("L"), W * 0.36), rx = Math.min(...front("R"), W * 0.64);
+  const cx = fighters.some(f => f.side === "L") && fighters.some(f => f.side === "R") ? (lx + rx) / 2 : W / 2, cy = H * 0.44;
+  [0, 260, 520].forEach((at, n) => setTimeout(() => hit(n === 2), at));
+  function hit(big) {
+    // lunge in and spring back
+    for (const f of fighters) {
+      const d = (f.side === "L" ? 1 : -1) * W * 0.04;
+      f.el.style.transition = "translate .09s ease-out"; f.el.style.translate = `${d}px 0`;
+      setTimeout(() => { f.el.style.transition = ""; f.el.style.translate = ""; }, 110);
+    }
+    const s = big ? 1.35 : 1, id = "c" + foundry.utils.randomID(6), tilt = (Math.random() - 0.5) * 30;
+    const sparks = [...Array(big ? 22 : 14)].map((_, i, a) => { const t = i / a.length * Math.PI * 2 + Math.random() * 0.3, r = 70 + Math.random() * 70;
+      return `<line x1="${Math.cos(t) * 18}" y1="${Math.sin(t) * 18}" x2="${Math.cos(t) * r}" y2="${Math.sin(t) * r}" stroke="${i % 3 ? "#ffd27a" : "#fff"}" stroke-width="${i % 2 ? 3 : 2}" stroke-linecap="round"/>`; }).join("");
+    const w = document.createElement("div"); w.className = "clash"; w.style.left = `${cx}px`; w.style.top = `${cy}px`;
+    w.innerHTML = `<svg width="${420 * s}" height="${420 * s}" viewBox="-210 -210 420 420"><defs><radialGradient id="${id}"><stop offset="0" stop-color="#fff"/><stop offset=".35" stop-color="#fff2c0" stop-opacity=".9"/><stop offset="1" stop-color="#ff9a3c" stop-opacity="0"/></radialGradient></defs>
+      <g transform="rotate(${tilt})"><circle class="fl" r="150" fill="url(#${id})"/><circle class="ring" r="60" fill="none" stroke="#fff4d6" stroke-width="4"/>
+      <path d="M-170 -120 L170 120" stroke="#fff" stroke-width="7" stroke-linecap="round" style="filter:drop-shadow(0 0 10px #6cc8ff)"/>
+      <path d="M170 -120 L-170 120" stroke="#fff" stroke-width="7" stroke-linecap="round" style="filter:drop-shadow(0 0 10px #ff6a3c)"/><g class="sp">${sparks}</g></g></svg>`;
+    root.appendChild(w);
+    const svg = w.querySelector("svg"), ring = w.querySelector(".ring"), sp = w.querySelector(".sp"), t0 = performance.now(), dur = big ? 520 : 380;
+    const step = () => {
+      const t = (performance.now() - t0) / dur;
+      if (t >= 1 || !w.isConnected) return w.remove();
+      svg.style.opacity = String(t < 0.15 ? 1 : 1 - (t - 0.15) / 0.85);
+      svg.style.transform = `translate(-50%, -50%) scale(${0.7 + 0.4 * Math.min(1, t * 3)})`;
+      ring.setAttribute("r", String(60 + 110 * t)); ring.style.opacity = String(1 - t);
+      sp.setAttribute("transform", `scale(${0.6 + 0.9 * t})`);
+      setTimeout(step, 16);                                                   // not rAF: a background tab may never fire it
+    };
+    step();
+  }
+}
+
 function render() {
   const st = state();
   if (!st.active) return teardown();
@@ -180,19 +270,21 @@ function render() {
         const m = c.eye ? c : { ...artMetrics(fullArtInfo(fromUuidSync(c.uuid))), frac: c.frac };
         const b = figureBox(m); el.style.top = `${b.top}vh`; el.style.height = `${b.height}vh`;
       }
-      el.style.left = fresh ? slot(i, n) : "112%";
+      el.dataset.eye = c.eye ?? ""; el.style.left = fresh ? slot(i, n) : "112%";
       root.appendChild(el); shown.set(c.key, el);
       void el.offsetWidth;
       setTimeout(() => el.classList.add("here"), fresh ? 650 : 30);
     }
-    setTimeout(() => { el.style.left = slot(i, n); }, 30);
+    const L = layout(st, cast, i, c);
+    setTimeout(() => placeOfficer(el, L), 30);
     el.classList.toggle("lit", lit.includes(c.key));
     if (st.hurt?.key === c.key && st.hurt.id !== seenHurt) { seenHurt = st.hurt.id; if (!fresh) injureFx(el, c); }
     // every displayed officer gets his name under him
     let nm = names.get(c.key);
     if (!nm) { nm = document.createElement("div"); nm.className = "nm"; root.appendChild(nm); names.set(c.key, nm); }
-    nm.textContent = c.name; nm.style.left = slot(i, n); nm.classList.toggle("on", lit.includes(c.key));
+    nm.textContent = c.name; nm.style.left = `${L.x * 100}%`; nm.classList.toggle("on", lit.includes(c.key));
   });
+  if (st.battle?.on && st.battle.clash && st.battle.clash !== seenClash) { const first = seenClash === null && fresh; seenClash = st.battle.clash; if (!first) clashFx(st, cast); }
   renderControls(st);
 }
 function teardown() {
@@ -225,6 +317,13 @@ async function patch(fn) { const st = foundry.utils.deepClone(state()); if (!st.
 const display = (key) => patch(st => { const l = litOf(st); st.lit = l.includes(key) ? l.filter(k => k !== key) : [...l, key]; });
 const switchTo = (key) => patch(st => { st.lit = [key]; });
 const injure = (key) => patch(st => { st.hurt = { key, id: foundry.utils.randomID(8) }; });
+// Battle: pick sides, start (the fighters lit), clash, end (everyone back, the lit officers as before)
+const battleSetup = () => patch(st => { st.battle = { setup: true, sides: {} }; });
+const battleCancel = () => patch(st => { st.battle = null; });
+const pickSide = (key, side) => patch(st => { if (!st.battle) return; st.battle.sides ??= {}; if (side) st.battle.sides[key] = side; else delete st.battle.sides[key]; });
+const battleStart = () => patch(st => { const b = st.battle; if (!b) return; b.setup = false; b.on = true; b.preLit = litOf(st); st.lit = st.cast.filter(c => b.sides?.[c.key]).map(c => c.key); });
+const battleClash = () => patch(st => { if (st.battle?.on) st.battle.clash = foundry.utils.randomID(8); });
+const battleEnd = () => patch(st => { const pre = st.battle?.preLit ?? []; st.battle = null; st.lit = pre.filter(k => st.cast.some(c => c.key === k)); });
 
 /** The injury on screen: the Melee hit sound, a blade streak across the chest, a gash that fades, blood, a red flash and a shake. */
 function injureFx(el, c) {
@@ -269,7 +368,7 @@ function injureFx(el, c) {
   };
   frame(performance.now());
 }
-const leave = (key) => patch(st => { st.cast = st.cast.filter(c => c.key !== key); st.lit = litOf(st).filter(k => k !== key); });
+const leave = (key) => patch(st => { st.cast = st.cast.filter(c => c.key !== key); st.lit = litOf(st).filter(k => k !== key); if (st.battle?.sides) delete st.battle.sides[key]; });
 async function join(actor) {
   if ((state().cast?.length ?? 0) >= MAX_CAST) return ui.notifications.warn(`A scene holds up to ${MAX_CAST} officers. Have one leave first.`);
   await patch(st => { st.cast.push(castEntry(actor)); });
@@ -282,23 +381,40 @@ function renderControls(st) {
   if (!ctl.isConnected) document.body.appendChild(ctl);
   const typing = ctl.querySelector("input") === document.activeElement ? ctl.querySelector("input").value : null;
   const full = st.cast.length >= MAX_CAST;
-  const lit = litOf(st);
-  ctl.innerHTML = st.cast.map(c => { const on = lit.includes(c.key); return `<div class="card ${on ? "on" : ""}" data-k="${c.key}">
+  const lit = litOf(st), bt = st.battle, sides = bt?.sides ?? {};
+  ctl.classList.toggle("battle", !!bt?.on);
+  const sidePick = (c) => `<div class="side" title="Which side he fights on (none: he stands aside)">${[["L", "◀ Left"], ["", "—"], ["R", "Right ▶"]].map(([v, t]) => `<span data-a="side" data-s="${v}" class="${(sides[c.key] ?? "") === v && v ? v : ""}">${t}</span>`).join("")}</div>`;
+  ctl.innerHTML = st.cast.map((c, i) => { const on = lit.includes(c.key);
+    const pos = bt?.on ? layout(st, st.cast, i, c) : null;
+    return `<div class="card ${on ? "on" : ""}" data-k="${c.key}"${pos ? ` style="left: calc(${pos.x * 100}% - 69px)"` : ""}>
       <div class="h"><i class="pt" style="background-image:url('${esc(route(c.img ?? c.src))}')"></i><span>${esc(c.name)}</span></div>
+      ${bt?.setup ? sidePick(c) : ""}
       <div class="two"><span class="btn ${on ? "on" : ""}" data-a="display" title="Light this officer up or dim him again; several can be lit at once">${on ? "Displayed" : "Display"}</span>
       <span class="btn ${on && lit.length === 1 ? "on" : ""}" data-a="switch" title="Light only this officer; everyone else dims">Switch</span></div>
       <div class="two"><span class="btn" data-a="injure" title="He's struck: a sword-hit sound, he shakes and a gash opens across him (everyone sees it)">Injure</span>
       <span class="btn red" data-a="leave" title="This officer leaves the scene; the others space out again">Leave</span></div></div>`; }).join("")
-    + `<div class="add" title="Drag an officer here from the compendium or the Actors tab; they walk in from the right">${full ? `Scene is full (${MAX_CAST})` : `<span><i class="fa-solid fa-user-plus"></i> Drag an officer here</span><input placeholder="or search…"><div class="hits"></div>`}</div>
-    <div class="end" data-a="end"><span><i class="fa-solid fa-stop"></i> End scene</span></div>`;
+    + (bt?.on
+      ? `<div class="mid"><div class="clashbtn" data-a="clash" title="The fighters clash: three quick blows, sparks in the middle"><span>⚔ CLASH</span></div>
+         <div class="end" data-a="battleEnd" title="Everyone goes back to where they stood"><span>End battle</span></div></div>`
+      : bt?.setup
+      ? (() => { const nL = Object.values(sides).filter(v => v === "L").length, nR = Object.values(sides).filter(v => v === "R").length;
+          return `<div class="battlebtn go ${nL && nR ? "" : "off"}" data-a="battleStart" title="The chosen officers face off in the middle; the others stand aside"><span>⚔ Start battle</span><small>${nL || "?"} vs ${nR || "?"}</small></div>
+           <div class="end" data-a="battleCancel" style="width:70px"><span>Cancel</span></div>`; })()
+      : `<div class="add" title="Drag an officer here from the compendium or the Actors tab; they walk in from the right">${full ? `Scene is full (${MAX_CAST})` : `<span><i class="fa-solid fa-user-plus"></i> Drag an officer here</span><input placeholder="or search…"><div class="hits"></div>`}</div>
+         <div class="battlebtn" data-a="battle" title="Set up a battle: pick who fights on each side"><span>⚔ Battle</span></div>
+         <div class="end" data-a="end"><span><i class="fa-solid fa-stop"></i> End scene</span></div>`);
   for (const card of ctl.querySelectorAll(".card")) {
     card.querySelector('[data-a="display"]').onclick = () => display(card.dataset.k);
     card.querySelector('[data-a="switch"]').onclick = () => switchTo(card.dataset.k);
     card.querySelector('[data-a="injure"]').onclick = () => injure(card.dataset.k);
     card.querySelector('[data-a="leave"]').onclick = () => leave(card.dataset.k);
+    for (const sp of card.querySelectorAll('[data-a="side"]')) sp.onclick = () => pickSide(card.dataset.k, sp.dataset.s);
   }
-  ctl.querySelector(".end").onclick = () => endCutscene();
-  const add = ctl.querySelector(".add"), inp = add.querySelector("input");
+  const on = (a, fn) => { const el = ctl.querySelector(`[data-a="${a}"]`); if (el) el.onclick = fn; };
+  on("battle", battleSetup); on("battleCancel", battleCancel); on("battleStart", battleStart); on("clash", battleClash); on("battleEnd", battleEnd);
+  on("end", () => endCutscene());
+  const add = ctl.querySelector(".add"), inp = add?.querySelector("input");
+  if (!add) return;
   if (inp) { wireSearch(inp, add.querySelector(".hits"), join); if (typing != null) { inp.value = typing; inp.focus(); } }
   add.ondragover = (e) => { e.preventDefault(); add.classList.add("over"); };
   add.ondragleave = () => add.classList.remove("over");

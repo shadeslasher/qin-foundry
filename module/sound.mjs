@@ -10,7 +10,7 @@ import { atSpeed } from "./battle/battle-speed.mjs";
 /** Every moment the battle can play a sound for, grouped as in the panel. `local`: only the person acting hears it. */
 export const MOMENT_GROUPS = [
   ["Combat", ["Melee hit", "Sweep hit", "Miss or blocked", "Bow shot", "Crossbow shot", "Overwatch shot",
-    "Unit destroyed", "Morale drop", "Morale up / rally", "Level up", "XP gained", "Fire catches / burning"]],
+    "Unit destroyed", "Morale drop", "Morale up / rally", "Level up", "XP gained", "Fire catches / burning", "Duel clash"]],
   ["Turn and actions", ["Battle start", "Condition shown", "Round start", "Turn start",
     "Unit selected", "Infantry moves", "Cavalry moves", "Hold", "Overwatch set", "Reload", "Tactic placed", "Tactic triggered",
     "Officer skill", "Gate opens", "Gate destroyed", "Ladder placed", "Victory", "Defeat"]],
