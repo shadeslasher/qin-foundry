@@ -2585,7 +2585,7 @@ const ACTIONS = {
     if (!fx(u).reload) return err('Nothing to reload');
     if (u.round.attacked) return err('Already attacked this turn');
     delete fx(u).reload;
-    log(s, u.name + ' reloads.');
+    log(s, u.name + ' reloads.', { type: 'reload', unit: u.id });
     finishActivation(s, u);
   },
   placeLadder(s, actor, a) { // Siege Ladders: set a ladder against an adjacent city wall square; ends the turn

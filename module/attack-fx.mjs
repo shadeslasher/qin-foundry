@@ -274,6 +274,7 @@ const FLOAT_STYLES = {
   surrounded: { fill: "#ffffff", fontSize: 34 },
   suppressed: { fill: "#f2b84b", fontSize: 32 },
   charged: { fill: "#ff9a3a", fontSize: 38 },
+  reloaded: { fill: "#9fd6ff", fontSize: 30 },
   miss: { text: "Miss", fill: "#dddddd", fontSize: 28 },
   block: { text: "Blocked", fill: "#8ab8ff", fontSize: 30 },
   dodge: { text: "Dodged", fill: "#8fe08f", fontSize: 30 },
@@ -881,6 +882,44 @@ function suppressedLocal(token) {
   });
 }
 
+/**
+ * Reload (David, 2026-11-10): three bolts drop one after another into the unit while a ring winds round it like a
+ * crossbow being cranked; when it closes it flashes and "Reloaded" rises over the unit.
+ */
+function reloadLocal(token) {
+  if (!token) return;
+  const x = token.x, y = token.y, w = token.w, h = token.h, T = Math.min(w, h), cx = x + w / 2, cy = y + h / 2, R = T * 0.52;
+  setTimeout(() => floatLocal({ x: cx, y: y + h * 0.3 }, "reloaded", "Reloaded"), atSpeed(800));
+  return animate(1400, (g, t) => {
+    const fade = 1 - seg(t, 0.8, 1);
+    // the winding ring: a dark track, then an amber arc that grows clockwise from the top, with a bright head
+    const k = ease.out(seg(t, 0.05, 0.6));
+    g.lineStyle(Math.max(3, T * 0.05), 0x1a140c, 0.45 * fade).drawCircle(cx, cy, R);
+    if (k > 0) {
+      const a0 = -Math.PI / 2, a1 = a0 + k * Math.PI * 2;
+      g.lineStyle(Math.max(3, T * 0.045), 0xf2b84b, 0.95 * fade).moveTo(cx + R * Math.cos(a0), cy + R * Math.sin(a0)).arc(cx, cy, R, a0, a1);
+      g.lineStyle(0).beginFill(0xfff1c2, fade).drawCircle(cx + R * Math.cos(a1), cy + R * Math.sin(a1), T * 0.035).endFill();
+      // three ratchet ticks the arc clicks past
+      for (let i = 1; i <= 3; i++) {
+        const ai = a0 + i * Math.PI / 2; if (a1 < ai) continue;
+        g.lineStyle(Math.max(2, T * 0.025), 0xfff1c2, 0.9 * fade).moveTo(cx + R * 0.86 * Math.cos(ai), cy + R * 0.86 * Math.sin(ai)).lineTo(cx + R * 1.14 * Math.cos(ai), cy + R * 1.14 * Math.sin(ai));
+      }
+    }
+    // bolts dropping into the unit, one after another
+    for (let i = 0; i < 3; i++) {
+      const d = ((q) => q * q)(seg(t, 0.05 + i * 0.13, 0.25 + i * 0.13));
+      if (d <= 0 || d >= 1) continue;
+      const bx = cx + (i - 1) * T * 0.16, top = y - T * 0.45, by = top + (cy - top) * d, L = T * 0.26, a = 1 - seg(d, 0.75, 1);
+      g.lineStyle(Math.max(2, T * 0.022), 0x6b4a26, a).moveTo(bx, by - L).lineTo(bx, by);
+      g.lineStyle(0).beginFill(0xd9dee3, a).drawPolygon([bx - T * 0.03, by - T * 0.02, bx + T * 0.03, by - T * 0.02, bx, by + T * 0.05]).endFill();
+      g.beginFill(0xc9a24a, a).drawPolygon([bx, by - L, bx - T * 0.035, by - L - T * 0.05, bx, by - L + T * 0.03, bx + T * 0.035, by - L - T * 0.05]).endFill();
+    }
+    // the ring closes: a flash
+    const f = seg(t, 0.6, 0.85);
+    if (f > 0 && f < 1) g.lineStyle(Math.max(4, T * 0.07), 0xfff6d8, 0.8 * (1 - f)).drawCircle(cx, cy, R * (1 + 0.25 * f));
+  });
+}
+
 /** A white flag raised and waved over a unit that surrenders. */
 function whiteFlagLocal({ at, size }) {
   return animate(2600, (g, t) => {
@@ -1125,6 +1164,9 @@ async function playBattleAnimNow({ sceneId, steps }) {
         await playSetFire(st.x, st.y);
       } else if (st.kind === "gateHit") {
         await playGateHit(tok(st.unit), st);
+      } else if (st.kind === "reload") {
+        reloadLocal(tok(st.unit));
+        await wait(1400);
       } else if (st.kind === "charged") {
         const t = tok(st.unit);
         if (t) floatLocal({ x: t.x + t.w / 2, y: t.y + t.h * 0.3 }, "charged", "Charged!");
