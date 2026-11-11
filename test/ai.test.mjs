@@ -460,3 +460,17 @@ test('AI reading ahead: Art of War 4+ gathers units that are out of reach to str
   assert.ok(four.converge && four.converge.members.size >= 2 && four.converge.ahead === 2, JSON.stringify(four.why));
   assert.strictEqual(teamCase(5, true).T.converge.ahead, 3, 'level 5 looks three rounds ahead');
 });
+
+test('AI teamwork: not forced: no combined attack when going in would cost more than it gains', () => {
+  const brute = unitType('brute', { damage: 12, armorPen: 6, tier: 4 });
+  const { s, ids } = battle([tough, archer, footT, horse, brute], [
+    { typeId: 'tough', side: 'player', owner: 'p1', x: 6, y: 3 },
+    { typeId: 'brute', side: 'player', owner: 'p1', x: 5, y: 3 }, { typeId: 'brute', side: 'player', owner: 'p1', x: 7, y: 3 },
+    { typeId: 'brute', side: 'player', owner: 'p1', x: 6, y: 2 },
+    { typeId: 'horse', side: 'enemy', x: 6, y: 7 }, { typeId: 'footT', side: 'enemy', x: 8, y: 5 },
+  ]);
+  s.tactics = { sides: { enemy: { aow: 5, name: 'T' } } };
+  const f = AI.teamPlan(s, 'enemy').focus;
+  assert.ok(!f || !f.members.some(m => m.role !== 'soften'), 'no melee sent into the brutes: ' + JSON.stringify(f));
+  void ids;
+});

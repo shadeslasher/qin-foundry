@@ -655,7 +655,8 @@ function routeDist(s, u, p, pts) {
 // Combined moves (Art of War 3+): the side picks one enemy unit that several of its units can reach this turn and
 // that none of them would break alone, and gives them roles in order: ranged units soften it, foot close its sides
 // and pin it, cavalry come last for the finishing blow. Members are drawn to attack it and to close in on its sides;
-// officer units whose partners still have to act Hold to go after them, and officer-less units are picked in order.
+// nothing is forced: each unit still weighs the team's bonus against the danger it would be in, waiting is weighed
+// against what it could do now, and members who'd risk more than they add aren't asked (David, 2026-11-11).
 // Level 3 pairs two units, 4 up to three, 5 up to four.
 // Reading ahead (Art of War 4+): units that can't strike anything worth it this turn converge on a target they can
 // reach together within two rounds (three at level 5): they gather just outside its army's reach, on its open side,
@@ -685,7 +686,15 @@ export function teamPlan(s, side, jobs = new Map(), protect = new Set()) {
   const ready = free.filter(u => !(u.round && u.round.activated));
   let best = null;
   for (const e of foes) {
-    const can = ready.filter(u => E.manhattan(u, e) <= reachOf(s, u)).map(u => ({ u, dmg: hit(u, e), role: roleOf(s, u) }));
+    // what each would risk by going in: the other enemies able to reach the target's side next (and the target's own reply)
+    const risk = (u) => {
+      const ranged = E.typeOf(s, u).weapon === 'ranged';
+      let r = ranged ? 0 : hit(e, u) * 0.5;
+      for (const o of foes) if (o.id !== e.id && E.manhattan(o, e) <= reachOf(s, o) + (ranged ? 0 : 1)) r += hit(o, u) * (ranged ? 0.3 : 0.6);
+      return worth(s, u) * r / mx(u);
+    };
+    const can = ready.filter(u => E.manhattan(u, e) <= reachOf(s, u)).map(u => ({ u, dmg: hit(u, e), role: roleOf(s, u), risk: risk(u) }))
+      .filter(m => m.risk < worth(s, e) * m.dmg / Math.max(1, e.men) * 1.5 + 0.05 * worth(s, m.u)); // not worth what it would cost him
     // partners who already struck it this round still count towards the kill
     const done = free.filter(u => u.round && u.round.activated && u.round.attacked && u.round.attackedId === e.id).length;
     if (can.length + done < 2) continue;
@@ -702,6 +711,8 @@ export function teamPlan(s, side, jobs = new Map(), protect = new Set()) {
     // weakened units are worth finishing together; fresh ones mostly for the ring around them
     v += worth(s, e) * 0.4 * (1 - e.men / mx(e));
     v -= 0.05 * team.reduce((t, m) => t + E.manhattan(m.u, e), 0); // nearer teams first
+    v -= team.reduce((t, m) => t + m.risk, 0) * (lvl >= 5 ? 1 : 0.8); // what going in together would cost
+    if (v <= 0) continue;
     if (!best || v > best.v) best = { v, e, team, kills };
   }
   if (best) {
@@ -733,6 +744,13 @@ export function teamPlan(s, side, jobs = new Map(), protect = new Set()) {
     }
   }
   return out;
+}
+
+/** What going after his partners is worth to a waiting member: the team bonus he'd gain on the softened target. */
+function waitGain(s, S, unitId) {
+  const f = S.focus, t = f && E.unitById(s, f.targetId); if (!t) return 0;
+  const lw = [0, 0, 0, 0.8, 1, 1.15][sideLevel(s, E.unitById(s, unitId)?.side)];
+  return lw * 0.18 * worth(s, t) * (f.kills ? 1.4 : 1);
 }
 
 /** A member of the combined attack: is anyone ahead of it in the order still to act? */
@@ -1259,8 +1277,15 @@ export function decision(s, unitId, opts = {}) {
   const p = E.prompt(s);
   const u = E.unitById(s, unitId), side = u.side, P = profile(opts.level ?? sideLevel(s, side));
   if (p.kind === 'final' || !P.delay) return { type: 'decide', unitId, choice: 'act' };
-  // a combined attack: wait for the partners ahead of him in the order (ranged first, cavalry last)
-  if (waitingFor(s, strategy(s, side), unitId)) return { type: 'decide', unitId, choice: 'hold' };
+  // a combined attack: going after his partners is weighed against what he can do now and the risk of waiting
+  // (enemies acting first); it's never an order (David, 2026-11-11)
+  const S0 = strategy(s, side);
+  if (waitingFor(s, S0, unitId)) {
+    const now = bestScore(s, unitId, { ...opts, level: P.level });
+    const foesFirst = E.liveUnits(s).filter(e => E.hostile(e, u) && !e.round.activated && E.manhattan(e, u) <= E.movementOf(s, e) + 2).length;
+    const later = 0.7 * waitGain(s, S0, unitId) - 0.04 * worth(s, u) * foesFirst;
+    return { type: 'decide', unitId, choice: later > Math.max(0, now) * 0.3 ? 'hold' : 'act' };
+  }
   const foesToCome = E.liveUnits(s).filter(e => E.hostile(e, u) && !e.round.activated && E.manhattan(e, u) <= 12);
   if (!foesToCome.length) return { type: 'decide', unitId, choice: 'act' };
   const sc = bestScore(s, unitId, { ...opts, level: P.level });
@@ -1280,7 +1305,7 @@ export function pickUnit(s, side, opts = {}) {
     // thinking a move ahead: Suppressing Fire goes before the charge it opens up
     if (P.level >= 3) for (const e of E.liveUnits(s)) if (E.hostile(e, u) && E.manhattan(e, u) <= E.movementOf(s, u) + (E.typeOf(s, u).rangeMax || 1)) v = Math.max(v, v + 3 * suppressValue(s, u, e));
     // a combined attack goes in its order: those still waiting for partners go after them
-    if (P.level >= 3 && waitingFor(s, S, u.id)) v -= 1000;
+    if (P.level >= 3 && waitingFor(s, S, u.id)) v -= waitGain(s, S, u.id); // he'd gain that by going after them
     if (v > bestV) { bestV = v; best = u; }
   }
   return { type: 'begin', unitId: best.id };
