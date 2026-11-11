@@ -112,6 +112,7 @@ export class GmPanel extends api.HandlebarsApplicationMixin(api.Application ?? a
       setSide: (ev, el) => setSideSelected(el.dataset.side),
       gmFire: () => toggleGmFire(),
       aiSide: async (ev, el) => { const side = el.dataset.side; await setAI({ [side]: !aiSettings()[side] }); GmPanel.refresh(); },
+      aiStep: async () => { await setAI({ step: !aiSettings().step }); GmPanel.refresh(); },
       aiPause: async () => { await setAI({ paused: !aiSettings().paused }); GmPanel.refresh(); },
       endBattle: () => confirmEndBattle(),
       pullCamera: () => toggleCameraPick(),
@@ -146,7 +147,7 @@ export class GmPanel extends api.HandlebarsApplicationMixin(api.Application ?? a
     const battle = getBattle();
     const ctx = { isGM: game.user.isGM, active: battle.active, gmFireOn: gmFireActive(), cameraPick: cameraPicking() };
     const ai = aiSettings(), lv = aiLevels();
-    ctx.ai = { enemy: ai.enemy, ally: ai.ally, paused: ai.paused, enemyLv: lv.enemy, allyLv: lv.ally, any: ai.enemy || ai.ally };
+    ctx.ai = { enemy: ai.enemy, ally: ai.ally, paused: ai.paused, step: ai.step, enemyLv: lv.enemy, allyLv: lv.ally, any: ai.enemy || ai.ally };
     const sel = selectedUnits();
     ctx.selected = sel.map(t => { const lv = Math.max(1, Math.min(MAX_LEVEL, Number(t.actor.system.level) || 1));
       return { name: t.name, img: t.actor.img, level: lv, chev: levelChevronsSVG(lv, 13), side: t.actor.system.side ?? "neutral" }; });

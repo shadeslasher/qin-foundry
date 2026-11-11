@@ -1319,3 +1319,12 @@ a.qin-stat:hover, a.qin-stat:focus-visible { border-color: var(--qin-gold); }
 .qin-sigpick .qin-sp-meta, .qin-sigpick .qin-sp-from { font-size: .9em; opacity: .75; }
 .qin-sigpick .qin-sp-desc { margin: 8px 0 12px; }
 .qin-token-hover.qin-tt-box { scale: 1; }          /* the unit card inside scales itself (.qin-tt): once, not twice */
+/* Battle AI move suggestion (v0.121.0) */
+.qin-ai-suggest { position: fixed; z-index: 85; left: 50%; bottom: 110px; translate: -50% 0; scale: var(--qin-vs, 1); transform-origin: 50% 100%;
+  min-width: 320px; padding: 10px 14px; border-radius: 6px; background: linear-gradient(180deg, rgba(30,28,26,.96), rgba(16,15,14,.96));
+  border: 1px solid rgba(201,168,92,.7); box-shadow: 0 4px 16px rgba(0,0,0,.6); color: #ece6d6; font-family: Signika, sans-serif; text-align: center; }
+.qin-ai-suggest .hd { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #c9a85c; }
+.qin-ai-suggest .tx { font-size: 18px; font-weight: bold; margin: 4px 0 8px; color: #fff4d6; }
+.qin-ai-suggest .bt { display: flex; gap: 6px; justify-content: center; }
+.qin-ai-suggest button { width: auto; padding: 3px 12px; }
+.qin-ai-suggest kbd { font-size: 11px; padding: 0 4px; border: 1px solid rgba(255,255,255,.4); border-radius: 3px; margin-left: 4px; }
