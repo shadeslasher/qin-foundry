@@ -8,9 +8,14 @@
 // rises over each unit he picked: "Held" ones stand and fade, a unit that won its roll sees its stone crack and fall.
 // Zhang Fei's Terror of Changban — he draws breath and roars: the screen shakes, diamond shockwaves roll out to the
 // edge of his 5-square reach, and each unit it reaches flinches as a spiked ring locks round it ("Can't move").
+// Cao Cao's The Hero Commands — his war banner rises on the left of his stand and flies, three gold drum-beat waves roll
+// out to the edge of his 4-square reach, and each allied unit it reaches lights up in a column of gold as its buff lands.
 import { atSpeed } from "./battle-speed.mjs";
-import { overLayer } from "../attack-fx.mjs";
+import { overLayer, floatLocal } from "../attack-fx.mjs";
 import { playMoment } from "../sound.mjs";
+
+import { factionOf } from "../factions.mjs";
+import { analyseFlag } from "../unit-bars.mjs";
 
 const rnd = (a, b) => a + Math.random() * (b - a);
 const Blur = () => PIXI.BlurFilter ?? PIXI.filters?.BlurFilter;
@@ -882,6 +887,89 @@ export function playRooted(src, results, tokOf, float, reach = 5) {
   });
 }
 
+
+/* ------------------------------------------------------------ Cao Cao: The Hero Commands (David, 2026-11-11) */
+
+/** His banner rises on a pole at the left edge of his stand and unfurls, flying to the right; a gold glow gathers on
+ *  him; three drum-beat waves (diamonds, out to `reach` squares across + down) roll out with a small screen shake and
+ *  a gold flash on the squares in reach. Each allied unit he buffed (`touched`) is released as the last wave reaches
+ *  it: a column of gold light, its stand swells, its buff burst plays (with the Buff lands sound) and its gains float up. */
+function heroCommands(token, touched = [], release = () => {}, reach = 4) {
+  const G = Math.min(token.w, token.h), k = G / 120, ADD = PIXI.BLEND_MODES.ADD, BF = Blur(), c = token.center;
+  const ground = groundLayer(); ground.position.set(c.x, c.y);
+  const tint = new PIXI.Graphics(); ground.addChild(tint);
+  for (let dx = -reach; dx <= reach; dx++) for (let dy = -reach; dy <= reach; dy++)
+    if ((dx || dy) && Math.abs(dx) + Math.abs(dy) <= reach) tint.beginFill(0xf0be3c, 1).drawRect(dx * G - G / 2 + 1, dy * G - G / 2 + 1, G - 2, G - 2).endFill();
+  tint.alpha = 0;
+  const root = new PIXI.Container(); root.position.set(c.x, c.y); topLayer().addChild(root);
+  const glow = new PIXI.Graphics(); glow.blendMode = ADD; if (BF) glow.filters = [new BF(16 * k)];
+  glow.beginFill(0xffc846, 1).drawCircle(0, 0, G * 0.95).endFill(); glow.alpha = 0;
+  const waves = new PIXI.Graphics(); if (BF) waves.filters = [new BF(2.5 * k)];
+  const pole = new PIXI.Graphics(), cloth = new PIXI.Container();
+  root.addChild(glow, waves, pole, cloth);
+  // the banner: the unit's faction flag, cut into strips so it can wave
+  const actor = token.actor, fac = factionOf(actor?.system?.faction), N = 24, strips = [];
+  let fw0 = G * 0.95, fh = G * 0.72;
+  if (fac?.img) {
+    Promise.all([loadTexture(fac.img), analyseFlag(fac.img)]).then(([tex, info]) => {
+      if (!tex || cloth.destroyed) return;
+      const base = tex.baseTexture ?? tex, [x0, y0, w0, h0] = info?.rect ?? [0, 0, base.width, base.height];
+      fh = fw0 * h0 / w0 > G * 0.8 ? G * 0.8 : fw0 * h0 / w0;
+      for (let i = 0; i < N; i++) {
+        const sp = new PIXI.Sprite(new PIXI.Texture(base, new PIXI.Rectangle(x0 + i * w0 / N, y0, w0 / N, h0)));
+        sp.height = fh; sp.visible = false; cloth.addChild(sp); strips.push(sp);
+      }
+    }).catch(() => {});
+  }
+  // the allies it reaches, and when
+  const hits = touched.map(id => canvas.tokens?.get(id)).filter(u => u && !u.destroyed).map(u => {
+    const d = (Math.abs(u.center.x - c.x) + Math.abs(u.center.y - c.y)) / G;
+    const col = new PIXI.Graphics(); col.blendMode = ADD; if (BF) col.filters = [new BF(6 * k)]; col.alpha = 0;
+    col.position.set(u.center.x, u.center.y); topLayer().addChild(col);
+    for (let j = 0; j < 12; j++) col.beginFill(0xffd25a, 0.07 + j * 0.022).drawRect(-G * 0.38, G * 0.5 - (j + 1) * G * 2.2 / 12, G * 0.76, G * 2.2 / 12).endFill();
+    return { u, col, at: BEATS[2] + Math.min(d, reach + 0.5) / (reach + 0.5) * 0.55, done: false };
+  });
+  const view = canvas.app.view, myStand = token.qinUnitBars;
+  const left = -token.w / 2 + G * 0.06, poleBase = token.h / 2 - G * 0.15; // in root space (root sits on his centre)
+  const diamond = (g, r) => { g.moveTo(r, 0).lineTo(0, r).lineTo(-r, 0).lineTo(0, -r).closePath(); };
+  const swell = (stand, sc) => { if (stand && !stand.destroyed) { stand.pivot.set(token.w / 2, token.h / 2); stand.position.set(token.w / 2, token.h / 2); stand.scale.set(sc); } };
+  const END = BEATS[2] + 0.55 + 1.6;
+  return run((dt, t) => {
+    // gold glow builds, holds on the beats, then settles
+    glow.alpha = t < BEATS[0] ? 0.5 * t / BEATS[0] : Math.max(0.12, 0.5 * (1 - (t - BEATS[0]) / 1.2)) * (t > END - 0.5 ? (END - t) / 0.5 : 1);
+    // the pole rises, the flag snaps open and flies to the right
+    const rise = ease((t - 0.1) / 0.4), top = poleBase - rise * G * 1.45;
+    pole.clear();
+    if (rise > 0) pole.beginFill(0x3a2a18, 1).drawRect(left - 1.5 * k, top, 3 * k, poleBase - top).endFill().beginFill(0xd8b040, 1).drawCircle(left, top, 4 * k).endFill();
+    const un = ease((t - 0.45) / 0.15), fw = fw0 * un;
+    strips.forEach((sp, i) => { sp.visible = un > 0; sp.width = fw / N + 0.6; sp.position.set(left + 1.5 * k + i / N * fw, top - 2 * k + Math.sin(i * 0.45 - t * 9) * 4 * k * (i / N)); });
+    const fade = t > END - 0.5 ? Math.max(0, (END - t) / 0.5) : 1; pole.alpha = cloth.alpha = fade;
+    // drum beats: a small shake, gold squares, a diamond wave each (the last one strongest); he swells on each
+    let sk = 0, za = 0, sc = 1;
+    for (const b of BEATS) { const q = t - b; if (q > 0 && q < 0.18) sk = Math.max(sk, 1 - q / 0.18); if (q > 0 && q < 0.5) za = Math.max(za, 0.28 * (1 - q / 0.5)); if (q > 0 && q < 0.2) sc = Math.max(sc, 1 + 0.08 * (1 - q / 0.2)); }
+    view.style.translate = sk ? `${(Math.sin(t * 80) * 3 * sk).toFixed(1)}px ${(Math.cos(t * 71) * 2 * sk).toFixed(1)}px` : "";
+    tint.alpha = za; swell(myStand, sc);
+    waves.clear();
+    BEATS.forEach((b, i) => { const q = (t - b) / 0.55; if (q < 0 || q > 1) return; const last = i === 2;
+      waves.lineStyle((last ? 12 : 7) * k * (1 - q * 0.5), last ? 0xfff0b8 : 0xf0c050, (1 - q) * (last ? 1 : 0.75)); diamond(waves, G * 0.6 + q * (reach + 0.5) * G); });
+    // the allies: release each as the last wave reaches it
+    for (const h of hits) {
+      const q = t - h.at; if (q < 0) continue;
+      if (!h.done) { h.done = true; release([h.u.id]); floatLocal({ x: h.u.center.x, y: h.u.center.y - G * 0.5 }, "xp", "Attack +5"); setTimeout(() => floatLocal({ x: h.u.center.x, y: h.u.center.y - G * 0.2 }, "surrounded", "Move +1 · Morale ≥ 10"), atSpeed(120)); }
+      h.col.alpha = q < 0.15 ? q / 0.15 : Math.max(0, 1 - (q - 0.15) / 0.75);
+      swell(h.u.qinUnitBars, 1 + 0.12 * Math.sin(Math.min(1, q / 0.3) * Math.PI));
+    }
+    if (t < END) return true;
+    view.style.translate = ""; swell(myStand, 1);
+    for (const h of hits) { swell(h.u.qinUnitBars, 1); h.col.destroy(); if (!h.done) release([h.u.id]); }
+    root.destroy({ children: true }); ground.destroy({ children: true });
+    return false;
+  });
+}
+const BEATS = [0.55, 0.85, 1.15];
+const ease = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : 1 - (1 - x) ** 3);
+async function loadTexture(src) { try { return await (foundry.canvas?.loadTexture ?? globalThis.loadTexture)(src); } catch { return null; } }
+
 /* ------------------------------------------------------------ registry */
 
 /** Special animations played when a tier 1+ active is used, by the active's name. */
@@ -891,6 +979,10 @@ const ON_ACTIVATE = {
   "Stone Sentinel Maze": (token) => eightTrigrams(token),
   "The Wolf Bares His Fangs": (token) => wolfPack(token),
   "Terror of Changban": (token) => roarOfChangban(token, 5),
+};
+/** Animations that release the units the active touched themselves, as their effect reaches them. */
+const ON_ACTIVATE_SPREAD = {
+  "The Hero Commands": (token, touched, release) => heroCommands(token, touched, release, 4),
 };
 /** An attack made while one of these actives is on plays its own strike alongside the lunge. */
 const ON_ATTACK = { "None Can Stand Before Him": playSkyPiercer };
@@ -911,7 +1003,9 @@ export function playUniqueAttack(skill, attacker, defender) {
   const fn = ON_ATTACK[skill];
   return fn ? fn(attacker, defender) : null;
 }
-export function playUniqueActivation(st, token) {
+export function playUniqueActivation(st, token, release = null) {
+  const spread = ON_ACTIVATE_SPREAD[st?.skill];
+  if (spread && token && !token.destroyed && release) return { releases: true, done: spread(token, st.touched ?? [], release) };
   const fn = ON_ACTIVATE[st?.skill];
   if (fn && token && !token.destroyed) return fn(token);
   return null;

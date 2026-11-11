@@ -47,7 +47,7 @@ function unitLight(token) {
 export async function playActivation(st) {
   const token = canvas.tokens?.get(st.unit);
   const reduce = globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-  if (!token || reduce) { await playActiveBanner(st); releaseUnits([st.unit]); return; }
+  if (!token || reduce) { await playActiveBanner(st); releaseUnits([st.unit, ...(st.touched ?? [])]); return; }
   hideSkillReady(token);
   const dim = spotlight(token), light = unitLight(token);
   const ms = (k) => atSpeed(ACT[k]);
@@ -78,11 +78,13 @@ export async function playActivation(st) {
     await wait(ms("release"));
     released = true;
     releaseUnits([st.unit]);             // morale cost, ready mark, buff (it sweeps up from the bottom)
-    playUniqueActivation(st, token);     // tier 1+ special animation, if the skill has one
+    // tier 1+ special animation, if the skill has one; it may release the other units it touched itself (as its wave
+    // reaches them), otherwise they show their bursts now
+    if (!playUniqueActivation(st, token, (ids) => releaseUnits(ids))?.releases) releaseUnits(st.touched ?? []);
     await wait(Math.max(OFF, UNDIM1) - ms("release"));
   } finally {
     canvas.app.ticker.remove(tick);
     light.done(); dim.el.remove();
-    if (!released) releaseUnits([st.unit]);
+    if (!released) releaseUnits([st.unit, ...(st.touched ?? [])]);
   }
 }

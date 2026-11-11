@@ -1,6 +1,7 @@
 import { Chat } from "../dice.mjs";
 import { broadcastBattleAnim, broadcastFreeze, broadcastAnimHold } from "../attack-fx.mjs";
 import { logSoundSteps } from "../sound.mjs";
+import { touchedBy } from "./touched.mjs";
 // Bridges Foundry (scene tokens, unit actors, officer characters) and the pure battle
 // engine. Runs only on the active GM's client; players reach it through queries.
 import * as E from "./engine.mjs";
@@ -441,7 +442,7 @@ function animateChanges(scene, before, s, entries, actionType = null) {
     // a battlefield active opens with its banner (dim, the side's band, the officer's art); its effects play after it
     if (e.detail?.type === "skill" && e.detail.active) {
       const u = E.unitById(s, e.detail.unit);
-      steps.push({ kind: "activeBanner", unit: e.detail.unit, side: u?.side ?? "neutral", skill: e.detail.skill, officerId: u?.officerId ?? null, officerName: u?.name ?? "" });
+      steps.push({ kind: "activeBanner", unit: e.detail.unit, side: u?.side ?? "neutral", skill: e.detail.skill, officerId: u?.officerId ?? null, officerName: u?.name ?? "", touched: e.detail.touched ?? [] });
       // an active whose animation plays on the units picked for it (Sima Yi's hunt), after the banner
       if (UNIQUE_PICKED.includes(e.detail.skill) && e.detail.picks) {
         const ids = [...new Set(Object.values(e.detail.picks).flat())].filter(id => E.unitById(s, id));
@@ -644,7 +645,7 @@ async function runActionNow(userId, action) {
   const { s, scene } = buildState(battle, { useLastPosition: moving, terrainFor: action.type === "moveTo" ? action.unitId : null });
   if (action.type === "moveTo") s.freeMovement = false;
   const logLen = s.log.length;
-  const before = Object.fromEntries(s.units.map(u => [u.id, { men: u.men, morale: u.morale, xp: u.xp || 0, status: u.status }]));
+  const before = Object.fromEntries(s.units.map(u => [u.id, { men: u.men, morale: u.morale, xp: u.xp || 0, status: u.status, buffs: (u.fx?.buffs ?? []).map(b => b.name) }]));
   E.setRng(() => CONFIG.Dice.randomUniform());
   const prevDuel = foundry.utils.deepClone(battle.duels?.pending ?? null);
   const res = E.act(s, actor, action.type === "startBattle" ? { type: "startBattle" } : action);
@@ -657,7 +658,10 @@ async function runActionNow(userId, action) {
   // an officer used a battlefield active: hold that unit's stand on every client until its activation animation
   // has played, so its morale cost and buff show after the banner, not before
   if (res.ok && scene) {
-    const acting = s.log.slice(logLen).filter(e => e.detail?.type === "skill" && e.detail.active).map(e => e.detail.unit);
+    const acts = s.log.slice(logLen).filter(e => e.detail?.type === "skill" && e.detail.active);
+    // the other units the active buffs or debuffs wait too, so their bursts land after the banner (David, 2026-11-11)
+    for (const e of acts) e.detail.touched = touchedBy(s, before, e.detail.skill, e.detail.unit);
+    const acting = [...new Set(acts.flatMap(e => [e.detail.unit, ...e.detail.touched]))];
     if (acting.length) broadcastFreeze(scene.id, acting);
     broadcastAnimHold(scene.id); // the action menu waits until this action's animations have played
   }

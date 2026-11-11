@@ -371,7 +371,7 @@ export function figureSlots(n) {
 
 // Faction banner analysis (cached): the opaque bounds and the main cloth colour for the rolled bundle
 const flagInfo = new Map();
-function analyseFlag(src) {
+export function analyseFlag(src) {
   if (flagInfo.has(src)) return flagInfo.get(src);
   const p = new Promise((resolve) => {
     const img = new Image();
