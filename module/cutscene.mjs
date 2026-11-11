@@ -7,6 +7,7 @@
 // The running scene lives in a world setting, so every client (and anyone joining late) draws the same thing.
 import { SYSTEM_ID } from "./config.mjs";
 import { fullArtInfo, halfArtInfo } from "./full-art.mjs";
+import { playMoment } from "./sound.mjs";
 
 const STATE = "cutscene", SAVED = "cutsceneSaved";
 export const MAX_CAST = 5;
@@ -27,7 +28,7 @@ function castEntry(actor) {
   return { key: foundry.utils.randomID(8), uuid: actor.uuid, name: actor.name, img: actor.img ?? null, src: art?.src ?? half?.src ?? null, half: !!half, frac: art?.frac ?? null, ...artMetrics(art) };
 }
 /** Where the face sits in a painting (full-art data: eye line and face height in image px, found by face detection). */
-const artMetrics = (art) => art?.eye && art?.h ? { eye: art.eye / art.h, fh: (art.fh ?? 0) / art.h } : {};
+const artMetrics = (art) => art?.eye && art?.h ? { eye: art.eye / art.h, fh: (art.fh ?? 0) / art.h, ...(art.fx && art.w ? { fx: art.fx / art.w } : {}) } : {};
 /** Height and top (vh) of a whole-figure painting, so every officer's eyes sit on one line (David, 2026-11-10).
  *  Whole-body paintings keep one size; close-up paintings (big face: cut off above the feet) are scaled to the usual face size.
  *  The figure always reaches past the lower bar. */
@@ -75,7 +76,7 @@ function wireSearch(input, list, onPick) {
 }
 
 /* ------------------------------------------------------------------ the scene on screen (every client) */
-let root = null, shown = new Map(), names = new Map(), ending = null;
+let root = null, shown = new Map(), names = new Map(), ending = null, seenHurt = null;
 /** The displayed officers' keys (several can be lit at once; older scenes stored one key). */
 const litOf = (st) => Array.isArray(st.lit) ? st.lit : st.lit ? [st.lit] : [];
 function css() {
@@ -98,6 +99,9 @@ function css() {
   #qin-cutscene .of.here { opacity: 1; }
   #qin-cutscene .of.lit { filter: drop-shadow(0 0 18px rgba(255,236,170,.55)); z-index: 4; }
   #qin-cutscene .of.gone { opacity: 0; }
+  /* Injure (David, 2026-11-11): a blade streak, a gash on the chest, a red flash and a shake */
+  #qin-cutscene .hurt { position: absolute; width: 0; height: 0; overflow: visible; pointer-events: none; z-index: 4; }
+  #qin-cutscene .hurt svg { position: absolute; overflow: visible; transform: translate(-50%, -50%); }
   #qin-cutscene .nm { position: absolute; z-index: 6; top: calc(75vh - 46px); transform: translateX(-50%); padding: 5px 26px; white-space: nowrap; opacity: 0;
     font-family: "Cinzel", var(--qin-font-display, serif); font-weight: 900; font-size: 22px; letter-spacing: 2px; text-transform: uppercase; color: #fff4d6;
     background: linear-gradient(90deg, transparent, rgba(0,0,0,.85) 20%, rgba(0,0,0,.85) 80%, transparent); border-top: 1px solid #c9a85c; border-bottom: 1px solid #c9a85c;
@@ -183,6 +187,7 @@ function render() {
     }
     setTimeout(() => { el.style.left = slot(i, n); }, 30);
     el.classList.toggle("lit", lit.includes(c.key));
+    if (st.hurt?.key === c.key && st.hurt.id !== seenHurt) { seenHurt = st.hurt.id; if (!fresh) injureFx(el, c); }
     // every displayed officer gets his name under him
     let nm = names.get(c.key);
     if (!nm) { nm = document.createElement("div"); nm.className = "nm"; root.appendChild(nm); names.set(c.key, nm); }
@@ -219,6 +224,51 @@ async function patch(fn) { const st = foundry.utils.deepClone(state()); if (!st.
 // Display toggles one officer on or off (several can be lit); Switch makes him the only one lit (David, 2026-11-11)
 const display = (key) => patch(st => { const l = litOf(st); st.lit = l.includes(key) ? l.filter(k => k !== key) : [...l, key]; });
 const switchTo = (key) => patch(st => { st.lit = [key]; });
+const injure = (key) => patch(st => { st.hurt = { key, id: foundry.utils.randomID(8) }; });
+
+/** The injury on screen: the Melee hit sound, a blade streak across the chest, a gash that fades, blood, a red flash and a shake. */
+function injureFx(el, c) {
+  playMoment("Melee hit", { minGap: 0 });
+  const img = el.querySelector("img"); if (!img) return;
+  const box = el.getBoundingClientRect(), H = box.height || 1, W = box.width || 1;
+  // the chest: under the face when the painting's face was found, else a third of the way down the middle
+  const fx = c.fx ?? 0.5, eye = c.eye ?? 0.15, fh = c.fh || 0.085;
+  const cx = fx * W, cy = Math.min(0.7, eye + 2.4 * fh) * H, size = Math.max(140, Math.min(W * 0.9, fh * H * 3.2));
+  // drawn over the scene, not inside the officer, so a dimmed officer's gash is still bright
+  const wrap = document.createElement("div"); wrap.className = "hurt"; wrap.style.left = `${box.left + cx}px`; wrap.style.top = `${box.top + cy}px`;
+  const id = "g" + foundry.utils.randomID(6);
+  wrap.innerHTML = `<svg width="${size}" height="${size}" viewBox="-130 -130 260 260">
+    <defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5a0505"/><stop offset=".5" stop-color="#c0160f"/><stop offset="1" stop-color="#5a0505"/></linearGradient>
+    <clipPath id="${id}c"><rect x="-130" y="-130" width="260" height="0"/></clipPath></defs>
+    <g class="gash" clip-path="url(#${id}c)">
+      <path d="M95 -105 C40 -40 -20 20 -95 100 C-15 30 45 -30 95 -105Z" fill="url(#${id})" stroke="#2a0000" stroke-width="2"/>
+      <path d="M60 -110 C15 -55 -30 0 -105 70 C-25 10 25 -45 60 -110Z" fill="url(#${id})" stroke="#2a0000" stroke-width="1.5" opacity=".85"/></g>
+    <path class="streak" d="M120 -125 L-120 120" stroke="#fff6e8" stroke-width="5" stroke-linecap="round" fill="none" stroke-dasharray="340" stroke-dashoffset="340" style="filter:drop-shadow(0 0 8px #ff5030)"/>
+    <g class="drops" fill="#a80f0c"></g></svg>`;
+  (root ?? el).appendChild(wrap);
+  const rect = wrap.querySelector("clipPath rect"), streak = wrap.querySelector(".streak"), gash = wrap.querySelector(".gash"), drops = wrap.querySelector(".drops");
+  const DS = [[50, -60, 6], [-40, -30, 4], [70, 10, 5], [-70, 20, 3], [25, -80, 4], [0, -40, 3]];
+  const lit = el.classList.contains("lit");
+  const t0 = performance.now();
+  const frame = (now) => {
+    const t = (now - t0) / 1000;
+    // shake (0.45 s) and red flash (0.55 s); the dim of an unlit officer comes back after
+    const sh = t < 0.45 ? Math.sin(t * 55) * 16 * (1 - t / 0.45) : 0;
+    el.style.translate = `${sh}px 0`; wrap.style.translate = `${sh}px 0`;
+    const f = t < 0.06 ? t / 0.06 : Math.max(0, 1 - (t - 0.06) / 0.5);
+    img.style.filter = f > 0 ? `brightness(${1 + (lit ? 0.5 : 3) * f}) sepia(${f}) saturate(${1 + 5 * f}) hue-rotate(${-30 * f}deg)` : "";
+    // the streak draws in 0.12 s and fades; the gash opens behind it, stays a second and fades by 2 s
+    const p = Math.min(1, t / 0.12);
+    streak.setAttribute("stroke-dashoffset", 340 * (1 - p)); streak.style.opacity = t < 0.12 ? 1 : Math.max(0, 1 - (t - 0.12) / 0.15);
+    rect.setAttribute("x", -130 + 260 * (1 - p)); rect.setAttribute("height", 260 * p + 1);
+    gash.style.opacity = t < 1.2 ? 1 : Math.max(0, 1 - (t - 1.2) / 0.8);
+    const q = (t - 0.1) / 0.6;
+    drops.innerHTML = q > 0 && q < 1 ? DS.map(([dx, dy, r]) => `<circle cx="${dx * q}" cy="${dy * q + 90 * q * q}" r="${r * (1 - q * 0.5)}" opacity="${1 - q}"/>`).join("") : "";
+    if (t < 2.05 && el.isConnected) setTimeout(() => frame(performance.now()), 16); // not rAF: a background tab may never fire it
+    else { wrap.remove(); el.style.translate = ""; img.style.filter = ""; }
+  };
+  frame(performance.now());
+}
 const leave = (key) => patch(st => { st.cast = st.cast.filter(c => c.key !== key); st.lit = litOf(st).filter(k => k !== key); });
 async function join(actor) {
   if ((state().cast?.length ?? 0) >= MAX_CAST) return ui.notifications.warn(`A scene holds up to ${MAX_CAST} officers. Have one leave first.`);
@@ -237,12 +287,14 @@ function renderControls(st) {
       <div class="h"><i class="pt" style="background-image:url('${esc(route(c.img ?? c.src))}')"></i><span>${esc(c.name)}</span></div>
       <div class="two"><span class="btn ${on ? "on" : ""}" data-a="display" title="Light this officer up or dim him again; several can be lit at once">${on ? "Displayed" : "Display"}</span>
       <span class="btn ${on && lit.length === 1 ? "on" : ""}" data-a="switch" title="Light only this officer; everyone else dims">Switch</span></div>
-      <span class="btn red" data-a="leave" title="This officer leaves the scene; the others space out again">Leave</span></div>`; }).join("")
+      <div class="two"><span class="btn" data-a="injure" title="He's struck: a sword-hit sound, he shakes and a gash opens across him (everyone sees it)">Injure</span>
+      <span class="btn red" data-a="leave" title="This officer leaves the scene; the others space out again">Leave</span></div></div>`; }).join("")
     + `<div class="add" title="Drag an officer here from the compendium or the Actors tab; they walk in from the right">${full ? `Scene is full (${MAX_CAST})` : `<span><i class="fa-solid fa-user-plus"></i> Drag an officer here</span><input placeholder="or search…"><div class="hits"></div>`}</div>
     <div class="end" data-a="end"><span><i class="fa-solid fa-stop"></i> End scene</span></div>`;
   for (const card of ctl.querySelectorAll(".card")) {
     card.querySelector('[data-a="display"]').onclick = () => display(card.dataset.k);
     card.querySelector('[data-a="switch"]').onclick = () => switchTo(card.dataset.k);
+    card.querySelector('[data-a="injure"]').onclick = () => injure(card.dataset.k);
     card.querySelector('[data-a="leave"]').onclick = () => leave(card.dataset.k);
   }
   ctl.querySelector(".end").onclick = () => endCutscene();
