@@ -113,6 +113,9 @@ export function normalizeBonus(b = {}, fallbackLabel = "") {
 }
 
 /** True when the bonus is a skillTest bonus covering `skill` (a skill key). */
+/** The tag a bonus shows on a roll: Tao for a Tao's effect (sourceId "tao:..."), else Unique. */
+const srcKind = (b) => String(b?.sourceId ?? "").startsWith("tao:") ? "tao" : "unique";
+
 export function appliesToSkill(b, skill) {
   if (!skill || (b?.stat ?? b?.bonus?.stat) !== "skillTest") return false;
   const list = b.skills ?? b.bonus?.skills ?? [];
@@ -275,10 +278,10 @@ export function bonusParts(list, stat, { ticked = {}, sign = 1, prefix = "" } = 
     if (b.mode === "situational") {
       const on = !!ticked[b.key];
       situational.push({ ...b, ticked: on });
-      if (on) parts.push(part("unique", `${prefix}${b.label}${b.condition ? ` (${b.condition})` : ""}`, sign * b.value, { situational: true, key: b.key }));
+      if (on) parts.push(part(srcKind(b), `${prefix}${b.label}${b.condition ? ` (${b.condition})` : ""}`, sign * b.value, { situational: true, key: b.key }));
     } else {
       always.push(b);
-      parts.push(part("unique", `${prefix}${b.label}`, sign * b.value, { key: b.key }));
+      parts.push(part(srcKind(b), `${prefix}${b.label}`, sign * b.value, { key: b.key }));
     }
   }
   return { parts, total: parts.reduce((t, p) => t + p.value, 0), always, situational };
@@ -326,13 +329,13 @@ export function resistParts(list, tags = null, { ticked = null, panelTicked = {}
     const vs = matched.length ? ` (vs ${resistTagsText(matched)})` : "";
     if (named && b.mode !== "situational" && (!against.length || matched.length)) {
       auto.push({ ...b, matched });
-      parts.push(part("unique", `${b.label}${vs}`, b.value, { key: b.key }));
+      parts.push(part(srcKind(b), `${b.label}${vs}`, b.value, { key: b.key }));
       continue;
     }
     const def = named ? matched.length > 0 || !!panelTicked[b.key] : (b.mode !== "situational" && !against.length) || !!panelTicked[b.key];
     const on = ticked ? !!ticked[b.key] : def;
     offered.push({ ...b, matched, ticked: on, byDefault: def });
-    if (on) parts.push(part("unique", `${b.label}${vs || (b.condition ? ` (${b.condition})` : "")}`, b.value, { situational: true, key: b.key }));
+    if (on) parts.push(part(srcKind(b), `${b.label}${vs || (b.condition ? ` (${b.condition})` : "")}`, b.value, { situational: true, key: b.key }));
   }
   return { parts, total: parts.reduce((t, p) => t + p.value, 0), auto, offered };
 }

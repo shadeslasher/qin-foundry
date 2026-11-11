@@ -26,7 +26,59 @@ export const TAO_AUTOMATION = {
     value: (lvl) => lvl, cost: (lvl) => lvl, text: (v) => `Initiative +${v}`, when: "Before Initiative is rolled" },
 };
 
-export const QUEUE_SLOTS = { attack: "Next attack", hitTaken: "Next hit taken", defense: "Next defense", initiative: "Next Initiative" };
+/* More Taos (David, 2026-11-10: "automate the taos"). Two more kinds:
+ *  scene: lasts the rest of the fight (or until ended by hand outside one); carries roll bonuses (the unique-skill bonus
+ *         format) and/or armorMin (clothing counts as armour of that protection).
+ *  queue slot "test": waits for the next Test with one of `skills`, adds `value` to it. */
+const B = (stat, value, extra = {}) => ({ stat, value, mode: "always", ...extra });
+const WOOD_SKILLS = ["architecture", "bureaucracy", "calligraphy", "herbalism", "history", "investigation", "law", "learning", "literature", "medicine", "navigation", "perception", "science"];
+Object.assign(TAO_AUTOMATION, {
+  "breathOfPower.1": { name: "Improvised Shield", kind: "scene", value: () => 2, cost: () => 1,
+    bonuses: () => [B("ad", 2, { condition: "defending with a harmless object (cloth, fan, cloak)" })],
+    text: () => "Active Defense +2 with a harmless object", when: "Holding a cloth, fan, cloak or the like" },
+  "breathOfPower.3": { name: "Invisible Armor", kind: "scene", value: () => 3, cost: () => 3, armorMin: () => 3,
+    text: () => "clothing next to the skin gives protection 3", when: "Any time" },
+  "strengthenedBody.3": { name: "Cleanse the Blood", kind: "scene", value: (l, a) => a.earth ?? 0, cost: () => 3,
+    bonuses: () => [B("resistTest", 0, { aspect: "earth", against: ["poison", "illness"] })],
+    text: (v) => `+Earth ${v} to resist poison and disease`, when: "Poisoned or sick" },
+  "hiddenShadow.1": { name: "Dark Veil", kind: "scene", value: (l, a) => a.fire ?? 0, cost: () => 1,
+    bonuses: () => [B("skillTest", 0, { aspect: "fire", skills: ["stealth"], condition: "still and partly hidden" })],
+    text: (v) => `Stealth +Fire ${v} while still and partly hidden`, when: "Hiding, keeping still" },
+  "hiddenShadow.3": { name: "Path of Shadows", kind: "scene", value: (l, a) => a.fire ?? 0, cost: () => 3,
+    bonuses: () => [B("skillTest", 0, { aspect: "fire", skills: ["stealth"], condition: "moving unseen" })],
+    text: (v) => `Stealth +Fire ${v} while moving unseen`, when: "Moving unseen" },
+  "hiddenShadow.4": { name: "Path of Ghosts", kind: "scene", value: (l, a) => a.fire ?? 0, cost: () => 4,
+    bonuses: () => [B("skillTest", 0, { aspect: "fire", skills: ["stealth"], condition: "any subtle action, attacks included" })],
+    text: (v) => `Stealth +Fire ${v} on any subtle action`, when: "Any subtle action" },
+  "innerEye.1": { name: "Keen Eye", kind: "queue", slot: "test", skills: ["perception"], value: (l, a) => a.earth ?? 0, cost: () => 1,
+    text: (v) => `Perception +Earth ${v}, next Test`, when: "Before a Perception Test" },
+  "innerEye.2": { name: "Sharp Sense", kind: "queue", slot: "test", skills: ["perception"], value: (l) => l, cost: (l) => l,
+    text: (v) => `Perception +${v} with one sense, next Test`, when: "Before a Perception Test" },
+  "clearMind.1": { name: "Sharp Mind", kind: "scene", value: () => 2, cost: () => 1,
+    bonuses: () => [B("skillTest", 2, { skills: WOOD_SKILLS })], text: () => "+2 to Tests with mental (Wood) Skills", when: "Any time" },
+  "clearMind.4": { name: "Visionary Mind", kind: "scene", value: (l, a) => a.water ?? 0, cost: () => 4,
+    bonuses: () => [B("skillTest", 0, { aspect: "water", skills: ["investigation", "learning", "science"], condition: "reasoning: puzzles, connecting facts" })],
+    text: (v) => `+Water ${v} to reasoning Tests`, when: "Puzzles, connecting facts" },
+  "serenePresence.1": { name: "Mask of Serenity", kind: "scene", value: (l) => l, cost: () => 1,
+    bonuses: (l) => [B("skillTest", l, { skills: ["acting", "diplomacy", "eloquence", "etiquette", "seduction"], condition: "to please or win confidence" })],
+    text: (v) => `+${v} to Tests to please or win confidence`, when: "Fire hours" },
+  "serenePresence.2": { name: "Behind the Mask", kind: "scene", value: (l) => l, cost: () => 2,
+    bonuses: (l) => [B("skillTest", l, { skills: ["empathy"], condition: "to read a person" })], text: (v) => `Empathy +${v}`, when: "Reading a person" },
+  "serenePresence.3": { name: "Mask of Terror", kind: "scene", value: (l) => l, cost: () => 3,
+    bonuses: (l) => [B("skillTest", l, { skills: ["intimidation", "command"], condition: "to impress or unsettle" })],
+    text: (v) => `+${v} to Tests to impress or unsettle`, when: "Fire hours" },
+  "serenePresence.4": { name: "The Mirror", kind: "scene", value: (l, a) => a.earth ?? 0, cost: () => 4,
+    bonuses: () => [B("resistTest", 0, { aspect: "earth", against: ["deception", "persuasion", "seduction", "intimidation", "coercion"] })],
+    text: (v) => `+Earth ${v} to resist manipulation, lies, seduction and intimidation`, when: "Any time" },
+  "inspiredCreation.1": { name: "The Hand That Mends", kind: "scene", value: (l, a) => a.earth ?? 0, cost: () => 1,
+    bonuses: () => [B("skillTest", 0, { aspect: "earth", skills: ["craft", "forge", "architecture"], condition: "repair or restoration" })],
+    text: (v) => `+Earth ${v} to repair Tests`, when: "Repairing" },
+  "inspiredCreation.2": { name: "The Hand That Creates", kind: "scene", value: (l) => l, cost: () => 2,
+    bonuses: (l) => [B("skillTest", l, { skills: ["craft", "forge", "arts", "calligraphy", "music"], condition: "creating an object or work of art" })],
+    text: (v) => `+${v} to Tests creating an object or work of art`, when: "Creating" },
+});
+
+export const QUEUE_SLOTS = { attack: "Next attack", hitTaken: "Next hit taken", defense: "Next defense", initiative: "Next Initiative", test: "Next Test" };
 
 /** The automation for a Tao key at an effect level (or its "any level" effect), or null. */
 export function taoAutomation(key, level) {
@@ -42,7 +94,8 @@ export function resolveTao(key, level, taoLevel, aspects = {}) {
   if (level === "any" && lvl < 1) return null;
   const value = def.value(lvl, aspects), cost = def.cost(lvl, aspects), rounds = def.rounds ? def.rounds(lvl, aspects) : 0;
   return { id: `${key}.${level}`, key, level, name: def.name, kind: def.kind, slot: def.slot ?? null, stat: def.stat ?? null,
-    effect: def.effect ?? null, free: !!def.free, value, cost, rounds, text: def.text(value, rounds), when: def.when };
+    effect: def.effect ?? null, free: !!def.free, value, cost, rounds, text: def.text(value, rounds), when: def.when,
+    bonuses: def.bonuses ? def.bonuses(lvl, aspects) : null, armorMin: def.armorMin ? def.armorMin(lvl, aspects) : 0, skills: def.skills ?? null };
 }
 
 /** Chi cost of an automated Tao effect (or the effect level for any other Tao level, as the book has it). */
@@ -168,7 +221,7 @@ export function liveEffects(effects, combat, combatExists = () => true) {
 
 /** Totals from effects in force: { pd, hitReduction: [{label,value}], noPain, bonusSources: [{ id, name, bonuses, fromEffect }] }. */
 export function effectTotals(effects) {
-  const out = { pd: [], hitReduction: [], noPain: false, bonusSources: [] };
+  const out = { pd: [], hitReduction: [], noPain: false, bonusSources: [], armorMin: 0, armorMinLabel: "" };
   for (const e of effects ?? []) {
     if (e.effect === "pd") out.pd.push({ label: e.label, value: Number(e.value) || 0 });
     else if (e.effect === "hitReduction") out.hitReduction.push({ label: e.label, value: Number(e.value) || 0 });
@@ -176,6 +229,7 @@ export function effectTotals(effects) {
     if (e.bonuses?.length) out.bonusSources.push({ id: e.sourceId || e.id, name: e.label, bonuses: e.bonuses, fromEffect: true,
       sourceActor: e.sourceActor || null, sourceActorName: e.source || "" });
     if (e.noPain) out.noPain = true;
+    if ((Number(e.armorMin) || 0) > out.armorMin) { out.armorMin = Number(e.armorMin); out.armorMinLabel = e.label; } // Invisible Armor
   }
   return out;
 }

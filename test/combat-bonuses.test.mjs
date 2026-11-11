@@ -118,13 +118,13 @@ test("Tao costs: level for fixed effects, the bonus for scaled ones", () => {
   assert.equal(resolveTao("destructiveBreath", "any", 2, guan).slot, "attack");
   assert.equal(taoCost("suddenLightning", 2, 3, guan), 3);
   assert.equal(resolveTao("suddenLightning", 2, 3, guan).value, 3);
-  assert.equal(taoCost("strengthenedBody", 3, 4, guan), 3); // not automated: the level
+  assert.equal(taoCost("strengthenedBody", 3, 4, guan), 3); // Cleanse the Blood (automated 2026-11-10): level 3
   assert.equal(resolveTao("invisibleShield", 3, 2, guan), null); // level not known
   const rows = taoActionsFor([{ id: "t1", name: "Invisible Shield", key: "invisibleShield", level: 4 }, { id: "t2", name: "Strengthened Body", key: "strengthenedBody", level: 4 },
     { id: "t3", name: "Destructive Breath", key: "destructiveBreath", level: 2 }, { id: "t4", name: "Ten Thousand Hands", key: "tenThousandHands", level: 2 }], guan);
   assert.deepEqual(rows[0].actions.map(a => a.name), ["Strong Defense", "Chi Defense", "Strong Block", "Chi Block"]);
-  assert.deepEqual(rows[1].actions.map(a => a.name), ["Feel no pain", "Hard Hide"]);
-  assert.deepEqual(rows[1].other, [1, 3]);
+  assert.deepEqual(rows[1].actions.map(a => a.name), ["Feel no pain", "Cleanse the Blood", "Hard Hide"]);
+  assert.deepEqual(rows[1].other, [1]);
   assert.deepEqual(rows[2].actions.map(a => a.name), ["Destructive Breath"]);
   assert.deepEqual(rows[2].other, []);
   assert.deepEqual(rows[3].actions, []);

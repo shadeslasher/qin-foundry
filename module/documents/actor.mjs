@@ -217,8 +217,12 @@ export class QinActor extends foundry.documents.Actor {
     const { roll, dice } = await rollYinYang({ beginner });
     const mod = Number(o.modifier) || 0;
     const uniq = skillTestParts(skillBs, o.skill, { ticked: sitTicked, martial: sk.martial });
+    // Taos waiting for the next Test with this skill (Inner Eye's Keen Eye, Sharp Sense): added and used up, Chi paid now
+    const qTest = o.skill ? queuedFor(this, "test").filter(q => (q.skills ?? []).includes(o.skill)) : [];
+    if (qTest.length) await this.update(consumeUpdate(this, qTest.map(q => q.id)).update);
     const parts = [
       part("aspect", ASPECTS[o.aspect].label, aspect, { aspect: o.aspect }),
+      ...qTest.map(q => part("tao", `${q.label} (${q.cost} Chi)`, Number(q.value) || 0)),
       o.skill ? part("skill", `${sk.label} (${SKILL_LEVELS[sk.value]})`, sk.value) : null,
       part("dice", `Yin / Yang ${dice.yin} / ${dice.yang}${dice.double && !dice.critFail ? (beginner ? ", double: Beginner counts 0" : ", double") : ""}`, dice.value),
       ...uniq.parts,

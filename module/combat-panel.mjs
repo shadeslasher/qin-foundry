@@ -95,8 +95,9 @@ export class CombatPanel extends api.HandlebarsApplicationMixin(api.ApplicationV
         return { id: e.id, kind: "unique", text: `${e.label}${e.source ? ` (from ${e.source})` : ""}${text ? `: ${text}` : ""}`, left: e.scene ? "this scene" : leftText, canEnd: true,
           reminder: !(e.bonuses ?? []).length };
       }
-      const what = e.kind === "unique"
-        ? collectBonuses([{ id: e.sourceId, name: e.label, bonuses: e.bonuses }], { aspects: sys.aspects }).map(b => b.text).join(", ")
+      const what = e.kind === "unique" || e.bonuses?.length
+        ? [...collectBonuses([{ id: e.sourceId || e.id, name: e.label, bonuses: e.bonuses ?? [] }], { aspects: sys.aspects }).map(b => b.text), ...(e.armorMin ? [`protection ${e.armorMin}`] : [])].join(", ")
+        : e.armorMin ? `clothing gives protection ${e.armorMin}`
         : e.effect === "pd" ? `Passive Defense +${e.value}` : e.effect === "hitReduction" ? `−${e.value} damage on every hit` : e.effect === "noPain" ? "no injury penalties" : "";
       return { id: e.id, kind: e.kind === "unique" ? "unique" : "tao", text: `${e.label}${what ? `: ${what}` : ""}`, left: leftText, canEnd: true };
     });

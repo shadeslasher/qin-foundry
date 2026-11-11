@@ -241,7 +241,7 @@ export async function activateTao(actor, item, level, { quiet = false } = {}) {
   if (r.kind === "queue") {
     if (st.queued.some(q => q.key === r.id)) return ui.notifications.info(`${r.name} is already waiting for the ${QUEUE_SLOTS[r.slot].toLowerCase()}.`);
     st.queued.push({ id: uid(), key: r.id, slot: r.slot, label: level === "any" ? `${shortTao(item.name)} ${lvlKnown}` : `${shortTao(item.name)} ${lvlKnown}, ${r.name}`, short: r.name,
-      text: r.text, value: r.value, cost: r.cost, free: r.free, kind: "tao" });
+      text: r.text, value: r.value, cost: r.cost, free: r.free, kind: "tao", ...(r.skills ? { skills: r.skills } : {}) });
     await saveState(actor, st);
     if (!quiet) await taoCard(actor, item, r, `Ready for the ${QUEUE_SLOTS[r.slot].toLowerCase()}: ${r.cost} Chi when it is used.`);
     return r;
@@ -250,13 +250,19 @@ export async function activateTao(actor, item, level, { quiet = false } = {}) {
   const eff = { id: uid(), key: r.id, label: r.name, source: shortTao(item.name), kind: "tao", effect: r.kind === "exchange" ? r.stat : r.effect,
     value: r.value, combat: fight?.id ?? "", round: fight?.round ?? 0 };
   if (r.kind === "exchange") eff.exchange = fight?.exchange ?? 1;
+  else if (r.kind === "scene") {                       // the rest of the fight (outside one: until ended by hand)
+    eff.restOfFight = !!fight; eff.rounds = 0;
+    if (r.bonuses?.length) { eff.bonuses = r.bonuses.map(b => ({ ...b, label: b.label || `${shortTao(item.name)}: ${r.name}` })); eff.sourceId = `tao:${r.id}`; }
+    if (r.armorMin) eff.armorMin = r.armorMin;
+  }
   else eff.rounds = r.rounds;
   st.effects.push(eff);
   const { chi, damage } = Q.spendChi(actor.system.chi?.value ?? 0, actor.type === "character" ? r.cost : 0);
   const extra = actor.type === "character" ? { "system.chi.value": chi, ...(damage ? { "system.bol.damage": actor.system.bol.damage + damage } : {}) } : {};
   await saveState(actor, st, extra);
   if (damage) ui.notifications.warn(`${actor.name} draws on negative Chi: ${damage} damage taken (${r.name}).`);
-  const lasts = r.kind === "exchange" ? "this exchange" : fight ? `${r.rounds} round${r.rounds === 1 ? "" : "s"}` : `${r.rounds} rounds (end it by hand outside a fight)`;
+  const lasts = r.kind === "exchange" ? "this exchange" : r.kind === "scene" ? (fight ? "the rest of the fight" : "until ended (Combat panel)")
+    : fight ? `${r.rounds} round${r.rounds === 1 ? "" : "s"}` : `${r.rounds} rounds (end it by hand outside a fight)`;
   if (!quiet) await taoCard(actor, item, r, `−${r.cost} Chi · ${lasts}`);
   if (r.kind === "exchange" && r.stat === "pd") await recheckLatestAttack(actor);
   return r;

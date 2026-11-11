@@ -63,11 +63,14 @@ class QinBaseActor extends foundry.abstract.TypeDataModel {
       defenseBonus += i.system.defenseBonus || 0;
       armorList.push({ name: i.name, pdModifier: i.system.pdModifier || 0, protection: i.system.protection || 0, defenseBonus: i.system.defenseBonus || 0 });
     }
-    this.armor = { protection, defenseBonus, movementPenalty: Q.armorPenalty(protection, a.metal), name: best?.name ?? "", list: armorList };
     // Combat state (Taos in effect, used actives) and unique-skill bonuses (David, 2026-11-05)
     const state = normalizeCombatState(this.parent?.flags?.qin?.combatState);
     const live = liveEffects(state.effects, currentFight(), combatExists);
     const fx = effectTotals(live);
+    // Breath of Power's Invisible Armor: clothing counts as armour of that protection (no movement penalty, the best one counts)
+    const tao = fx.armorMin > protection ? fx.armorMin : 0;
+    this.armor = { protection: Math.max(protection, fx.armorMin), defenseBonus, movementPenalty: Q.armorPenalty(protection, a.metal),
+      name: tao ? fx.armorMinLabel : best?.name ?? "", list: armorList };
     this.combatEffects = live;
     this.noPain = fx.noPain;
     // bonusSources: kept for roll time (growing bonuses recomputed with the opponents engaged, vsSource filtered).
