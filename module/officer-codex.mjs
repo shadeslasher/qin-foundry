@@ -184,6 +184,8 @@ export class OfficerCodex extends (globalThis.foundry?.applications?.api?.Applic
     const gm = game.user.isGM, st = this.state, asPlayer = gm && st.asPlayer;
     let all = this.#entries ?? [];
     if (asPlayer) all = all.filter(o => o.shown);
+    const noFactions = !gm || asPlayer;   // players don't see factions (David, 2026-11-10)
+    if (noFactions) { st.faction = ""; st.group = ""; }
     if (st.faction && !all.some(o => o.faction === st.faction)) { st.faction = ""; st.group = ""; }
     // factions: major ones first (by size), then minor ones; groups only where a faction has them (Liu Biao, Nanman)
     const facs = new Map();
@@ -211,15 +213,15 @@ export class OfficerCodex extends (globalThis.foundry?.applications?.api?.Applic
     const chips = TYPES.map(t => `<a class="qin-cx-chip ${st.types.includes(t) ? "on" : ""}" data-action="type" data-type="${t}" style="--c:${TYPE_RGB[t]}">${t}</a>`).join("");
     return `<div class="qin-cx">
       <div class="qin-cx-bar">
-        <label class="qin-cx-search"><i class="fa-solid fa-magnifying-glass"></i><input type="search" name="q" value="${esc(st.q)}" placeholder="Search officers, epithets, factions"></label>
+        <label class="qin-cx-search"><i class="fa-solid fa-magnifying-glass"></i><input type="search" name="q" value="${esc(st.q)}" placeholder="Search officers by name"></label>
         ${chips}
         <select name="tier"><option value="">Any tier</option>${[0, 1, 2, 3].map(t => `<option value="${t}" ${String(st.tier) === String(t) ? "selected" : ""}>Tier ${t}</option>`).join("")}</select>
         ${gm ? `<span class="qin-cx-view"><a data-action="viewAs" data-as="gm" class="${asPlayer ? "" : "on"}">GM</a><a data-action="viewAs" data-as="player" class="${asPlayer ? "on" : ""}" data-tooltip="See the window as the players do: only the officers you've shown">Player</a></span>` : ""}
       </div>
       <div class="qin-cx-body">
-        <nav class="qin-cx-facs"><div class="qin-cx-fac ${!st.faction ? "on" : ""}" data-action="faction" data-faction=""><span><i class="fa-solid fa-users"></i> All factions</span><span class="n">${all.length}</span></div>
+        ${noFactions ? "" : `<nav class="qin-cx-facs"><div class="qin-cx-fac ${!st.faction ? "on" : ""}" data-action="faction" data-faction=""><span><i class="fa-solid fa-users"></i> All factions</span><span class="n">${all.length}</span></div>
           ${major.length ? `<div class="qin-cx-grp">Factions</div>${major.map(facRow).join("")}` : ""}
-          ${minor.length ? `<div class="qin-cx-grp">Minor characters</div>${minor.map(facRow).join("")}` : ""}</nav>
+          ${minor.length ? `<div class="qin-cx-grp">Minor characters</div>${minor.map(facRow).join("")}` : ""}</nav>`}
         <div class="qin-cx-cards">${list.map(card).join("") || `<p class="qin-muted">${gm || all.length ? "No officers match." : "The GM hasn't shown you any officers yet."}</p>`}</div>
       </div>
       <div class="qin-cx-foot">${list.length} shown${gm && !asPlayer ? ` · <i class="fa-solid fa-eye"></i> = the players can see him` : ""} · click to open the sheet · drag onto a unit to make him its officer</div>
