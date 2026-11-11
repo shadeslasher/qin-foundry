@@ -170,6 +170,7 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
   s.deployZones = scene?.getFlag?.(SYSTEM_ID, DEPLOY_FLAG) ?? []; // deployment squares, saved with the scene
   s.objectives = foundry.utils.deepClone(scene?.getFlag?.(SYSTEM_ID, OBJECTIVES_FLAG) ?? emptyObjectives()); // victory / defeat conditions
   s.objState = battle.objState ?? freshObjState();
+  s.aiSeen = battle.aiSeen ?? null; // where each side last saw the other's units (the AI remembers hidden ones)
   s.objEval = battle.objEval ?? null;
   s.outcome = battle.outcome ?? null;
   s.introAt = battle.introAt ?? null;
@@ -199,7 +200,7 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
     if (isWaitingReinforcement(rzId, rzones)) { // reinforcements not yet arrived: not in the battle
       // ...but their own side knows they are coming, and when (the battle AI plays for time until then)
       const z = rzones.find(z => z.id === rzId);
-      (s.incoming ??= []).push({ side: tok.actor?.system?.side, round: z?.round ?? null, tier: Number(tok.actor?.system?.tier) || 1,
+      (s.incoming ??= []).push({ side: tok.actor?.system?.side, round: z?.round ?? null, tier: Number(tok.actor?.system?.tier) || 1, shown: !!z?.shown,
         x: Math.round(tok.x / size), y: Math.round(tok.y / size) });
       continue;
     }
@@ -362,6 +363,7 @@ async function writeBack(battle, s, scene) {
   battle.tileOverrides = s.tileOverrides ?? {};
   battle.revealPicks = s.revealPicks ?? [];
   battle.objState = s.objState ?? null;
+  battle.aiSeen = s.aiSeen ?? null;
   battle.objEval = s.objEval ?? null;
   battle.outcome = s.outcome ?? null;
   battle.introAt = s.introAt ?? null;

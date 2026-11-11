@@ -125,6 +125,7 @@ function outcomeScore(a, b, side, S, M) {
     const mine = E.alliance(u0.side) === al;
     let w = worth(a, u0);
     if (S && mine && S.protect.has(u0.id)) w *= 1.8; // the opponent needs this one routed: keep it safe
+    if (S && mine && S.doomed && S.doomed.has(u0.id)) w *= 0.35; // lost anyway: spend it
     if (S && !mine && S.hunt.has(u0.id)) w *= 1.8;   // the opponent needs this one alive (or out): go for it
     if (S && !mine && S.siege && S.siege.defender && u0.carry) w *= 1.4; // ladders and engines at the walls: stop them
     const sign = mine ? -1 : gain;
@@ -220,7 +221,7 @@ function threatOf(s, u, side, P, areas, S, M) {
   }
   hits.sort((x, y) => y - x);
   const top = hits.slice(0, 3).reduce((t, h, i) => t + h * [1, 0.6, 0.35][i], 0);
-  const prot = (S && S.protect.has(u.id) ? 1.6 : 1) * (M ? M.threat : 1) * (M && M.shaken ? 1.5 : 1);
+  const prot = (S && S.protect.has(u.id) ? 1.6 : 1) * (S && S.doomed && S.doomed.has(u.id) ? 0.35 : 1) * (M ? M.threat : 1) * (M && M.shaken && !(S && S.doomed && S.doomed.has(u.id)) ? 1.5 : 1);
   return -P.threatW * (S ? S.threatMult : 0.75) * prot * w * Math.min(1.2, top);
 }
 
@@ -333,6 +334,19 @@ export function strategy(s, side) {
     why.push('play for time: reinforcements in round ' + reinforceRound);
   }
   if (foeP > 0 && myP > 0) aggr += Math.max(-0.15, Math.min(0.15, 0.2 * (myP / foeP - 1))); // a much bigger army leans in a little
+  // the other side's reinforcements, when their zone is shown on the map (David, 2026-11-11): strike before they come
+  // while ahead, hold back when behind, and keep off the squares they will come in on
+  const foeComing = (s.incoming || []).filter(r => r.side && E.alliance(r.side) !== al && r.shown && (r.round ?? Infinity) > round);
+  let foeReinforce = [];
+  if (foeComing.length) {
+    const first = Math.min(...foeComing.map(r => r.round ?? Infinity)), soon = Math.max(0, first - round);
+    const extra = foeComing.length * 3; // their units aren't known, only the squares: count each as an average unit
+    const after = myP / Math.max(1, foeP + extra);
+    const shift = (soon <= 2 ? 0.3 : 0.15) * (myP >= foeP ? 1 : -0.7) * (after < 1 ? 1 : 0.5);
+    aggr += shift;
+    why.push((shift > 0 ? 'strike before ' : 'hold back: ') + "the other side's reinforcements come in round " + first);
+    foeReinforce = foeComing.filter(r => Number.isFinite(r.x) && Number.isFinite(r.y)).map(r => ({ x: r.x, y: r.y, round: r.round }));
+  }
   aggr = Math.max(-1, Math.min(1, aggr));
   const posture = aggr > 0.35 ? 'aggressive' : (coming.length && aggr < -0.35) ? 'stall' : aggr < -0.2 ? 'defensive' : 'balanced';
   // jobs: each square gets an anchor (strongest nearby unit; keep squares only) and its share of guards
@@ -372,8 +386,34 @@ export function strategy(s, side) {
   const siege = siegeRoles(s, side, siegeS);
   const reinforceSquares = coming.filter(r => Number.isFinite(r.x) && Number.isFinite(r.y)).map(r => ({ x: r.x, y: r.y }));
   const team = teamPlan(s, side, jobs, protect);
+  const lvlS = sideLevel(s, side);
+  // memory of hidden units (David, 2026-11-11): where enemies that went out of sight were last seen; better tacticians
+  // remember longer (Art of War 0-1 forget at once, 2 for a round, 3 for two, 4-5 for three)
+  const ghosts = [];
+  const memory = [0, 0, 1, 2, 3, 3][lvlS];
+  if (memory && s.aiSeen && s.aiSeen[al]) {
+    const inSight = new Set(foes.filter(e => E.visibleTo(s, e, al)).map(e => e.id));
+    for (const [id, g] of Object.entries(s.aiSeen[al])) {
+      if (inSight.has(id)) continue;
+      const age = round - (Number(g.round) || 0);
+      if (age > memory) continue;
+      const t = g.typeId ? (s.library?.unitTypes || []).find(x => x.id === g.typeId) : null;
+      ghosts.push({ x: g.x, y: g.y, age, reach: (Number(t?.move) || 3) * (1 + age) + (t?.weapon === 'ranged' ? Number(t?.rangeMax) || 1 : 1) });
+    }
+    if (ghosts.length) why.push('remembers ' + ghosts.length + ' unit' + (ghosts.length === 1 ? '' : 's') + ' gone out of sight');
+  }
+  // units that will be routed whatever they do (Art of War 3+, David, 2026-11-11): what is about to hit them is more than
+  // they have left. Their own loss counts less, and they're spent buying time: tying up enemies and screening the others
+  const doomed = new Set();
+  if (lvlS >= 3) for (const u of mine) {
+    if (protect.has(u.id) || u.side !== side) continue;
+    const hits = foes.filter(e => E.visibleTo(s, e, al) && E.manhattan(e, u) <= reachOf(s, e) + 1).map(e => traitHit(s, e, u, Math.max(0, E.manhattan(e, u) - 1), !!(u.round && u.round.holding))).sort((a, b) => b - a);
+    const coming = hits.slice(0, 3).reduce((t, h, i) => t + h * [1, 0.85, 0.7][i], 0);
+    if (hits.length && (coming >= u.men || (u.men / mx(u) < 0.15 && Number(u.morale ?? 50) < 30))) doomed.add(u.id);
+  }
+  if (doomed.size) why.push(doomed.size + ' unit' + (doomed.size === 1 ? '' : 's') + ' written off: buying time');
   if (team.why) why.push(...team.why);
-  return { posture, ...POSTURE[posture], aggr, reinforceSquares, burn, siege, focus: team.focus, converge: team.converge, keep: [...keep.keys()].map(ptOf), take: [...take.keys()].map(ptOf), jobs, protect, hunt, reinforceRound, why };
+  return { posture, ...POSTURE[posture], aggr, reinforceSquares, burn, siege, focus: team.focus, converge: team.converge, foeReinforce, ghosts, doomed, keep: [...keep.keys()].map(ptOf), take: [...take.keys()].map(ptOf), jobs, protect, hunt, reinforceRound, why };
 }
 
 /**
@@ -481,7 +521,7 @@ export function mind(s, u, S, P) {
   // shaken or battered: wants to step back and recover (skilled sides see it sooner)
   const mo = Number(u.morale ?? 50), hp = u.men / mx(u);
   const line = P.level >= 2 ? (mo < 40 || hp < 0.35) : mo < 20;
-  if (line && !st.has('steadfast') && !tiger) { M.shaken = true; M.recover = P.level >= 2 ? 1 : 0.5; }
+  if (line && !st.has('steadfast') && !tiger && !(S.doomed && S.doomed.has(u.id))) { M.shaken = true; M.recover = P.level >= 2 ? 1 : 0.5; }
   if (tiger && P.level >= 2) { M.threat *= 0.7; M.close *= 1.2; }
   // dice for this round: mistakes (poor tacticians), disobedience (rash and glory-seeking officers)
   const r = seeded(hashStr(u.id + ':mind:' + (s.turn?.round ?? 0)));
@@ -913,6 +953,27 @@ function positionScore(s0, s1, u0, u1, side, P, S, M) {
   }
   // waiting for reinforcements: drift towards where they will come in
   if (S.posture === 'stall' && S.reinforceSquares?.length) v += 0.02 * w * (nearest(u0, S.reinforceSquares) - nearest(u1, S.reinforceSquares));
+  // the other side's reinforcements: don't stand where they arrive next round
+  if (S.foeReinforce && S.foeReinforce.length && lvl >= 1) {
+    const r = Number(s0.turn?.round) || 0, soon = S.foeReinforce.filter(q => (q.round ?? Infinity) <= r + 1);
+    if (soon.length) { const near = (p) => nearest(p, soon) <= 2 ? 1 : 0; v -= [0, 0.4, 0.7, 1, 1, 1][lvl] * 0.1 * w * (near(u1) - near(u0)); }
+  }
+  // enemies last seen nearby that went out of sight: their old reach is risky ground (fading with time)
+  if (S.ghosts && S.ghosts.length) {
+    const risk = (p) => S.ghosts.reduce((t, g) => t + (E.manhattan(p, g) <= g.reach ? 1 / (1 + g.age) : 0), 0);
+    v -= [0, 0, 0.6, 0.85, 1, 1][lvl] * 0.04 * w * (M.styles.has('rash') ? 0.4 : 1) * (risk(u1) - risk(u0));
+  }
+  // a unit written off: tie up enemies (stand against the strongest it can) and screen the rest of the army
+  if (S.doomed && S.doomed.has(u0.id)) {
+    const adj = (p, st) => Math.max(0, ...foes.map(e => { const e1 = E.unitById(st, e.id); return e1 && e1.status === 'active' && E.manhattan(e1, p) === 1 ? worth(s0, e) : 0; }));
+    v += 0.12 * (adj(u1, s1) - adj(u0, s0));
+    if (foes.length) {
+      const nf = (p) => Math.min(...foes.map(e => E.manhattan(e, p)));
+      const allies = E.liveUnits(s1).filter(o => o.id !== u0.id && E.alliance(o.side) === al && !S.doomed.has(o.id));
+      const screened = (p) => allies.filter(o => E.manhattan(o, p) <= 4 && nf(o) > nf(p)).length;
+      v += 0.03 * w * Math.min(3, screened(u1)) - 0.03 * w * Math.min(3, screened(u0));
+    }
+  }
   return v;
 }
 
@@ -1309,7 +1370,31 @@ export function decision(s, unitId, opts = {}) {
   const foesToCome = E.liveUnits(s).filter(e => E.hostile(e, u) && !e.round.activated && E.manhattan(e, u) <= 12);
   if (!foesToCome.length) return { type: 'decide', unitId, choice: 'act' };
   const sc = bestScore(s, unitId, { ...opts, level: P.level });
-  return { type: 'decide', unitId, choice: sc < 0.05 * worth(s, u) ? 'hold' : 'act' };
+  return { type: 'decide', unitId, choice: holdValue(s, u, P, S0, foesToCome, sc) > sc ? 'hold' : 'act' };
+}
+
+/**
+ * What acting after the enemy is expected to be worth (David, 2026-11-11; was "hold when nothing scores well").
+ *  - what he can do now may slip away: targets move off, so his best move now keeps only part of its value
+ *  - enemies still to act that would come into his reach give him a strike he hasn't got now
+ *  - the danger he stands in now he can answer once he has seen their moves (better tacticians read it better)
+ *  - enemies that can reach him strike first while he waits
+ */
+function holdValue(s, u, P, S, foesToCome, now) {
+  const w = worth(s, u), reach = reachOf(s, u);
+  let v = 0.55 * Math.max(0, now) + Math.min(0, now);
+  // strikes that come to him: enemies out of reach now that would end their move within it
+  const comers = foesToCome.filter(e => E.manhattan(e, u) > reach && E.manhattan(e, u) <= reach + E.movementOf(s, e));
+  const strike = comers.map(e => worth(s, e) * traitHit(s, u, e, 1, false) / mx(e)).sort((a, b) => b - a)[0] || 0;
+  v += 0.5 * strike * S.gain;
+  // reacting to their moves instead of guessing them
+  const areas = new Map(foesToCome.map(e => [e.id, E.threatArea(s, e)]));
+  const danger = -threatOf(s, u, u.side, P, areas, S);
+  v += [0, 0, 0, 0.35, 0.45, 0.55][P.level] * danger;
+  // the ones in reach of him hit him before he acts (he'd face them either way, but on their terms)
+  const first = foesToCome.filter(e => E.manhattan(e, u) <= reachOf(s, e)).length;
+  v -= 0.03 * w * first;
+  return v;
 }
 
 /** An officer-less turn for this side: which unit goes (the one with the best move; levels 0-1 pick at random). */

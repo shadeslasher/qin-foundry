@@ -477,3 +477,49 @@ test('AI teamwork: not forced: no combined attack when going in would cost more 
   assert.ok(!f || !f.members.some(m => m.role !== 'soften'), 'no melee sent into the brutes: ' + JSON.stringify(f));
   void ids;
 });
+
+// ---- the other side's reinforcements, memory of hidden units, writing off lost units, holding (David, 2026-11-11)
+test("AI: the other side's reinforcements (zone shown) change its posture and keep it off their squares", () => {
+  const base = strat({}, army).S;
+  const ahead = strat({}, army, { incoming: [{ side: 'player', round: 2, tier: 2, shown: true, x: 5, y: 5 }] }).S;
+  assert.ok(ahead.aggr > base.aggr, 'stronger now: strikes before they come');
+  assert.deepStrictEqual(ahead.foeReinforce, [{ x: 5, y: 5, round: 2 }]);
+  const hidden = strat({}, army, { incoming: [{ side: 'player', round: 2, tier: 2, shown: false, x: 5, y: 5 }] }).S;
+  assert.strictEqual(hidden.aggr, base.aggr, 'a zone not shown is unknown to it');
+});
+
+test('AI: remembers where a unit that hid was last seen, longer with a better Art of War', () => {
+  const run = (aow) => {
+    const { s, ids } = battle([strong, weak, foe], army);
+    s.tactics = { sides: { enemy: { aow, name: 'T' } } };
+    R.unitById(s, ids[0]).hidden = true;
+    s.aiSeen = { enemy: { [ids[0]]: { x: 5, y: 2, round: 0, typeId: 'foe' } }, player: {} };
+    s.turn.round = 2;
+    return AI.strategy(s, 'enemy').ghosts.length;
+  };
+  assert.strictEqual(run(1), 0, 'Art of War 1 forgets');
+  assert.strictEqual(run(2), 0, 'Art of War 2 remembers only a round');
+  assert.strictEqual(run(4), 1, 'Art of War 4 still remembers it two rounds later');
+});
+
+test('AI: the engine keeps where each side last saw the other', () => {
+  const { s, ids } = battle([strong, weak, foe], army);
+  must(R.act(s, P1, { type: 'begin', unitId: ids[0] })); must(R.act(s, P1, { type: 'endTurn', unitId: ids[0] }));
+  assert.ok(s.aiSeen.enemy[ids[0]] && s.aiSeen.player[ids[1]], JSON.stringify(s.aiSeen));
+});
+
+test('AI: a unit that will be routed whatever it does is written off (Art of War 3+)', () => {
+  const brute = unitType('brute', { damage: 12, armorPen: 8, tier: 4 });
+  const mk = (aow) => {
+    const { s, ids } = battle([brute, weak], [
+      { typeId: 'brute', side: 'player', owner: 'p1', x: 5, y: 4 }, { typeId: 'brute', side: 'player', owner: 'p1', x: 6, y: 5 },
+      { typeId: 'weak', side: 'enemy', x: 5, y: 6 }, { typeId: 'weak', side: 'enemy', x: 9, y: 12 },
+    ]);
+    R.unitById(s, ids[2]).men = 12;
+    s.tactics = { sides: { enemy: { aow, name: 'T' } } };
+    return { S: AI.strategy(s, 'enemy'), ids };
+  };
+  assert.strictEqual(mk(2).S.doomed.size, 0, 'Art of War 2 does not see it');
+  const { S, ids } = mk(3);
+  assert.ok(S.doomed.has(ids[2]) && !S.doomed.has(ids[3]), [...S.doomed].join());
+});

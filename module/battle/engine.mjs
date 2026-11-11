@@ -1975,6 +1975,25 @@ function controls(s, actor, u) {
 const ok = (extra) => Object.assign({ ok: true }, extra || {});
 const err = (error) => ({ ok: false, error });
 
+/**
+ * Where each side last saw every enemy unit (David, 2026-11-11): s.aiSeen = { player|enemy: { unitId: { x, y, round } } }.
+ * Updated after every action while the unit is in sight; kept as it was once it hides; dropped when it's out of the fight.
+ * The battle AI uses it to remember hidden units (better tacticians remember longer).
+ */
+function noteSightings(s) {
+  if (!s.units) return;
+  const seen = s.aiSeen || (s.aiSeen = { player: {}, enemy: {} });
+  const round = (s.turn && s.turn.round) || 0;
+  for (const al of ['player', 'enemy']) {
+    const m = seen[al] || (seen[al] = {});
+    for (const u of s.units) {
+      if (alliance(u.side) === al) continue;
+      if (u.status !== 'active') { delete m[u.id]; continue; }
+      if (visibleTo(s, u, al)) m[u.id] = { x: u.x, y: u.y, round, typeId: u.typeId };
+    }
+  }
+}
+
 const SKILL_WAIT_OK = new Set(['skillChoose']);
 function act(s, actor, a) {
   try {
@@ -1998,6 +2017,7 @@ function act(s, actor, a) {
     if (res.ok && snap && s.turn.activation) s.turn.activation.takeBack = snap;
     if (res.ok && a.type === 'moveTo' && tbBefore && s.turn.activation && s.turn.activation.undo) s.turn.activation.undo.takeBack = tbBefore;
     if (res.ok && tbFromUndo && s.turn.activation) s.turn.activation.takeBack = tbFromUndo;
+    if (res.ok) noteSightings(s);
     // A unit that died during its own turn still hands the turn on.
     if (s.turn.pendingFinish) {
       const u = unitById(s, s.turn.pendingFinish); s.turn.pendingFinish = null;
@@ -2011,7 +2031,7 @@ function act(s, actor, a) {
 }
 
 /** What a Take back restores: everything the rules change, not the map or the library (too big, never changed by starting a turn). */
-const TAKE_BACK_KEYS = ['units', 'turn', 'tactics', 'siege', 'objState', 'objEval', 'outcome'];
+const TAKE_BACK_KEYS = ['units', 'turn', 'tactics', 'siege', 'objState', 'objEval', 'outcome', 'aiSeen'];
 function takeBackSnapshot(s) {
   const o = {};
   for (const k of TAKE_BACK_KEYS) if (s[k] !== undefined) o[k] = JSON.parse(JSON.stringify(s[k]));
@@ -2123,7 +2143,7 @@ const ACTIONS = {
     for (const u of s.units) u.facing = null; // no facing until a unit attacks or is attacked
     log(s, 'Battle begins. Tacticians, choose your tactics.');
     for (const u of s.units) { if (u.fx) { delete u.fx.checkpoints; delete u.fx.medUsed; } fx(u).checkpoints = Math.min(4, checkpointsPassed(u)); fx(u).startMen = u.men; } // checkpoints already passed before the battle don't cost morale
-    s.objState = freshObjState(); s.outcome = null; s.objEval = null;
+    s.objState = freshObjState(); s.outcome = null; s.objEval = null; s.aiSeen = null;
     s.introAt = Date.now(); // every client plays the tour of the conditions once
     checkOutcome(s); // the tracker starts with every condition open
   },
@@ -2131,7 +2151,7 @@ const ACTIONS = {
     s.turn = freshTurn('setup', 0);
     s.duels = freshDuels();
     s.tactics = null;
-    s.objState = freshObjState(); s.outcome = null; s.objEval = null;
+    s.objState = freshObjState(); s.outcome = null; s.objEval = null; s.aiSeen = null;
     for (const u of s.units) u.round = newRoundFlags();
     delete s.skillsBegun; delete s.skillExtra; delete s.skillInterjects; delete s.revealPicks; for (const u of s.units) SK.resetUnit(u);
     log(s, 'Host returned to setup.');
