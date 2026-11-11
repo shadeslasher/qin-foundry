@@ -542,6 +542,8 @@ function baguaTexture(R) { const k = Math.round(R); if (!baguaCache.has(k)) bagu
 
 /** The Eight Trigrams formation draws itself in on the ground beneath his unit, turns slowly with light rising off it,
  *  then fades (David, 2026-11-09). */
+/** How long the trigrams turn at full strength, and how long they turn before the stones begin to rise. */
+const TRIGRAM_HOLD = 3.8, STONES_AFTER = 1.6;
 function eightTrigrams(token) {
   const G = Math.min(token.w, token.h), R = G * 1.45, tex = baguaTexture(R), B = Blur(), ADD = PIXI.BLEND_MODES.ADD;
   const root = groundLayer(); root.position.set(token.center.x, token.center.y);
@@ -549,22 +551,25 @@ function eightTrigrams(token) {
   const lines = new PIXI.Sprite(tex); lines.anchor.set(0.5); lines.tint = 0xfff1c2; lines.blendMode = ADD;
   const disc = new PIXI.Graphics().beginFill(0x0b1a2a, 0.35).drawCircle(0, 0, R * 1.02).endFill(); if (B) disc.filters = [new B(6)];
   const draw = new PIXI.Graphics(); draw.blendMode = ADD; if (B) draw.filters = [new B(3)];
+  // start invisible: the canvas can draw once before the first tick sets them (David, 2026-11-11: the trigrams flashed)
+  for (const sp of [glow, lines]) { sp.scale.set(0); sp.alpha = 0; } disc.alpha = 0;
   root.addChild(disc, glow, lines, draw);
   const over = new PIXI.Container(); over.position.set(token.center.x, token.center.y); overLayer().addChild(over);
   const motes = [];
   return run((dt, a) => {
-    const grow = 1 - (1 - Math.min(1, a / 0.55)) ** 3, fade = a < 2.4 ? 1 : Math.max(0, 1 - (a - 2.4) / 0.8);
+    // it turns a while before the stones rise (David, 2026-11-11), then fades as they settle
+    const grow = 1 - (1 - Math.min(1, a / 0.55)) ** 3, fade = a < TRIGRAM_HOLD ? 1 : Math.max(0, 1 - (a - TRIGRAM_HOLD) / 0.8);
     root.rotation = a * 0.25;
     for (const sp of [glow, lines]) sp.scale.set(grow / tex.qS);
     lines.alpha = fade * (0.85 + 0.15 * Math.sin(a * 6)); glow.alpha = fade * (0.9 + 0.1 * Math.sin(a * 4)); disc.alpha = fade * grow;
     draw.clear(); if (a < 0.7) { const q = a / 0.7; draw.lineStyle(G * 0.08, 0xbff0ff, 1 - q).arc(0, 0, R * grow, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * q); }
-    if (a < 2.4 && Math.random() < dt * 15) {
+    if (a < TRIGRAM_HOLD && Math.random() < dt * 15) {
       const ang = rnd(0, Math.PI * 2), r = R * rnd(0.55, 0.95) * grow;
       const m = new PIXI.Graphics().beginFill(Math.random() < 0.5 ? 0xbff0ff : 0xfff1c2).drawCircle(0, 0, rnd(1.2, 2.4) * G / 120).endFill(); m.blendMode = ADD; over.addChild(m);
       motes.push({ m, x: Math.cos(ang) * r, y: Math.sin(ang) * r, t: 0, life: rnd(0.8, 1.3) });
     }
     for (let i = motes.length - 1; i >= 0; i--) { const o = motes[i]; o.t += dt; const q = o.t / o.life; if (q >= 1) { o.m.destroy(); motes.splice(i, 1); continue; } o.m.position.set(o.x, o.y - q * G * 0.6); o.m.alpha = 1 - q; }
-    if (a < 3.2) return true;
+    if (a < TRIGRAM_HOLD + 0.8) return true;
     root.destroy({ children: true }); over.destroy({ children: true });
     return false;
   });
@@ -993,7 +998,8 @@ const ON_ATTACK = { "None Can Stand Before Him": playSkyPiercer };
 /** A skill's contested rolls on several units at once (David, 2026-11-09), by the skill's name. */
 const ON_CONTEST = {
   "Terror of the Battlefield": (token, results, tokOf, float) => playTerror(token, results, tokOf, float),
-  "Stone Sentinel Maze": (token, results, tokOf, float) => playSentinels(results, tokOf, float),
+  // the stones rise once the trigrams have turned a while (they start as the banner's dark lifts, about 0.25 s before this)
+  "Stone Sentinel Maze": (token, results, tokOf, float) => new Promise(r => setTimeout(r, atSpeed(STONES_AFTER * 1000 - 250))).then(() => playSentinels(results, tokOf, float)),
   "Terror of Changban": (token, results, tokOf, float) => playRooted(token, results, tokOf, float, 5),
   // the hunt starts as the howl dies away
   "The Wolf Bares His Fangs": (token, results, tokOf, float) => new Promise(r => setTimeout(r, atSpeed(3200)))
