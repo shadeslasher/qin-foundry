@@ -809,6 +809,8 @@ const wait = (ms) => new Promise(r => setTimeout(r, atSpeed(ms)));
  * battle state, and the hold lasts until that action's animations have played (or it turns out there are none). */
 let animCount = 0, holdUntil = 0;
 export const menuHeld = () => animCount > 0 || Date.now() < holdUntil;
+/** Is a battle animation playing on this client right now? (the animation recorder waits for it) */
+export const battleAnimBusy = () => animCount > 0;
 export function whenMenuFree() {
   return new Promise(res => { const check = () => (menuHeld() ? setTimeout(check, 80) : res()); check(); });
 }

@@ -36,7 +36,11 @@ function topLayer() {
 }
 
 /** Run draw(dt seconds, elapsed seconds) every frame until it returns false. */
+let running = 0;
+/** Is a special animation still playing? (the animation recorder waits for it) */
+export const uniqueFxBusy = () => running > 0;
 function run(step) {
+  running++;
   return new Promise(resolve => {
     let t = 0;
     const tick = () => {
@@ -44,7 +48,7 @@ function run(step) {
       t += dt;
       let more = false;
       try { more = step(dt, t); } catch (e) { console.warn("Qin | special animation", e); }
-      if (!more) { canvas.app.ticker.remove(tick); resolve(); }
+      if (!more) { canvas.app.ticker.remove(tick); running--; resolve(); }
     };
     canvas.app.ticker.add(tick);
   });

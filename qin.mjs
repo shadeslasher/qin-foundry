@@ -68,6 +68,8 @@ import { loadSpecData, specCount } from "./module/battle/skill-data.mjs";
 import { loadFullArt } from "./module/full-art.mjs";
 import "./module/battle/camera-pull.mjs";   // GM: move everyone's camera to a tile
 import "./module/cutscene.mjs";             // GM: Cutscene Maker
+import * as Recorder from "./module/dev/recorder.mjs";   // GM: animation recorder
+import * as TestBench from "./module/dev/test-bench.mjs"; // GM: animation test bench
 registerCompendiumSync();
 registerPlacedTag();
 Hooks.once("init", () => {
@@ -75,7 +77,8 @@ Hooks.once("init", () => {
   CONFIG.QIN = CFG;
   CONFIG.qinFactions ??= {};
   globalThis.qin = game.qin = { config: CFG, rules: QinRules, openBattle: () => BattlePanel.open(), battleRequest, registerFactions, factionList, openUnitInfo, openOfficerView, importBattleMap: () => importBattleMap(SYSTEM_ID),
-    registerMapRenderer, redrawMap: (scene = canvas.scene) => redrawScene(scene), paintMap: (scene = canvas.scene) => MapEditorApp.open(scene), refreshBattlePanel: () => BattlePanel.refresh(), newUnit: () => newUnitDialog(), unitEditor: () => UnitEditorApp.open(), registerSoundPack, playSound: (m) => playMoment(m, { minGap: 0 }), openSounds: () => SoundPanel.toggle(), openCombatPanel: (actor) => CombatPanel.open(actor) };
+    registerMapRenderer, redrawMap: (scene = canvas.scene) => redrawScene(scene), paintMap: (scene = canvas.scene) => MapEditorApp.open(scene), refreshBattlePanel: () => BattlePanel.refresh(), newUnit: () => newUnitDialog(), unitEditor: () => UnitEditorApp.open(), registerSoundPack, playSound: (m) => playMoment(m, { minGap: 0 }), openSounds: () => SoundPanel.toggle(), openCombatPanel: (actor) => CombatPanel.open(actor),
+    recorder: { record: Recorder.record }, testBench: { setup: TestBench.setup, reset: TestBench.reset, recordSkill: TestBench.recordSkill } };
 
   CONFIG.Actor.documentClass = QinActor;
   CONFIG.Item.documentClass = QinItem;
