@@ -131,7 +131,12 @@ export class CombatPanel extends api.HandlebarsApplicationMixin(api.ApplicationV
           const e = sys.combatEffects.find(x => x.key === a.id), l = roundsLeft(e, fight);
           disabled = true; reason = e.exchange ? "active this exchange" : l === null ? "active" : `active, ${l} left`;
         } else if (a.slot === "initiative" && initRolled) { disabled = true; reason = "before Initiative only"; }
-        return { level: a.level, label: `${a.level === "any" ? "" : `${a.level} · `}${a.name}`, sub: `${a.text} · ${a.cost} Chi`, when: a.when, disabled, reason };
+        // the button shows only the level and name; the rest is in a hover card (David, 2026-11-10)
+        const e = (x) => foundry.utils.escapeHTML(String(x ?? ""));
+        const tip = `<div class="qin-sig-tip"><div class="qin-sig-tip-hd"><div class="qin-sig-tip-slot">${e(shortTao(t.taoName))}${a.level === "any" ? "" : ` · level ${e(a.level)}`}</div>`
+          + `<div class="qin-sig-tip-name">${e(a.name)}</div><div class="qin-sig-chips"><span class="qin-sig-chip chi">${e(a.cost)} Chi</span>${a.when ? `<span class="qin-sig-chip cd">${e(a.when)}</span>` : ""}</div></div>`
+          + `<div class="qin-sig-tip-bd"><ul class="qin-sig-rules"><li>${e(a.text)}</li>${disabled ? `<li><i>Not now: ${e(reason)}</i></li>` : ""}</ul></div></div>`;
+        return { level: a.level, label: `${a.level === "any" ? "" : `${a.level} · `}${a.name}`, disabled, reason, tip };
       }),
     }));
 
@@ -166,6 +171,7 @@ export class CombatPanel extends api.HandlebarsApplicationMixin(api.ApplicationV
   }
 
   static async #onTao(event, target) {
+    if (target.classList.contains("off")) return;          // greyed out (kept clickable-looking so its hover card still shows)
     const item = this.actor.items.get(target.dataset.taoId);
     if (!item) return;
     const level = target.dataset.level === "any" ? "any" : Number(target.dataset.level);

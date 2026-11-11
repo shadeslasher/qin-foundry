@@ -48,7 +48,7 @@
       {{#each taos}}
       <div class="qin-cp-tao"><div class="qin-cp-tao-name">{{name}}{{#if other}} <a data-action="taoOther" data-tao-id="{{id}}">{{otherLabel}}</a>{{/if}}</div>
         <div class="qin-cp-btns">
-        {{#each buttons}}<button type="button" data-action="tao" data-tao-id="{{../id}}" data-level="{{level}}" {{#if disabled}}disabled{{/if}} title="{{when}}"><b>{{label}}</b><small>{{#if disabled}}{{reason}}{{else}}{{sub}}{{/if}}</small></button>{{/each}}
+        {{#each buttons}}<button type="button" data-action="tao" data-tao-id="{{../id}}" data-level="{{level}}" class="{{#if disabled}}off{{/if}}" data-tooltip="{{tip}}" data-tooltip-class="qin-sig-tooltip" data-tooltip-direction="LEFT">{{label}}</button>{{/each}}
         </div>
       </div>
       {{/each}}

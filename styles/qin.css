@@ -1134,11 +1134,14 @@ a.qin-stat:hover, a.qin-stat:focus-visible { border-color: var(--qin-gold); }
 .qin-cp-x { min-width: 26px; }
 .qin-cp-tao-name { font-weight: 700; margin-bottom: 3px; }
 .qin-cp-tao-name a { font-weight: 400; font-size: calc(12px * var(--qin-scale, 1.15)); margin-left: 6px; color: var(--qin-red); }
-.qin-cp-btns { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; }
-.qin-cp-btns button { display: flex; flex-direction: column; align-items: flex-start; text-align: left; padding: 3px 7px; }
-.qin-cp-btns button small { color: var(--qin-muted); font-size: calc(11px * var(--qin-scale, 1.15)); }
-.qin-cp-btns button:disabled { opacity: 0.75; background: #ece3cf; cursor: not-allowed; }
-.qin-cp-btns button:not(:disabled):hover { border-color: #2f5f8a; }
+.qin-cp-btns { display: flex; flex-wrap: wrap; gap: 4px; }
+/* Tao buttons: level and name only; the details are in the hover card (David, 2026-11-10) */
+.qin-cp-btns button { flex: 0 1 auto; width: auto; max-width: 100%; min-width: 0; padding: 2px 9px; line-height: 1.5; font-weight: 600;
+  color: #2a2118; background: #fffaf0; border: 1px solid #b9a77f; border-radius: 4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+.qin-cp-btns button.off { color: #8a7d66; background: #ece3cf; border-style: dashed; cursor: help; }
+.qin-cp-btns button:not(.off):hover { background: #fff; }
+.qin-cp-btns button:not(.off):hover { border-color: #2f5f8a; }
 
 /* Growing bonuses and effects on others (0.100.9) */
 .qin-cp-step { min-width: 26px; flex: 0 0 auto; font-weight: bold; }
