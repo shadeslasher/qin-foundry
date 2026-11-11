@@ -102,7 +102,7 @@ test('ranged attacker loses +2 after moving; ranged defender returns fire', () =
   assert.strictEqual(R.unitById(s, a).men, 100 - (3 - 2)); // ranged defender returns base damage
 });
 
-test('cavalry charge: 2 tiles = +1, no morale multiplier (rear neither); no strike back from the rear', () => {
+test('cavalry charge: 2 tiles is a charge with no bonus of its own (2026-11-10), no morale multiplier (rear neither); no strike back from the rear', () => {
   const s = setup();
   const a = add(s, { typeId: 'han_lancer_cav', side: 'player', owner: 'p1', x: 5, y: 2 });
   const d = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 5 });
@@ -111,15 +111,15 @@ test('cavalry charge: 2 tiles = +1, no morale multiplier (rear neither); no stri
   R.unitById(s, d).facing = { dx: 0, dy: 1 }; // turned away from the cavalry
   must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: a }));
   s.freeMovement = false;
-  must(R.act(s, P1, { type: 'moveTo', unitId: a, x: 5, y: 4 })); // 2 tiles -> +1
-  dice([3, 0, 0, 0]); // A: 3+2+2(att)+1(charge)+2(rear)+1(cavalry vs infantry)=11, D: 0+2=2 -> diff 9
+  must(R.act(s, P1, { type: 'moveTo', unitId: a, x: 5, y: 4 })); // 2 tiles: a charge
+  dice([3, 0, 0, 0]); // A: 3+2+2(att)+2(rear)+1(cavalry vs infantry)=10, D: 0+2=2 -> diff 8
   must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
   const r = s.log.filter(e => e.detail && e.detail.type === 'attack').pop().detail.result;
   assert.ok(r.charge && r.rear);
-  assert.ok(r.attackRoll.parts.some(([l, v]) => /Cavalry charge \(2 tiles/.test(l) && v === 1));
+  assert.ok(!r.attackRoll.parts.some(([l]) => /Cavalry charge/.test(l)), 'no bonus for the tiles moved');
   assert.ok(!r.defendRoll.parts.some(([l]) => /charg/i.test(l)), 'no defender penalty');
-  assert.strictEqual(r.diff, 9);
-  assert.strictEqual(R.unitById(s, d).morale, Math.max(0, 50 - (9 - 1) - r.casualtyMorale.defender), 'neither the rear attack nor the charge multiplies morale loss');
+  assert.strictEqual(r.diff, 8);
+  assert.strictEqual(R.unitById(s, d).morale, Math.max(0, 50 - (8 - 1) - r.casualtyMorale.defender), 'neither the rear attack nor the charge multiplies morale loss');
   assert.strictEqual(r.damageToAttacker, 0, 'a charged unit strikes back only with Anti-Cavalry, and never from the rear');
 });
 
@@ -135,11 +135,10 @@ test('cavalry that started next to the enemy still charges after moving 2 tiles'
   must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
   const r = s.log.filter(e => e.detail && e.detail.type === 'attack').pop().detail.result;
   assert.strictEqual(r.charge, true);
-  assert.ok(r.attackRoll.parts.some(([l]) => /Cavalry charge/.test(l)));
 });
 
-test('cavalry charge scales with distance; one tile is no charge', () => {
-  for (const [startY, bonus] of [[0, 3], [3, 0]]) {
+test('cavalry charge: no bonus however far it rode (2026-11-10); one tile is no charge', () => {
+  for (const [startY, isCharge] of [[0, true], [3, false]]) {
     const s = setup();
     const a = add(s, { typeId: 'han_lancer_cav', side: 'player', owner: 'p1', x: 5, y: startY });
     const d = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 5 });
@@ -150,9 +149,8 @@ test('cavalry charge scales with distance; one tile is no charge', () => {
     dice([3, 0, 0, 0]);
     must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
     const r = s.log.filter(e => e.detail && e.detail.type === 'attack').pop().detail.result;
-    const part = r.attackRoll.parts.find(([l]) => /Cavalry charge/.test(l));
-    assert.strictEqual(part ? part[1] : 0, bonus);
-    assert.strictEqual(r.charge, bonus > 0);
+    assert.ok(!r.attackRoll.parts.some(([l]) => /Cavalry charge/.test(l)));
+    assert.strictEqual(r.charge, isCharge);
   }
 });
 
@@ -173,15 +171,15 @@ test('Fierce Charge tiers: +4 / +6 / +8 on a charge attack (2026-11-01); ++ also
     const sum = (re) => r.attackRoll.parts.filter(([l]) => re.test(l)).reduce((t, [, v]) => t + v, 0);
     return { r, s, b, charge: sum(/Cavalry charge/), fierce: sum(/^Fierce Charge/) };
   };
-  let x = run(1, 2); assert.deepStrictEqual([x.charge, x.fierce], [1, 4]);   // 2 tiles: +1, Fierce +4
+  let x = run(1, 2); assert.deepStrictEqual([x.charge, x.fierce], [0, 4]);   // 2 tiles: +1, Fierce +4
   x = run(1, 3); assert.deepStrictEqual([x.charge, x.fierce], [0, 0]);       // 1 tile: no charge, no Fierce
-  x = run(2, 1); assert.deepStrictEqual([x.charge, x.fierce], [2, 6]);       // 3 tiles: +2, Fierce+ +6
+  x = run(2, 1); assert.deepStrictEqual([x.charge, x.fierce], [0, 6]);       // 3 tiles: +2, Fierce+ +6
   x = run(3, 0, true);                                                       // 4 tiles: +3, Fierce++ +4, and the unit behind
-  assert.deepStrictEqual([x.charge, x.fierce], [3, 8]);
+  assert.deepStrictEqual([x.charge, x.fierce], [0, 8]);
   assert.ok(x.s.log.some(e => e.detail && e.detail.type === 'trample'), 'the enemy behind takes half damage');
   const half = x.s.log.find(e => e.detail && e.detail.type === 'trample').detail.casualties;
   x = run(4, 0, true);                                                       // Fierce Charge EX: +4, the unit behind takes full damage
-  assert.deepStrictEqual([x.charge, x.fierce], [3, 8]);
+  assert.deepStrictEqual([x.charge, x.fierce], [0, 8]);
   assert.ok(x.r.attackRoll.parts.some(([l]) => l === 'Fierce Charge EX'));
   const full = x.s.log.find(e => e.detail && e.detail.type === 'trample').detail.casualties;
   assert.ok(full > half, 'full damage beats half (' + full + ' vs ' + half + ')');

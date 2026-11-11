@@ -1026,7 +1026,7 @@ function buildRoll(s, unit, role, ctx) {
     // Officer leading with his own weapon (David, 2026-10-28; above Apprentice since 2026-11-03): Attack +1 per level of the unit's weapon skill above Apprentice (1):
     // Competent +1, Expert +2, Master +3, Legendary +4, Godlike +5. Two-weapon units use his higher skill. Only on the unit's own attacks.
     if (o) { const lv = officerWeaponLevel(o, t); if (lv > 1) parts.push(["Officer's weapon (" + (lv === officerWeaponLevel(o, { skill: t.skill }) ? t.skill : t.skill2) + ' ' + lv + ')', lv - 1]); }
-    if (ctx.charge) parts.push(['Cavalry charge (' + ctx.tilesMoved + ' tiles moved)', ctx.chargeBase]);
+    // a charge's bonus comes only from Fierce Charge (David, 2026-11-10: no more +1 per tile moved)
     if (ctx.charge && ctx.fierceBonus) parts.push([FIERCE_NAMES[Math.min(4, ctx.fierce)], ctx.fierceBonus]);
     if (ctx.charge && p.chargeAttackBonus) parts.push(['Officer passive: charge', p.chargeAttackBonus]);
     if (trait(unit, 'sharpened weapons')) parts.push(['Sharpened Weapons', tierVal(trait(unit, 'sharpened weapons'), [1, 2, 3])]);
@@ -1204,15 +1204,15 @@ function resolveAttack(s, attacker, defender, opts) {
   const hybridMelee = at.weapon === 'ranged' && !!hybridOf(attacker) && manhattan(attacker, defender) === 1;
   const asR = at.weapon !== 'ranged' ? Number(SK.flag(s, attacker, 'asRanged')) || 0 : 0;
   const ranged = (at.weapon === 'ranged' && !hybridMelee) || (asR > 0 && manhattan(attacker, defender) > 1) || (asR > 0 && SK.flag(s, attacker, 'asRangedAlways')); // a skill's ranged attack
-  // Charge: a cavalry unit's melee attack gains +1 for every tile it moved this turn past the first (2 tiles = +1)
+  // Charge: a cavalry unit's melee attack after moving 2+ tiles is a charge (shock, Charged!, Fierce Charge, charge
+  // reflection...). It gets no bonus of its own: only Fierce Charge adds to it (David, 2026-11-10; was +1 per tile past the first).
   const tilesMoved = opts.movedThisActivation ? (opts.tilesMoved || 0) : 0;
   // Fierce Charge trait on a charge attack: Fierce Charge +4, Fierce Charge+ +6, Fierce Charge++ +8 and the enemy behind takes half damage
   const fierce = attacker.fierceCharge || 0;
   const chargeBase = !ranged && (at.category === 'cavalry' || SK.flag(s, attacker, 'asCharge')) && !SK.flag(s, defender, 'noChargeAgainst') ? Math.max(SK.flag(s, attacker, 'asCharge') ? 1 : 0, tilesMoved - 1) : 0;
   const fierceBonus = chargeBase > 0 ? [0, 4, 6, 8, 8][Math.min(4, fierce)] : 0; // +4 / +6 / +8, EX +8 and the unit behind takes full damage (David, 2026-11-01; was +2 / +4 / +4)
-  const rawCharge = chargeBase + fierceBonus;
-  const chargeBonus = rawCharge;
-  const charge = chargeBonus > 0;
+  const chargeBonus = fierceBonus;      // what a charge adds to the attack (and what Charge Reflection turns back)
+  const charge = chargeBase > 0;
   let rear = (isRear(s, attacker, defender) || !!SK.flag(s, attacker, 'asRear')) && !passive(s, defender).noRearAgainst && !SK.flag(s, defender, 'noRearAgainst') && !rearDenied(s, attacker);
   if (rear && SK.flag(s, attacker, 'noRearNearby')) rear = false; // an enemy officer nearby denies rear attacks
   const m0a = attacker.morale, m0d = defender.morale; // for morale caps per attack
