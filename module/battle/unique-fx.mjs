@@ -6,6 +6,8 @@
 // (who flinched, who resisted) and ANOTHER TURN when a rout earns him one.
 // Zhuge Liang's Stone Sentinel Maze — the Eight Trigrams formation draws itself beneath him, then a carved stone slab
 // rises over each unit he picked: "Held" ones stand and fade, a unit that won its roll sees its stone crack and fall.
+// Zhang Fei's Terror of Changban — he draws breath and roars: the screen shakes, diamond shockwaves roll out to the
+// edge of his 5-square reach, and each unit it reaches flinches as a spiked ring locks round it ("Can't move").
 import { atSpeed } from "./battle-speed.mjs";
 import { overLayer } from "../attack-fx.mjs";
 import { playMoment } from "../sound.mjs";
@@ -795,6 +797,91 @@ export function playHunt(token, float) {
   });
 }
 
+/* ------------------------------------------------------------ Zhang Fei: Terror of Changban (David, 2026-11-11) */
+
+/** His roar: he draws breath (shrinks, a red glow gathers), then swells as the screen shakes; the squares in reach
+ *  (5 across + down) flash red and three diamond shockwaves roll out to the edge of that reach, with sound-wave arcs
+ *  and a ring of dust. */
+function roarOfChangban(token, reach = 5) {
+  const G = Math.min(token.w, token.h), k = G / 120, ADD = PIXI.BLEND_MODES.ADD, BF = Blur(), c = token.center;
+  const ground = groundLayer(); ground.position.set(c.x, c.y);
+  const tint = new PIXI.Graphics(); ground.addChild(tint);
+  for (let dx = -reach; dx <= reach; dx++) for (let dy = -reach; dy <= reach; dy++)
+    if ((dx || dy) && Math.abs(dx) + Math.abs(dy) <= reach) tint.beginFill(0xc82814, 1).drawRect(dx * G - G / 2 + 1, dy * G - G / 2 + 1, G - 2, G - 2).endFill();
+  tint.alpha = 0;
+  const root = new PIXI.Container(); root.position.set(c.x, c.y); topLayer().addChild(root);
+  const aura = new PIXI.Graphics(); aura.blendMode = ADD; if (BF) aura.filters = [new BF(14 * k)];
+  aura.beginFill(0xff4620, 1).drawCircle(0, 0, G * 0.85).endFill(); aura.alpha = 0;
+  const waves = new PIXI.Graphics(); if (BF) waves.filters = [new BF(2.5 * k)];
+  const arcs = new PIXI.Graphics(), dust = new PIXI.Graphics(); if (BF) dust.filters = [new BF(3 * k)];
+  root.addChild(aura, dust, waves, arcs);
+  const mesh = token.mesh, s0x = mesh?.scale.x, s0y = mesh?.scale.y;
+  const view = canvas.app.view, roarAt = 0.35;
+  const diamond = (g, r, wob) => { for (let a = 0; a <= 64; a++) { const ang = a / 64 * Math.PI * 2, cs = Math.cos(ang), sn = Math.sin(ang), d = r / (Math.abs(cs) + Math.abs(sn)) * (1 + 0.025 * Math.sin(a * 7 + wob)); a ? g.lineTo(cs * d, sn * d) : g.moveTo(cs * d, sn * d); } g.closePath(); };
+  return run((dt, t) => {
+    // breath in, then the roar swells him
+    let sc = t < roarAt ? 1 - 0.08 * (t / roarAt) : t < roarAt + 0.15 ? 0.92 + 0.28 * ((t - roarAt) / 0.15) : 1.2 - 0.2 * Math.min(1, (t - roarAt - 0.15) / 0.4);
+    if (mesh && !mesh.destroyed && s0x) mesh.scale.set(s0x * sc, s0y * sc);
+    aura.alpha = t < roarAt ? 0.55 * t / roarAt : Math.max(0, 0.55 * (1 - (t - roarAt) / 0.8));
+    // the screen shakes for half a second
+    const sk = t > roarAt && t < roarAt + 0.5 ? 1 - (t - roarAt) / 0.5 : 0;
+    view.style.translate = sk ? `${(Math.sin(t * 90) * 7 * sk).toFixed(1)}px ${(Math.cos(t * 77) * 5 * sk).toFixed(1)}px` : "";
+    tint.alpha = t < roarAt ? 0 : t < roarAt + 0.25 ? (t - roarAt) / 0.25 * 0.32 : Math.max(0, 0.32 * (1 - (t - roarAt - 0.25) / 1.6));
+    waves.clear();
+    for (let i = 0; i < 3; i++) {
+      const q = (t - roarAt - i * 0.12) / 0.75; if (q < 0 || q > 1) continue;
+      const r = G * 0.6 + q * (reach + 0.5) * G;
+      waves.lineStyle((i ? 8 : 14) * k * (1 - q * 0.6), i ? 0xff7a45 : 0xffd9a8, (1 - q) * (i ? 0.7 : 1)); diamond(waves, r, t * 40);
+    }
+    arcs.clear();
+    const sw = t - roarAt;
+    if (sw > 0 && sw < 0.7) for (let i = 0; i < 4; i++) {
+      const q = sw * 2.2 - i * 0.18; if (q < 0 || q > 1) continue;
+      const r = G * 0.7 + q * G * 1.6;
+      for (const dir of [0, Math.PI]) arcs.lineStyle(4 * k, 0xfff3e0, 1 - q).arc(0, -4 * k, r, dir - 0.5, dir + 0.5).moveTo(0, 0);
+    }
+    dust.clear();
+    if (sw > 0 && sw < 1) for (let i = 0; i < 26; i++) {
+      const a = i / 26 * Math.PI * 2 + 0.3, d = G * 0.6 + sw * G * (2.2 + (i % 5) * 0.35);
+      dust.beginFill(0xbea06e, 0.6 * (1 - sw)).drawCircle(Math.cos(a) * d, Math.sin(a) * d * 0.9, (5 + (i % 3) * 2 + sw * 6) * k).endFill();
+    }
+    if (t < roarAt + 1.9) return true;
+    view.style.translate = "";
+    if (mesh && !mesh.destroyed && s0x) mesh.scale.set(s0x, s0y);
+    root.destroy({ children: true }); ground.destroy({ children: true });
+    return false;
+  });
+}
+
+/** Each unit the roar reached flinches; a spiked iron ring locks round it (red: lost the roll, gold: won) and
+ *  "Can't move" floats up (its morale loss floats with the usual floats). */
+export function playRooted(src, results, tokOf, float, reach = 5) {
+  const marks = [];
+  for (const [id, lost] of results) {
+    const u = tokOf(id); if (!u || u.destroyed) continue;
+    const G = Math.min(u.w, u.h), g = new PIXI.Graphics(); g.position.set(u.center.x, u.center.y); topLayer().addChild(g);
+    // when the roar's shockwave reaches it (the roar started about a quarter second before this step)
+    const d = src && !src.destroyed ? (Math.abs(u.center.x - src.center.x) + Math.abs(u.center.y - src.center.y)) / G : reach;
+    marks.push({ id, u, g, G, lost, x0: u.mesh?.position.x, at: Math.max(0, 0.18 + d / reach * 0.55), shown: false });
+  }
+  if (!marks.length) return Promise.resolve();
+  return run((dt, t) => {
+    let busy = false;
+    for (const m of marks) {
+      const q = t - m.at; if (q < 0) { busy = true; continue; }
+      if (!m.shown) { m.shown = true; float?.(m.id, m.lost ? "moraleDown" : "moraleUp", "Can't move"); }
+      const { g, G } = m, k = G / 120, col = m.lost ? 0xff5a3c : 0xe8a23a, a = Math.min(1, q / 0.2) * (q < 1.4 ? 1 : Math.max(0, 1 - (q - 1.4) / 0.5));
+      const mesh = m.u.mesh; if (mesh && !mesh.destroyed && m.x0 !== undefined) mesh.position.x = m.x0 + (q < 0.35 ? Math.sin(q * 70) * 6 * k * (1 - q / 0.35) : 0);
+      g.clear().lineStyle(3 * k, col, a).drawCircle(0, 0, G * 0.52);
+      for (let i = 0; i < 10; i++) { const ang = i / 10 * Math.PI * 2 + q * 0.4; g.moveTo(Math.cos(ang) * G * 0.52, Math.sin(ang) * G * 0.52).lineTo(Math.cos(ang) * G * 0.62, Math.sin(ang) * G * 0.62); }
+      if (q < 1.9) busy = true;
+    }
+    if (busy) return true;
+    for (const m of marks) { m.g.destroy(); const mesh = m.u.mesh; if (mesh && !mesh.destroyed && m.x0 !== undefined) mesh.position.x = m.x0; }
+    return false;
+  });
+}
+
 /* ------------------------------------------------------------ registry */
 
 /** Special animations played when a tier 1+ active is used, by the active's name. */
@@ -803,6 +890,7 @@ const ON_ACTIVATE = {
   "None Can Stand Before Him": (token) => fireEruption(token),
   "Stone Sentinel Maze": (token) => eightTrigrams(token),
   "The Wolf Bares His Fangs": (token) => wolfPack(token),
+  "Terror of Changban": (token) => roarOfChangban(token, 5),
 };
 /** An attack made while one of these actives is on plays its own strike alongside the lunge. */
 const ON_ATTACK = { "None Can Stand Before Him": playSkyPiercer };
@@ -810,6 +898,7 @@ const ON_ATTACK = { "None Can Stand Before Him": playSkyPiercer };
 const ON_CONTEST = {
   "Terror of the Battlefield": (token, results, tokOf, float) => playTerror(token, results, tokOf, float),
   "Stone Sentinel Maze": (token, results, tokOf, float) => playSentinels(results, tokOf, float),
+  "Terror of Changban": (token, results, tokOf, float) => playRooted(token, results, tokOf, float, 5),
   // the hunt starts as the howl dies away
   "The Wolf Bares His Fangs": (token, results, tokOf, float) => new Promise(r => setTimeout(r, atSpeed(3200)))
     .then(() => Promise.all(results.map(([id]) => playHunt(tokOf(id), (st, tx) => float?.(id, st, tx))))),

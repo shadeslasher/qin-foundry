@@ -412,7 +412,7 @@ async function postLog(entries, s) {
 
 /** Skills with their own animations (David, 2026-11-09; played by battle/unique-fx.mjs): attacks made while the active's
  *  buff is on, contested rolls a passive makes everyone around it take (the end-of-turn terror), and its extra turns. */
-export const UNIQUE_ATTACK = ["None Can Stand Before Him"], UNIQUE_CONTEST = ["Terror of the Battlefield", "Stone Sentinel Maze"], UNIQUE_EXTRA = ["Terror of the Battlefield"],
+export const UNIQUE_ATTACK = ["None Can Stand Before Him"], UNIQUE_CONTEST = ["Terror of the Battlefield", "Stone Sentinel Maze", "Terror of Changban"], UNIQUE_EXTRA = ["Terror of the Battlefield"],
   UNIQUE_PICKED = ["The Wolf Bares His Fangs"];
 function uniqueAttackOf(s, id) {
   const u = E.unitById(s, id);
