@@ -8,6 +8,7 @@ import { effectsOf, alwaysOnRolls, status as skStatus } from "./battle/skills.mj
 import { BOOT } from "./icons.mjs";
 import { buildState } from "./battle/adapter.mjs";
 import { decodeTiles, FLAG as MAP_FLAG } from "./battle/battlemap.mjs";
+import { playMoment } from "./sound.mjs";
 
 const KEY = "qinUnitBars";
 export const SIDE_COLORS = { player: 0x3a78c8, enemy: 0xc8443a, ally: 0x3fa66a, neutral: 0xd4a017 };
@@ -649,6 +650,8 @@ function playBurst(token, kinds, w, h, T, pad) {
     return { L2, pat, wipe, up, start: i * 1.5 };
   });
   token.addChild(box);
+  // the burst's sound (David, 2026-11-11): once per wave however many units it lands on; a debuff's plays with its own layer
+  kinds.forEach((kind, i) => { const m = kind === "buff" ? "Buff lands" : "Debuff lands"; if (i) setTimeout(() => playMoment(m, { minGap: 400 }), i * 1500); else playMoment(m, { minGap: 400 }); });
   const DUR = 1.5, SWEEP = 0.35, SPEED = 184 * sc; // the pattern moves at one steady speed for the whole burst
   let t = 0;
   const tick = () => {

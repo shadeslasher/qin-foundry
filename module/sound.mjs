@@ -13,7 +13,7 @@ export const MOMENT_GROUPS = [
     "Unit destroyed", "Morale drop", "Morale up / rally", "Level up", "XP gained", "Fire catches / burning", "Duel clash"]],
   ["Turn and actions", ["Battle start", "Condition shown", "Round start", "Turn start",
     "Unit selected", "Infantry moves", "Cavalry moves", "Hold", "Overwatch set", "Reload", "Tactic placed", "Tactic triggered",
-    "Officer skill", "Gate opens", "Gate destroyed", "Ladder placed", "Victory", "Defeat"]],
+    "Officer skill", "Buff lands", "Debuff lands", "Gate opens", "Gate destroyed", "Ladder placed", "Victory", "Defeat"]],
   ["Menus", ["Menu opens", "Select / confirm", "Cancel / back", "Cursor move", "Error / not allowed"]],
 ];
 export const MOMENTS = MOMENT_GROUPS.flatMap(([, list]) => list);
