@@ -278,7 +278,8 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
 
     const order = t.order.map(id => {
       const u = unit(id);
-      if (!u || !shown(u)) return null;
+      // everyone sees the whole initiative order (David, 2026-11-10); a hidden unit stays hidden from those who can't see it
+      if (!u || (!shown(u) && u.hidden)) return null;
       const st = u.status !== "active" ? u.status : u.round.activated ? "done" : t.held.includes(id) ? "holding" : (a?.unitId === id ? "acting" : "waiting");
       const off = E.officerOf(s, u)?.name; // officer units go by their officer, with the unit alongside
       return { id, name: off || u.name, unit: off ? u.name : null, init: t.init[id]?.total, state: st, now: p.unitId === id };
