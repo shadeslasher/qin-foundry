@@ -375,3 +375,46 @@ test('AI: with Set Aflame, it sets the grass alight next to enemies when the fir
   assert.ok(set && set.x === 6 && set.y === 5, 'sets the grass next to the enemy alight: ' + JSON.stringify(acts));
   assert.ok(s.siege.fires['6,5']);
 });
+
+// ---- several objectives: settled ones dropped, urgency, help for a threatened square (David, 2026-11-11)
+test('AI strategy: a square already seized or burnt is dropped; its units go to the open one', () => {
+  const objState = { playerEnded: { '2,9': true }, enemyEnded: {}, roundsDone: 0, escaped: [] };
+  const { S } = strat({ victory: [{ id: 'v1', type: 'seize', x: 2, y: 9 }, { id: 'v2', type: 'seize', x: 9, y: 9 }] }, army, { objState });
+  assert.deepStrictEqual(S.keep, [{ x: 9, y: 9 }]);
+  for (const [, j] of S.jobs) assert.deepStrictEqual([j.pt.x, j.pt.y], [9, 9]);
+  const b = strat({ victory: [{ id: 'v1', type: 'burn', x: 2, y: 9 }, { id: 'v2', type: 'seize', x: 9, y: 9 }] }, army, { siege: { burnt: { '2,9': true } } }).S;
+  assert.deepStrictEqual(b.keep, [{ x: 9, y: 9 }]);
+});
+
+test('AI strategy: a Hold close to done is more urgent: more of the army is sent to it', () => {
+  const at = (done) => {
+    const objState = { playerEnded: {}, enemyEnded: {}, roundsDone: done, escaped: [] };
+    const mid = [3, 4, 5, 6].map(x => ({ typeId: 'weak', side: 'enemy', x, y: 11 - x })); // as far from both squares
+    const { S } = strat({ victory: [{ id: 'v1', type: 'seize', x: 2, y: 9 }, { id: 'h1', type: 'hold', x: 9, y: 2, rounds: 5 }],
+      defeat: [{ id: 'd1', type: 'tileSeized', x: 9, y: 2, pair: 'h1' }] }, [...army, ...mid], { objState });
+    return [...S.jobs.values()].filter(j => j.pt.x === 9 && j.pt.y === 2).length;
+  };
+  assert.ok(at(4) > at(0), `late ${at(4)} vs early ${at(0)}`);
+});
+
+function helpCase(aow) {
+  // two squares to keep: one at the bottom left, quiet; one at the top right, with the player army next to it
+  const units = [
+    { typeId: 'foe', side: 'player', owner: 'p1', x: 9, y: 1 }, { typeId: 'foe', side: 'player', owner: 'p1', x: 8, y: 1 },
+    { typeId: 'strong', side: 'enemy', x: 1, y: 9 }, { typeId: 'weak', side: 'enemy', x: 2, y: 9 }, { typeId: 'weak', side: 'enemy', x: 1, y: 8 },
+    { typeId: 'weak', side: 'enemy', x: 9, y: 5 },
+  ];
+  const { s, ids } = battle([strong, weak, foe], units);
+  s.objectives = { victory: [{ id: 'v1', type: 'seize', x: 1, y: 9 }, { id: 'v2', type: 'seize', x: 9, y: 3 }], defeat: [], extraction: [] };
+  s.tactics = { sides: { enemy: { aow, name: 'T' } } };
+  let helped = 0, rounds = 40;
+  for (let r = 1; r <= rounds; r++) { s.turn.round = r; const S = AI.strategy(s, 'enemy'); if ([...S.jobs.values()].some(j => j.helping)) helped++; }
+  return { helped, rounds, ids };
+}
+
+test('AI strategy: guards leave a quiet square to help one under attack, more often with a better Art of War', () => {
+  const lo = helpCase(0), mid = helpCase(2), hi = helpCase(5);
+  assert.strictEqual(lo.helped, 0, 'Art of War 0 never moves them');
+  assert.ok(hi.helped === hi.rounds, 'Art of War 5 always sends help: ' + hi.helped);
+  assert.ok(mid.helped > 0 && mid.helped < hi.helped, 'in between: ' + mid.helped);
+});

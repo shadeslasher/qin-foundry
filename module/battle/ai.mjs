@@ -272,8 +272,22 @@ export function strategy(s, side) {
   const left = (c) => Math.max(0, (Number(c.rounds) || 0) - done);
   const pairedHold = new Set((o.victory || []).filter(c => c.type === 'hold').map(c => c.id));
   const enemySide = al !== 'player'; // the AI is playing against the players' objectives
+  // Objectives already settled are dropped (David, 2026-11-11): a seized or burnt square, a Hold done or lost,
+  // units that got away; their units go where the battle is still open
+  const burnt = s.siege?.burnt || {}, escaped = new Set(st.escaped || []);
+  const settled = (c, k) => (c.type === 'seize' && k && st.playerEnded?.[k]) || (c.type === 'burn' && k && burnt[k])
+    || (c.type === 'hold' && ((k && st.enemyEnded?.[k]) || done >= (Number(c.rounds) || 0)))
+    || (c.type === 'escape' && (c.unitIds || []).every(id => escaped.has(id)));
+  // how much each square matters (David, 2026-11-11): squares that decide the battle, and a Hold close to done,
+  // get more of the army; extraction squares share their weight
+  const urg = new Map();
+  const weigh = (k, w) => { if (k) urg.set(k, Math.max(urg.get(k) || 0, w)); };
+  const holdUrg = (c) => { const n = Number(c.rounds) || 0; return n ? 1 + 1.5 * (1 - left(c) / n) : 1; };
   for (const c of o.victory || []) {
     const k = c.x !== undefined && c.x !== null ? tileKey(c) : null;
+    if (settled(c, k)) continue;
+    if (k) weigh(k, c.type === 'hold' ? holdUrg(c) : c.type === 'seize' ? 1.3 : 1.1);
+    if (c.type === 'escape') for (const e of o.extraction || []) weigh(e, 0.6);
     if (enemySide) switch (c.type) {
       case 'seize': if (k) keep.set(k, 'seize'); aggr -= 0.35; why.push('keep ' + k + ' (opponent must seize it)'); break;
       case 'burn': if (k) keep.set(k, 'burn'); aggr -= 0.25; why.push('guard ' + k + ' (opponent must burn it)'); break;
@@ -291,6 +305,8 @@ export function strategy(s, side) {
   }
   for (const c of o.defeat || []) {
     const k = c.x !== undefined && c.x !== null ? tileKey(c) : null;
+    if (c.type === 'tileSeized' && k && st.enemyEnded?.[k]) continue;
+    if (c.type === 'tileSeized' && !pairedHold.has(c.pair)) weigh(k, 1.5); // losing it loses the battle
     if (enemySide) switch (c.type) {
       case 'unitRouted': for (const id of c.unitIds || []) hunt.add(id); aggr += 0.15; break;
       case 'tileSeized': if (k) take.set(k, 'seize'); break;
@@ -321,7 +337,8 @@ export function strategy(s, side) {
   const posture = aggr > 0.35 ? 'aggressive' : (coming.length && aggr < -0.35) ? 'stall' : aggr < -0.2 ? 'defensive' : 'balanced';
   // jobs: each square gets an anchor (strongest nearby unit; keep squares only) and its share of guards
   const jobs = new Map();
-  const pts = [...[...keep.keys()].map(k => ({ ...ptOf(k), kind: 'keep' })), ...[...take.keys()].map(k => ({ ...ptOf(k), kind: 'take' }))];
+  const pts = [...[...keep.keys()].map(k => ({ ...ptOf(k), kind: 'keep', w: urg.get(k) || 1 })), ...[...take.keys()].map(k => ({ ...ptOf(k), kind: 'take', w: urg.get(k) || 1 }))]
+    .sort((a, b) => b.w - a.w); // the most urgent square picks its anchor first
   const free = mine.filter(u => !escapeTake.has(u.id));
   for (const [id, sq] of escapeTake) if (sq.length) jobs.set(id, { pt: ptOf(sq.reduce((b, k) => { const p = ptOf(k), u = E.unitById(s, id); return !b || !u || E.manhattan(u, p) < E.manhattan(u, ptOf(b)) ? k : b; }, null)), kind: 'take', anchor: true });
   if (pts.length && free.length) {
@@ -329,17 +346,19 @@ export function strategy(s, side) {
     // anchors first: for every square, the strongest unit, discounted by how far it is
     for (const p of pts) {
       let best = null, bv = -Infinity;
-      for (const u of free) { if (taken.has(u.id)) continue; const v = strength(s, u) - 0.12 * E.manhattan(u, p) * worth(s, u); if (v > bv) { bv = v; best = u; } }
+      for (const u of free) { if (taken.has(u.id)) continue; const v = strength(s, u) - 0.12 * E.manhattan(u, p) * worth(s, u) / p.w; if (v > bv) { bv = v; best = u; } }
       if (best) { taken.add(best.id); jobs.set(best.id, { pt: p, kind: p.kind, anchor: true }); }
     }
     // the rest are shared out: each square in turn takes the nearest unit left, so every square is covered
-    const cap = Math.ceil(free.length / pts.length) + 1, count = new Map(pts.map((p, i) => [i, 1]));
+    // each square's share of guards follows its urgency
+    const wSum = pts.reduce((t, p) => t + p.w, 0);
+    const caps = pts.map(p => Math.ceil(free.length * p.w / wSum) + 1), count = new Map(pts.map((p, i) => [i, 1]));
     const rest = free.filter(u => !taken.has(u.id));
     for (let guard = 0; rest.length && guard < 200; guard++) {
       let pick = null;
       for (let i = 0; i < pts.length; i++) {
-        if (count.get(i) >= cap) continue;
-        for (const u of rest) { const d = E.manhattan(u, pts[i]) - (count.get(i) ? 0 : 3); if (!pick || d < pick.d) pick = { u, i, d }; }
+        if (count.get(i) >= caps[i]) continue;
+        for (const u of rest) { const d = (E.manhattan(u, pts[i]) - (count.get(i) ? 0 : 3)) / pts[i].w; /* urgent squares reach further for help */ if (!pick || d < pick.d) pick = { u, i, d }; }
       }
       if (!pick) break;
       // far-off units fight where they are rather than marching across the map (unless the side must defend)
@@ -348,10 +367,56 @@ export function strategy(s, side) {
       count.set(pick.i, count.get(pick.i) + 1); rest.splice(rest.indexOf(pick.u), 1);
     }
   }
+  if (pts.length > 1) reinforceThreatened(s, side, pts, jobs, why);
   const siegeS = { take: [...take.keys()].map(ptOf), keep: [...keep.keys()].map(ptOf) };
   const siege = siegeRoles(s, side, siegeS);
   const reinforceSquares = coming.filter(r => Number.isFinite(r.x) && Number.isFinite(r.y)).map(r => ({ x: r.x, y: r.y }));
   return { posture, ...POSTURE[posture], aggr, reinforceSquares, burn, siege, keep: [...keep.keys()].map(ptOf), take: [...take.keys()].map(ptOf), jobs, protect, hunt, reinforceRound, why };
+}
+
+/**
+ * Guards leave quiet squares to help one under attack (David, 2026-11-11). A square's danger is the enemy strength
+ * that can reach it next turn, its defense the strength of its guards there; a square no enemy can reach is quiet.
+ * Each guard (never an anchor) of a quiet square may be sent to the most threatened one: the side's Art of War sets
+ * how likely and how far it looks, and the officer's battle style shifts it (Protective goes to help, Steadfast
+ * keeps his post, Cautious rarely leaves, Cunning reads it better, Rash and Glory-seeking run to the fighting).
+ * Rolled once per unit per round, so the decision holds while the side plays its turn.
+ */
+function reinforceThreatened(s, side, pts, jobs, why) {
+  const lvl = sideLevel(s, side);
+  const base = [0, 0.15, 0.35, 0.6, 0.85, 1][lvl];
+  if (!base) return;
+  const al = E.alliance(side), live = E.liveUnits(s);
+  const foes = live.filter(u => E.alliance(u.side) !== al && !u.hidden);
+  const power = (u) => worth(s, u) * u.men / mx(u);
+  const key = (p) => p.x + ',' + p.y;
+  const danger = new Map(), guard = new Map();
+  for (const p of pts) {
+    danger.set(key(p), foes.reduce((t, e) => t + (E.manhattan(e, p) <= E.movementOf(s, e) + Math.max(1, E.typeOf(s, e).rangeMax || 1) + 1 ? power(e) : 0), 0));
+    guard.set(key(p), 0);
+  }
+  for (const [id, j] of jobs) { const u = E.unitById(s, id); if (u && guard.has(key(j.pt))) guard.set(key(j.pt), guard.get(key(j.pt)) + power(u)); }
+  const need = (p) => danger.get(key(p)) * p.w - guard.get(key(p));
+  const reach = [0, 10, 14, 18, 24, 30][lvl]; // how far a guard may be sent from
+  for (const [id, j] of [...jobs]) {
+    if (j.anchor || danger.get(key(j.pt)) > 0) continue; // anchors keep their square; only quiet squares give guards
+    const u = E.unitById(s, id); if (!u) continue;
+    const hot = pts.filter(p => p !== j.pt && danger.get(key(p)) > 0 && need(p) > 0 && E.manhattan(u, p) <= reach)
+      .sort((a, b) => need(b) - need(a))[0];
+    if (!hot) continue;
+    const off = u.officerId ? E.officerOf(s, u) : null, st = stylesOf(off?.style);
+    let chance = base;
+    if (st.has('protective')) chance += 0.25;
+    if (st.has('cunning')) chance += 0.1;
+    if (st.has('rash') || st.has('glory-seeking')) chance += 0.15;
+    if (st.has('cautious')) chance -= 0.2;
+    if (st.has('steadfast')) chance *= 0.3;
+    const r = seeded(hashStr(id + ':help:' + (s.turn?.round ?? 0)))();
+    if (r >= Math.max(0, Math.min(1, chance))) continue;
+    jobs.set(id, { pt: { x: hot.x, y: hot.y, kind: hot.kind, w: hot.w }, kind: hot.kind, anchor: false, helping: key(j.pt) });
+    guard.set(key(hot), guard.get(key(hot)) + power(u)); guard.set(key(j.pt), guard.get(key(j.pt)) - power(u));
+    why.push((off?.name || u.name || id) + ' leaves ' + key(j.pt) + ' to help at ' + key(hot));
+  }
 }
 
 /** How good this square is to stand on for this unit (defense, command, height, cover; fire and fords hurt). */
