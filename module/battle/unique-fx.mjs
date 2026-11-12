@@ -10,7 +10,7 @@
 // edge of his 5-square reach, and each unit it reaches flinches as a spiked ring locks round it ("Can't move").
 // Cao Cao's The Hero Commands — his hanging banner is raised in the middle of his stand, then a wave of small flags and
 // banners springs up over his 4-square reach, and each allied unit it reaches lights up in a column of gold as its buff lands.
-// Liu Bei's Restore the Han — a blossoming tree grows on the square to his left and arches over him, its shadow falls
+// Liu Bei's Until the Day of Death Comes (was Restore the Han) — a blossoming tree grows on the square to his left and arches over him, its shadow falls
 // across his unit, a peach garden of grass and flowers spreads ring by ring over his 4-square reach, and petals drop
 // from the blossoms; each ally it reaches lights up in a column of pink as its buff lands. The tree is private art:
 // modules/qin-3k-characters/art/fx/peach-tree.webp (without it the garden still plays).
@@ -1188,7 +1188,8 @@ const ON_ACTIVATE = {
 /** Animations that release the units the active touched themselves, as their effect reaches them. */
 const ON_ACTIVATE_SPREAD = {
   "The Hero Commands": (token, touched, release) => heroCommands(token, touched, release, 4),
-  "Restore the Han": (token, touched, release) => peachGarden(token, touched, release, 4),
+  "Until the Day of Death Comes": (token, touched, release) => peachGarden(token, touched, release, 4),
+  "Restore the Han": (token, touched, release) => peachGarden(token, touched, release, 4), // its old name (cards not yet updated)
   // the units it holds are released by the stones (playSentinels), not at the end of the banner
   "Stone Sentinel Maze": (token) => eightTrigrams(token),
 };
