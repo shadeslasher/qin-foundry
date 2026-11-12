@@ -327,6 +327,53 @@ function softTexture(key, col) {
 }
 function lerpCol(a, b, k) { const ch = (c, s) => (c >> s) & 255, m = (s) => Math.round(ch(a, s) + (ch(b, s) - ch(a, s)) * k); return (m(16) << 16) | (m(8) << 8) | m(0); }
 
+/** Lu Bu's war aura (David, 2026-11-12, with the fire eruption): a churning pillar of dark red battle aura erupts from
+ *  his square high into the sky, two long striped pheasant plumes whip in the wind above his unit, embers stream upward
+ *  and the ground glows red round him; it outlasts the flames a little, then thins away. */
+function warAura(token) {
+  const G = Math.min(token.w, token.h), k = G / 120, ADD = PIXI.BLEND_MODES.ADD, B = Blur(), c = token.center;
+  const ground = groundLayer(); ground.position.set(c.x, c.y);
+  const glow = new PIXI.Sprite(softTexture("glow", "rgba(255,120,40,1)")); glow.anchor.set(0.5); glow.blendMode = ADD; glow.tint = 0xff3010; glow.alpha = 0; ground.addChild(glow);
+  const back = new PIXI.Container(); back.position.set(c.x, c.y); overLayer().addChildAt(back, 0);
+  const pillar = new PIXI.Graphics(); pillar.blendMode = ADD; if (B) pillar.filters = [new B(6 * k)]; back.addChild(pillar);
+  const front = new PIXI.Container(); front.position.set(c.x, c.y); topLayer().addChild(front);
+  const plumes = new PIXI.Graphics(), sparks = new PIXI.Graphics(); sparks.blendMode = ADD; front.addChild(plumes, sparks);
+  const HIGH = G * 9, UP = 0.5, FADE0 = 2.9, END = 3.6;
+  const ez = (x) => 1 - (1 - Math.max(0, Math.min(1, x))) ** 3;
+  const em = Array.from({ length: 46 }, () => ({ ph: Math.random(), x: rnd(-0.6, 0.6), r: rnd(1.4, 3.2), w: rnd(0, 6), sp: rnd(0.55, 0.85) }));
+  const LAYERS = [[0.75, 0x96100a, 0.4], [0.57, 0xe62a10, 0.4], [0.39, 0xffaa5a, 0.4]];
+  return run((dt, t) => {
+    const up = ez((t - 0.1) / UP), A = up * (t < FADE0 ? 1 : Math.max(0, 1 - (t - FADE0) / (END - FADE0))), base = G * 0.3;
+    glow.scale.set(G * 3.6 / 64); glow.alpha = 0.45 * A;
+    // the pillar: three layers, each with churning edges, from his stand up past the top of the screen
+    pillar.clear();
+    LAYERS.forEach(([wid, col, al], li) => {
+      const pts = [], top = HIGH * up;
+      for (let i = 0; i <= 40; i++) { const u = i / 40, y = base - u * top, w = G * wid * (1 - u * 0.35) + Math.sin(u * 14 - t * 9 + li) * G * 0.08; pts.push(-w, y); }
+      for (let i = 40; i >= 0; i--) { const u = i / 40, y = base - u * top, w = G * wid * (1 - u * 0.35) + Math.sin(u * 13 - t * 8 + li + 2) * G * 0.08; pts.push(w, y); }
+      pillar.beginFill(col, al * A).drawPolygon(pts).endFill();
+    });
+    // the plumes: long pheasant-tail feathers arching up from his stand, banded dark and pale, whipping in the wind
+    plumes.clear();
+    if (A > 0) for (const side of [-1, 1]) {
+      const n = 30, len = G * 3.2 * up; let prev = null;
+      for (let i = 0; i <= n; i++) {
+        const u = i / n, sway = Math.sin(t * 3.2 - u * 4 + side) * G * 0.35 * u * u;
+        const x = side * G * 0.12 + side * (u * G * 1.3 - u * u * G * 0.3) + sway, y = -G * 0.38 - u * len + u * u * G * 0.9, w = (1 - u * 0.85) * G * 0.14 + 2 * k;
+        if (prev) plumes.lineStyle(w, i % 3 === 0 ? 0x2a1a10 : i % 3 === 1 ? 0xe8d0a0 : 0xc08a50, A).moveTo(prev[0], prev[1]).lineTo(x, y);
+        prev = [x, y];
+      }
+    }
+    // embers streaming up the pillar
+    sparks.clear();
+    if (A > 0) for (const e of em) { const ph = (t * e.sp + e.ph) % 1, y = base - ph * G * 6, x = e.x * G + Math.sin(t * 4 + e.w) * 6 * k;
+      sparks.beginFill(ph < 0.5 ? 0xffd27a : 0xff7a2a, A * (1 - ph)).drawCircle(x, y, e.r * k).endFill(); }
+    if (t < END) return true;
+    back.destroy({ children: true }); front.destroy({ children: true }); glow.destroy();
+    return false;
+  });
+}
+
 /** Tall flames roar up from his square while a wave of fire rolls out from him, leaving trails of fire burning behind
  *  it along the ground; then it all dies down (David, 2026-11-09). */
 function fireEruption(token) {
@@ -1235,7 +1282,7 @@ function peachGarden(token, touched = [], release = () => {}, reach = 4) {
 /** Special animations played when a tier 1+ active is used, by the active's name. */
 const ON_ACTIVATE = {
   "Might That Shakes the Realm": (token) => groundCrack(token),
-  "None Can Stand Before Him": (token) => fireEruption(token),
+  "None Can Stand Before Him": (token) => Promise.all([warAura(token), fireEruption(token)]),
   "Stone Sentinel Maze": (token) => eightTrigrams(token),
   "The Wolf Bares His Fangs": (token) => wolfPack(token),
 };
