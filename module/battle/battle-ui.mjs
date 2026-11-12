@@ -81,13 +81,13 @@ export function highlightUnit(tokenId, on) {
 /* ------------------------------------------------------------ skill range preview (Ability / skill button hover) */
 
 let reachG = null;
-const REACH_COL = { allies: 0x4a9be8, enemies: 0xd8473a, tile: 0xe0b040 };
+const REACH_COL = { allies: 0xf2c230, enemies: 0xd8473a, tile: 0xf07a2a }; // gold, not blue: blue is the move squares and the allied stands (David, 2026-11-11)
 function clearSkillReach() {
   if (reachG && !reachG.destroyed) { canvas.app?.ticker?.remove(reachG.qinTick); reachG.destroy(); }
   reachG = null;
 }
 /** While the Ability (or skill) button is hovered: the squares the officer's battlefield active reaches from here,
- *  tinted by who it works on (blue allies, red enemies, gold squares), and the units it would reach now outlined. */
+ *  tinted by who it works on (gold allies, red enemies, orange squares), and the units it would reach now outlined. */
 function showSkillReach() {
   clearSkillReach();
   if (!canvas?.ready || !current?.u || !current.officer?.battle?.active) return;
