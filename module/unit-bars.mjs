@@ -565,27 +565,35 @@ function drawSkillReady(c, kind, offTex, w, h, T, pad) {
 /* ------------------------------------------------------------ lasting looks of special actives (David, 2026-11-12) */
 
 // While certain tier 1+ battlefield actives last, the unit keeps a look of its own (by the active's name).
-const LASTING = { "None Can Stand Before Him": "fire" };   // Lu Bu: a fiery aura round his unit
+const LASTING = { "None Can Stand Before Him": "fire",   // Lu Bu: a fiery aura round his unit
+  "Might That Shakes the Realm": "jade" };               // Guan Yu: the same in green (David, 2026-11-12)
 function lastingLook(eff) { for (const n of eff?.names ?? []) if (LASTING[n]) return LASTING[n]; return null; }
-let auraFlameTex = null;
-function flameTex() {
-  if (auraFlameTex) return auraFlameTex;
+const AURA_LOOK = {
+  fire: { glow: 0xff3a10, stops: ["rgba(255,240,170,1)", "rgba(255,150,40,0.95)", "rgba(220,40,10,0.6)", "rgba(120,0,0,0)"], embers: [0xffd27a, 0xff7a2a] },
+  jade: { glow: 0x22d06a, stops: ["rgba(225,255,225,1)", "rgba(110,235,140,0.95)", "rgba(20,150,70,0.6)", "rgba(0,70,30,0)"], embers: [0xc8ffd0, 0x40e080] },
+};
+const auraFlameTex = {};
+function flameTex(look = "fire") {
+  if (auraFlameTex[look]) return auraFlameTex[look];
+  const st = AURA_LOOK[look].stops;
   const W = 32, H = 64, cv = document.createElement("canvas"); cv.width = W; cv.height = H; const g = cv.getContext("2d");
-  const gr = g.createLinearGradient(0, H, 0, 0); gr.addColorStop(0, "rgba(255,240,170,1)"); gr.addColorStop(0.35, "rgba(255,150,40,0.95)"); gr.addColorStop(0.75, "rgba(220,40,10,0.6)"); gr.addColorStop(1, "rgba(120,0,0,0)");
+  const gr = g.createLinearGradient(0, H, 0, 0); gr.addColorStop(0, st[0]); gr.addColorStop(0.35, st[1]); gr.addColorStop(0.75, st[2]); gr.addColorStop(1, st[3]);
   g.fillStyle = gr; g.beginPath(); g.moveTo(2, H); g.bezierCurveTo(0, H * 0.55, W * 0.45, H * 0.35, W * 0.5, 0); g.bezierCurveTo(W * 0.55, H * 0.35, W, H * 0.55, W - 2, H); g.closePath(); g.fill();
-  return (auraFlameTex = PIXI.Texture.from(cv));
+  return (auraFlameTex[look] = PIXI.Texture.from(cv));
 }
-/** Lu Bu's lasting fire: a red glow round his stand, tongues of flame licking up all along its edge, embers rising. */
-function drawFireAura(c, w, h, T, pad) {
+/** A lasting aura of flame (Lu Bu's red fire, Guan Yu's green): a glow round the stand, tongues of flame licking up all
+ *  along its edge, embers rising. */
+function drawFireAura(c, w, h, T, pad, look = "fire") {
+  const P = AURA_LOOK[look];
   const ADD = PIXI.BLEND_MODES.ADD, Blur = PIXI.BlurFilter ?? PIXI.filters?.BlurFilter;
   const back = new PIXI.Container(), front = new PIXI.Container(); c.addChildAt(back, 0); c.addChild(front);
   const glow = new PIXI.Graphics(); glow.blendMode = ADD; if (Blur) glow.filters = [new Blur(T * 0.08)];
-  glow.lineStyle(T * 0.12, 0xff3a10, 0.9).drawRoundedRect(pad, pad, w - 2 * pad, h - 2 * pad, T * 0.1); back.addChild(glow);
-  const tex = flameTex(), path = roundedRectPath(pad, pad, w - 2 * pad, h - 2 * pad, T * 0.1, 28), flames = [], embers = [];
+  glow.lineStyle(T * 0.12, P.glow, 0.9).drawRoundedRect(pad, pad, w - 2 * pad, h - 2 * pad, T * 0.1); back.addChild(glow);
+  const tex = flameTex(look), path = roundedRectPath(pad, pad, w - 2 * pad, h - 2 * pad, T * 0.1, 28), flames = [], embers = [];
   path.forEach(([x, y], i) => { for (const lay of [back, front]) { if (lay === front && i % 2) continue;
     const sp = new PIXI.Sprite(tex); sp.anchor.set(0.5, 0.95); sp.blendMode = ADD; sp.position.set(x, y); lay.addChild(sp);
     flames.push({ sp, ph: Math.random(), sp0: 0.7 + Math.random() * 0.6, sz: (lay === front ? 0.14 : 0.2) * T / 32 }); } });
-  for (let i = 0; i < 10; i++) { const e = new PIXI.Graphics().beginFill(i % 2 ? 0xffd27a : 0xff7a2a).drawCircle(0, 0, T * 0.018).endFill(); e.blendMode = ADD; front.addChild(e); embers.push({ e, ph: Math.random(), x: pad + Math.random() * (w - 2 * pad), sp: 0.4 + Math.random() * 0.4 }); }
+  for (let i = 0; i < 10; i++) { const e = new PIXI.Graphics().beginFill(P.embers[i % 2]).drawCircle(0, 0, T * 0.018).endFill(); e.blendMode = ADD; front.addChild(e); embers.push({ e, ph: Math.random(), x: pad + Math.random() * (w - 2 * pad), sp: 0.4 + Math.random() * 0.4 }); }
   let time = 0;
   return () => {
     if (back.destroyed) return;
@@ -1019,7 +1027,7 @@ export async function drawUnitBars(token) {
   }
   if (ready) { c.qinReadyTick = drawSkillReady(c, ready, offTex, w, h, T, pad); canvas.app?.ticker?.add(c.qinReadyTick); }
   if (eff && (eff.nb || eff.nd)) { c.qinFxTick = drawLingering(c, eff, w, h, T, pad); canvas.app?.ticker?.add(c.qinFxTick); }
-  if (lasting === "fire") { c.qinLastTick = drawFireAura(c, w, h, T, pad); canvas.app?.ticker?.add(c.qinLastTick); }
+  if (lasting) { c.qinLastTick = drawFireAura(c, w, h, T, pad, lasting); canvas.app?.ticker?.add(c.qinLastTick); }
   // the banner sits above every outline drawn on the stand (David, 2026-10-31: it went under the border); greyed with the stand
   if (c.qinFlag && !c.qinFlag.destroyed) {
     if (stand.filters?.length) c.qinFlag.filters = stand.filters;
