@@ -155,7 +155,7 @@ function traitHit(s, att, def, tiles, holding) {
   if (td.shield && E.unitTrait(att, 'shield breaker')) armor -= [0, 1, 2, 3, 4][Math.min(4, E.unitTrait(att, 'shield breaker'))];
   if (cav && E.unitTrait(def, 'anti-cavalry')) armor += 2 * Math.min(3, E.unitTrait(def, 'anti-cavalry'));
   if (holding && ta.weapon !== 'ranged') armor += 1 + (E.unitTrait(def, 'brace') ? Math.min(3, E.unitTrait(def, 'brace')) : 0);
-  let dmg = (ta.damage || 0) + 2 + charge + (E.unitTrait(att, 'sharpened weapons') ? 1 : 0);
+  let dmg = (ta.damage || 0) + 2 + charge + [0, 1, 2, 3][Math.min(3, E.unitTrait(att, 'sharpened weapons') || 0)];
   if (E.unitTrait(def, 'colossal')) return 1;
   return E.casualtiesOf(dmg, Math.max(0, armor), ta.armorPen || 0, 0, 0);
 }

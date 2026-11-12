@@ -8,7 +8,8 @@ const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? ""
 /** The unit's equipment entries (from its source trait list). */
 export function equipmentOf(actor) {
   const list = actor?._source?.system?.traitList ?? actor?.system?._source?.traitList ?? actor?.system?.traitList ?? [];
-  return list.filter(e => e.equip);
+  // the description comes from the catalogue, so pieces equipped before a rules change show the current text
+  return list.filter(e => e.equip).map(e => ({ ...e, desc: equipmentByName(e.name)?.desc ?? e.desc }));
 }
 
 /** A new trait list with `name` equipped (replacing anything of the same family). Pure; exported for tests. */
@@ -30,11 +31,14 @@ async function saveList(actor, list) {
   await actor.update({ "system.traitList": list, "system.traits": "" });
   try { (await import("./sheets/sheets.mjs")).resetTraitCatalog(); } catch { /* fine */ }
 }
+/** Saddles are for cavalry only (David, 2026-11-12). */
+export const isCavalry = (actor) => (actor?.system?.category ?? "") === "cavalry";
 /** Who may equip a unit: the GM, or the unit's owner (David, 2026-10-25). */
 export const canEquip = (actor) => !!actor && (game.user.isGM || actor.isOwner);
 export async function equipUnit(actor, name) {
   if (!canEquip(actor)) return;
   const src = foundry.utils.deepClone(actor._source.system.traitList ?? []);
+  if (equipmentFamily(name) === "Saddle" && !isCavalry(actor)) return ui.notifications.warn(`${actor.name} isn't cavalry: only cavalry can use a saddle.`);
   if (siegeClash(src, name)) return ui.notifications.warn(`${actor.name} already carries siege equipment: drop it first (a unit carries ladders or an engine, never both).`);
   const swapped = gearReplaced(src, name);
   const list = equipList(src, name); if (!list) return;
@@ -70,10 +74,11 @@ export class EquipmentPicker extends foundry.applications.api.ApplicationV2 {
     const gear = [...have.keys()].find(k => equipmentKind(EQUIPMENT.find(f => f.family === k)?.tiers[0].name) === "gear") ?? null;
     const section = (f) => {
       const cur = have.get(f.family);
-      const blocked = !cur && f.kind === "siege" && [...have.keys()].some(k => SIEGE.has(k));
+      const noSaddle = !cur && f.family === "Saddle" && !isCavalry(this.actor);
+      const blocked = noSaddle || (!cur && f.kind === "siege" && [...have.keys()].some(k => SIEGE.has(k)));
       const swap = !cur && f.kind === "gear" && gear ? `replaces ${have.get(gear)}` : "";
       return `<section class="qin-eq-fam ${cur ? "has" : ""} ${blocked ? "blocked" : ""}"><h4>${esc(f.family)}${cur ? ` <span class="qin-eq-cur">carrying ${esc(cur)}</span>` : swap ? ` <span class="qin-eq-cur swap">${esc(swap)}</span>` : ""}</h4>
-        <div class="qin-eq-tiers">${f.tiers.map(t => `<button type="button" class="qin-eq-tier ${cur === t.name ? "on" : ""}" ${blocked ? "disabled" : ""} data-action="${cur === t.name ? "unequip" : "equip"}" data-name="${esc(t.name)}" data-tooltip="${esc(blocked ? "Already carrying other siege equipment — a unit carries ladders or an engine, never both." : t.desc)}">
+        <div class="qin-eq-tiers">${f.tiers.map(t => `<button type="button" class="qin-eq-tier ${cur === t.name ? "on" : ""}" ${blocked ? "disabled" : ""} data-action="${cur === t.name ? "unequip" : "equip"}" data-name="${esc(t.name)}" data-tooltip="${esc(noSaddle ? "Cavalry only." : blocked ? "Already carrying other siege equipment — a unit carries ladders or an engine, never both." : t.desc)}">
           ${cur === t.name ? `<i class="fa-solid fa-check"></i> ` : ""}${esc(t.name)}</button>`).join("")}</div>
         <div class="qin-eq-desc" data-desc>${esc((f.tiers.find(t => t.name === cur) ?? f.tiers[0]).desc)}</div>
       </section>`;

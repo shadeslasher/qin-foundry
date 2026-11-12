@@ -326,15 +326,19 @@ test('cavalry: Command +1 in melee against infantry, attacking or defending; not
 
 // ---- Equipment (David, 2026-10-25) ----
 test('Sharpened Weapons, Saddle, Reinforced Armor and War Drums in the rolls and casualties', () => {
-  const s = setup(); s.library.unitTypes.push(unitType('a'), unitType('d'));
+  const s = setup(); s.library.unitTypes.push(unitType('a', { category: 'cavalry' }), unitType('d'), unitType('i'));
   const A = R.unitById(s, add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 5, y: 5 }));
   const D = R.unitById(s, add(s, { typeId: 'd', side: 'enemy', x: 5, y: 4 }));
   A.traitTiers = { 'sharpened weapons': 2, saddle: 3 };
-  assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Sharpened Weapons/), 2);
+  assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Sharpened Weapons/), 0, 'Sharpened Weapons is damage now, not Attack (2026-11-12)');
   assert.strictEqual(part(rollOf(s, A, 'attacker', D), /^Saddle/), 1);
   assert.strictEqual(part(rollOf(s, A, 'defender', D), /^Saddle\+: melee/), 1, 'Saddle+ and up: melee defense +1');
   assert.strictEqual(part(rollOf(s, A, 'defender', D, { ranged: true }), /^Saddle/), 0, 'not against shots');
-  assert.strictEqual(R.movementOf ? 1 : 1, 1);
+  // Saddle is cavalry only (2026-11-12): an infantry unit carrying one gets nothing from it
+  const I = R.unitById(s, add(s, { typeId: 'i', side: 'player', owner: 'p1', x: 3, y: 3 })); I.traitTiers = { saddle: 3 };
+  assert.strictEqual(part(rollOf(s, I, 'attacker', D), /^Saddle/), 0);
+  assert.strictEqual(R.movementOf(s, I), 3, 'no Saddle++ movement for infantry');
+  assert.strictEqual(R.movementOf(s, A), 4, 'Saddle++ movement +1 for cavalry');
   // War Drums: an ally's drums within 2 tiles give +1 to every roll; ++ within 3 gives +2
   const B = R.unitById(s, add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 7, y: 5 }));
   B.traitTiers = { 'war drums': 1 };
@@ -346,19 +350,22 @@ test('Sharpened Weapons, Saddle, Reinforced Armor and War Drums in the rolls and
   // Reinforced Armor+: 2 more armor against the hit. attacker 9+2 = 11 vs 0: 17 dmg - (3+2) = 12
   const { r } = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], (a, d) => { d.traitTiers = { 'reinforced armor': 2 }; });
   assert.strictEqual(r.casualtiesDefender, 12);
+  // Sharpened Weapons++: damage +3. 6 + 3 + 11 margin = 20 - armor 3 = 17
+  const sw = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], (a) => { a.traitTiers = { 'sharpened weapons': 3 }; });
+  assert.strictEqual(sw.r.casualtiesDefender, 17);
 });
 
-test('Rallying Banner: adjacent allies gain 1/2/3 morale when the carrier ends its turn', () => {
+test('Rallying Banner: adjacent allies gain 2/4/6 morale when the carrier ends its turn', () => {
   const s = setup(); plains(s); s.library.unitTypes.push(unitType('a'), unitType('d'));
   const c = add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 5, y: 5 });
   const b = add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 6, y: 5 });
   const far = add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 8, y: 5 });
   const e = add(s, { typeId: 'd', side: 'enemy', x: 5, y: 4 });
-  R.unitById(s, c).traitTiers = { 'rallying banner': 2 };
+  R.unitById(s, c).traitTiers = { 'rallying banner': 2 };   // Banner+: 4
   must(R.act(s, HOST, { type: 'startBattle' })); dice([0, 0]); must(R.act(s, HOST, { type: 'startRound' }));
   must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: c }));
   must(R.act(s, P1, { type: 'endTurn', unitId: c }));
-  assert.strictEqual(R.unitById(s, b).morale, 52, 'adjacent ally +2');
+  assert.strictEqual(R.unitById(s, b).morale, 54, 'adjacent ally +4');
   assert.strictEqual(R.unitById(s, far).morale, 50, 'not adjacent');
   assert.strictEqual(R.unitById(s, e).morale, 50, 'enemy next to it gets nothing');
   assert.strictEqual(R.unitById(s, c).morale, 50, 'not the carrier itself');

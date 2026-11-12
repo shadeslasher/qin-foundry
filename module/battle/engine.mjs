@@ -541,7 +541,7 @@ function movementOf(s, u) {
   const t = typeOf(s, u);
   const slowed = fx(u).slow ? 1 : 0; // Barbed Arrows
   const load = carrying(u) === 'engine' ? 1 : 0; // a siege engine is heavy; ladders cost nothing (David, 2026-11-04)
-  const saddle = saddleOf(u) >= 3 ? 1 : 0; // Saddle++: movement +1
+  const saddle = saddleOf(s, u) >= 3 ? 1 : 0; // Saddle++: movement +1
   // whatever slows it, a unit can always move at least 1 tile (David, 2026-10-25)
   const supp = suppressed(u) ? 2 : 0; // Suppressing Fire: movement -2 (still at least 1)
   let m = Math.max(1, (t ? t.move : 4) + (passive(s, u).moveBonus || 0) - slowed - load + saddle - supp + SK.stat(s, u, 'move'));
@@ -962,7 +962,7 @@ function warDrumsBonus(s, u) {
   }
   return best;
 }
-/** Rallying Banner: at the end of the carrier's turn, adjacent allies gain 1 / 2 / 3 morale (David, 2026-10-25). */
+/** Rallying Banner: at the end of the carrier's turn, adjacent allies gain 2 / 4 / 6 morale (David, 2026-11-12; was 1 / 2 / 3). */
 /** Imperial Solidarity (David, 2026-10-31): another allied unit with the trait within 2 tiles gives melee defense +2,
  *  pen +1 and +4 morale at the end of the round. Never from itself; several imperial units nearby count once. */
 function imperialAura(s, u) {
@@ -975,14 +975,15 @@ function imperialMandate(s, u) {
 const penOf = (s, t, u) => (t.armorPen || 0) + (imperialAura(s, u) ? 1 : 0);
 
 function rallyingBanner(s, u) {
-  const b = trait(u, 'rallying banner'); if (!b || !alive(u)) return;
+  const lv = trait(u, 'rallying banner'); if (!lv || !alive(u)) return;
+  const b = tierVal(lv, [2, 4, 6]);
   for (const o of liveUnits(s)) if (o !== u && friendly(o, u) && manhattan(o, u) === 1 && o.morale < 100) {
     o.morale = Math.min(100, o.morale + b);
     log(s, o.name + ' gains ' + b + ' morale (Rallying Banner of ' + u.name + ').');
   }
 }
-/** Saddle: Attack +1; Saddle+ also melee defense +1; Saddle++ also movement +1. */
-const saddleOf = (u) => trait(u, 'saddle');
+/** Saddle: Attack +1; Saddle+ also melee defense +1; Saddle++ also movement +1. Cavalry only (David, 2026-11-12). */
+const saddleOf = (s, u) => (typeOf(s, u)?.category === 'cavalry' ? trait(u, 'saddle') : 0);
 /** War Horn: may this unit sound it now? (one use, then a round to recharge) */
 function hornReady(s, u) {
   if (!trait(u, 'war horn')) return false;
@@ -1040,8 +1041,7 @@ function buildRoll(s, unit, role, ctx) {
     // a charge's bonus comes only from Fierce Charge (David, 2026-11-10: no more +1 per tile moved)
     if (ctx.charge && ctx.fierceBonus) parts.push([FIERCE_NAMES[Math.min(4, ctx.fierce)], ctx.fierceBonus]);
     if (ctx.charge && p.chargeAttackBonus) parts.push(['Officer passive: charge', p.chargeAttackBonus]);
-    if (trait(unit, 'sharpened weapons')) parts.push(['Sharpened Weapons', tierVal(trait(unit, 'sharpened weapons'), [1, 2, 3])]);
-    if (saddleOf(unit)) parts.push(['Saddle', 1]);
+    if (saddleOf(s, unit)) parts.push(['Saddle', 1]);
     // Charging Strike +2/+4/+6 after moving 2+ tiles; Charging Strike EX +8 after moving 1+ tile (David, 2026-10-29)
     if (!ctx.ranged && trait(unit, 'charging strike') && ctx.tilesMoved >= (trait(unit, 'charging strike') >= 4 ? 1 : 2)) parts.push(['Charging Strike (moved ' + ctx.tilesMoved + (ctx.tilesMoved === 1 ? ' tile)' : ' tiles)'), tierVal(trait(unit, 'charging strike'), [2, 4, 6, 8])]);
     if (ctx.hybridMelee && !trait(unit, 'throwing axes') && !trait(unit, 'spear crossbow')) parts.push(['Hybrid: melee attack', -2]); // Throwing Axes: no penalty
@@ -1079,7 +1079,7 @@ function buildRoll(s, unit, role, ctx) {
     if (!ctx.ranged && imperialAura(s, unit)) parts.push(['Imperial Solidarity (' + imperialAura(s, unit).name + '): melee defense', 2]);
     if (trait(unit, 'shielded') && ctx.ranged) parts.push(['Shielded: ranged defense', tierVal(trait(unit, 'shielded'), [2, 4, 6])]); // ranged defense only; in melee the unit's Evasion trait already covers its shield (2026-10-30)
     if (ctx.ranged && trait(unit, 'shield battery') && fx(unit).stillLast) parts.push(['Shield Battery: ranged defense', 2]);
-    if (!ctx.ranged && saddleOf(unit) >= 2) parts.push(['Saddle+: melee defense', 1]);
+    if (!ctx.ranged && saddleOf(s, unit) >= 2) parts.push(['Saddle+: melee defense', 1]);
     // Deflect: ranged defense +3 against the first ranged attack each round; Deflect+ the first two; Deflect++ the first three (David 2026-11-01; no melee bonus since v0.83.0)
     if (ctx.ranged && trait(unit, 'deflect') && (unit.round.rangedTaken || 0) < tierVal(trait(unit, 'deflect'), [1, 2, 3]))
       parts.push(['Deflect' + '+'.repeat(Math.min(2, trait(unit, 'deflect') - 1)) + ': ranged defense', 3]);
@@ -1195,7 +1195,9 @@ function soldierFigures(men, full) {
 }
 
 function damageValue(s, u) {
-  return Math.max(0, typeOf(s, u).damage || 0);
+  // Sharpened Weapons: damage +1 / +2 / +3 (David, 2026-11-12; was Attack +1 / +2 / +3), the mirror of Reinforced Armor
+  const sw = trait(u, 'sharpened weapons') ? tierVal(trait(u, 'sharpened weapons'), [1, 2, 3]) : 0;
+  return Math.max(0, (typeOf(s, u).damage || 0) + sw);
 }
 
 // Resolve an attack. Returns a result object (also logged). Mutates state.

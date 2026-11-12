@@ -7,9 +7,9 @@
 export const KIND_LABEL = { upgrade: "Upgrades", gear: "Gear (one piece)", siege: "Siege equipment (one piece)" };
 export const EQUIPMENT = [
   { family: "Sharpened Weapons", kind: "upgrade", tiers: [
-    { name: "Sharpened Weapons", desc: "Attack +1 at start of battle." },
-    { name: "Sharpened Weapons+", desc: "Attack +2 at start of battle." },
-    { name: "Sharpened Weapons++", desc: "Attack +3 at start of battle." },
+    { name: "Sharpened Weapons", desc: "Damage +1." },
+    { name: "Sharpened Weapons+", desc: "Damage +2." },
+    { name: "Sharpened Weapons++", desc: "Damage +3." },
   ] },
   { family: "Reinforced Armor", kind: "upgrade", tiers: [
     { name: "Reinforced Armor", desc: "Armor +1 at start of battle." },
@@ -17,9 +17,9 @@ export const EQUIPMENT = [
     { name: "Reinforced Armor++", desc: "Armor +3 at start of battle." },
   ] },
   { family: "Saddle", kind: "upgrade", tiers: [
-    { name: "Saddle", desc: "Attack +1." },
-    { name: "Saddle+", desc: "Attack +1, Melee defense +1." },
-    { name: "Saddle++", desc: "Attack +1, Melee defense +1, Movement +1." },
+    { name: "Saddle", desc: "Cavalry only. Attack +1." },
+    { name: "Saddle+", desc: "Cavalry only. Attack +1, Melee defense +1." },
+    { name: "Saddle++", desc: "Cavalry only. Attack +1, Melee defense +1, Movement +1." },
   ] },
   { family: "War Drums", kind: "gear", tiers: [
     { name: "War Drums", desc: "Allied units within 2 tiles gain Command rolls +1." },
@@ -27,9 +27,9 @@ export const EQUIPMENT = [
     { name: "War Drums++", desc: "Allied units within 3 tiles gain Command rolls +2." },
   ] },
   { family: "Rallying Banner", kind: "gear", tiers: [
-    { name: "Rallying Banner", desc: "Adjacent allied units gain 1 morale at the end of this unit's turn." },
-    { name: "Rallying Banner+", desc: "Adjacent allied units gain 2 morale at the end of this unit's turn." },
-    { name: "Rallying Banner++", desc: "Adjacent allied units gain 3 morale at the end of this unit's turn." },
+    { name: "Rallying Banner", desc: "Adjacent allied units gain 2 morale at the end of this unit's turn." },
+    { name: "Rallying Banner+", desc: "Adjacent allied units gain 4 morale at the end of this unit's turn." },
+    { name: "Rallying Banner++", desc: "Adjacent allied units gain 6 morale at the end of this unit's turn." },
   ] },
   { family: "War Horn", kind: "gear", tiers: [
     { name: "War Horn", desc: "Adds the Reinvigorate action: an adjacent allied unit reactivates and takes another turn immediately. Using it ends this unit's turn. Needs 1 turn to recharge after use." },
