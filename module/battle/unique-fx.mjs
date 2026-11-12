@@ -904,11 +904,12 @@ export function playHunt(token, float) {
   });
 }
 
-/* ------------------------------------------------------------ Zhao Yun: Master of the Empty Camp (David, 2026-11-12) */
+/* ------------------------------------------------------------ Zhao Yun: Dawn Breaks the Dark (was Master of the Empty Camp; David, 2026-11-12) */
 
 /** Skills whose activation keeps the screen dark after the banner, the officer's unit still shining, then sends a wave
  *  of light out from him that clears the dark (activation-fx plays the dark; ms before battle speed). */
-const DARK_HOLD = { "Master of the Empty Camp": { hold: 1100, wave: 1600, deep: true } };   // a longer, deeper dark (David, 2026-11-12)
+const DARK_HOLD = { "Dawn Breaks the Dark": { hold: 1100, wave: 1600, deep: true } };
+DARK_HOLD["Master of the Empty Camp"] = DARK_HOLD["Dawn Breaks the Dark"];   // its old name (cards not yet updated)   // a longer, deeper dark (David, 2026-11-12)
 export const darkHoldOf = (skill) => DARK_HOLD[skill] ?? null;
 
 /** The wave of light: a bright white-gold ring riding the edge of the retreating dark (radius from rOf, in canvas

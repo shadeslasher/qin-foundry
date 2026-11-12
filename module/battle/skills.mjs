@@ -717,7 +717,9 @@ function step(s, st, ctx, rest) {
   }
   if (st.counter) { // a running count on his unit ("each turn it doesn't move: +1, up to +4")
     const c = (fxOf(src).counters ||= {}); const before = c[st.counter] || 0;
-    c[st.counter] = st.set !== undefined ? st.set : Math.min(st.max ?? 99, before + (st.add ?? 1));
+    // with who: add that much for each unit it names (Zhao Yun, 2026-11-12: +1 for each ally within 6 at 25 morale or less)
+    const add = (st.add ?? 1) * (st.who ? units(st.who).length : 1);
+    c[st.counter] = st.set !== undefined ? st.set : Math.min(st.max ?? 99, before + add);
     if (c[st.counter] !== before) say(s, label + ': ' + c[st.counter] + (st.max ? '/' + st.max : '') + '.', { type: 'skillCounter', unit: src.id });
     return;
   }

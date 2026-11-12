@@ -154,7 +154,7 @@ export function validateSpec(spec, kind) {
       reinforce: ['near', 'filter', 'onTerrain', 'arriveBuff'], swap: [], selfStatus: ['for'], if: ['who', 'then', 'else', 'each'], onKill: [], onWin: [], onLose: [], manual: [], hide: [], fireArea: ['from'],
       casualties: ['who', 'ignoreArmor'], turnOrder: ['who'], setTerrain: ['tiles', 'for'], openGate: ['for', 'oneSide'], repair: ['range'], leave: [], convert: [], spawn: [],
       grantTrait: ['who', 'tier', 'for'], removeTrait: ['who', 'for'], stealTrait: ['who', 'for'], stepTrait: ['who', 'for'], cancelTactic: [], cooldown: ['who'],
-      overwatchOn: [], custom: ['args'], counter: ['add', 'set', 'max'], forceToward: ['who'], forceAttack: ['at'], moveInto: [], splitMorale: ['who', 'max'],
+      overwatchOn: [], custom: ['args'], counter: ['add', 'set', 'max', 'who'], forceToward: ['who'], forceAttack: ['at'], moveInto: [], splitMorale: ['who', 'max'],
       blast: ['moraleLoss', 'fire', 'selfHalf'], overwatchShot: [], cleanse: ['only'], swapUnits: ['with'], climb: [] }[k];
     for (const x of Object.keys(st)) if (x !== k && !allowed.includes(x)) bad(p + '.' + x, 'unexpected key on a "' + k + '" step');
     switch (k) {

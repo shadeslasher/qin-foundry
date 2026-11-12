@@ -51,3 +51,15 @@ test('passive aura reach: the range over other units, or nothing for a passive o
   assert.strictEqual(SK.passiveAura(s, u(1)), null);
   assert.strictEqual(SK.passiveAura(s, u(2)), null);
 });
+
+test('Dawn Breaks the Dark: Command +1 for each ally within 6 at 25 morale or less, for 3 turns', () => {
+  const act = { do: [{ counter: 'dawn', set: 0 }, { counter: 'dawn', add: 1, who: { side: 'allies', range: 6, filter: { moraleBelow: 26 } } },
+    { buff: { mods: [{ stat: 'command', value: 1, per: 'dawn' }] }, who: { self: true }, for: { rounds: 3 } }] };
+  const { s, u } = setup([{ side: 'player', x: 5, y: 5, officerId: 'z' }, { side: 'player', x: 6, y: 5 }, { side: 'player', x: 5, y: 8 }, { side: 'player', x: 7, y: 7 }, { side: 'player', x: 11, y: 11 }, { side: 'enemy', x: 4, y: 5 }],
+    [officer('z', { active: act })]);
+  u(1).morale = 20; u(2).morale = 25; u(3).morale = 40; u(4).morale = 10; u(5).morale = 5;   // in range low, in range at 25, in range high, too far, enemy
+  SK.runSteps(s, act.do, { src: u(0), name: 'Dawn Breaks the Dark' });
+  assert.strictEqual(SK.stat(s, u(0), 'command'), 2);             // two allies within 6 at 25 or less
+  assert.strictEqual(SK.stat(s, u(1), 'command'), 0);             // the buff is his alone
+
+});
