@@ -104,6 +104,7 @@ function officerLibraryEntry(officer) {
       recharge: skill.system.recharge ?? 0, perBattle: !!skill.system.perScene || !!battle?.active?.oncePerBattle, lastStand: !!skill.system.lastStand || !!battle?.active?.lastStand } : null, // a spec may make it a last stand (David, 2026-11-09)
     heroicActions: HEROIC_ACTIONS.map(h => ({ name: h.name, text: h.text })), // every officer may use the heroic action list
     tier: parseInt(String(officer.system.details?.tier ?? "").match(/\d+/)?.[0] ?? "0", 10) || 0,
+    tierHigh: /high/i.test(String(officer.system.details?.tier ?? "")), // Tier 2 High: its own look for self-buff borders
     ...officerStanding(officer), // rank, faction, ruler, family, aspects: for battlefield skills that compare officers
     battle, // officers' battlefield skills, automated (skills.mjs)
   };

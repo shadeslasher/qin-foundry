@@ -76,3 +76,13 @@ test('Terror of Changban: losers lose 20 morale; his unit gets Attack +1 for eac
   assert.strictEqual(u(1).morale, 0); assert.strictEqual(u(2).morale, 10);
   assert.strictEqual(SK.stat(s, u(0), 'attack'), 2);
 });
+
+test('effectsOf marks the buffs a unit gave itself (self-buff auras, 2026-11-12)', () => {
+  const act = { do: [{ buff: { mods: [{ stat: 'attack', value: 2 }] }, who: { self: true }, for: { rounds: 2 } },
+    { buff: { mods: [{ stat: 'meleeDef', value: 1 }] }, who: { side: 'allies', range: 2 }, for: { rounds: 2 } }] };
+  const { s, u } = setup([{ side: 'player', x: 5, y: 5, officerId: 'o' }, { side: 'player', x: 6, y: 5 }], [officer('o', { active: act })]);
+  SK.runSteps(s, act.do, { src: u(0), name: 'Act' });
+  const mine = SK.effectsOf(s, u(0)), theirs = SK.effectsOf(s, u(1));
+  assert.ok(mine.some(e => e.self && e.kind === 'buff' && e.name === 'Act'));
+  assert.ok(theirs.length && theirs.every(e => !e.self));
+});

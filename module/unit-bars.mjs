@@ -458,6 +458,9 @@ function readyMap(battle) {
       try {
         const list = effectsOf(s, u).filter(e => !e.aura);
         if (list.length) { const of = (k) => list.filter(e => e.kind === k); eff[u.id] = { nb: of("buff").length, nd: of("debuff").length, pb: of("buff").reduce((a, e) => a + e.power, 0), pd: of("debuff").reduce((a, e) => a + e.power, 0), keys: list.map(e => e.key + "|" + e.kind), names: list.map(e => e.name) }; }
+        // a buff his own battlefield active put on his own unit: an aura in his officer type's colour (David, 2026-11-12)
+        const o = u.officerId ? officerOf(s, u) : null;
+        if (eff[u.id] && o?.skill && list.some(e => e.self && e.kind === "buff" && e.name === o.skill.name)) eff[u.id].selfBuff = { ctype: o.ctype || "", tier: Number(o.tier) || 0, high: !!o.tierHigh };
       } catch (e) { console.warn("Qin | effects on " + u.id, e); }
       if (!u.officerId) continue;
       try {
@@ -567,9 +570,20 @@ function drawSkillReady(c, kind, offTex, w, h, T, pad) {
 // While certain tier 1+ battlefield actives last, the unit keeps a look of its own (by the active's name).
 const LASTING = { "None Can Stand Before Him": "fire",   // Lu Bu: a fiery aura round his unit
   "Might That Shakes the Realm": "jade" };               // Guan Yu: the same in green (David, 2026-11-12)
-function lastingLook(eff) { for (const n of eff?.names ?? []) if (LASTING[n]) return LASTING[n]; return null; }
+// Every other officer whose battlefield active buffs his own unit (David, 2026-11-12): Tier 0-1 get the flame aura in their
+// officer type's colour, Tier 2 High a glowing border outside the frame with motes rising from it, everyone else the border.
+const TYPE_LOOK = { Vanguard: "fire", Champion: "jade", Commander: "gold", Strategist: "azure", Sentinel: "violet" };
+const TYPE_HEX = { Vanguard: 0xee6a5e, Champion: 0x5fcf8c, Commander: 0xe8c04a, Strategist: 0x6fa8ee, Sentinel: 0xb48ae8 };
+function lastingLook(eff) {
+  for (const n of eff?.names ?? []) if (LASTING[n]) return LASTING[n];
+  const sb = eff?.selfBuff; if (!sb || !TYPE_LOOK[sb.ctype]) return null;
+  return sb.tier <= 1 ? TYPE_LOOK[sb.ctype] : (sb.high ? "border-high:" : "border:") + sb.ctype;
+}
 const AURA_LOOK = {
   fire: { glow: 0xff3a10, stops: ["rgba(255,240,170,1)", "rgba(255,150,40,0.95)", "rgba(220,40,10,0.6)", "rgba(120,0,0,0)"], embers: [0xffd27a, 0xff7a2a] },
+  gold: { glow: 0xffb000, stops: ["rgba(255,250,215,1)", "rgba(255,215,90,0.95)", "rgba(215,150,20,0.6)", "rgba(110,60,0,0)"], embers: [0xfff0b0, 0xffc040] },
+  azure: { glow: 0x2a8cff, stops: ["rgba(225,240,255,1)", "rgba(120,185,255,0.95)", "rgba(30,100,220,0.6)", "rgba(0,30,110,0)"], embers: [0xd8ecff, 0x60a8ff] },
+  violet: { glow: 0xa050ff, stops: ["rgba(245,230,255,1)", "rgba(195,145,255,0.95)", "rgba(120,50,210,0.6)", "rgba(50,0,100,0)"], embers: [0xeedcff, 0xb070ff] },
   jade: { glow: 0x22d06a, stops: ["rgba(225,255,225,1)", "rgba(110,235,140,0.95)", "rgba(20,150,70,0.6)", "rgba(0,70,30,0)"], embers: [0xc8ffd0, 0x40e080] },
 };
 const auraFlameTex = {};
@@ -620,6 +634,29 @@ function drawFireAura(c, w, h, T, pad, look = "fire") {
     }
     for (const m of embers) { const q = (time * m.sp + m.ph) % 1; m.e.position.set(m.x + Math.sin(time * 4 + m.ph * 9) * T * 0.04, h - pad - q * h * 1.3); m.e.alpha = 1 - q; }
   };
+}
+
+/** A self-buff border for officers below Tier 1 (David, 2026-11-12): a glowing ring in the officer type's colour drawn
+ *  just outside the stand's frame, with a dark gap, so the frame's side colour stays clear; it pulses slowly. Tier 2 High
+ *  officers also get motes rising from it. */
+function drawGlowBorder(c, w, h, T, pad, col, high) {
+  const Blur = PIXI.BlurFilter ?? PIXI.filters?.BlurFilter, ADD = PIXI.BLEND_MODES.ADD, o = T * 0.075;
+  const x = pad - o, y = pad - o, bw = w - 2 * pad + 2 * o, bh = h - 2 * pad + 2 * o, r = T * 0.14;
+  const halo = new PIXI.Graphics(); if (Blur) halo.filters = [new Blur(T * 0.07)]; halo.eventMode = "none"; c.addChildAt(halo, 0);
+  const front = new PIXI.Container(); front.eventMode = "none"; c.addChild(front);
+  const line = new PIXI.Graphics(); front.addChild(line);
+  line.lineStyle(T * 0.03, 0x101010, 0.55).drawRoundedRect(pad - o * 0.45, pad - o * 0.45, w - 2 * pad + o * 0.9, h - 2 * pad + o * 0.9, T * 0.12)
+    .lineStyle(T * 0.022, col, 0.9).drawRoundedRect(x, y, bw, bh, r);
+  const rim = high ? roundedRectPath(x, y, bw, bh, r, 160) : [], motes = [];
+  for (let i = 0; high && i < 10; i++) { const g = new PIXI.Graphics().beginFill(col).drawCircle(0, 0, T * 0.016).endFill(); g.blendMode = ADD; front.addChild(g); motes.push({ g, i: Math.floor(Math.random() * rim.length), ph: Math.random(), sp: 0.35 + Math.random() * 0.3 }); }
+  let time = 0;
+  const tick = () => {
+    if (halo.destroyed) return;
+    time += (canvas.app?.ticker?.deltaMS ?? 16) / 1000; const p = 0.5 + 0.5 * Math.sin(time * 2.6);
+    halo.clear().lineStyle(T * (0.07 + 0.03 * p), col, 0.55 + 0.3 * p).drawRoundedRect(x, y, bw, bh, r);
+    for (const m of motes) { const q = (time * m.sp + m.ph) % 1, [mx, my] = rim[m.i]; m.g.position.set(mx, my - q * T * 0.35); m.g.alpha = 1 - q; if (q < 0.02) m.i = Math.floor(Math.random() * rim.length); }
+  };
+  tick(); return tick;
 }
 
 /* ------------------------------------------------------------ buffs and debuffs (David, 2026-11-09) */
@@ -1045,7 +1082,11 @@ export async function drawUnitBars(token) {
   }
   if (ready) { c.qinReadyTick = drawSkillReady(c, ready, offTex, w, h, T, pad); canvas.app?.ticker?.add(c.qinReadyTick); }
   if (eff && (eff.nb || eff.nd)) { c.qinFxTick = drawLingering(c, eff, w, h, T, pad); canvas.app?.ticker?.add(c.qinFxTick); }
-  if (lasting) { c.qinLastTick = drawFireAura(c, w, h, T, pad, lasting); canvas.app?.ticker?.add(c.qinLastTick); }
+  if (lasting) {
+    const [kind, ctype] = lasting.split(":");
+    c.qinLastTick = ctype ? drawGlowBorder(c, w, h, T, pad, TYPE_HEX[ctype], kind === "border-high") : drawFireAura(c, w, h, T, pad, lasting);
+    canvas.app?.ticker?.add(c.qinLastTick);
+  }
   // the banner sits above every outline drawn on the stand (David, 2026-10-31: it went under the border); greyed with the stand
   if (c.qinFlag && !c.qinFlag.destroyed) {
     if (stand.filters?.length) c.qinFlag.filters = stand.filters;

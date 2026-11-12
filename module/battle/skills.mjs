@@ -1301,7 +1301,7 @@ export function effectsOf(s, u) {
     const text = describeBuff(b) || (b.triggers ? 'a lasting effect' : '');
     if (!text) continue;
     const src = E.unitById(s, b.src), o = src && E.officerOf(s, src);
-    out.push({ key: 'b:' + b.id, kind: buffKind(s, u, b), power: effectPower(b), name: b.name, text, from: o ? o.name : (src && src.id !== u.id ? src.name : ''), until: untilText(s, u, b), aura: false });
+    out.push({ key: 'b:' + b.id, kind: buffKind(s, u, b), power: effectPower(b), name: b.name, text, from: o ? o.name : (src && src.id !== u.id ? src.name : ''), until: untilText(s, u, b), aura: false, self: b.src === u.id });
   }
   const T = (key, name, text, from, until, power) => out.push({ key, kind: 'debuff', power, name, text, from, until, aura: false });
   if (f.sunder) T('t:sunder:' + f.sunder, 'Sundered', 'Armor −' + f.sunder, f.sunder >= 6 ? 'Sunder++' : f.sunder >= 4 ? 'Sunder+' : 'Sunder', 'rest of the battle', f.sunder);
