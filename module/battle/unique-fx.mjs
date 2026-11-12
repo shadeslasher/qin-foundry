@@ -1,6 +1,6 @@
 // Special animations for tier 1+ battlefield actives (David, 2026-11-09): each such officer can have his own. They are
 // keyed by the active's name. So far: Guan Yu's Might That Shakes the Realm — the ground cracks around his unit as the
-// buff lands, and while it lasts the Green Dragon Crescent Blade sweeps a full circle after each of his attacks.
+// buff lands, then heaves twice more, the cracks tearing on further out and a tall wall of dust rising, and while it lasts the Green Dragon Crescent Blade sweeps a full circle after each of his attacks.
 // Lu Bu's None Can Stand Before Him — tall flames roar up from him as a wave of fire rolls out leaving trails of fire, and while it lasts the Sky Piercer drives
 // through each target as its shield shatters; his Terror of the Battlefield — a dread pulse at the end of his turn
 // (who flinched, who resisted) and ANOTHER TURN when a rout earns him one.
@@ -70,64 +70,104 @@ function groundLayer() {
 
 /* ------------------------------------------------------------ ground crack (on activation) */
 
-/** The ground splits all at once around the unit — evenly long cracks, dust pushed out in a ring, dust rising from the
- *  cracks and chips of earth thrown up — then it all fades. */
+/** The ground splits in three heaves (David, 2026-11-11). First all at once around the unit — evenly long cracks,
+ *  dust pushed out in a ring, dust rising from the cracks and chips of earth thrown up. Then a harder heave: the cracks
+ *  gape wider and tear on further out, with a bigger ring of dust. Then the hardest: they tear on further still and a
+ *  tall wall of dust rises in a ring round the broken ground. Then it all fades. */
+const HEAVES = [0, 0.85, 1.7];
 function groundCrack(token) {
-  const G = Math.min(token.w, token.h), k = G / 120, half = G / 2 - G * 0.03;
+  const G = Math.min(token.w, token.h), k = G / 120, half = G / 2 - G * 0.03, B = Blur();
   const root = groundLayer(); root.position.set(token.center.x, token.center.y);
-  const paths = [];
-  const walk = (x, y, ang, len, w, depth) => {
+  const walk = (out, x, y, ang, len, w, depth) => {
     const pts = [[x, y]]; let a = ang, d = 0;
     while (d < len) {
       const st = rnd(6, 11) * k; a += rnd(-0.4, 0.4); a += (ang - a) * 0.25;
       x += Math.cos(a) * st; y += Math.sin(a) * st; d += st; pts.push([x, y]);
-      if (depth < 2 && Math.random() < 0.16) walk(x, y, a + rnd(-1, 1), len * rnd(0.3, 0.45), w * 0.6, depth + 1);
+      if (depth < 2 && Math.random() < 0.16) walk(out, x, y, a + rnd(-1, 1), len * rnd(0.3, 0.45), w * 0.6, depth + 1);
     }
-    paths.push({ pts, w, depth });
+    out.push({ pts, w, depth });
   };
+  // the cracks of each heave: the first from the edge of his stand, each later one tearing on from the ends of the last
+  // one's main cracks, wider, with new cracks splitting off between them
+  const heaves = [[]];
   for (let i = 0, n = 12; i < n; i++) {
     const a = (i / n) * Math.PI * 2 + rnd(-0.12, 0.12), r = half / Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a)));
-    walk(Math.cos(a) * r * 0.95, Math.sin(a) * r * 0.95, a, rnd(92, 106) * k, rnd(3.5, 4.5) * k, 0);
+    walk(heaves[0], Math.cos(a) * r * 0.95, Math.sin(a) * r * 0.95, a, rnd(92, 106) * k, rnd(3.5, 4.5) * k, 0);
   }
-  const B = Blur();
-  const ground = new PIXI.Graphics(), dark = new PIXI.Graphics(), lip = new PIXI.Graphics(), glow = new PIXI.Graphics(), ring = new PIXI.Graphics();
-  if (B) { glow.filters = [new B(4 * k)]; ground.filters = [new B(6 * k)]; ring.filters = [new B(10 * k)]; }
-  for (const p of paths) for (let i = 1; i < p.pts.length; i++) {
-    const tp = 1 - i / p.pts.length, [a, b] = [p.pts[i - 1], p.pts[i]];
-    ground.lineStyle(p.w * tp * 5 + 6 * k, 0x2a2212, 0.35).moveTo(...a).lineTo(...b);        // disturbed earth along it
-    glow.lineStyle(p.w * tp * 2.4 + 2 * k, 0xffd27a, 1).moveTo(...a).lineTo(...b);
-    lip.lineStyle(p.w * tp + 2 * k, 0x9a8a64, 0.75).moveTo(a[0] + k, a[1] + k).lineTo(b[0] + k, b[1] + k);
-    dark.lineStyle(Math.max(0.8, p.w * tp), 0x120d07, 1).moveTo(...a).lineTo(...b);
+  for (let h = 1; h < HEAVES.length; h++) {
+    const prev = heaves[h - 1].filter(q => q.depth === 0), out = []; heaves.push(out);
+    for (const p of prev) { const [x, y] = p.pts[p.pts.length - 1]; walk(out, x, y, Math.atan2(y, x), rnd(110, 140) * k * (1 + 0.1 * (h - 1)), rnd(4.5, 5.6) * k * (1 + 0.15 * (h - 1)), 0); }
+    const reach = Math.max(...prev.map(p => Math.hypot(...p.pts[0])));
+    for (let i = 0, n = 12; i < n; i++) {
+      const a = ((i + 0.5) / n) * Math.PI * 2 + rnd(-0.1, 0.1), r = reach + half * rnd(0.5, 0.8);
+      walk(out, Math.cos(a) * r, Math.sin(a) * r, a, rnd(70, 100) * k, rnd(3, 4) * k, h === 1 ? 1 : 0);
+    }
   }
-  const dust = new PIXI.Container(); if (B) dust.filters = [new B(4 * k)];
-  const puffs = [], mains = paths.filter(p => p.depth === 0);
-  for (let i = 0; i < 80; i++) {
-    const p = mains[i % mains.length], [x, y] = p.pts[Math.floor(rnd(0.15, 1) * (p.pts.length - 1))], d = Math.hypot(x, y) || 1;
-    const g = new PIXI.Graphics().beginFill(0xc4b08a, 1).drawCircle(0, 0, 1).endFill(); dust.addChild(g);
-    puffs.push({ g, x, y, delay: (d - half) / (600 * k) + rnd(0, 0.12), size: rnd(3, 6) * k, grow: rnd(2, 3), vx: x / d * rnd(4, 14) * k, vy: -rnd(10, 26) * k, life: rnd(1, 1.6), a0: rnd(0.25, 0.42) });
+  /** One set of cracks: the disturbed earth, the hot glow, the raised lip, the dark split (wider by `widen`). */
+  const crackSet = (paths, widen = 1) => {
+    const ground = new PIXI.Graphics(), dark = new PIXI.Graphics(), lip = new PIXI.Graphics(), glow = new PIXI.Graphics();
+    if (B) { glow.filters = [new B(4 * k)]; ground.filters = [new B(6 * k)]; }
+    for (const p of paths) for (let i = 1; i < p.pts.length; i++) {
+      const tp = 1 - i / p.pts.length, [a, b] = [p.pts[i - 1], p.pts[i]], w = p.w * widen;
+      ground.lineStyle(w * tp * 5 + 6 * k, 0x2a2212, 0.35).moveTo(...a).lineTo(...b);
+      glow.lineStyle(w * tp * 2.4 + 2 * k, 0xffd27a, 1).moveTo(...a).lineTo(...b);
+      lip.lineStyle(w * tp + 2 * k, 0x9a8a64, 0.75).moveTo(a[0] + k, a[1] + k).lineTo(b[0] + k, b[1] + k);
+      dark.lineStyle(Math.max(0.8, w * tp), 0x120d07, 1).moveTo(...a).lineTo(...b);
+    }
+    const c = new PIXI.Container(); c.addChild(ground, glow, lip, dark); c.parts = { ground, glow, lip, dark };
+    return c;
+  };
+  // each heave: its new cracks (revealed from the middle out) and the earlier cracks gaping wider
+  const layers = [];
+  heaves.forEach((paths, h) => {
+    const fresh = crackSet(paths), m = new PIXI.Graphics(); if (h) fresh.mask = m;
+    layers.push({ c: fresh, at: HEAVES[h], mask: h ? m : null, wide: false });
+    root.addChild(fresh); if (h) root.addChild(m);
+    for (let j = 0; j < h; j++) { const w = crackSet(heaves[j], 1 + 0.6 * (h - j)); w.alpha = 0; root.addChild(w); layers.push({ c: w, at: HEAVES[h], mask: null, wide: true }); }
+  });
+  const rings = HEAVES.map((at, h) => { const g = new PIXI.Graphics(); if (B) g.filters = [new B((10 + 4 * h) * k)]; root.addChildAt(g, 0); return { g, at, r0: half * (1 + h), grow: [1.6, 3, 4][h] ?? 4, w: [0.28, 0.4, 0.5][h] ?? 0.5, a: [0.45, 0.55, 0.6][h] ?? 0.6 }; });
+  const dust = new PIXI.Container(); if (B) dust.filters = [new B(4 * k)]; root.addChild(dust);
+  const puffs = [];
+  const puff = (o) => { const g = new PIXI.Graphics().beginFill(o.col ?? 0xc4b08a, 1).drawCircle(0, 0, 1).endFill(); g.alpha = 0; dust.addChild(g); puffs.push({ g, ...o }); };
+  heaves.forEach((paths, h) => { const mains = paths.filter(p => p.depth === 0), from = h ? Math.hypot(...mains[0].pts[0]) : half, big = 1 + 0.3 * h;
+    for (let i = 0; i < 80 + 10 * h; i++) {
+      const p = mains[i % mains.length], [x, y] = p.pts[Math.floor(rnd(0.15, 1) * (p.pts.length - 1))], d = Math.hypot(x, y) || 1;
+      puff({ x, y, delay: HEAVES[h] + Math.max(0, d - from) / (600 * k) + rnd(0, 0.12), size: rnd(3, 6) * k * big, grow: rnd(2, 3), vx: x / d * rnd(4, 14) * k * big, vy: -rnd(10, 26) * k * big, life: rnd(1, 1.6), a0: rnd(0.25, 0.42) });
+    } });
+  // the third heave's wall of dust: a ring of big billows round the outer ends of the cracks, stacked so they climb
+  // high like a wall, then hang and thin out
+  const lastP = heaves[heaves.length - 1].filter(p => p.depth === 0), last = HEAVES[HEAVES.length - 1];
+  const wallR = lastP.reduce((m, p) => m + Math.hypot(...p.pts[p.pts.length - 1]), 0) / lastP.length * 0.85;
+  for (let i = 0, n = 90; i < n; i++) for (let j = 0; j < 3; j++) {
+    const a = (i / n) * Math.PI * 2 + rnd(-0.03, 0.03), r = wallR * rnd(0.92, 1.08), x = Math.cos(a) * r, y = Math.sin(a) * r * 0.92;
+    puff({ x, y, delay: last + 0.12 + j * 0.1 + rnd(0, 0.12), size: rnd(9, 15) * k * (1 - 0.15 * j), grow: rnd(1.8, 2.6), vx: Math.cos(a) * rnd(4, 12) * k, vy: -(45 + 45 * j + rnd(0, 30)) * k, life: rnd(1.7, 2.3), a0: rnd(0.4, 0.55) - 0.08 * j, col: Math.random() < 0.5 ? 0xc4b08a : 0xb09a74 });
   }
   const chips = [];
-  root.addChild(ground, ring, glow, lip, dark, dust);
-  for (let i = 0; i < 18; i++) {
-    const a = rnd(0, Math.PI * 2), r = half * rnd(1, 1.3);
+  HEAVES.forEach((at, h) => { for (let i = 0, n = 18 + 8 * h; i < n; i++) {
+    const a = rnd(0, Math.PI * 2), r = half * rnd(1 + 0.8 * h, 1.3 + 1.6 * h), sp = 1 + 0.3 * h;
     const c = new PIXI.Graphics().beginFill(Math.random() < 0.5 ? 0x3a3020 : 0x6b5a3c).drawPolygon([0, -3 * k, 3 * k, 0, k, 3 * k, -3 * k, k]).endFill();
-    c.position.set(Math.cos(a) * r, Math.sin(a) * r); root.addChild(c);
-    chips.push({ c, x: c.x, y: c.y, vx: Math.cos(a) * rnd(40, 110) * k, vy: (Math.sin(a) * rnd(20, 60) - rnd(80, 160)) * k, rot: rnd(-8, 8) });
-  }
+    c.position.set(Math.cos(a) * r, Math.sin(a) * r); c.alpha = 0; c.scale.set(sp); root.addChild(c);
+    chips.push({ c, t0: at, x: c.x, y: c.y, vx: Math.cos(a) * rnd(40, 110) * k * sp, vy: (Math.sin(a) * rnd(20, 60) - rnd(80, 160)) * k * sp, rot: rnd(-8, 8) });
+  } });
+  const FADE = last + 1.6, END = last + 2.6;
   return run((dt, t) => {
-    glow.alpha = 0.6 * Math.max(0, 1 - t / 0.6);
-    const fade = t < 1.3 ? 1 : Math.max(0, 1 - (t - 1.3) / 0.8);
-    for (const o of [ground, dark, lip]) o.alpha = fade;
-    const rk = Math.min(1, t / 0.7), R = half + G * 1.6 * (1 - (1 - rk) ** 2);
-    ring.clear().lineStyle(G * 0.28 * (1 - rk * 0.5), 0xb7a27c, 0.45 * (1 - rk)).drawEllipse(0, 0, R, R * 0.92);
+    const fade = t < FADE ? 1 : Math.max(0, 1 - (t - FADE) / 0.8);
+    for (const L of layers) {
+      const tt = t - L.at; if (tt < 0) { L.c.alpha = 0; continue; }
+      L.c.alpha = fade * (L.wide ? Math.min(1, tt / 0.25) : 1);
+      L.c.parts.glow.alpha = (L.wide ? 0.7 : 0.6) * Math.max(0, 1 - tt / 0.6);
+      if (L.mask) L.mask.clear().beginFill(0xffffff).drawCircle(0, 0, half + G * 4.5 * Math.min(1, tt / 0.3)).endFill();
+    }
+    for (const R of rings) { const tt = t - R.at; if (tt < 0) { R.g.clear(); continue; } const rk = Math.min(1, tt / 0.7), rad = R.r0 + G * R.grow * (1 - (1 - rk) ** 2); R.g.clear().lineStyle(G * R.w * (1 - rk * 0.5), 0xb7a27c, R.a * (1 - rk)).drawEllipse(0, 0, rad, rad * 0.92); }
     for (const q of puffs) {
       const kk = (t - q.delay) / q.life;
       if (kk <= 0 || kk >= 1) { q.g.alpha = 0; continue; }
-      q.g.position.set(q.x + q.vx * kk * q.life, q.y + q.vy * kk * q.life); q.g.scale.set(q.size * (1 + (q.grow - 1) * Math.sqrt(kk)));
+      const ez = 1 - (1 - kk) ** 2;   // they rise fast, then hang
+      q.g.position.set(q.x + q.vx * ez * q.life, q.y + q.vy * ez * q.life); q.g.scale.set(q.size * (1 + (q.grow - 1) * Math.sqrt(kk)));
       q.g.alpha = q.a0 * (kk < 0.15 ? kk / 0.15 : 1 - (kk - 0.15) / 0.85);
     }
-    for (const ch of chips) { const kk = Math.min(t, 0.9); ch.c.position.set(ch.x + ch.vx * kk, ch.y + ch.vy * kk + 260 * k * kk * kk); ch.c.rotation = ch.rot * kk; ch.c.alpha = Math.max(0, 1 - t / 0.9); }
-    if (t < 2.3) return true;
+    for (const ch of chips) { const tt = t - ch.t0; if (tt < 0) continue; const kk = Math.min(tt, 0.9); ch.c.position.set(ch.x + ch.vx * kk, ch.y + ch.vy * kk + 260 * k * kk * kk); ch.c.rotation = ch.rot * kk; ch.c.alpha = Math.max(0, 1 - tt / 0.9); }
+    if (t < END) return true;
     root.destroy({ children: true });
     return false;
   });
