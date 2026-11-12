@@ -6,7 +6,7 @@
 import { playActiveBanner } from "./active-banner.mjs";
 import { atSpeed } from "./battle-speed.mjs";
 import { releaseUnits, hideSkillReady } from "../unit-bars.mjs";
-import { playUniqueActivation } from "./unique-fx.mjs";
+import { playUniqueActivation, darkHoldOf, lightWave } from "./unique-fx.mjs";
 
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
 const smooth = (a) => (a <= 0 ? 0 : a >= 1 ? 1 : a * a * (3 - 2 * a));
@@ -18,17 +18,19 @@ export const ACT = { build: 600, lightOff: 750, undimFrom: 400, undimTo: 800, re
 function spotlight(token) {
   const el = document.createElement("div");
   el.className = "qin-act-dim";
-  const place = () => {
+  const out = { el, extra: 0, base: 0, place: null };
+  out.place = () => {
     if (!token || token.destroyed) return;
     try {
       const p = canvas.clientCoordinatesFromCanvas(token.center), k = canvas.stage.scale.x;
+      out.base = Math.max(token.w, token.h) * k * 0.6;
       el.style.setProperty("--x", p.x + "px"); el.style.setProperty("--y", p.y + "px");
-      el.style.setProperty("--r", Math.max(token.w, token.h) * k * 0.6 + "px");
+      el.style.setProperty("--r", out.base + out.extra + "px");   // extra: a light wave pushing the dark back
     } catch { /* stays centred */ }
   };
-  place();
+  out.place();
   document.body.appendChild(el);
-  return { el, place };
+  return out;
 }
 
 /** The white light on the unit: a blurred glow round its stand and a white wash over it. */
@@ -51,7 +53,9 @@ export async function playActivation(st) {
   hideSkillReady(token);
   const dim = spotlight(token), light = unitLight(token);
   const ms = (k) => atSpeed(ACT[k]);
+  const hold = darkHoldOf(st.skill);     // skills whose officer keeps the dark, then drives it back with a wave of light
   const BUILD = ms("build"), OFF = ms("lightOff"), UNDIM0 = ms("undimFrom"), UNDIM1 = ms("undimTo");
+  const WAVE = atSpeed(hold?.wave ?? 0);
   let t = 0, phase = "build", released = false;
   const tick = () => {
     t += canvas.app.ticker.deltaMS;
@@ -62,6 +66,12 @@ export async function playActivation(st) {
       L = smooth(k / 0.8); F = k < 0.8 ? 0.25 * smooth(k / 0.8) : 0.25 + 0.6 * smooth((k - 0.8) / 0.2);
       D = Math.min(1, t / atSpeed(200));
     } else if (phase === "banner") { L = 1; F = 0.55 + 0.3 * (1 - smooth(t / atSpeed(400))); } // eases down to a steady glow
+    else if (phase === "hold") { L = 1; F = 0.5 + 0.12 * Math.sin(t / 160); }                   // he shines on in the dark
+    else if (phase === "wave") { // the light leaves him in a wave, and the dark is pushed back behind it
+      const k = t / WAVE; L = 1 - smooth(k / 0.6); F = 0.5 * (1 - smooth(k / 0.4));
+      dim.extra = Math.hypot(innerWidth, innerHeight) * smooth(Math.min(1, k));
+      D = k < 0.75 ? 1 : 1 - smooth((k - 0.75) / 0.25);
+    }
     else { // after the banner: the light fades, the dark lifts a little later
       const k = t / OFF; L = 1 - smooth(k); F = 0.55 * (1 - smooth(k));
       D = t < UNDIM0 ? 1 : 1 - smooth((t - UNDIM0) / (UNDIM1 - UNDIM0));
@@ -74,6 +84,16 @@ export async function playActivation(st) {
     await wait(BUILD);
     phase = "banner"; t = 0;
     await playActiveBanner(st, { dim: false });
+    if (hold) {
+      phase = "hold"; t = 0;
+      await wait(atSpeed(hold.hold));
+      released = true;
+      releaseUnits([st.unit, ...(st.touched ?? [])]);
+      phase = "wave"; t = 0;
+      lightWave(token, WAVE, () => (dim.base + dim.extra) / (canvas.stage.scale.x || 1));
+      await wait(WAVE + atSpeed(100));
+      return;
+    }
     phase = "after"; t = 0;
     await wait(ms("release"));
     released = true;

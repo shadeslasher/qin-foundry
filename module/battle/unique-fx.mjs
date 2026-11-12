@@ -904,6 +904,38 @@ export function playHunt(token, float) {
   });
 }
 
+/* ------------------------------------------------------------ Zhao Yun: Master of the Empty Camp (David, 2026-11-12) */
+
+/** Skills whose activation keeps the screen dark after the banner, the officer's unit still shining, then sends a wave
+ *  of light out from him that clears the dark (activation-fx plays the dark; ms before battle speed). */
+const DARK_HOLD = { "Master of the Empty Camp": { hold: 900, wave: 1100 } };
+export const darkHoldOf = (skill) => DARK_HOLD[skill] ?? null;
+
+/** The wave of light: a bright white-gold ring riding the edge of the retreating dark (radius from rOf, in canvas
+ *  units), a soft glow trailing inside it and motes of light scattering as it passes. */
+export function lightWave(token, ms, rOf) {
+  const G = Math.min(token.w, token.h), k = G / 120, ADD = PIXI.BLEND_MODES.ADD, BF = Blur(), c = token.center;
+  const root = new PIXI.Container(); root.position.set(c.x, c.y); topLayer().addChild(root);
+  const glow = new PIXI.Graphics(), ring = new PIXI.Graphics(), core = new PIXI.Graphics(), motes = new PIXI.Graphics();
+  for (const g of [glow, ring, core, motes]) g.blendMode = ADD;
+  if (BF) { glow.filters = [new BF(22 * k)]; ring.filters = [new BF(6 * k)]; }
+  root.addChild(glow, ring, core, motes);
+  const dots = Array.from({ length: 70 }, () => ({ a: rnd(0, Math.PI * 2), off: rnd(-0.12, 0.05), s: rnd(1.5, 3.5), ph: rnd(0, 1) }));
+  const dur = ms / 1000;
+  return run((dt, t) => {
+    const q = Math.min(1, t / dur), R = Math.max(G * 0.5, rOf()), a = q < 0.85 ? 1 : 1 - (q - 0.85) / 0.15;
+    glow.clear().lineStyle(G * 0.9, 0xfff3c8, 0.35 * a).drawCircle(0, 0, R - G * 0.35);
+    ring.clear().lineStyle(G * 0.16, 0xfffbe8, 0.95 * a).drawCircle(0, 0, R).lineStyle(G * 0.06, 0xffe08a, a).drawCircle(0, 0, R - G * 0.14);
+    // the burst of light leaving him
+    core.clear(); const cq = Math.max(0, 1 - t / 0.35); if (cq > 0) core.beginFill(0xffffff, 0.8 * cq).drawCircle(0, 0, G * (0.6 + 0.6 * (1 - cq))).endFill();
+    motes.clear();
+    for (const d of dots) { const r = R * (1 + d.off) - G * 0.2 * ((t * 2 + d.ph) % 1); motes.beginFill(0xfff6d0, a * 0.9).drawCircle(Math.cos(d.a) * r, Math.sin(d.a) * r, d.s * k).endFill(); }
+    if (t < dur) return true;
+    root.destroy({ children: true });
+    return false;
+  });
+}
+
 /* ------------------------------------------------------------ Zhang Fei: Terror of Changban (David, 2026-11-11) */
 
 /** His roar: he draws breath (shrinks, a red glow gathers), then swells as the screen shakes; the squares in reach
