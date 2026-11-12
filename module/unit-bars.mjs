@@ -423,6 +423,7 @@ function clear(token) {
   if (c?.qinTick) canvas.app?.ticker?.remove(c.qinTick);
   if (c?.qinReadyTick) canvas.app?.ticker?.remove(c.qinReadyTick);
   if (c?.qinFxTick) canvas.app?.ticker?.remove(c.qinFxTick);
+  if (c?.qinLastTick) canvas.app?.ticker?.remove(c.qinLastTick);
   if (token.qinBurst && !token.qinBurst.destroyed) token.qinBurst.destroy({ children: true });
   token.qinBurst = null;
   if (c && !c.destroyed) c.destroy({ children: true });
@@ -456,7 +457,7 @@ function readyMap(battle) {
       // each part on its own: one unit's problem must not take the marks off every other unit (David, 2026-11-09)
       try {
         const list = effectsOf(s, u).filter(e => !e.aura);
-        if (list.length) { const of = (k) => list.filter(e => e.kind === k); eff[u.id] = { nb: of("buff").length, nd: of("debuff").length, pb: of("buff").reduce((a, e) => a + e.power, 0), pd: of("debuff").reduce((a, e) => a + e.power, 0), keys: list.map(e => e.key + "|" + e.kind) }; }
+        if (list.length) { const of = (k) => list.filter(e => e.kind === k); eff[u.id] = { nb: of("buff").length, nd: of("debuff").length, pb: of("buff").reduce((a, e) => a + e.power, 0), pd: of("debuff").reduce((a, e) => a + e.power, 0), keys: list.map(e => e.key + "|" + e.kind), names: list.map(e => e.name) }; }
       } catch (e) { console.warn("Qin | effects on " + u.id, e); }
       if (!u.officerId) continue;
       try {
@@ -560,6 +561,40 @@ function drawSkillReady(c, kind, offTex, w, h, T, pad) {
   return tick;
 }
 
+
+/* ------------------------------------------------------------ lasting looks of special actives (David, 2026-11-12) */
+
+// While certain tier 1+ battlefield actives last, the unit keeps a look of its own (by the active's name).
+const LASTING = { "None Can Stand Before Him": "fire" };   // Lu Bu: a fiery aura round his unit
+function lastingLook(eff) { for (const n of eff?.names ?? []) if (LASTING[n]) return LASTING[n]; return null; }
+let auraFlameTex = null;
+function flameTex() {
+  if (auraFlameTex) return auraFlameTex;
+  const W = 32, H = 64, cv = document.createElement("canvas"); cv.width = W; cv.height = H; const g = cv.getContext("2d");
+  const gr = g.createLinearGradient(0, H, 0, 0); gr.addColorStop(0, "rgba(255,240,170,1)"); gr.addColorStop(0.35, "rgba(255,150,40,0.95)"); gr.addColorStop(0.75, "rgba(220,40,10,0.6)"); gr.addColorStop(1, "rgba(120,0,0,0)");
+  g.fillStyle = gr; g.beginPath(); g.moveTo(2, H); g.bezierCurveTo(0, H * 0.55, W * 0.45, H * 0.35, W * 0.5, 0); g.bezierCurveTo(W * 0.55, H * 0.35, W, H * 0.55, W - 2, H); g.closePath(); g.fill();
+  return (auraFlameTex = PIXI.Texture.from(cv));
+}
+/** Lu Bu's lasting fire: a red glow round his stand, tongues of flame licking up all along its edge, embers rising. */
+function drawFireAura(c, w, h, T, pad) {
+  const ADD = PIXI.BLEND_MODES.ADD, Blur = PIXI.BlurFilter ?? PIXI.filters?.BlurFilter;
+  const back = new PIXI.Container(), front = new PIXI.Container(); c.addChildAt(back, 0); c.addChild(front);
+  const glow = new PIXI.Graphics(); glow.blendMode = ADD; if (Blur) glow.filters = [new Blur(T * 0.08)];
+  glow.lineStyle(T * 0.12, 0xff3a10, 0.9).drawRoundedRect(pad, pad, w - 2 * pad, h - 2 * pad, T * 0.1); back.addChild(glow);
+  const tex = flameTex(), path = roundedRectPath(pad, pad, w - 2 * pad, h - 2 * pad, T * 0.1, 28), flames = [], embers = [];
+  path.forEach(([x, y], i) => { for (const lay of [back, front]) { if (lay === front && i % 2) continue;
+    const sp = new PIXI.Sprite(tex); sp.anchor.set(0.5, 0.95); sp.blendMode = ADD; sp.position.set(x, y); lay.addChild(sp);
+    flames.push({ sp, ph: Math.random(), sp0: 0.7 + Math.random() * 0.6, sz: (lay === front ? 0.14 : 0.2) * T / 32 }); } });
+  for (let i = 0; i < 10; i++) { const e = new PIXI.Graphics().beginFill(i % 2 ? 0xffd27a : 0xff7a2a).drawCircle(0, 0, T * 0.018).endFill(); e.blendMode = ADD; front.addChild(e); embers.push({ e, ph: Math.random(), x: pad + Math.random() * (w - 2 * pad), sp: 0.4 + Math.random() * 0.4 }); }
+  let time = 0;
+  return () => {
+    if (back.destroyed) return;
+    time += (canvas.app?.ticker?.deltaMS ?? 16) / 1000;
+    glow.alpha = 0.55 + 0.25 * Math.sin(time * 5.3) + 0.1 * Math.sin(time * 13.1);
+    for (const f of flames) { const q = (time * f.sp0 + f.ph) % 1; f.sp.alpha = q < 0.2 ? q / 0.2 : 1 - (q - 0.2) / 0.8; f.sp.scale.set(f.sz * (0.8 + 0.3 * Math.sin(time * 20 + f.ph * 9)), f.sz * (0.6 + 0.9 * q)); }
+    for (const m of embers) { const q = (time * m.sp + m.ph) % 1; m.e.position.set(m.x + Math.sin(time * 4 + m.ph * 9) * T * 0.04, h - pad - q * h * 1.2); m.e.alpha = 1 - q; }
+  };
+}
 
 /* ------------------------------------------------------------ buffs and debuffs (David, 2026-11-09) */
 // When a buff or debuff from a battlefield skill or a stat-changing trait lands, the stand plays a 1.5-second burst:
@@ -806,7 +841,8 @@ export async function drawUnitBars(token) {
   const eff = effectCounts(token); // buffs and debuffs on it now (counts for the lingering look)
   const locks = lockStatus(token); // can't move / can't attack
   if (locks?.move && !bootTex) await bootTexture().then(t => { bootTex = t; });
-  const key = JSON.stringify([ready, locks, eff ? [eff.nb, eff.nd, eff.pb, eff.pd] : null, men, max, morale, w, h, s.side, acted, active, holding, watching, st, mine, n, art, off, fac?.img ?? null, facing, battleRecord(token)?.meta?.[token.id]?.carry ?? null, !!battleRecord(token)?.meta?.[token.id]?.fx?.shocked, s.traits]); // traits: equipment icons (ladders, engine)
+  const lasting = lastingLook(eff);
+  const key = JSON.stringify([ready, locks, lasting, eff ? [eff.nb, eff.nd, eff.pb, eff.pd] : null, men, max, morale, w, h, s.side, acted, active, holding, watching, st, mine, n, art, off, fac?.img ?? null, facing, battleRecord(token)?.meta?.[token.id]?.carry ?? null, !!battleRecord(token)?.meta?.[token.id]?.fx?.shocked, s.traits]); // traits: equipment icons (ladders, engine)
   if (pendingBurst.has(token.id)) { const kinds = pendingBurst.get(token.id); pendingBurst.delete(token.id); playBurst(token, kinds, w, h, T, T * L.pad); }
   let c = token[KEY];
   // (a ready mark that was hidden for an activation, e.g. one undone or replayed, is drawn again: David, 2026-11-09)
@@ -828,6 +864,7 @@ export async function drawUnitBars(token) {
   if (c.qinTick) { canvas.app?.ticker?.remove(c.qinTick); c.qinTick = null; }
   if (c.qinReadyTick) { canvas.app?.ticker?.remove(c.qinReadyTick); c.qinReadyTick = null; }
   if (c.qinFxTick) { canvas.app?.ticker?.remove(c.qinFxTick); c.qinFxTick = null; }
+  if (c.qinLastTick) { canvas.app?.ticker?.remove(c.qinLastTick); c.qinLastTick = null; }
   const prevN = c.qinFigN;
   let fall = token.qinFall;                       // soldiers still falling survive the redraw
   if (fall && !fall.destroyed && fall.parent === c) c.removeChild(fall);
@@ -982,6 +1019,7 @@ export async function drawUnitBars(token) {
   }
   if (ready) { c.qinReadyTick = drawSkillReady(c, ready, offTex, w, h, T, pad); canvas.app?.ticker?.add(c.qinReadyTick); }
   if (eff && (eff.nb || eff.nd)) { c.qinFxTick = drawLingering(c, eff, w, h, T, pad); canvas.app?.ticker?.add(c.qinFxTick); }
+  if (lasting === "fire") { c.qinLastTick = drawFireAura(c, w, h, T, pad); canvas.app?.ticker?.add(c.qinLastTick); }
   // the banner sits above every outline drawn on the stand (David, 2026-10-31: it went under the border); greyed with the stand
   if (c.qinFlag && !c.qinFlag.destroyed) {
     if (stand.filters?.length) c.qinFlag.filters = stand.filters;
