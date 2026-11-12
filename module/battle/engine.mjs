@@ -1194,10 +1194,11 @@ function soldierFigures(men, full) {
   return Math.max(1, Math.min(5, Math.ceil((5 * men) / (full || 100) - 1e-9)));
 }
 
-function damageValue(s, u) {
-  // Sharpened Weapons: damage +1 / +2 / +3 (David, 2026-11-12; was Attack +1 / +2 / +3), the mirror of Reinforced Armor
-  const sw = trait(u, 'sharpened weapons') ? tierVal(trait(u, 'sharpened weapons'), [1, 2, 3]) : 0;
-  return Math.max(0, (typeOf(s, u).damage || 0) + sw);
+function damageValue(s, u, ranged = false) {
+  // Sharpened Weapons: melee damage +1 / +2 / +3; Fine Arrows: ranged damage +1 / +2 / +3 (David, 2026-11-12). Hybrids can carry both.
+  const up = ranged ? (trait(u, 'fine arrows') ? tierVal(trait(u, 'fine arrows'), [1, 2, 3]) : 0)
+    : (trait(u, 'sharpened weapons') ? tierVal(trait(u, 'sharpened weapons'), [1, 2, 3]) : 0);
+  return Math.max(0, (typeOf(s, u).damage || 0) + up);
 }
 
 // Resolve an attack. Returns a result object (also logged). Mutates state.
@@ -1270,7 +1271,7 @@ function resolveAttack(s, attacker, defender, opts) {
 
   // Who deals damage
   let dmgToDef = 0, dmgToAtt = 0, canCounter = false; // canCounter: the defender may strike back at all
-  const base = (u) => Math.max(0, damageValue(s, u) + SK.stat(s, u, 'damage', skc(u)));
+  const base = (u, shot = false) => Math.max(0, damageValue(s, u, shot) + SK.stat(s, u, 'damage', skc(u)));
   const winBonus = (side) => (winner === side ? diff : 0);
   if (!ranged) {
     if (!aNeg) dmgToDef = base(attacker) + winBonus('attacker');
@@ -1279,11 +1280,11 @@ function resolveAttack(s, attacker, defender, opts) {
     if (!dNeg && canCounter) dmgToAtt = base(defender) + winBonus('defender');
     if (ambush) { dmgToAtt = 0; canCounter = false; } // attacked from hiding: the defender rolls but can't strike back
   } else {
-    if (!aNeg) dmgToDef = base(attacker) + winBonus('attacker'); // like melee: base damage, + the difference on a win
+    if (!aNeg) dmgToDef = base(attacker, true) + winBonus('attacker'); // like melee: base damage, + the difference on a win
     const canReturn = dt.weapon === 'ranged' ? rangeOk(s, defender, attacker) && !trait(defender, 'reload') // crossbows (Reload) never shoot back
       : manhattan(attacker, defender) === 1 && meleeLevelOk(s, defender, attacker);
     canCounter = !!canReturn;
-    if (!dNeg && canReturn) dmgToAtt = base(defender) + winBonus('defender');
+    if (!dNeg && canReturn) dmgToAtt = base(defender, dt.weapon === 'ranged') + winBonus('defender');   // shooting back, or striking an adjacent shooter
     if (ambush) { dmgToAtt = 0; canCounter = false; }
   }
   if (free) { dmgToAtt = 0; canCounter = false; }

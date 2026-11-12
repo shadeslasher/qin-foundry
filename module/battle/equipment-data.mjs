@@ -7,14 +7,19 @@
 export const KIND_LABEL = { upgrade: "Upgrades", gear: "Gear (one piece)", siege: "Siege equipment (one piece)" };
 export const EQUIPMENT = [
   { family: "Sharpened Weapons", kind: "upgrade", tiers: [
-    { name: "Sharpened Weapons", desc: "Damage +1." },
-    { name: "Sharpened Weapons+", desc: "Damage +2." },
-    { name: "Sharpened Weapons++", desc: "Damage +3." },
+    { name: "Sharpened Weapons", desc: "Melee damage +1." },
+    { name: "Sharpened Weapons+", desc: "Melee damage +2." },
+    { name: "Sharpened Weapons++", desc: "Melee damage +3." },
+  ] },
+  { family: "Fine Arrows", kind: "upgrade", tiers: [
+    { name: "Fine Arrows", desc: "Ranged units only. Ranged damage +1." },
+    { name: "Fine Arrows+", desc: "Ranged units only. Ranged damage +2." },
+    { name: "Fine Arrows++", desc: "Ranged units only. Ranged damage +3." },
   ] },
   { family: "Reinforced Armor", kind: "upgrade", tiers: [
-    { name: "Reinforced Armor", desc: "Armor +1 at start of battle." },
-    { name: "Reinforced Armor+", desc: "Armor +2 at start of battle." },
-    { name: "Reinforced Armor++", desc: "Armor +3 at start of battle." },
+    { name: "Reinforced Armor", desc: "Armor +1." },
+    { name: "Reinforced Armor+", desc: "Armor +2." },
+    { name: "Reinforced Armor++", desc: "Armor +3." },
   ] },
   { family: "Saddle", kind: "upgrade", tiers: [
     { name: "Saddle", desc: "Cavalry only. Attack +1." },

@@ -640,3 +640,11 @@ test('Colossal: loses at most 1 health to any one attack (War Elephants, 2026-11
   const back = duel(unitType('a', { armor: 0 }), unitType('d', { damage: 20 }), [0, 0, 9, 0], (a) => { a.traitTiers = { colossal: 1 }; });
   assert.ok(back.r.casualtiesAttacker <= 1, 'strike back capped too');
 });
+
+test('Sharpened Weapons adds melee damage only, Fine Arrows ranged damage only (2026-11-12)', () => {
+  const s = setup(); s.library.unitTypes.push(unitType('h', { weapon: 'ranged', rangeMax: 3, damage: 6 }));
+  const U = R.unitById(s, add(s, { typeId: 'h', side: 'player', owner: 'p1', x: 5, y: 5 }));
+  U.traitTiers = { 'sharpened weapons': 2, 'fine arrows': 3 };
+  assert.strictEqual(R.damageValue(s, U, false), 8, 'melee: +2 from Sharpened Weapons+');
+  assert.strictEqual(R.damageValue(s, U, true), 9, 'shooting: +3 from Fine Arrows++');
+});
