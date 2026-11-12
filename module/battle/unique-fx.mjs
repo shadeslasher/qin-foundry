@@ -862,6 +862,13 @@ export function playHunt(token, float) {
 /** His roar: he draws breath (shrinks, a red glow gathers), then swells as the screen shakes; the squares in reach
  *  (5 across + down) flash red and three diamond shockwaves roll out to the edge of that reach, with sound-wave arcs
  *  and a ring of dust. */
+let shakeOff = [0, 0];
+/** Shake the whole view by `amt` (0–1): up to ~16 px across and 12 px up and down at full strength. */
+function shakeScreen(amt, t) {
+  const st = canvas?.stage; if (!st) return;
+  const sc = st.scale?.x || 1, nx = amt ? Math.sin(t * 95) * 16 * amt / sc : 0, ny = amt ? Math.cos(t * 81) * 12 * amt / sc : 0;
+  st.pivot.x += shakeOff[0] - nx; st.pivot.y += shakeOff[1] - ny; shakeOff = [nx, ny];
+}
 function roarOfChangban(token, reach = 5) {
   const G = Math.min(token.w, token.h), k = G / 120, ADD = PIXI.BLEND_MODES.ADD, BF = Blur(), c = token.center;
   const ground = groundLayer(); ground.position.set(c.x, c.y);
@@ -883,9 +890,9 @@ function roarOfChangban(token, reach = 5) {
     let sc = t < roarAt ? 1 - 0.08 * (t / roarAt) : t < roarAt + 0.15 ? 0.92 + 0.28 * ((t - roarAt) / 0.15) : 1.2 - 0.2 * Math.min(1, (t - roarAt - 0.15) / 0.4);
     if (mesh && !mesh.destroyed && s0x) mesh.scale.set(s0x * sc, s0y * sc);
     aura.alpha = t < roarAt ? 0.55 * t / roarAt : Math.max(0, 0.55 * (1 - (t - roarAt) / 0.8));
-    // the screen shakes for half a second
-    const sk = t > roarAt && t < roarAt + 0.5 ? 1 - (t - roarAt) / 0.5 : 0;
-    view.style.translate = sk ? `${(Math.sin(t * 90) * 7 * sk).toFixed(1)}px ${(Math.cos(t * 77) * 5 * sk).toFixed(1)}px` : "";
+    // the screen shakes hard as he roars, settling over 0.8 s (moved on the canvas stage itself, so recordings show it;
+    // only the shake's own offset is added and taken back each frame, so a pan meanwhile isn't undone)
+    shakeScreen(t > roarAt && t < roarAt + 0.8 ? (1 - (t - roarAt) / 0.8) ** 1.5 : 0, t);
     tint.alpha = t < roarAt ? 0 : t < roarAt + 0.25 ? (t - roarAt) / 0.25 * 0.32 : Math.max(0, 0.32 * (1 - (t - roarAt - 0.25) / 1.6));
     waves.clear();
     for (let i = 0; i < 3; i++) {
@@ -906,7 +913,7 @@ function roarOfChangban(token, reach = 5) {
       dust.beginFill(0xbea06e, 0.6 * (1 - sw)).drawCircle(Math.cos(a) * d, Math.sin(a) * d * 0.9, (5 + (i % 3) * 2 + sw * 6) * k).endFill();
     }
     if (t < roarAt + 1.9) return true;
-    view.style.translate = "";
+    shakeScreen(0, 0);
     if (mesh && !mesh.destroyed && s0x) mesh.scale.set(s0x, s0y);
     root.destroy({ children: true }); ground.destroy({ children: true });
     return false;
