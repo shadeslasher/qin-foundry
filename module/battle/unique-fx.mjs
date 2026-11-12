@@ -10,6 +10,10 @@
 // edge of his 5-square reach, and each unit it reaches flinches as a spiked ring locks round it ("Can't move").
 // Cao Cao's The Hero Commands — his hanging banner is raised in the middle of his stand, then a wave of small flags and
 // banners springs up over his 4-square reach, and each allied unit it reaches lights up in a column of gold as its buff lands.
+// Liu Bei's Restore the Han — a blossoming tree grows on the square to his left and arches over him, its shadow falls
+// across his unit, a peach garden of grass and flowers spreads ring by ring over his 4-square reach, and petals drop
+// from the blossoms; each ally it reaches lights up in a column of pink as its buff lands. The tree is private art:
+// modules/qin-3k-characters/art/fx/peach-tree.webp (without it the garden still plays).
 import { atSpeed } from "./battle-speed.mjs";
 import { overLayer, floatLocal } from "../attack-fx.mjs";
 import { playMoment } from "../sound.mjs";
@@ -1044,6 +1048,133 @@ function heroCommands(token, touched = [], release = () => {}, reach = 4) {
 }
 const ease = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : 1 - (1 - x) ** 3);
 
+/* ------------------------------------------------------------ Restore the Han (peach garden) */
+
+const PEACH_TREE = "modules/qin-3k-characters/art/fx/peach-tree.webp";
+/** The trunk's foot in the picture (fraction of width, height), and the tree's width in squares. */
+const PT_AX = 0.205, PT_AY = 0.955, PT_W = 3.5;
+let peachArt = null;
+/** The tree picture as a texture, plus spots on its blossoms (for petals to fall from) with their colours. */
+function loadPeach() {
+  if (peachArt) return peachArt;
+  peachArt = new Promise(res => {
+    const img = new Image(); img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const w = img.naturalWidth, h = img.naturalHeight, spots = [];
+      try {
+        const cv = document.createElement("canvas"); cv.width = w; cv.height = h; const g = cv.getContext("2d"); g.drawImage(img, 0, 0);
+        const d = g.getImageData(0, 0, w, h).data, step = Math.max(2, Math.round(w / 300));
+        for (let y = 0; y < h * 0.75; y += step) for (let x = 0; x < w; x += step) {
+          const i = (y * w + x) * 4; if (d[i + 3] > 220 && d[i] > 190 && d[i + 1] < 185 && d[i] - d[i + 2] > 25) spots.push([x / w, y / h, (d[i] << 16) | (d[i + 1] << 8) | d[i + 2]]);
+        }
+      } catch { /* no spots: petals fall from the crown's middle */ }
+      res({ tex: PIXI.Texture.from(img), w, h, spots });
+    };
+    img.onerror = () => res(null);
+    img.src = PEACH_TREE;
+  });
+  return peachArt;
+}
+globalThis.Hooks?.once?.("canvasReady", () => loadPeach());
+
+const gardenCache = new Map();
+/** One square of peach garden: a soft green glow, grass blades, small flowers and a few fallen petals (4 variants). */
+function gardenTexture(G, v) {
+  const key = Math.round(G) + ":" + v; if (gardenCache.has(key)) return gardenCache.get(key);
+  const S = Math.round(G * 1.6), cv = document.createElement("canvas"); cv.width = cv.height = S; const c = cv.getContext("2d"), o = G * 0.3, r = (n) => hcRnd(v * 997 + n);
+  const gr = c.createRadialGradient(S / 2, S / 2, 2, S / 2, S / 2, G * 0.8);
+  gr.addColorStop(0, "rgba(120,200,90,.5)"); gr.addColorStop(0.7, "rgba(110,190,80,.28)"); gr.addColorStop(1, "rgba(110,190,80,0)"); c.fillStyle = gr; c.fillRect(0, 0, S, S);
+  for (let j = 0; j < 12; j++) { c.save(); c.translate(o + G * (-0.04 + 1.08 * r(j * 7 + 1)), o + G * (-0.04 + 1.08 * r(j * 7 + 2))); c.rotate(r(j * 7 + 3) * 6); c.globalAlpha = 0.85; c.fillStyle = r(j * 7 + 4) < 0.5 ? "#ffe3ec" : "#f8b9cc"; c.beginPath(); c.ellipse(0, 0, G * 0.036, G * 0.021, 0, 0, 7); c.fill(); c.restore(); }
+  const GREENS = ["#2f6e24", "#3f8a2c", "#58a83a", "#79c44e", "#96d660"]; c.lineCap = "round";
+  for (let j = 0; j < 38; j++) { const q = (n) => r(500 + j * 11 + n), gx = o + G * (-0.06 + 1.12 * q(1)), gy = o + G * (-0.02 + 1.06 * q(2)), hgt = G * (0.07 + 0.1 * q(3)), sw = (q(4) - 0.5) * G * 0.06;
+    c.strokeStyle = GREENS[Math.floor(q(5) * GREENS.length)]; c.lineWidth = G * (0.017 + 0.007 * q(6)); c.beginPath(); c.moveTo(gx, gy); c.quadraticCurveTo(gx + sw * 0.3, gy - hgt * 0.6, gx + sw, gy - hgt); c.stroke(); }
+  for (let j = 0; j < 4; j++) { const q = (n) => r(900 + j * 13 + n), fx = o + G * (0.08 + 0.84 * q(1)), fy = o + G * (0.12 + 0.84 * q(2)), sh = G * (0.08 + 0.06 * q(3)), fr = G * (0.042 + 0.02 * q(4));
+    c.strokeStyle = "#3f8a2c"; c.lineWidth = G * 0.015; c.beginPath(); c.moveTo(fx, fy); c.lineTo(fx, fy - sh); c.stroke();
+    c.fillStyle = ["#ffd0de", "#fff6f9", "#f9a8c0", "#fff1b8"][Math.floor(q(5) * 4)];
+    for (let p = 0; p < 5; p++) { const an = q(6) * 6 + p / 5 * 6.283; c.beginPath(); c.ellipse(fx + Math.cos(an) * fr * 0.62, fy - sh + Math.sin(an) * fr * 0.62, fr * 0.55, fr * 0.38, an, 0, 7); c.fill(); }
+    c.fillStyle = "#e0558a"; c.beginPath(); c.arc(fx, fy - sh, fr * 0.26, 0, 7); c.fill(); }
+  const tex = PIXI.Texture.from(cv); gardenCache.set(key, tex); return tex;
+}
+
+/** Restore the Han: the tree grows from the middle of the square to his left (drawn over everything), its shadow
+ *  leaning right across his unit; the garden spreads ring by ring over `reach`; petals let go of the blossoms, tumble
+ *  down and settle on the grass. Each ally he buffed (`touched`) is released as the garden reaches it. */
+function peachGarden(token, touched = [], release = () => {}, reach = 4) {
+  const G = Math.min(token.w, token.h), k = G / 120, ADD = PIXI.BLEND_MODES.ADD, BF = Blur(), c = token.center;
+  const TRUNK = 0.25, GROW = 1.1, GARDEN = 1.35, RING = 0.16, LIVE = 2.4;
+  const ringAt = (d) => (d ? GARDEN + (d - 1) * RING : GARDEN - 0.15), END = ringAt(reach) + LIVE + 0.7;
+  const back = (x) => { x = Math.max(0, Math.min(1, x)); return 1 + 2.2 * (x - 1) ** 3 + 1.2 * (x - 1) ** 2; };
+  const bx = c.x - G, by = c.y, TW = G * PT_W;
+  // the garden, square by square, on the ground under the units
+  const ground = groundLayer(); const patches = [];
+  for (let dx = -reach; dx <= reach; dx++) for (let dy = -reach; dy <= reach; dy++) {
+    const d = Math.abs(dx) + Math.abs(dy); if (d > reach) continue;
+    const tx = Math.round(c.x / G) + dx, ty = Math.round(c.y / G) + dy, sp = new PIXI.Sprite(gardenTexture(G, Math.floor(hcRnd(tx * 31 + ty * 17) * 4)));
+    sp.anchor.set(0.5); sp.position.set(c.x + dx * G, c.y + dy * G); sp.alpha = 0; ground.addChild(sp); patches.push({ sp, at: ringAt(d) });
+  }
+  // above the units: the tree's shadow, the tree, its glow, the petals
+  const root = new PIXI.Container(); topLayer().addChild(root);
+  const tree = { shadow: null, sprite: null, glow: null, tw: 0, th: 0, spots: [] }, petals = [];
+  loadPeach().then(art => {
+    if (root.destroyed || !art) return;
+    const fs = TW / art.w; tree.tw = TW; tree.th = art.h * fs; tree.spots = art.spots; tree.fs = fs;
+    tree.shadow = new PIXI.Sprite(art.tex); tree.shadow.tint = 0x000000; if (BF) tree.shadow.filters = [new BF(5 * k)];
+    tree.sprite = new PIXI.Sprite(art.tex); tree.glow = new PIXI.Sprite(art.tex); tree.glow.blendMode = ADD; if (BF) tree.glow.filters = [new BF(10 * k)];
+    for (const s of [tree.shadow, tree.sprite, tree.glow]) { s.anchor.set(PT_AX, PT_AY); s.position.set(bx, by); s.scale.set(0); s.alpha = 0; }
+    const pet = new PIXI.Container(); root.addChild(tree.shadow, tree.sprite, tree.glow, pet);
+    // petals: each lets go of a blossom, falls with a little sway and drift, settles under the crown and fades
+    for (let i = 0; i < 150; i++) {
+      const r = (q) => hcRnd(i * 53 + q), spot = art.spots.length ? art.spots[Math.floor(r(2) * art.spots.length)] : [0.5, 0.35, 0xf4a0c0];
+      const x0 = bx + (spot[0] - PT_AX) * TW, y0 = by + (spot[1] - PT_AY) * tree.th;
+      const land = Math.max(y0 + G * 0.35, by - G * 0.35 + r(3) * G * 1.1), v = G * (0.45 + 0.3 * r(4));
+      const z = (0.5 + 0.35 * r(9)) * k * 1.6, g = new PIXI.Graphics();
+      g.beginFill(spot[2]).lineStyle(0.6 * k, 0x3c0a1e, 0.45).moveTo(0, -5 * z).bezierCurveTo(4.6 * z, -4 * z, 4 * z, 3 * z, 0, 5 * z).bezierCurveTo(-4 * z, 3 * z, -4.6 * z, -4 * z, 0, -5 * z).endFill();
+      g.beginFill(0xffffff, 0.5).lineStyle(0).drawEllipse(0, -2.4 * z, 2 * z, 2.2 * z).endFill();
+      g.visible = false; pet.addChild(g);
+      petals.push({ g, st: 1.15 + r(1) * 3.3, x0, y0, v, fall: (land - y0) / v, drift: G * (0.12 + 0.15 * r(5)), ph: r(6) * 6, rot: r(7) * 6, i });
+    }
+  });
+  // the allies it reaches, and when
+  const hits = touched.map(id => canvas.tokens?.get(id)).filter(u => u && !u.destroyed).map(u => {
+    const d = Math.round((Math.abs(u.center.x - c.x) + Math.abs(u.center.y - c.y)) / G);
+    const col = new PIXI.Graphics(); col.blendMode = ADD; if (BF) col.filters = [new BF(6 * k)]; col.alpha = 0;
+    col.position.set(u.center.x, u.center.y); topLayer().addChild(col);
+    for (let j = 0; j < 12; j++) col.beginFill(0xffa8c8, 0.07 + j * 0.022).drawRect(-G * 0.38, G * 0.5 - (j + 1) * G * 2.2 / 12, G * 0.76, G * 2.2 / 12).endFill();
+    return { u, col, at: ringAt(Math.max(1, d)) + 0.2, done: false };
+  });
+  const swell = (stand, sc) => { if (stand && !stand.destroyed) { const t = stand.parent; stand.pivot.set(t.w / 2, t.h / 2); stand.position.set(t.w / 2, t.h / 2); stand.scale.set(sc); } };
+  return run((dt, t) => {
+    const fadeAll = t > END - 0.7 ? Math.max(0, (END - t) / 0.7) : 1;
+    for (const p of patches) { const q = t - p.at; if (q < 0) continue; const g = Math.min(1, q / 0.45), out = q > LIVE ? Math.max(0, 1 - (q - LIVE) / 0.7) : 1;
+      p.sp.alpha = g * out * fadeAll; p.sp.scale.set(0.85 + 0.15 * ease(g)); }
+    if (tree.sprite) {
+      const g = Math.max(0, Math.min(1, (t - TRUNK) / GROW)), s = g <= 0 ? 0 : (0.05 + 0.95 * back(g)) * tree.fs, sway = Math.sin(t * 1.3) * 0.012 * Math.min(1, Math.max(0, t - TRUNK) / 1.2);
+      const a = fadeAll * Math.min(1, g * 3), fl = t - (TRUNK + 0.9), glow = fl < 0 ? 0 : fl < 0.25 ? fl / 0.25 : Math.max(0.18, 1 - (fl - 0.25) / 0.8);
+      for (const sp of [tree.sprite, tree.glow]) { sp.scale.set(s); sp.rotation = sway; }
+      tree.sprite.alpha = a; tree.glow.alpha = a * 0.35 * glow;
+      // the shadow: the tree laid on the ground, leaning right
+      tree.shadow.transform.setFromMatrix(new PIXI.Matrix(s, 0, -0.75 * s, -0.6 * s, bx, by)); tree.shadow.alpha = a * 0.55;
+    }
+    for (const p of petals) {
+      const s0 = t - p.st; if (s0 < 0 || s0 > p.fall + 0.7) { p.g.visible = false; continue; }
+      const f = Math.min(s0, p.fall), falling = s0 < p.fall;
+      p.g.visible = true; p.g.position.set(p.x0 + f * p.drift + Math.sin(f * 3.2 + p.ph) * G * 0.08 * Math.min(1, f * 2), p.y0 + p.v * f);
+      p.g.rotation = (falling ? s0 : p.fall) * 2.6 + p.rot; p.g.scale.y = falling ? 0.3 + 0.7 * Math.abs(Math.cos(s0 * 5 + p.i)) : 0.55;
+      p.g.alpha = fadeAll * (s0 < 0.15 ? s0 / 0.15 : 1) * (falling ? 1 : 1 - (s0 - p.fall) / 0.7);
+    }
+    for (const h of hits) {
+      const q = t - h.at; if (q < 0) continue;
+      if (!h.done) { h.done = true; release([h.u.id]); floatLocal({ x: h.u.center.x, y: h.u.center.y - G * 0.5 }, "xp", "Attack +3 · Melee def +3"); setTimeout(() => floatLocal({ x: h.u.center.x, y: h.u.center.y - G * 0.2 }, "surrounded", "Morale ≥ 5"), atSpeed(120)); }
+      h.col.alpha = q < 0.15 ? q / 0.15 : Math.max(0, 1 - (q - 0.15) / 0.75);
+      swell(h.u.qinUnitBars, 1 + 0.12 * Math.sin(Math.min(1, q / 0.3) * Math.PI));
+    }
+    if (t < END) return true;
+    for (const h of hits) { swell(h.u.qinUnitBars, 1); h.col.destroy(); if (!h.done) release([h.u.id]); }
+    root.destroy({ children: true }); ground.destroy({ children: true });
+    return false;
+  });
+}
+
 /* ------------------------------------------------------------ registry */
 
 /** Special animations played when a tier 1+ active is used, by the active's name. */
@@ -1057,6 +1188,7 @@ const ON_ACTIVATE = {
 /** Animations that release the units the active touched themselves, as their effect reaches them. */
 const ON_ACTIVATE_SPREAD = {
   "The Hero Commands": (token, touched, release) => heroCommands(token, touched, release, 4),
+  "Restore the Han": (token, touched, release) => peachGarden(token, touched, release, 4),
   // the units it holds are released by the stones (playSentinels), not at the end of the banner
   "Stone Sentinel Maze": (token) => eightTrigrams(token),
 };
