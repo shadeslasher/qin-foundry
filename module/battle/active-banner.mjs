@@ -13,8 +13,8 @@ const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? ""
 export const SIDE_RGB = { player: "58,120,200", ally: "63,166,106", enemy: "200,68,58", neutral: "184,150,40" };
 export const BANNER_MS = 2600; // fly in, drift slowly, speed up and fly off the far side (David, 2026-11-09)
 /** When the skill sound plays, as a share of the banner's time: the band lands at 12%, the portrait at 20% (David,
- *  2026-11-11: the sound should come with the banner and portrait, not before them). */
-export const BANNER_SOUND_AT = 0.16;
+ *  2026-11-11: it starts right as the banner begins to fly in). */
+export const BANNER_SOUND_AT = 0;
 export const ART_BOX = 380;      // default px of figure shown above the band's bottom edge (head to waist)
 /** The banner is laid out for a 2560x1380 screen and scaled to this one (the smaller ratio), so it looks the same at any
  *  resolution (David, 2026-11-09); the figure box there is 645 px tall (styles: --ab-art). */
