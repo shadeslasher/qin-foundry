@@ -573,34 +573,52 @@ const AURA_LOOK = {
   jade: { glow: 0x22d06a, stops: ["rgba(225,255,225,1)", "rgba(110,235,140,0.95)", "rgba(20,150,70,0.6)", "rgba(0,70,30,0)"], embers: [0xc8ffd0, 0x40e080] },
 };
 const auraFlameTex = {};
-function flameTex(look = "fire") {
-  if (auraFlameTex[look]) return auraFlameTex[look];
-  const st = AURA_LOOK[look].stops;
-  const W = 32, H = 64, cv = document.createElement("canvas"); cv.width = W; cv.height = H; const g = cv.getContext("2d");
-  const gr = g.createLinearGradient(0, H, 0, 0); gr.addColorStop(0, st[0]); gr.addColorStop(0.35, st[1]); gr.addColorStop(0.75, st[2]); gr.addColorStop(1, st[3]);
-  g.fillStyle = gr; g.beginPath(); g.moveTo(2, H); g.bezierCurveTo(0, H * 0.55, W * 0.45, H * 0.35, W * 0.5, 0); g.bezierCurveTo(W * 0.55, H * 0.35, W, H * 0.55, W - 2, H); g.closePath(); g.fill();
-  return (auraFlameTex[look] = PIXI.Texture.from(cv));
+/** Soft wisps of flame for the lasting aura: a few variants, each a wavy column of blurred blobs, hot at the root. */
+function wispTex(look = "fire", v = 0) {
+  const key = look + v; if (auraFlameTex[key]) return auraFlameTex[key];
+  const st = AURA_LOOK[look].stops, W = 64, H = 112, cv = document.createElement("canvas"); cv.width = W; cv.height = H; const g = cv.getContext("2d");
+  // a soft tongue of flame, leaning a little one way or the other, blurred so it has no hard edges
+  const lean = [-10, -4, 5, 11][v % 4], gr = g.createLinearGradient(0, H - 8, 0, 8);
+  gr.addColorStop(0, st[0]); gr.addColorStop(0.3, st[1]); gr.addColorStop(0.7, st[2]); gr.addColorStop(1, st[3]);
+  g.filter = "blur(5px)"; g.fillStyle = gr;
+  g.beginPath(); g.moveTo(W / 2 - 16, H - 12);
+  g.bezierCurveTo(W / 2 - 22, H * 0.55, W / 2 + lean - 8, H * 0.35, W / 2 + lean, 10);
+  g.bezierCurveTo(W / 2 + lean + 6, H * 0.4, W / 2 + 22, H * 0.55, W / 2 + 16, H - 12);
+  g.closePath(); g.fill();
+  // a hot core
+  g.filter = "blur(7px)"; const cg = g.createRadialGradient(W / 2, H - 26, 0, W / 2, H - 26, 18); cg.addColorStop(0, st[0]); cg.addColorStop(1, "rgba(0,0,0,0)"); g.fillStyle = cg; g.fillRect(0, 0, W, H);
+  return (auraFlameTex[key] = PIXI.Texture.from(cv));
 }
-/** A lasting aura of flame (Lu Bu's red fire, Guan Yu's green): a glow round the stand, tongues of flame licking up all
- *  along its edge, embers rising. */
+/** A lasting aura of flame (Lu Bu's red fire, Guan Yu's green; David, 2026-11-12: soft and wispy, not spiky): a soft glow
+ *  round the stand, and wisps of flame that rise from all along its edge, sway, drift up and thin away; embers rise. */
 function drawFireAura(c, w, h, T, pad, look = "fire") {
-  const P = AURA_LOOK[look];
-  const ADD = PIXI.BLEND_MODES.ADD, Blur = PIXI.BlurFilter ?? PIXI.filters?.BlurFilter;
+  const P = AURA_LOOK[look], ADD = PIXI.BLEND_MODES.ADD, Blur = PIXI.BlurFilter ?? PIXI.filters?.BlurFilter;
   const back = new PIXI.Container(), front = new PIXI.Container(); c.addChildAt(back, 0); c.addChild(front);
-  const glow = new PIXI.Graphics(); glow.blendMode = ADD; if (Blur) glow.filters = [new Blur(T * 0.08)];
-  glow.lineStyle(T * 0.12, P.glow, 0.9).drawRoundedRect(pad, pad, w - 2 * pad, h - 2 * pad, T * 0.1); back.addChild(glow);
-  const tex = flameTex(look), path = roundedRectPath(pad, pad, w - 2 * pad, h - 2 * pad, T * 0.1, 28), flames = [], embers = [];
-  path.forEach(([x, y], i) => { for (const lay of [back, front]) { if (lay === front && i % 2) continue;
-    const sp = new PIXI.Sprite(tex); sp.anchor.set(0.5, 0.95); sp.blendMode = ADD; sp.position.set(x, y); lay.addChild(sp);
-    flames.push({ sp, ph: Math.random(), sp0: 0.7 + Math.random() * 0.6, sz: (lay === front ? 0.14 : 0.2) * T / 32 }); } });
-  for (let i = 0; i < 10; i++) { const e = new PIXI.Graphics().beginFill(P.embers[i % 2]).drawCircle(0, 0, T * 0.018).endFill(); e.blendMode = ADD; front.addChild(e); embers.push({ e, ph: Math.random(), x: pad + Math.random() * (w - 2 * pad), sp: 0.4 + Math.random() * 0.4 }); }
+  const glow = new PIXI.Graphics(); glow.blendMode = ADD; if (Blur) glow.filters = [new Blur(T * 0.1)];
+  glow.lineStyle(T * 0.18, P.glow, 1).drawRoundedRect(pad, pad, w - 2 * pad, h - 2 * pad, T * 0.1); back.addChild(glow);
+  const rim = roundedRectPath(pad, pad, w - 2 * pad, h - 2 * pad, T * 0.1, 120), wisps = [], embers = [];
+  const texs = [0, 1, 2, 3].map(v => wispTex(look, v));
+  const spawn = (wp, first) => {
+    const [x, y] = rim[Math.floor(Math.random() * rim.length)];
+    Object.assign(wp, { x, y, life: 0.9 + Math.random() * 0.8, t: first ? Math.random() * 1.5 : 0, rise: T * (0.12 + Math.random() * 0.2), drift: (x - w / 2) / w * T * 0.25, sw: Math.random() * 6, sz: T / 112 * (0.4 + Math.random() * 0.3) });
+    wp.sp.texture = texs[Math.floor(Math.random() * texs.length)];
+  };
+  for (let i = 0; i < 44; i++) { const lay = i < 30 ? back : front, sp = new PIXI.Sprite(texs[0]); sp.anchor.set(0.5, 0.88); sp.blendMode = i % 3 ? PIXI.BLEND_MODES.NORMAL : ADD; lay.addChild(sp); const wp = { sp, front: lay === front }; spawn(wp, true); wisps.push(wp); }
+  for (let i = 0; i < 10; i++) { const e = new PIXI.Graphics().beginFill(P.embers[i % 2]).drawCircle(0, 0, T * 0.016).endFill(); e.blendMode = ADD; front.addChild(e); embers.push({ e, ph: Math.random(), x: pad + Math.random() * (w - 2 * pad), sp: 0.35 + Math.random() * 0.35 }); }
   let time = 0;
   return () => {
     if (back.destroyed) return;
-    time += (canvas.app?.ticker?.deltaMS ?? 16) / 1000;
-    glow.alpha = 0.55 + 0.25 * Math.sin(time * 5.3) + 0.1 * Math.sin(time * 13.1);
-    for (const f of flames) { const q = (time * f.sp0 + f.ph) % 1; f.sp.alpha = q < 0.2 ? q / 0.2 : 1 - (q - 0.2) / 0.8; f.sp.scale.set(f.sz * (0.8 + 0.3 * Math.sin(time * 20 + f.ph * 9)), f.sz * (0.6 + 0.9 * q)); }
-    for (const m of embers) { const q = (time * m.sp + m.ph) % 1; m.e.position.set(m.x + Math.sin(time * 4 + m.ph * 9) * T * 0.04, h - pad - q * h * 1.2); m.e.alpha = 1 - q; }
+    const dt = (canvas.app?.ticker?.deltaMS ?? 16) / 1000; time += dt;
+    glow.alpha = 0.6 + 0.2 * Math.sin(time * 3.1) + 0.08 * Math.sin(time * 7.7);
+    for (const wp of wisps) {
+      wp.t += dt; let q = wp.t / wp.life; if (q >= 1) { spawn(wp, false); q = 0; }
+      const sway = Math.sin(time * 3 + wp.sw) * T * 0.03 * q;
+      wp.sp.position.set(wp.x + wp.drift * q + sway, wp.y - wp.rise * q);
+      wp.sp.scale.set(wp.sz * (1.1 - 0.4 * q), wp.sz * (0.6 + 0.7 * Math.sin(Math.min(1, q * 1.3) * Math.PI / 2)));
+      wp.sp.rotation = Math.sin(time * 2 + wp.sw) * 0.15;
+      wp.sp.alpha = (q < 0.2 ? q / 0.2 : 1 - (q - 0.2) / 0.8) * (wp.front ? 0.75 : 1);
+    }
+    for (const m of embers) { const q = (time * m.sp + m.ph) % 1; m.e.position.set(m.x + Math.sin(time * 4 + m.ph * 9) * T * 0.04, h - pad - q * h * 1.3); m.e.alpha = 1 - q; }
   };
 }
 
