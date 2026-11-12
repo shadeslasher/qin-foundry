@@ -1165,6 +1165,43 @@ export function pickCandidates(s, u, pk, earlier = {}) {
   }).map(o => o.id);
 }
 
+/**
+ * What the officer's battlefield active would reach from where his unit stands now, for the range preview when the
+ * Ability button is hovered (David, 2026-11-11). { tiles: [[x, y, kind]], units: [[id, kind]], whole }; kind is
+ * 'allies' | 'enemies' | 'tile'; whole = it reaches the whole map (no squares drawn). Units: those its area effects
+ * reach now, and those it could pick.
+ */
+export function activeReach(s, u) {
+  const act = specsOf(s, u)?.active, out = { tiles: [], units: [], whole: false };
+  if (!act) return out;
+  const areas = [], seen = new Set(), unitKind = new Map();
+  const walk = (o) => {
+    if (!o || typeof o !== 'object') return;
+    if (Array.isArray(o)) return o.forEach(walk);
+    if (o.who && typeof o.who === 'object') {
+      const w = o.who;
+      if (w.side && w.pick === undefined && !w.target && !w.from) {
+        if (w.all === true) out.whole = true; else areas.push([w.exact != null ? w.exact : (w.range ?? 0), w.side, w.exact != null]);
+        for (const v of resolveWho(s, w, u, {})) if (!unitKind.has(v.id)) unitKind.set(v.id, w.side);
+      }
+    }
+    for (const [k, v] of Object.entries(o)) if (k !== 'who' && v && typeof v === 'object') walk(v);
+  };
+  walk(act.do || []);
+  for (const pk of act.pick || []) {
+    if (pk.range === 'any') out.whole = true; else if (pk.range != null) areas.push([pk.range, pk.side || 'tile', false]);
+    if (pk.side !== 'tile') for (const id of pickCandidates(s, u, pk, {})) if (!unitKind.has(id)) unitKind.set(id, pk.side);
+  }
+  const { cols, rows } = s.map;
+  for (const [r, kind, exact] of areas) for (let x = Math.max(0, u.x - r); x <= Math.min(cols - 1, u.x + r); x++) for (let y = Math.max(0, u.y - r); y <= Math.min(rows - 1, u.y + r); y++) {
+    const d = Math.abs(x - u.x) + Math.abs(y - u.y), k = x + ',' + y + ',' + kind;
+    if ((exact ? d !== r : d > r) || seen.has(k)) continue;
+    seen.add(k); out.tiles.push([x, y, kind]);
+  }
+  out.units = [...unitKind];
+  return out;
+}
+
 // ---------------------------------------------------------------- words for the log and the UI
 const STATUS_TEXT = { cantMove: "can't move", cantAttack: "can't attack", cantMoveOrAttack: "can't move or attack", skipTurn: 'skips its turn',
   isolated: 'gets nothing from allied traits and abilities', cantAttackNearSource: "can't attack his unit or units next to it", noTactics: "can't set off tactics", noOverwatchAgainst: "overwatch can't target it", cantMoveAway: "can't move away", cantApproachSource: "can't move closer to his unit",

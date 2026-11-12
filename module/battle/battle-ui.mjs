@@ -78,6 +78,33 @@ export function highlightUnit(tokenId, on) {
   highlight = g;
 }
 
+/* ------------------------------------------------------------ skill range preview (Ability / skill button hover) */
+
+let reachG = null;
+const REACH_COL = { allies: 0x4a9be8, enemies: 0xd8473a, tile: 0xe0b040 };
+function clearSkillReach() {
+  if (reachG && !reachG.destroyed) { canvas.app?.ticker?.remove(reachG.qinTick); reachG.destroy(); }
+  reachG = null;
+}
+/** While the Ability (or skill) button is hovered: the squares the officer's battlefield active reaches from here,
+ *  tinted by who it works on (blue allies, red enemies, gold squares), and the units it would reach now outlined. */
+function showSkillReach() {
+  clearSkillReach();
+  if (!canvas?.ready || !current?.u || !current.officer?.battle?.active) return;
+  let r; try { r = SK.activeReach(current.s, current.u); } catch (e) { console.warn("Qin | skill reach", e); return; }
+  if (!r.tiles.length && !r.units.length) return;
+  const g = new PIXI.Graphics(); g.eventMode = "none"; layer().addChild(g); reachG = g;
+  const size = gridSize();
+  for (const [x, y, kind] of r.tiles) g.lineStyle(1, REACH_COL[kind], 0.45).beginFill(REACH_COL[kind], 0.22).drawRect(x * size + 1, y * size + 1, size - 2, size - 2).endFill();
+  // the units it would reach now: a bright frame just outside their stand
+  for (const [id, kind] of r.units) { const v = E.unitById(current.s, id); if (!v) continue;
+    g.lineStyle(5, REACH_COL[kind], 1).drawRoundedRect(v.x * size - 3, v.y * size - 3, size + 6, size + 6, size * 0.12);
+    g.lineStyle(1.5, 0xffffff, 0.9).drawRoundedRect(v.x * size - 6, v.y * size - 6, size + 12, size + 12, size * 0.14); }
+  // gone as soon as the button isn't hovered any more (the menu can re-render without a pointerout)
+  g.qinTick = () => { if (!skillButtonHovered()) clearSkillReach(); };
+  canvas.app.ticker.add(g.qinTick);
+}
+
 /* ------------------------------------------------------------ squares */
 
 function clearSquares() {
@@ -532,7 +559,18 @@ function renderMenu(sub = null) {
 }
 
 let lastPointer = null;
-document.addEventListener("pointermove", (ev) => { lastPointer = { x: ev.clientX, y: ev.clientY }; }, { passive: true, capture: true });
+document.addEventListener("pointermove", (ev) => { lastPointer = { x: ev.clientX, y: ev.clientY }; checkSkillHover(); }, { passive: true, capture: true });
+/** The Ability / skill button under the pointer, if any (checked by position: a disabled button gets no pointer events,
+ *  and the range is worth seeing even when the skill can't be used yet). */
+function skillButtonHovered() {
+  if (!menuEl || !lastPointer || menuEl.style.display === "none") return null;
+  for (const b of menuEl.querySelectorAll('button[data-fe="skill"], button[data-fe="ability"]')) {
+    const r = b.getBoundingClientRect();
+    if (lastPointer.x >= r.left && lastPointer.x <= r.right && lastPointer.y >= r.top && lastPointer.y <= r.bottom) return b;
+  }
+  return null;
+}
+function checkSkillHover() { if (!reachG && current && skillButtonHovered()) showSkillReach(); }
 function dodgeIfHovered() {
   if (!menuEl || !mode || !lastPointer || menuEl.style.display === "none") return;
   const r = menuEl.getBoundingClientRect();
@@ -597,6 +635,7 @@ function useSkillUI() {
 /** Rebuild the menu from the current battle state (call whenever the battle changes). */
 /** Tear down everything the battle put on the map (menu, squares, click capture, rings, pick menu). */
 export function resetBattleUI() {
+  clearSkillReach();
   current = null; mode = null; busy = false;
   clearSquares(); hideMenu(); hidePick(); highlightUnit(null, false);
 }
