@@ -1310,7 +1310,7 @@ a.qin-stat:hover, a.qin-stat:focus-visible { border-color: var(--qin-gold); }
 .qin-act-dim { position: fixed; inset: 0; z-index: 999; pointer-events: none; opacity: 0; --x: 50vw; --y: 50vh; --r: 70px;
   background: radial-gradient(circle at var(--x) var(--y), transparent 0 var(--r), rgba(0,0,0,.55) calc(var(--r) * 1.85)); }
 /* a deeper dark for skills that hold it (Zhao Yun's light in the dark) */
-.qin-act-dim.qin-deep { background: radial-gradient(circle at var(--x) var(--y), transparent 0 var(--r), rgba(0,0,0,.86) calc(var(--r) * 1.6)); }
+.qin-act-dim.qin-deep { background: radial-gradient(circle at var(--x) var(--y), transparent 0 var(--r), rgba(0,0,0,.7) calc(var(--r) * 1.6)); } /* over the usual dim: together nearly black */
 
 /* Battle overlays scale with the screen (--qin-vs, set by module/ui-scale.mjs; 1 on a 2560x1380 screen). Placed by their
    anchor: the scale keeps that point where the code put it. */

@@ -18,14 +18,16 @@ export const ACT = { build: 600, lightOff: 750, undimFrom: 400, undimTo: 800, re
 function spotlight(token) {
   const el = document.createElement("div");
   el.className = "qin-act-dim";
-  const out = { el, extra: 0, base: 0, place: null };
+  const out = { el, extra: 0, base: 0, place: null, also: [] };
   out.place = () => {
     if (!token || token.destroyed) return;
     try {
       const p = canvas.clientCoordinatesFromCanvas(token.center), k = canvas.stage.scale.x;
       out.base = Math.max(token.w, token.h) * k * 0.6;
-      el.style.setProperty("--x", p.x + "px"); el.style.setProperty("--y", p.y + "px");
-      el.style.setProperty("--r", out.base + out.extra + "px");   // extra: a light wave pushing the dark back
+      for (const e of [el, ...out.also]) {
+        e.style.setProperty("--x", p.x + "px"); e.style.setProperty("--y", p.y + "px");
+        e.style.setProperty("--r", out.base + out.extra + "px");   // extra: a light wave pushing the dark back
+      }
     } catch { /* stays centred */ }
   };
   out.place();
@@ -52,12 +54,11 @@ export async function playActivation(st) {
   if (!token || reduce) { await playActiveBanner(st); releaseUnits([st.unit, ...(st.touched ?? [])]); return; }
   hideSkillReady(token);
   const dim = spotlight(token), light = unitLight(token);
-  if (darkHoldOf(st.skill)?.deep) dim.el.classList.add("qin-deep");
   const ms = (k) => atSpeed(ACT[k]);
   const hold = darkHoldOf(st.skill);     // skills whose officer keeps the dark, then drives it back with a wave of light
   const BUILD = ms("build"), OFF = ms("lightOff"), UNDIM0 = ms("undimFrom"), UNDIM1 = ms("undimTo");
   const WAVE = atSpeed(hold?.wave ?? 0);
-  let t = 0, phase = "build", released = false;
+  let t = 0, phase = "build", released = false, deep = null;
   const tick = () => {
     t += canvas.app.ticker.deltaMS;
     dim.place();
@@ -67,11 +68,12 @@ export async function playActivation(st) {
       L = smooth(k / 0.8); F = k < 0.8 ? 0.25 * smooth(k / 0.8) : 0.25 + 0.6 * smooth((k - 0.8) / 0.2);
       D = Math.min(1, t / atSpeed(200));
     } else if (phase === "banner") { L = 1; F = 0.55 + 0.3 * (1 - smooth(t / atSpeed(400))); } // eases down to a steady glow
-    else if (phase === "hold") { L = 1; F = 0.5 + 0.12 * Math.sin(t / 160); }                   // he shines on in the dark
+    else if (phase === "hold") { L = 1; F = 0.5 + 0.12 * Math.sin(t / 160); if (deep) deep.style.opacity = smooth(t / atSpeed(450)); } // the dark deepens; he shines on
     else if (phase === "wave") { // the light leaves him in a wave, and the dark is pushed back behind it
       const k = t / WAVE; L = 1 - smooth(k / 0.6); F = 0.5 * (1 - smooth(k / 0.4));
       dim.extra = Math.hypot(innerWidth, innerHeight) * smooth(Math.min(1, k));
       D = k < 0.75 ? 1 : 1 - smooth((k - 0.75) / 0.25);
+      if (deep) deep.style.opacity = D;
     }
     else { // after the banner: the light fades, the dark lifts a little later
       const k = t / OFF; L = 1 - smooth(k); F = 0.55 * (1 - smooth(k));
@@ -86,6 +88,8 @@ export async function playActivation(st) {
     phase = "banner"; t = 0;
     await playActiveBanner(st, { dim: false });
     if (hold) {
+      // once the banner has gone the screen goes fully dark (a second, deeper layer fading in over the dim)
+      if (hold.deep) { deep = document.createElement("div"); deep.className = "qin-act-dim qin-deep"; deep.style.opacity = 0; dim.also.push(deep); dim.place(); document.body.appendChild(deep); }
       phase = "hold"; t = 0;
       await wait(atSpeed(hold.hold));
       released = true;
@@ -105,7 +109,7 @@ export async function playActivation(st) {
     await wait(Math.max(OFF, UNDIM1) - ms("release"));
   } finally {
     canvas.app.ticker.remove(tick);
-    light.done(); dim.el.remove();
+    light.done(); dim.el.remove(); deep?.remove();
     if (!released) releaseUnits([st.unit, ...(st.touched ?? [])]);
   }
 }
