@@ -134,6 +134,15 @@ async function overlaySvg(el, W, H, css) {
     + `<div xmlns="http://www.w3.org/1999/xhtml" style="position:relative;width:${W}px;height:${H}px;overflow:hidden"><style><![CDATA[${css.replaceAll("]]>", "")}]]></style>${html}</div></foreignObject></svg>`;
 }
 
+/** The spotlight dim (styles/qin.css .qin-act-dim / .qin-deep): dark everywhere but a soft circle at --x/--y of radius --r. */
+function drawDim(ctx, el, k) {
+  const cs = getComputedStyle(el), num = (v) => parseFloat(cs.getPropertyValue(v)) || 0;
+  const x = num("--x") * k, y = num("--y") * k, r = Math.max(1, num("--r") * k), deep = el.classList.contains("qin-deep");
+  const g = ctx.createRadialGradient(x, y, r, x, y, r * (deep ? 1.6 : 1.85));
+  g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, `rgba(0,0,0,${deep ? 0.7 : 0.55})`);
+  ctx.save(); ctx.globalAlpha = Number(cs.opacity); ctx.fillStyle = g; ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height); ctx.restore();
+}
+
 /* ------------------------------------------------------------ record */
 
 /**
@@ -157,6 +166,9 @@ export async function record({ start = null, fps = 20, preMs = 600, tailMs = 900
     for (const el of document.querySelectorAll(overlays.join(","))) {
       if (el.parentElement?.closest(overlays.join(","))) continue; // drawn with its parent
       if (!shown(el)) continue;
+      // the activation dim is drawn straight onto the frame: as an SVG picture it sometimes didn't decode in time and
+      // whole stretches of frames lost it (2026-11-12: the dim looked late in the Battle Sheets videos)
+      if (el.matches(".qin-act-dim")) { try { drawDim(ctx, el, W / innerWidth); continue; } catch (e) { console.warn("Qin | recorder dim", e); } }
       try {
         const img = new Image();
         img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(await overlaySvg(el, W, H, css));
@@ -172,6 +184,11 @@ export async function record({ start = null, fps = 20, preMs = 600, tailMs = 900
   const perf = { sync: 0, wait: 0, grab: 0 };
   const timed = async (k, fn) => { const t = performance.now(); await fn(); perf[k] += performance.now() - t; };
   const advance = async () => { V.now += step; await timed("sync", () => V.sync()); await timed("wait", () => V.realWait(2)); await timed("grab", grab); };
+  // The canvas ticker keeps the last time it ran (and, with a frame cap, the last frame time). A recording runs faster
+  // than real time, so after one recording those times lie ahead of the next one's clock, and the ticker skipped every
+  // update until the clock caught up: the activation dim and light showed late (2026-11-12). Start it from our clock.
+  const resetTicker = (t) => { const tk = canvas.app.ticker; tk.lastTime = t; if ("_lastFrame" in tk) tk._lastFrame = t; };
+  resetTicker(V.base);
   V.install();
   try {
     V.sync();
@@ -190,7 +207,7 @@ export async function record({ start = null, fps = 20, preMs = 600, tailMs = 900
       if (busy) idleSince = null; else if (idleSince === null) idleSince = V.now; else if (V.now - idleSince >= tailMs) break;
     }
     const meta = { fps, width: W, height: H, start: t0, frames: frames.map((f, i) => ({ i, t: f.t, file: `f${String(i).padStart(4, "0")}.jpg` })), sounds: V.sounds, result };
-    V.uninstall();
+    V.uninstall(); resetTicker(performance.now());
     // a folder per recording: the frames and meta.json (Foundry only takes media and text files, so no archive)
     const folder = `${dir ? dir + "/" : ""}${name ?? `rec-${new Date(V.real.dateNow.call(Date)).toISOString().replace(/[:.]/g, "-")}`}`;
     const FP = foundry.applications?.apps?.FilePicker?.implementation ?? FilePicker;
@@ -204,6 +221,6 @@ export async function record({ start = null, fps = 20, preMs = 600, tailMs = 900
     await up("meta.json", JSON.stringify(meta), "application/json");
     return { path: folder, frames: frames.length, ms: Math.round(V.now - t0), sounds: V.sounds, result, perf: Object.fromEntries(Object.entries(perf).map(([k, v]) => [k, Math.round(v)])) };
   } finally {
-    try { V.uninstall(); } catch { /* already */ }
+    try { V.uninstall(); resetTicker(performance.now()); } catch { /* already */ }
   }
 }
