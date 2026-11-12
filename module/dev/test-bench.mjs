@@ -86,7 +86,10 @@ export async function reset({ officer = null, view = true } = {}) {
     const max = a.system.men?.max || 100;
     await a.update({ "system.side": u.side ?? "player", "system.faction": (u.officerSlot && off?.system?.faction) || u.faction || a.system.faction || "", "system.men.value": Math.round(max * (u.strength ?? 1)),
       "system.morale": u.morale ?? 70, "system.status": "active", "system.officer": u.officerSlot ? (off?.uuid ?? "") : (a.system.officer ?? "") });
-    tokUpd.push({ _id: m.token, x: u.x * g, y: u.y * g, hidden: false, disposition: u.side === "enemy" ? -1 : 1 });
+    // the tokens are unlinked: drop any token-only overrides (e.g. an officer dragged onto a bench unit by hand), so the
+    // actor's values above are what the battle sees
+    const del = Object.fromEntries(["officer", "morale", "men", "side", "faction", "status"].map(f => [`delta.system.-=${f}`, null]));
+    tokUpd.push({ _id: m.token, x: u.x * g, y: u.y * g, hidden: false, disposition: u.side === "enemy" ? -1 : 1, ...del });
     if (u.officerSlot) slotToken = m.token;
   }
   await scene.updateEmbeddedDocuments("Token", tokUpd);
