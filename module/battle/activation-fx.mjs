@@ -52,6 +52,7 @@ export async function playActivation(st) {
   if (!token || reduce) { await playActiveBanner(st); releaseUnits([st.unit, ...(st.touched ?? [])]); return; }
   hideSkillReady(token);
   const dim = spotlight(token), light = unitLight(token);
+  if (darkHoldOf(st.skill)?.deep) dim.el.classList.add("qin-deep");
   const ms = (k) => atSpeed(ACT[k]);
   const hold = darkHoldOf(st.skill);     // skills whose officer keeps the dark, then drives it back with a wave of light
   const BUILD = ms("build"), OFF = ms("lightOff"), UNDIM0 = ms("undimFrom"), UNDIM1 = ms("undimTo");

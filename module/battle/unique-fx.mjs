@@ -908,7 +908,7 @@ export function playHunt(token, float) {
 
 /** Skills whose activation keeps the screen dark after the banner, the officer's unit still shining, then sends a wave
  *  of light out from him that clears the dark (activation-fx plays the dark; ms before battle speed). */
-const DARK_HOLD = { "Master of the Empty Camp": { hold: 900, wave: 1100 } };
+const DARK_HOLD = { "Master of the Empty Camp": { hold: 1700, wave: 1100, deep: true } };   // a longer, deeper dark (David, 2026-11-12)
 export const darkHoldOf = (skill) => DARK_HOLD[skill] ?? null;
 
 /** The wave of light: a bright white-gold ring riding the edge of the retreating dark (radius from rOf, in canvas
