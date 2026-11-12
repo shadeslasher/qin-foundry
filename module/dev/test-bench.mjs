@@ -54,17 +54,21 @@ export async function setup(layout) {
   return scene;
 }
 
-/** The officer actor to put on the slot: a world actor as it is, a compendium actor imported once into the bench folder. */
+/** The officer actor to put on the slot: a world actor as it is, a compendium actor imported into the bench folder and
+ *  imported again whenever its module's version changes (2026-11-12: a copy kept from before a rename showed the old
+ *  skill name in the recordings). */
 async function officerActor(uuid) {
   if (!uuid) return null;
   if (!uuid.startsWith("Compendium.")) return fromUuid(uuid);
   const folder = game.folders.find(f => f.type === "Actor" && f.getFlag("qin", FLAG));
+  const ver = game.modules.get(uuid.split(".")[1])?.version ?? game.system.version;
   const have = game.actors.find(a => a.getFlag("qin", "benchSource") === uuid);
-  if (have) return have;
+  if (have && have.getFlag("qin", "benchVersion") === ver) return have;
+  if (have) await have.delete();
   const src = await fromUuid(uuid);
   const data = game.actors.fromCompendium(src);
   data.folder = folder?.id ?? null;
-  data.flags = { ...(data.flags ?? {}), qin: { ...(data.flags?.qin ?? {}), benchSource: uuid } };
+  data.flags = { ...(data.flags ?? {}), qin: { ...(data.flags?.qin ?? {}), benchSource: uuid, benchVersion: ver } };
   return Actor.create(data);
 }
 
