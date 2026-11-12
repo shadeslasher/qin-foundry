@@ -620,7 +620,7 @@ function drawFireAura(c, w, h, T, pad, look = "fire") {
   for (let i = 0; i < 44; i++) { const lay = i < 30 ? back : front, sp = new PIXI.Sprite(texs[0]); sp.anchor.set(0.5, 0.88); sp.blendMode = i % 3 ? PIXI.BLEND_MODES.NORMAL : ADD; lay.addChild(sp); const wp = { sp, front: lay === front }; spawn(wp, true); wisps.push(wp); }
   for (let i = 0; i < 10; i++) { const e = new PIXI.Graphics().beginFill(P.embers[i % 2]).drawCircle(0, 0, T * 0.016).endFill(); e.blendMode = ADD; front.addChild(e); embers.push({ e, ph: Math.random(), x: pad + Math.random() * (w - 2 * pad), sp: 0.35 + Math.random() * 0.35 }); }
   let time = 0;
-  return () => {
+  const tick = () => {
     if (back.destroyed) return;
     const dt = (canvas.app?.ticker?.deltaMS ?? 16) / 1000; time += dt;
     glow.alpha = 0.6 + 0.2 * Math.sin(time * 3.1) + 0.08 * Math.sin(time * 7.7);
@@ -634,6 +634,10 @@ function drawFireAura(c, w, h, T, pad, look = "fire") {
     }
     for (const m of embers) { const q = (time * m.sp + m.ph) % 1; m.e.position.set(m.x + Math.sin(time * 4 + m.ph * 9) * T * 0.04, h - pad - q * h * 1.3); m.e.alpha = 1 - q; }
   };
+  // place every wisp before the stand is first drawn: until the first tick they sat unscaled at the stand's top-left
+  // corner, and one big flame flashed there for a frame (David, 2026-11-12)
+  tick();
+  return tick;
 }
 
 /** A self-buff border for officers below Tier 1 (David, 2026-11-12): a glowing ring in the officer type's colour drawn
