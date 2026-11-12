@@ -99,7 +99,7 @@ export function stepSounds(st) {
       return how.size ? [[0, "Unit destroyed"]] : []; // destroyed or surrendered: the same sound, once
     }
     case "sound": return [[0, st.moment]];
-    case "activeBanner": return [[0, "Officer skill"]];
+    case "activeBanner": return []; // played by the banner itself, as the band and portrait land
   }
   return [];
 }

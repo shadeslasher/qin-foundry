@@ -27,7 +27,7 @@ test("banner: side colour and edge, full art before the token", () => {
 test("an active's sound plays with its banner, not again at the end", () => {
   assert.deepEqual(logSoundSteps([{ detail: { type: "skill", active: true } }]), []);
   assert.deepEqual(logSoundSteps([{ detail: { type: "skill" } }]), [{ kind: "sound", moment: "Officer skill" }]);
-  assert.deepEqual(stepSounds({ kind: "activeBanner" }), [[0, "Officer skill"]]);
+  assert.deepEqual(stepSounds({ kind: "activeBanner" }), []); // the banner plays it as it lands
 });
 
 test("full art entries with sizes; the banner box is the visible width of the upper half", () => {
