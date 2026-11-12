@@ -1165,6 +1165,19 @@ export function pickCandidates(s, u, pk, earlier = {}) {
   }).map(o => o.id);
 }
 
+/** The reach of a unit's officer's battlefield passive over other units (an aura): { range, whole } or null when it
+ *  only works on his own unit. range = the farthest square it reaches (null with whole); whole = the whole map. */
+export function passiveAura(s, u) {
+  const p = specsOf(s, u)?.passive; if (!p) return null;
+  let range = 0, whole = false;
+  for (const e of [...(p.mods || []), ...(p.flags || [])]) {
+    const w = e && e.who; if (!w || !w.side || w.pick !== undefined || w.target || w.from) continue;
+    if (w.all === true) { whole = true; continue; }
+    range = Math.max(range, Number(w.exact != null ? w.exact : (w.range ?? 0)) || 0);
+  }
+  return range >= 1 ? { range, whole } : whole ? { range: null, whole } : null;
+}
+
 /**
  * What the officer's battlefield active would reach from where his unit stands now, for the range preview when the
  * Ability button is hovered (David, 2026-11-11). { tiles: [[x, y, kind]], units: [[id, kind]], whole }; kind is

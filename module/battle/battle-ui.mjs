@@ -3,6 +3,7 @@
 import { uiScale } from "../ui-scale.mjs";
 import * as E from "./engine.mjs";
 import * as SK from "./skills.mjs";
+import { refreshAuras } from "./aura-view.mjs";
 import { getBattle, buildState, isWritingBack } from "./adapter.mjs";
 import { SYSTEM_ID } from "../config.mjs";
 import { playMoment } from "../sound.mjs";
@@ -642,6 +643,7 @@ export function resetBattleUI() {
 
 export function refreshBattleUI() {
   if (!canvas?.ready) return;
+  try { refreshAuras(); } catch (e) { console.warn("Qin | auras", e); }
   const battle = getBattle();
   if (!battle.active) { hideDuel(); return resetBattleUI(); }
   renderDuel(battle);

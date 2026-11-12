@@ -19,6 +19,7 @@ import { registerAttackFxSocket, registerDamageFloats } from "./module/attack-fx
 import { registerUnitBars, redrawAllUnitBars, registerFacingKey } from "./module/unit-bars.mjs";
 import { registerUiScale } from "./module/ui-scale.mjs";
 import { registerFactions, factionList } from "./module/factions.mjs";
+import { registerAuraView } from "./module/battle/aura-view.mjs";
 import { refreshBattleUI, repositionBattleUI, lockUnitTokens, lockUnitMoves, onUnitSelected, registerUnitClicks } from "./module/battle/battle-ui.mjs";
 import { refreshTactics, registerTactics } from "./module/battle/tactics-ui.mjs";
 import { registerDeployZones, drawDeployZones, setDeployChangeHandler } from "./module/battle/deploy.mjs";
@@ -313,6 +314,7 @@ registerObjectives();
 setObjectivesChangeHandler(() => BattlePanel.refresh());
 setDeployChangeHandler(() => BattlePanel.refresh());
 registerUnitClicks();
+registerAuraView();
 Hooks.on("renderCombatTracker", onRenderCombatTracker);
 // Recharging unique skills: character sheets update as the fight's rounds pass, and clear when it ends
 const rerenderCharacterSheets = () => { for (const a of game.actors ?? []) if (a.type === "character" && a.sheet?.rendered) a.sheet.render(); };

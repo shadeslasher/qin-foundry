@@ -41,3 +41,13 @@ test('no officer active: nothing', () => {
   const { s, u } = setup([{ side: 'player', x: 5, y: 5 }], []);
   assert.deepStrictEqual(SK.activeReach(s, u(0)), { tiles: [], units: [], whole: false });
 });
+
+test('passive aura reach: the range over other units, or nothing for a passive on his own unit only', () => {
+  const aura = { mods: [{ stat: 'command', value: 2, who: { side: 'allies', range: 4 } }] };
+  const own = { mods: [{ stat: 'meleeDef', value: 8, who: { self: true } }] };
+  const { s, u } = setup([{ side: 'player', x: 5, y: 5, officerId: 'a' }, { side: 'player', x: 1, y: 1, officerId: 'b' }, { side: 'player', x: 9, y: 9 }],
+    [officer('a', { passive: aura }), officer('b', { passive: own })]);
+  assert.deepStrictEqual(SK.passiveAura(s, u(0)), { range: 4, whole: false });
+  assert.strictEqual(SK.passiveAura(s, u(1)), null);
+  assert.strictEqual(SK.passiveAura(s, u(2)), null);
+});
