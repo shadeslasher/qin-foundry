@@ -12,9 +12,8 @@ import { playMoment } from "../sound.mjs";
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
 export const SIDE_RGB = { player: "58,120,200", ally: "63,166,106", enemy: "200,68,58", neutral: "184,150,40" };
 export const BANNER_MS = 2600; // fly in, drift slowly, speed up and fly off the far side (David, 2026-11-09)
-/** When the skill sound plays, as a share of the banner's time: the band lands at 12%, the portrait at 20% (David,
- *  2026-11-11: it starts right as the banner begins to fly in). */
-export const BANNER_SOUND_AT = 0;
+/** How long the skill sound leads the banner, in ms (David, 2026-11-11: right as, or slightly before, the banner flies in). */
+export const BANNER_SOUND_LEAD = 80;
 export const ART_BOX = 380;      // default px of figure shown above the band's bottom edge (head to waist)
 /** The banner is laid out for a 2560x1380 screen and scaled to this one (the smaller ratio), so it looks the same at any
  *  resolution (David, 2026-11-09); the figure box there is 645 px tall (styles: --ab-art). */
@@ -69,7 +68,8 @@ export async function playActiveBanner(step, { dim = true } = {}) {
   const name = info.officer ? `<div class="qin-ab-name"><div class="qin-ab-ribbon"><span>${esc(info.officer)}</span></div>${info.epithet ? `<div class="qin-ab-epithet"><span>${esc(info.epithet)}</span></div>` : ""}</div>` : "";
   root.innerHTML = `<div class="qin-ab-dim"></div><div class="qin-ab-bandwrap"><div class="qin-ab-band">${cut("trail")}${cut("lead")}</div></div>${artHTML}
     <div class="qin-ab-label">${name}<div class="qin-ab-text"><div class="qin-ab-skill">${esc(info.skill)}</div></div></div>`;
-  document.body.appendChild(root);
-  setTimeout(() => playMoment("Officer skill"), Math.round(ms * BANNER_SOUND_AT));
-  return new Promise(res => setTimeout(() => { root.remove(); res(); }, ms));
+  // the sound leads the banner by a hair, so the "shing" is already sounding as the band starts to fly in
+  playMoment("Officer skill");
+  const lead = atSpeed(BANNER_SOUND_LEAD);
+  return new Promise(res => setTimeout(() => { document.body.appendChild(root); setTimeout(() => { root.remove(); res(); }, ms); }, lead));
 }
