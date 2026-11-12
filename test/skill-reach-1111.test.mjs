@@ -67,8 +67,8 @@ test('Dawn Breaks the Dark: Command +1 for each ally within 6 at 25 morale or le
 test('Terror of Changban: losers lose 20 morale; his unit gets Attack +1 for each enemy it routs', () => {
   const tgt = { target: true }, rout = { if: { moraleBelow: 1 }, who: tgt, then: [{ buff: { mods: [{ stat: 'attack', value: 1 }] }, who: { self: true }, for: { rounds: 3 } }] };
   const act = { do: [{ contest: { side: 'enemies', range: 5 }, aspect: 'Fire',
-    lose: [{ morale: -20, who: tgt }, { status: 'cantMove', who: tgt, for: 'untilNextTurnEnd' }, rout],
-    win: [{ morale: -5, who: tgt }, { status: 'cantMove', who: tgt, for: 'untilNextTurnEnd' }, rout] }] };
+    lose: [{ morale: -20, who: tgt }, rout],
+    win: [{ morale: -5, who: tgt }, rout] }] };
   const { s, u } = setup([{ side: 'player', x: 5, y: 5, officerId: 'f' }, { side: 'enemy', x: 6, y: 5 }, { side: 'enemy', x: 5, y: 7 }, { side: 'enemy', x: 3, y: 5 }],
     [officer('f', { active: act })]);
   u(1).morale = 15; u(2).morale = 30; u(3).morale = 18;    // no officers: they lose the roll; 15 and 18 drop to 0, 30 to 10

@@ -7,7 +7,7 @@
 // Zhuge Liang's Stone Sentinel Maze — the Eight Trigrams formation draws itself beneath him, then a carved stone slab
 // rises over each unit he picked: "Held" ones stand and fade, a unit that won its roll sees its stone crack and fall.
 // Zhang Fei's Terror of Changban — he draws breath and roars: the screen shakes, round shockwaves roll out to the
-// edge of his 5-square reach, each enemy unit's debuff lands as the wave reaches it, and each unit it reaches flinches as a spiked ring locks round it ("Can't move").
+// edge of his 5-square reach, each enemy unit's debuff lands as the wave reaches it, and each unit it reaches flinches (2026-11-12: no more "Can't move" ring; the skill no longer roots).
 // Cao Cao's The Hero Commands — his hanging banner is raised in the middle of his stand, then a wave of small flags and
 // banners springs up over his 4-square reach, and each allied unit it reaches lights up in a column of gold as its buff lands.
 // Liu Bei's Until the Day of Death Comes (was Restore the Han) — a blossoming tree grows on the square to his left and arches over him, its shadow falls
@@ -1010,7 +1010,7 @@ function roarOfChangban(token, reach = 5, touched = [], release = null) {
 
 /** Each unit the roar reached flinches; a spiked iron ring locks round it (red: lost the roll, gold: won) and
  *  "Can't move" floats up (its morale loss floats with the usual floats). */
-export function playRooted(src, results, tokOf, float, reach = 5) {
+export function playRooted(src, results, tokOf, float, reach = 5, rooted = true) {
   const marks = [];
   for (const [id, lost] of results) {
     const u = tokOf(id); if (!u || u.destroyed) continue;
@@ -1024,10 +1024,11 @@ export function playRooted(src, results, tokOf, float, reach = 5) {
     let busy = false;
     for (const m of marks) {
       const q = t - m.at; if (q < 0) { busy = true; continue; }
-      if (!m.shown) { m.shown = true; float?.(m.id, m.lost ? "moraleDown" : "moraleUp", "Can't move"); }
+      if (!m.shown) { m.shown = true; if (rooted) float?.(m.id, m.lost ? "moraleDown" : "moraleUp", "Can't move"); }
       const { g, G } = m, k = G / 120, col = m.lost ? 0xff5a3c : 0xe8a23a, a = Math.min(1, q / 0.2) * (q < 1.4 ? 1 : Math.max(0, 1 - (q - 1.4) / 0.5));
       const mesh = m.u.mesh; if (mesh && !mesh.destroyed && m.x0 !== undefined) mesh.position.x = m.x0 + (q < 0.35 ? Math.sin(q * 70) * 6 * k * (1 - q / 0.35) : 0);
-      g.clear().lineStyle(3 * k, col, a).drawCircle(0, 0, G * 0.52);
+      g.clear(); if (!rooted) { if (q < 0.4) busy = true; continue; }
+      g.lineStyle(3 * k, col, a).drawCircle(0, 0, G * 0.52);
       for (let i = 0; i < 10; i++) { const ang = i / 10 * Math.PI * 2 + q * 0.4; g.moveTo(Math.cos(ang) * G * 0.52, Math.sin(ang) * G * 0.52).lineTo(Math.cos(ang) * G * 0.62, Math.sin(ang) * G * 0.62); }
       if (q < 1.9) busy = true;
     }
@@ -1335,7 +1336,7 @@ const ON_CONTEST = {
   "Terror of the Battlefield": (token, results, tokOf, float) => playTerror(token, results, tokOf, float),
   // the stones rise once the trigrams have turned a while (they start as the banner's dark lifts, about 0.25 s before this)
   "Stone Sentinel Maze": (token, results, tokOf, float) => new Promise(r => setTimeout(r, atSpeed(STONES_AFTER * 1000 - 250))).then(() => playSentinels(results, tokOf, float)),
-  "Terror of Changban": (token, results, tokOf, float) => playRooted(token, results, tokOf, float, 5),
+  "Terror of Changban": (token, results, tokOf, float) => playRooted(token, results, tokOf, float, 5, false),
   // the hunt starts as the howl dies away
   "The Wolf Bares His Fangs": (token, results, tokOf, float) => new Promise(r => setTimeout(r, atSpeed(3200)))
     .then(() => Promise.all(results.map(([id]) => playHunt(tokOf(id), (st, tx) => float?.(id, st, tx))))),
