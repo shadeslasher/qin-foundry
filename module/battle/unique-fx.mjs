@@ -6,8 +6,8 @@
 // (who flinched, who resisted) and ANOTHER TURN when a rout earns him one.
 // Zhuge Liang's Stone Sentinel Maze — the Eight Trigrams formation draws itself beneath him, then a carved stone slab
 // rises over each unit he picked: "Held" ones stand and fade, a unit that won its roll sees its stone crack and fall.
-// Zhang Fei's Terror of Changban — he draws breath and roars: the screen shakes, diamond shockwaves roll out to the
-// edge of his 5-square reach, and each unit it reaches flinches as a spiked ring locks round it ("Can't move").
+// Zhang Fei's Terror of Changban — he draws breath and roars: the screen shakes, round shockwaves roll out to the
+// edge of his 5-square reach, each enemy unit's debuff lands as the wave reaches it, and each unit it reaches flinches as a spiked ring locks round it ("Can't move").
 // Cao Cao's The Hero Commands — his hanging banner is raised in the middle of his stand, then a wave of small flags and
 // banners springs up over his 4-square reach, and each allied unit it reaches lights up in a column of gold as its buff lands.
 // Liu Bei's Until the Day of Death Comes (was Restore the Han) — a blossoming tree grows on the square to his left and arches over him, its shadow falls
@@ -860,7 +860,7 @@ export function playHunt(token, float) {
 /* ------------------------------------------------------------ Zhang Fei: Terror of Changban (David, 2026-11-11) */
 
 /** His roar: he draws breath (shrinks, a red glow gathers), then swells as the screen shakes; the squares in reach
- *  (5 across + down) flash red and three diamond shockwaves roll out to the edge of that reach, with sound-wave arcs
+ *  (5 across + down) flash red and three round shockwaves roll out to the edge of that reach, with sound-wave arcs
  *  and a ring of dust. */
 let shakeOff = [0, 0];
 /** Shake the whole view by `amt` (0–1): up to ~16 px across and 12 px up and down at full strength. */
@@ -869,7 +869,7 @@ function shakeScreen(amt, t) {
   const sc = st.scale?.x || 1, nx = amt ? Math.sin(t * 95) * 16 * amt / sc : 0, ny = amt ? Math.cos(t * 81) * 12 * amt / sc : 0;
   st.pivot.x += shakeOff[0] - nx; st.pivot.y += shakeOff[1] - ny; shakeOff = [nx, ny];
 }
-function roarOfChangban(token, reach = 5) {
+function roarOfChangban(token, reach = 5, touched = [], release = null) {
   const G = Math.min(token.w, token.h), k = G / 120, ADD = PIXI.BLEND_MODES.ADD, BF = Blur(), c = token.center;
   const ground = groundLayer(); ground.position.set(c.x, c.y);
   const tint = new PIXI.Graphics(); ground.addChild(tint);
@@ -883,8 +883,13 @@ function roarOfChangban(token, reach = 5) {
   const arcs = new PIXI.Graphics(), dust = new PIXI.Graphics(); if (BF) dust.filters = [new BF(3 * k)];
   root.addChild(aura, dust, waves, arcs);
   const mesh = token.mesh, s0x = mesh?.scale.x, s0y = mesh?.scale.y;
-  const view = canvas.app.view, roarAt = 0.35;
-  const diamond = (g, r, wob) => { for (let a = 0; a <= 64; a++) { const ang = a / 64 * Math.PI * 2, cs = Math.cos(ang), sn = Math.sin(ang), d = r / (Math.abs(cs) + Math.abs(sn)) * (1 + 0.025 * Math.sin(a * 7 + wob)); a ? g.lineTo(cs * d, sn * d) : g.moveTo(cs * d, sn * d); } g.closePath(); };
+  const roarAt = 0.35;
+  const hits = touched.map(id => canvas.tokens?.get(id)).filter(u => u && !u.destroyed).map(u => {
+    const D = Math.hypot(u.center.x - c.x, u.center.y - c.y) / G;
+    return { id: u.id, done: false, at: roarAt + 0.75 * Math.max(0, D - 0.6) / (reach + 0.5) };
+  });
+  // the sound waves are round (David, 2026-11-11), with a slight wobble
+  const wave = (g, r, wob) => { for (let a = 0; a <= 72; a++) { const ang = a / 72 * Math.PI * 2, d = r * (1 + 0.02 * Math.sin(a * 7 + wob)); a ? g.lineTo(Math.cos(ang) * d, Math.sin(ang) * d) : g.moveTo(Math.cos(ang) * d, Math.sin(ang) * d); } g.closePath(); };
   return run((dt, t) => {
     // breath in, then the roar swells him
     let sc = t < roarAt ? 1 - 0.08 * (t / roarAt) : t < roarAt + 0.15 ? 0.92 + 0.28 * ((t - roarAt) / 0.15) : 1.2 - 0.2 * Math.min(1, (t - roarAt - 0.15) / 0.4);
@@ -898,7 +903,7 @@ function roarOfChangban(token, reach = 5) {
     for (let i = 0; i < 3; i++) {
       const q = (t - roarAt - i * 0.12) / 0.75; if (q < 0 || q > 1) continue;
       const r = G * 0.6 + q * (reach + 0.5) * G;
-      waves.lineStyle((i ? 8 : 14) * k * (1 - q * 0.6), i ? 0xff7a45 : 0xffd9a8, (1 - q) * (i ? 0.7 : 1)); diamond(waves, r, t * 40);
+      waves.lineStyle((i ? 8 : 14) * k * (1 - q * 0.6), i ? 0xff7a45 : 0xffd9a8, (1 - q) * (i ? 0.7 : 1)); wave(waves, r, t * 40);
     }
     arcs.clear();
     const sw = t - roarAt;
@@ -912,7 +917,10 @@ function roarOfChangban(token, reach = 5) {
       const a = i / 26 * Math.PI * 2 + 0.3, d = G * 0.6 + sw * G * (2.2 + (i % 5) * 0.35);
       dust.beginFill(0xbea06e, 0.6 * (1 - sw)).drawCircle(Math.cos(a) * d, Math.sin(a) * d * 0.9, (5 + (i % 3) * 2 + sw * 6) * k).endFill();
     }
+    // each enemy unit it caught gets its debuff as the first wave reaches it
+    for (const h of hits) if (!h.done && t >= h.at) { h.done = true; release?.([h.id]); }
     if (t < roarAt + 1.9) return true;
+    for (const h of hits) if (!h.done) release?.([h.id]);
     shakeScreen(0, 0);
     if (mesh && !mesh.destroyed && s0x) mesh.scale.set(s0x, s0y);
     root.destroy({ children: true }); ground.destroy({ children: true });
@@ -928,8 +936,8 @@ export function playRooted(src, results, tokOf, float, reach = 5) {
     const u = tokOf(id); if (!u || u.destroyed) continue;
     const G = Math.min(u.w, u.h), g = new PIXI.Graphics(); g.position.set(u.center.x, u.center.y); topLayer().addChild(g);
     // when the roar's shockwave reaches it (the roar started about a quarter second before this step)
-    const d = src && !src.destroyed ? (Math.abs(u.center.x - src.center.x) + Math.abs(u.center.y - src.center.y)) / G : reach;
-    marks.push({ id, u, g, G, lost, x0: u.mesh?.position.x, at: Math.max(0, 0.18 + d / reach * 0.55), shown: false });
+    const d = src && !src.destroyed ? Math.hypot(u.center.x - src.center.x, u.center.y - src.center.y) / G : reach;
+    marks.push({ id, u, g, G, lost, x0: u.mesh?.position.x, at: Math.max(0, 0.1 + 0.75 * Math.max(0, d - 0.6) / (reach + 0.5)), shown: false });
   }
   if (!marks.length) return Promise.resolve();
   return run((dt, t) => {
@@ -1230,13 +1238,13 @@ const ON_ACTIVATE = {
   "None Can Stand Before Him": (token) => fireEruption(token),
   "Stone Sentinel Maze": (token) => eightTrigrams(token),
   "The Wolf Bares His Fangs": (token) => wolfPack(token),
-  "Terror of Changban": (token) => roarOfChangban(token, 5),
 };
 /** Animations that release the units the active touched themselves, as their effect reaches them. */
 const ON_ACTIVATE_SPREAD = {
   "The Hero Commands": (token, touched, release) => heroCommands(token, touched, release, 4),
   "Until the Day of Death Comes": (token, touched, release) => peachGarden(token, touched, release, 4),
   "Restore the Han": (token, touched, release) => peachGarden(token, touched, release, 4), // its old name (cards not yet updated)
+  "Terror of Changban": (token, touched, release) => roarOfChangban(token, 5, touched, release),
   // the units it holds are released by the stones (playSentinels), not at the end of the banner
   "Stone Sentinel Maze": (token) => eightTrigrams(token),
 };
