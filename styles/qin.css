@@ -709,6 +709,12 @@ button.qin-armed { outline: 2px solid #9b2c22; }
 .qin-cost-row b { font-size: 1.15em; }
 .qin-stat.qin-coin span i { color: #b58b2a; }
 .qin-party-tag.coin { border-color: rgba(181,139,42,.7); }
+.qin-party-tag.coin.click { cursor: pointer; }
+.qin-party-tag.coin.off { opacity: .6; font-style: italic; }
+.qin-party-faction { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; padding: 4px 7px; border: 1px solid rgba(160,140,100,.5); border-radius: 5px; background: rgba(127,127,127,.1); }
+.qin-party-faction > span { font-weight: 600; white-space: nowrap; }
+.qin-party-faction select { flex: 1; }
+.qin-party-faction img { width: 22px; height: 22px; object-fit: contain; }
 .qin-party-tag.coin i, .qin-party-money i { color: #c9a13a; }
 .qin-party-money { font-size: .78em; font-weight: normal; opacity: .9; white-space: nowrap; }
 .qin-cost-row { white-space: nowrap; }

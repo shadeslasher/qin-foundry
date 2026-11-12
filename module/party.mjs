@@ -7,6 +7,23 @@ import { RecruitApp, pickArmies, armiesFor } from "./recruit.mjs";
 import { EquipmentPicker, equipmentOf } from "./equipment.mjs";
 import { ownerFolder } from "./new-unit.mjs";
 import { partyOfficers, addToParty, removeFromParty, assignOfficer, isPartyOfficer } from "./officer-codex.mjs";
+import { factionList, factionOf } from "./factions.mjs";
+
+/** A unit the GM has exempted from upkeep (David, 2026-11-12): the Party panel and the world map's season bills skip it. */
+export const noUpkeep = (actor) => !!actor?.flags?.qin?.noUpkeep;
+const upkeepOf = (actor) => noUpkeep(actor) ? 0 : (actor.system.upkeep ?? 0);
+/** The party's faction (David, 2026-11-12) is every player account's world-map faction (user flag rtk13-map.faction). */
+const FACTION_FLAG = "flags.rtk13-map.faction";
+function partyFaction() {
+  const keys = [...new Set(game.users.filter(u => !u.isGM).map(u => u.flags?.["rtk13-map"]?.faction ?? ""))];
+  return keys.length === 1 ? keys[0] : keys.length ? "*mixed" : "";
+}
+async function setPartyFaction(key) {
+  if (!game.user.isGM) return;
+  const upd = game.users.filter(u => !u.isGM).map(u => key ? { _id: u.id, [FACTION_FLAG]: key } : { _id: u.id, "flags.rtk13-map.-=faction": null });
+  await User.updateDocuments(upd);
+  ui.notifications.info(key ? `The party now belongs to ${factionOf(key)?.name ?? key}.` : "The party has no faction now.");
+}
 
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
 /** A unit's resting morale when nothing says otherwise (Disciplined units rest higher: system.defaultMorale). */
@@ -86,6 +103,7 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
       offSheet: (ev, el) => fromUuidSync(el.dataset.uuid)?.sheet?.render(true),
       offRemove: async (ev, el) => { const a = fromUuidSync(el.dataset.uuid); if (a) await removeFromParty(a); PartyPanel.refresh(); },
       offClear: async (ev, el) => { const u = game.actors.get(el.dataset.id); if (u?.isOwner) await u.update({ "system.officer": "" }); },
+      upkeep: async (ev, el) => { const a = game.actors.get(el.dataset.id); if (game.user.isGM && a) await a.update({ "flags.qin.noUpkeep": !noUpkeep(a) }); },
       fold: (ev, el) => { const f = folded(); f.has(el.dataset.id) ? f.delete(el.dataset.id) : f.add(el.dataset.id); saveFolded(f); PartyPanel.refresh(); },
     },
   };
@@ -150,7 +168,9 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
         <img src="${esc(a.img)}" alt="" data-action="open" data-id="${a.id}">
         <div class="qin-party-main">
           <div class="qin-party-name"><a data-action="open" data-id="${a.id}">${esc(a.name)}</a> ${status}${btns("unit", a.id, a)}</div>
-          <div class="qin-party-sub"><span class="qin-party-tag tier t${Math.min(5, s.tier)}">T${s.tier}</span><span class="qin-party-tag">Lv ${s.level ?? 1}</span>${s.unitType ? `<span class="qin-party-tag">${esc(s.unitType)}</span>` : ""}${s.cost ? `<span class="qin-party-tag coin" data-tooltip="Recruitment cost ${s.cost} · upkeep ${s.upkeep} a month"><i class="fa-solid fa-coins"></i> ${s.upkeep}/mo</span>` : ""}${equipmentOf(a).map(e => `<span class="qin-party-tag equip" data-tooltip="${esc(e.desc)}"><i class="fa-solid fa-shield-halved"></i> ${esc(e.name)}</span>`).join("")}</div>
+          <div class="qin-party-sub"><span class="qin-party-tag tier t${Math.min(5, s.tier)}">T${s.tier}</span><span class="qin-party-tag">Lv ${s.level ?? 1}</span>${s.unitType ? `<span class="qin-party-tag">${esc(s.unitType)}</span>` : ""}${s.cost ? (noUpkeep(a)
+            ? `<span class="qin-party-tag coin off ${gm ? "click" : ""}" ${gm ? `data-action="upkeep" data-id="${a.id}"` : ""} data-tooltip="Recruitment cost ${s.cost} · no upkeep${gm ? " (click to charge upkeep again)" : ""}"><i class="fa-solid fa-coins"></i> No upkeep</span>`
+            : `<span class="qin-party-tag coin ${gm ? "click" : ""}" ${gm ? `data-action="upkeep" data-id="${a.id}"` : ""} data-tooltip="Recruitment cost ${s.cost} · upkeep ${s.upkeep} a month${gm ? " (click: no upkeep for this unit)" : ""}"><i class="fa-solid fa-coins"></i> ${s.upkeep}/mo</span>`) : ""}${equipmentOf(a).map(e => `<span class="qin-party-tag equip" data-tooltip="${esc(e.desc)}"><i class="fa-solid fa-shield-halved"></i> ${esc(e.name)}</span>`).join("")}</div>
           ${officerPicker(a, g)}
           <div class="qin-party-bars">
             <span>Health</span><div class="qin-bar"><i style="width:${pct(s.men.value, s.men.max)}%"></i></div><b>${s.men.value}/${s.men.max}</b>
@@ -159,7 +179,7 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
           </div>
         </div></li>`;
     };
-    const upkeep = (units) => units.reduce((n, a) => n + (a.system.upkeep ?? 0), 0);
+    const upkeep = (units) => units.reduce((n, a) => n + upkeepOf(a), 0);
     const money = (g) => {
       const coin = g.user.character?.system?.coin, mine = g.user.id === game.user.id;
       const btn = (gm || mine) && g.user.character ? `<button type="button" class="qin-party-coin" data-action="coin" data-id="${g.user.id}" data-tooltip="Add coin to ${esc(g.user.character.name)}"><i class="fa-solid fa-plus"></i></button>` : "";
@@ -183,6 +203,11 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
         <button type="button" data-action="heal" data-scope="all"><i class="fa-solid fa-heart-pulse"></i> Heal all</button>
         <button type="button" data-action="morale" data-scope="all"><i class="fa-solid fa-flag"></i> Reset morale</button>
         <button type="button" data-action="coin" data-scope="all" data-tooltip="Add the same amount of coin to every player's character"><i class="fa-solid fa-coins"></i> Add coin</button></div>` : "";
+    const pf = partyFaction(), pfo = pf && pf !== "*mixed" ? factionOf(pf) : null;
+    const facRow = gm ? `<div class="qin-party-faction"><span>Party faction</span><select data-party-faction>
+        <option value="" ${pf === "" ? "selected" : ""}>— none —</option>${pf === "*mixed" ? `<option value="*mixed" selected disabled>(players differ)</option>` : ""}
+        ${factionList().map(f => `<option value="${esc(f.key)}" ${f.key === pf ? "selected" : ""}>${esc(f.name)}</option>`).join("")}</select></div>`
+      : `<div class="qin-party-faction"><span>Party faction</span>${pfo?.img ? `<img src="${esc(pfo.img)}" alt="">` : ""}<b>${esc(pfo?.name ?? (pf === "*mixed" ? "Mixed" : "None"))}</b></div>`;
     const offs = partyOfficers(), tab = getTab();
     const tabs = `<nav class="qin-party-tabs"><a data-action="tab" data-tab="units" class="${tab === "units" ? "on" : ""}">Units</a><a data-action="tab" data-tab="officers" class="${tab === "officers" ? "on" : ""}">Officers <small>(${offs.length})</small></a></nav>`;
     if (tab === "officers") {
@@ -197,7 +222,7 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
       const drop = gm ? `<div class="qin-party-odrop" data-drop-party>Drop officers here from the Officers window (or the Actors list)<br><small>the players can read their sheets</small></div>` : `<p class="qin-muted">Drag an officer over the Units tab, then onto one of your units.</p>`;
       return `<div class="qin-party-wrap">${tabs}${drop}<ul class="qin-party-officers">${offs.map(row).join("") || `<li class="qin-muted">No officers in the party yet.</li>`}</ul></div>`;
     }
-    return `<div class="qin-party-wrap">${tabs}${top}${body}</div>`;
+    return `<div class="qin-party-wrap">${tabs}${facRow}${top}${body}</div>`;
   }
   _replaceHTML(result, content) {
     content.innerHTML = result;
@@ -214,6 +239,7 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
     };
     for (const el of content.querySelectorAll("[data-drop-unit]")) zone(el.closest(".qin-party-unit") ?? el, (uuid) => assignOfficer(game.actors.get(el.dataset.dropUnit), uuid));
     for (const el of content.querySelectorAll("[data-drop-party]")) zone(el, async (uuid) => { await addToParty(uuid); PartyPanel.refresh(); });
+    content.querySelector("select[data-party-faction]")?.addEventListener("change", (ev) => setPartyFaction(ev.target.value));
     for (const sel of content.querySelectorAll("select[data-officer-for]"))
       sel.addEventListener("change", () => game.actors.get(sel.dataset.officerFor)?.update({ "system.officer": sel.value }));
   }
