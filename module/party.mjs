@@ -94,7 +94,7 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
   static DEFAULT_OPTIONS = {
     id: "qin-party", classes: ["qin", "qin-party"],
     window: { title: "Party", icon: "fa-solid fa-users", resizable: true },
-    position: { width: 360, height: 620, top: 70, left: 70 },
+    position: { width: 980, height: 640, top: 70, left: 70 },
     actions: {
       heal: PartyPanel.#act, morale: PartyPanel.#act, open: PartyPanel.#open,
       recruit: PartyPanel.#recruit, promote: PartyPanel.#promote, armies: PartyPanel.#armies, coin: PartyPanel.#coin,
@@ -106,6 +106,7 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
       offRemove: async (ev, el) => { const a = fromUuidSync(el.dataset.uuid); if (a) await removeFromParty(a); PartyPanel.refresh(); },
       offClear: async (ev, el) => { const u = game.actors.get(el.dataset.id); if (u?.isOwner) await u.update({ "system.officer": "" }); },
       upkeep: async (ev, el) => { const a = game.actors.get(el.dataset.id); if (game.user.isGM && a) await a.update({ "flags.qin.noUpkeep": !noUpkeep(a) }); },
+      select: (ev, el) => { const i = PartyPanel.instance; if (i && i.selected !== el.dataset.id) { i.selected = el.dataset.id; i.render(); } },
       fold: (ev, el) => { const f = folded(); f.has(el.dataset.id) ? f.delete(el.dataset.id) : f.add(el.dataset.id); saveFolded(f); PartyPanel.refresh(); },
     },
   };
@@ -147,14 +148,6 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
   async _renderHTML() {
     const gm = game.user.isGM, groups = partyGroups();
     const pct = (v, m) => Math.max(0, Math.min(100, m ? (100 * v) / m : 0));
-    const equipBtn = (a) => `<button type="button" data-action="equip" data-id="${a.id}" data-tooltip="Equip this unit"><i class="fa-solid fa-shield-halved"></i></button>`
-      + `<button type="button" data-action="promote" data-id="${a.id}" data-tooltip="Promote or side-grade this unit"><i class="fa-solid fa-angles-up"></i></button>`;
-    const btns = (scope, id = "", a = null) => gm ? `<span class="qin-party-btns">
-        ${scope === "unit" ? equipBtn(a) : ""}
-        <button type="button" data-action="heal" data-scope="${scope}" data-id="${id}" data-tooltip="Heal to full"><i class="fa-solid fa-heart-pulse"></i></button>
-        <button type="button" data-action="morale" data-scope="${scope}" data-id="${id}" data-tooltip="Set morale to its default (${DEFAULT_MORALE}, more for Disciplined units)"><i class="fa-solid fa-flag"></i></button>
-        ${scope === "unit" ? `<button type="button" class="qin-party-remove" data-action="removeUnit" data-id="${id}" data-tooltip="Remove from the party"><i class="fa-solid fa-user-minus"></i></button>` : ""}</span>`
-      : scope === "unit" && a?.isOwner ? `<span class="qin-party-btns">${equipBtn(a)}<button type="button" data-action="disband" data-id="${a.id}" data-tooltip="Disband this unit (gone for good, no coin back)"><i class="fa-solid fa-trash"></i></button></span>` : ""; // a player equips, promotes or disbands their own units
     // officer: the owning player's characters (eligible ones only), editable by whoever owns the unit
     const officerPicker = (a, g) => {
       const s = a.system, cur = s.officerActor;
@@ -165,55 +158,82 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
         return `<option value="${esc(c.uuid)}" ${sel ? "selected" : ""} ${!e.ok && !sel ? "disabled" : ""}>${esc(c.name)}${e.ok ? "" : ` (${esc(e.reason)})`}</option>`; }).join("");
       return `<label class="qin-party-off" data-drop-unit="${a.id}"><i class="fa-solid fa-user-shield" data-tooltip="Officer: pick one, or drag a party officer here"></i><select data-officer-for="${a.id}" ${a.isOwner ? "" : "disabled"}><option value="">No officer</option>${opts}</select></label>`;
     };
-    const unit = (a, g) => {
-      const s = a.system, off = s.officerActor;
-      const status = s.status && s.status !== "active" ? `<span class="qin-party-status ${esc(s.status)}">${esc(s.status[0].toUpperCase() + s.status.slice(1))}</span>` : "";
-      return `<li class="qin-party-unit">
-        <img src="${esc(a.img)}" alt="" data-action="open" data-id="${a.id}">
-        <div class="qin-party-main">
-          <div class="qin-party-name"><a data-action="open" data-id="${a.id}">${esc(a.name)}</a> ${status}${btns("unit", a.id, a)}</div>
-          <div class="qin-party-sub"><span class="qin-party-tag tier t${Math.min(5, s.tier)}">T${s.tier}</span><span class="qin-party-tag">Lv ${s.level ?? 1}</span>${s.unitType ? `<span class="qin-party-tag">${esc(s.unitType)}</span>` : ""}${s.cost ? (noUpkeep(a)
-            ? `<span class="qin-party-tag coin off ${gm ? "click" : ""}" ${gm ? `data-action="upkeep" data-id="${a.id}"` : ""} data-tooltip="Recruitment cost ${s.cost} · no upkeep${gm ? " (click to charge upkeep again)" : ""}"><i class="fa-solid fa-coins"></i> No upkeep</span>`
-            : `<span class="qin-party-tag coin ${gm ? "click" : ""}" ${gm ? `data-action="upkeep" data-id="${a.id}"` : ""} data-tooltip="Recruitment cost ${s.cost} · upkeep ${s.upkeep} a month${gm ? " (click: no upkeep for this unit)" : ""}"><i class="fa-solid fa-coins"></i> ${s.upkeep}/mo</span>`) : ""}${equipmentOf(a).map(e => `<span class="qin-party-tag equip" data-tooltip="${esc(e.desc)}"><i class="fa-solid fa-shield-halved"></i> ${esc(e.name)}</span>`).join("")}</div>
-          ${officerPicker(a, g)}
-          <div class="qin-party-bars">
-            <span>Health</span><div class="qin-bar"><i style="width:${pct(s.men.value, s.men.max)}%"></i></div><b>${s.men.value}/${s.men.max}</b>
-            <span>Morale</span><div class="qin-bar morale"><i style="width:${pct(s.morale, 100)}%"></i></div><b>${s.morale} <small>${esc(s.moraleState ?? "")}</small></b>
-            <span>XP</span><div class="qin-bar xp"><i style="width:${pct(s.xp?.value ?? 0, s.xp?.max ?? 100)}%"></i></div><b>${s.xp?.value ?? 0}/${s.xp?.max ?? 100}</b>
-          </div>
-        </div></li>`;
+    // ---- the Units tab (David, 2026-11-13: wider, a roster with one row per unit, and a detail pane for the chosen unit)
+    const tierTag = (s) => `<span class="qin-party-tag tier t${Math.min(5, s.tier)}">T${s.tier}</span>`;
+    const statusTag = (s) => s.status && s.status !== "active" ? `<span class="qin-party-status ${esc(s.status)}">${esc(s.status[0].toUpperCase() + s.status.slice(1))}</span>` : "";
+    const upkeepTag = (a) => { const s = a.system; if (!s.cost) return "";
+      return noUpkeep(a)
+        ? `<span class="qin-party-tag coin off ${gm ? "click" : ""}" ${gm ? `data-action="upkeep" data-id="${a.id}"` : ""} data-tooltip="Recruitment cost ${s.cost} · no upkeep${gm ? " (click to charge upkeep again)" : ""}"><i class="fa-solid fa-coins"></i> No upkeep</span>`
+        : `<span class="qin-party-tag coin ${gm ? "click" : ""}" ${gm ? `data-action="upkeep" data-id="${a.id}"` : ""} data-tooltip="Recruitment cost ${s.cost} · upkeep ${s.upkeep} a month${gm ? " (click: no upkeep for this unit)" : ""}"><i class="fa-solid fa-coins"></i> ${s.upkeep}/mo</span>`; };
+    const bar = (cls, v, m, label) => `<div class="qin-pr-bar"><div class="qin-bar ${cls}"><i style="width:${pct(v, m)}%"></i></div><small>${label}</small></div>`;
+    const bars = (s) => [
+      bar("", s.men.value, s.men.max, `${s.men.value} / ${s.men.max}`),
+      bar("morale", s.morale, 100, `${s.morale}${s.moraleState ? ` · ${esc(s.moraleState)}` : ""}`),
+      bar("xp", s.xp?.value ?? 0, s.xp?.max ?? 100, `${s.xp?.value ?? 0} / ${s.xp?.max ?? 100}`)];
+    const sel = this.selected && groups.some(g => g.units.some(u => u.id === this.selected)) ? this.selected : (groups.flatMap(g => g.units)[0]?.id ?? null);
+    this.selected = sel;
+    const row = (a, g) => { const s = a.system, [hb, mb, xb] = bars(s);
+      return `<div class="qin-pr-row${a.id === sel ? " sel" : ""}">
+        <img src="${esc(a.img)}" alt="" data-action="select" data-id="${a.id}" data-tooltip="Show details">
+        <div class="qin-pr-unit" data-action="select" data-id="${a.id}"><div class="qin-pr-nm">${esc(a.name)} ${statusTag(s)}</div>
+          <div class="qin-pr-sub">${tierTag(s)} Lv ${s.level ?? 1}${s.unitType ? ` · ${esc(s.unitType)}` : ""}${s.cost ? ` · ${noUpkeep(a) ? "no upkeep" : `${s.upkeep}/mo`}` : ""}</div></div>
+        <div class="qin-pr-off">${officerPicker(a, g)}</div>
+        <div data-action="select" data-id="${a.id}">${hb}</div><div data-action="select" data-id="${a.id}">${mb}</div><div data-action="select" data-id="${a.id}">${xb}</div>
+        <div class="qin-pr-acts">${a.isOwner || gm ? `<button type="button" data-action="equip" data-id="${a.id}" data-tooltip="Equip"><i class="fa-solid fa-shield-halved"></i></button>
+          <button type="button" data-action="promote" data-id="${a.id}" data-tooltip="Promote or side-grade"><i class="fa-solid fa-angles-up"></i></button>` : ""}
+          <button type="button" data-action="select" data-id="${a.id}" data-tooltip="More"><i class="fa-solid fa-ellipsis"></i></button></div></div>`; };
+    const detail = () => {
+      const a = sel && game.actors.get(sel); if (!a) return `<aside class="qin-pr-detail empty"><p class="qin-muted">Pick a unit to see it here.</p></aside>`;
+      const s = a.system, g = groups.find(x => x.units.includes(a)), [hb, mb, xb] = bars(s), owner = g?.user;
+      const eq = equipmentOf(a);
+      return `<aside class="qin-pr-detail">
+        <div class="qin-pd-head"><img src="${esc(a.img)}" alt="" data-action="open" data-id="${a.id}"><div><div class="qin-pd-nm">${esc(a.name)} ${statusTag(s)}</div>
+          <div class="qin-pd-sub">${tierTag(s)} Level ${s.level ?? 1}${s.unitType ? ` · ${esc(s.unitType)}` : ""}${owner ? ` · ${esc(owner.name)}` : ""}</div><div class="qin-pd-tags">${upkeepTag(a)}</div></div>
+          <button type="button" class="qin-pd-sheet" data-action="open" data-id="${a.id}"><i class="fa-solid fa-id-card"></i> Sheet</button></div>
+        <h4>Condition</h4><div class="qin-pd-bars"><span>Health</span>${hb}<span>Morale</span>${mb}<span>XP</span>${xb}</div>
+        <h4>Officer</h4>${g ? officerPicker(a, g) : ""}
+        ${eq.length ? `<h4>Equipment</h4><div class="qin-pd-tags">${eq.map(e => `<span class="qin-party-tag equip" data-tooltip="${esc(e.desc)}"><i class="fa-solid fa-shield-halved"></i> ${esc(e.name)}</span>`).join("")}</div>` : ""}
+        <h4>Actions</h4><div class="qin-pd-acts">
+          ${a.isOwner || gm ? `<button type="button" data-action="equip" data-id="${a.id}"><i class="fa-solid fa-shield-halved"></i> Equip</button>
+          <button type="button" data-action="promote" data-id="${a.id}"><i class="fa-solid fa-angles-up"></i> Promote</button>` : ""}
+          ${gm ? `<button type="button" data-action="heal" data-scope="unit" data-id="${a.id}"><i class="fa-solid fa-heart-pulse"></i> Heal</button>
+          <button type="button" data-action="morale" data-scope="unit" data-id="${a.id}" data-tooltip="Set morale to its default (${DEFAULT_MORALE}, more for Disciplined units)"><i class="fa-solid fa-flag"></i> Reset morale</button>
+          <button type="button" data-action="removeUnit" data-id="${a.id}" data-tooltip="Take it out of the party (kept in the Actors list)"><i class="fa-solid fa-user-minus"></i> Remove</button>` : ""}
+          ${a.isOwner && !gm ? `<button type="button" class="qin-pd-danger" data-action="disband" data-id="${a.id}" data-tooltip="Gone for good, no coin back"><i class="fa-solid fa-trash"></i> Disband</button>` : ""}
+          ${gm ? `<button type="button" class="qin-pd-danger" data-action="disband" data-id="${a.id}" data-tooltip="Gone for good, no coin back"><i class="fa-solid fa-trash"></i> Disband</button>` : ""}</div></aside>`;
     };
     const upkeep = (units) => units.reduce((n, a) => n + upkeepOf(a), 0);
-    const money = (g) => {
-      const coin = g.user.character?.system?.coin, mine = g.user.id === game.user.id;
-      const btn = (gm || mine) && g.user.character ? `<button type="button" class="qin-party-coin" data-action="coin" data-id="${g.user.id}" data-tooltip="Add coin to ${esc(g.user.character.name)}"><i class="fa-solid fa-plus"></i></button>` : "";
-      return `<span class="qin-party-money" data-tooltip="Upkeep for these units each month${coin !== undefined ? `; ${esc(g.user.character.name)}'s coin` : ""}"><i class="fa-solid fa-coins"></i> ${upkeep(g.units)}/mo${coin !== undefined ? ` · ${coin} coin` : ""}</span>${btn}`;
-    };
-    const recruitRow = (g) => {
-      if (!gm && g.user.id !== game.user.id) return "";
-      const armies = armiesFor(g.user);
-      // players recruit from the world map's city menu when city recruiting is on (David, 2026-11-12); the GM keeps the button
-      return `<div class="qin-party-recruit">${gm || !cityRecruiting() ? `<button type="button" data-action="recruit" data-id="${g.user.id}"><i class="fa-solid fa-plus"></i> Recruit</button>` : ""}
-        <button type="button" data-action="promote" data-id="${g.user.id}" data-tooltip="Promote or side-grade ${esc(g.user.name)}'s units"><i class="fa-solid fa-angles-up"></i> Promote</button>
-        <span class="qin-muted">${cityRecruiting() ? (gm ? "In their faction's cities" : "Troops: right-click your city on the map") : armies.length ? esc(armies.join(", ")) : "No armies allowed yet"}</span>
-        ${gm && !cityRecruiting() ? `<button type="button" class="qin-party-armies" data-action="armies" data-id="${g.user.id}" data-tooltip="Choose which armies ${esc(g.user.name)} can recruit from"><i class="fa-solid fa-chess-rook"></i></button>` : ""}</div>`;
+    const cmd = (u) => { try { return game.modules.get("rtk13-map")?.api?.commandLimit?.(u) ?? null; } catch { return null; } };
+    const playerHead = (g) => {
+      const pc = g.user.character, coin = pc?.system?.coin, mine = g.user.id === game.user.id, c = cmd(g.user), f = fold.has(g.user.id);
+      const addCoin = (gm || mine) && pc ? `<button type="button" class="qin-party-coin" data-action="coin" data-id="${g.user.id}" data-tooltip="Add coin to ${esc(pc.name)}"><i class="fa-solid fa-plus"></i></button>` : "";
+      const facts = [pc ? esc(pc.name) : "", coin !== undefined ? `<span class="qin-party-money"><i class="fa-solid fa-coins"></i> ${coin} coin</span>${addCoin}` : "",
+        `${upkeep(g.units)}/mo`, c ? `<span data-tooltip="${esc(c.why ?? "")}">command ${c.used}/${c.limit}</span>` : `${g.units.length} unit${g.units.length === 1 ? "" : "s"}`].filter(Boolean).join(" · ");
+      const canAct = gm || mine;
+      return `<div class="qin-pr-player">
+        <a class="qin-party-fold" data-action="fold" data-id="${g.user.id}" data-tooltip="${f ? "Show" : "Hide"} ${esc(g.user.name)}'s units"><i class="fa-solid fa-chevron-${f ? "right" : "down"}"></i></a>
+        <span class="qin-party-dot" style="background:${esc(g.user.color?.css ?? g.user.color ?? "#888")}"></span><b>${esc(g.user.name)}</b><span class="qin-pr-facts">${facts}</span>
+        <span class="qin-pr-pbtns">${canAct && (gm || !cityRecruiting()) ? `<button type="button" data-action="recruit" data-id="${g.user.id}"><i class="fa-solid fa-plus"></i> Recruit</button>` : ""}
+          ${canAct ? `<button type="button" data-action="promote" data-id="${g.user.id}" data-tooltip="Promote or side-grade ${esc(g.user.name)}'s units"><i class="fa-solid fa-angles-up"></i> Promote</button>` : ""}
+          ${gm && !cityRecruiting() ? `<button type="button" data-action="armies" data-id="${g.user.id}" data-tooltip="Choose which armies ${esc(g.user.name)} can recruit from"><i class="fa-solid fa-chess-rook"></i></button>` : ""}
+          ${gm ? `<button type="button" data-action="heal" data-scope="player" data-id="${g.user.id}" data-tooltip="Heal ${esc(g.user.name)}'s units"><i class="fa-solid fa-heart-pulse"></i></button>
+          <button type="button" data-action="morale" data-scope="player" data-id="${g.user.id}" data-tooltip="Reset the morale of ${esc(g.user.name)}'s units"><i class="fa-solid fa-flag"></i></button>` : ""}</span></div>
+        ${!gm && cityRecruiting() && mine ? `<div class="qin-pr-hint qin-muted">Recruit troops: right-click your city on the world map.</div>` : ""}`;
     };
     const fold = folded();
-    const body = groups.length ? groups.map(g => `<section class="qin-party-player${fold.has(g.user.id) ? " folded" : ""}">
-        <h3><a class="qin-party-fold" data-action="fold" data-id="${g.user.id}" data-tooltip="${fold.has(g.user.id) ? "Show" : "Hide"} ${esc(g.user.name)}'s units"><i class="fa-solid fa-chevron-${fold.has(g.user.id) ? "right" : "down"}"></i></a><span class="qin-party-dot" style="background:${esc(g.user.color?.css ?? g.user.color ?? "#888")}"></span>${esc(g.user.name)}
-          <small>${g.units.length} unit${g.units.length === 1 ? "" : "s"}</small>${money(g)}${btns("player", g.user.id)}</h3>
-        ${fold.has(g.user.id) ? "" : `<ul>${g.units.map(a => unit(a, g)).join("") || `<li class="qin-muted qin-party-none">No units yet.</li>`}</ul>
-        ${recruitRow(g)}`}</section>`).join("")
+    const roster = groups.length ? `<div class="qin-pr-cols"><span></span><span>Unit</span><span>Officer</span><span>Health</span><span>Morale</span><span>XP</span><span></span></div>`
+        + groups.map(g => `<section class="qin-pr-group">${playerHead(g)}${fold.has(g.user.id) ? "" : (g.units.map(a => row(a, g)).join("") || `<div class="qin-muted qin-party-none">No units yet.</div>`)}</section>`).join("")
       : `<p class="qin-muted">There are no player accounts yet.</p>`;
-    const top = gm && groups.length ? `<div class="qin-party-all"><b>Whole party <span class="qin-party-money"><i class="fa-solid fa-coins"></i> ${upkeep(groups.flatMap(g => g.units))}/mo</span></b>
-        <button type="button" data-action="heal" data-scope="all"><i class="fa-solid fa-heart-pulse"></i> Heal all</button>
-        <button type="button" data-action="morale" data-scope="all"><i class="fa-solid fa-flag"></i> Reset morale</button>
-        <button type="button" data-action="coin" data-scope="all" data-tooltip="Add the same amount of coin to every player's character"><i class="fa-solid fa-coins"></i> Add coin</button></div>` : "";
-    const pf = partyFaction(), pfo = pf && pf !== "*mixed" ? factionOf(pf) : null;
-    const facRow = gm ? `<div class="qin-party-faction"><span>Party faction</span><select data-party-faction>
+    const pf = partyFaction(), pfo = pf && pf !== "*mixed" ? factionOf(pf) : null, all = groups.flatMap(g => g.units);
+    const facCtl = gm ? `<select data-party-faction>
         <option value="" ${pf === "" ? "selected" : ""}>— none —</option>${pf === "*mixed" ? `<option value="*mixed" selected disabled>(players differ)</option>` : ""}
-        ${factionList().map(f => `<option value="${esc(f.key)}" ${f.key === pf ? "selected" : ""}>${esc(f.name)}</option>`).join("")}</select></div>`
-      : `<div class="qin-party-faction"><span>Party faction</span>${pfo?.img ? `<img src="${esc(pfo.img)}" alt="">` : ""}<b>${esc(pfo?.name ?? (pf === "*mixed" ? "Mixed" : "None"))}</b></div>`;
+        ${factionList().filter(f => f.key !== "abandoned").map(f => `<option value="${esc(f.key)}" ${f.key === pf ? "selected" : ""}>${esc(f.name)}</option>`).join("")}</select>`
+      : `<b>${esc(pfo?.name ?? (pf === "*mixed" ? "Mixed" : "None"))}</b>`;
+    const topbar = `<div class="qin-pr-top"><span class="qin-pr-k">Faction</span>${pfo?.img ? `<img src="${esc(pfo.img)}" alt="">` : ""}${facCtl}
+      <span class="qin-pr-tot">${all.length} unit${all.length === 1 ? "" : "s"} · <span class="qin-party-money"><i class="fa-solid fa-coins"></i> ${upkeep(all)}/mo</span></span>
+      ${gm && groups.length ? `<span class="qin-pr-allbtns"><button type="button" data-action="heal" data-scope="all"><i class="fa-solid fa-heart-pulse"></i> Heal all</button>
+        <button type="button" data-action="morale" data-scope="all"><i class="fa-solid fa-flag"></i> Reset morale</button>
+        <button type="button" data-action="coin" data-scope="all" data-tooltip="Add the same amount of coin to every player's character"><i class="fa-solid fa-coins"></i> Add coin</button></span>` : ""}</div>`;
     const offs = partyOfficers(), tab = getTab();
     const tabs = `<nav class="qin-party-tabs"><a data-action="tab" data-tab="units" class="${tab === "units" ? "on" : ""}">Units</a><a data-action="tab" data-tab="officers" class="${tab === "officers" ? "on" : ""}">Officers <small>(${offs.length})</small></a></nav>`;
     if (tab === "officers") {
@@ -228,7 +248,7 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
       const drop = gm ? `<div class="qin-party-odrop" data-drop-party>Drop officers here from the Officers window (or the Actors list)<br><small>the players can read their sheets</small></div>` : `<p class="qin-muted">Drag an officer over the Units tab, then onto one of your units.</p>`;
       return `<div class="qin-party-wrap">${tabs}${drop}<ul class="qin-party-officers">${offs.map(row).join("") || `<li class="qin-muted">No officers in the party yet.</li>`}</ul></div>`;
     }
-    return `<div class="qin-party-wrap">${tabs}${facRow}${top}${body}</div>`;
+    return `<div class="qin-party-wrap qin-pv2">${tabs}${topbar}<div class="qin-pr-body"><div class="qin-pr-roster">${roster}</div>${detail()}</div></div>`;
   }
   _replaceHTML(result, content) {
     content.innerHTML = result;
@@ -243,7 +263,7 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
       el.addEventListener("dragleave", () => el.classList.remove("over"));
       el.addEventListener("drop", async (ev) => { ev.preventDefault(); ev.stopPropagation(); el.classList.remove("over"); const d = read(ev); if (d?.type === "Actor" && d.uuid) await onDrop(d.uuid); });
     };
-    for (const el of content.querySelectorAll("[data-drop-unit]")) zone(el.closest(".qin-party-unit") ?? el, (uuid) => assignOfficer(game.actors.get(el.dataset.dropUnit), uuid));
+    for (const el of content.querySelectorAll("[data-drop-unit]")) zone(el.closest(".qin-pr-row") ?? el, (uuid) => assignOfficer(game.actors.get(el.dataset.dropUnit), uuid));
     for (const el of content.querySelectorAll("[data-drop-party]")) zone(el, async (uuid) => { await addToParty(uuid); PartyPanel.refresh(); });
     content.querySelector("select[data-party-faction]")?.addEventListener("change", (ev) => setPartyFaction(ev.target.value));
     for (const sel of content.querySelectorAll("select[data-officer-for]"))
