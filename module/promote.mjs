@@ -60,7 +60,8 @@ export function promotionPaths(from, list, ex = { add: new Set(), block: new Set
     let kind = null;
     // side-grades: any shared branch (mounted shooters ↔ cavalry or ranged); promotions: the unit's own branch, or into
     // mounted shooters from ranged infantry too (David, 2026-11-12)
-    if (t.faction === from.faction) kind = t.tier === from.tier && shareBranch(t, from) ? "side"
+    // Tier 5 (Imperial) units don't side-grade (David, 2026-11-13)
+    if (t.faction === from.faction) kind = t.tier === from.tier && from.tier < 5 && shareBranch(t, from) ? "side"
       : t.tier === from.tier + 1 && (branchOf(t) === branchOf(from) || (isMountedShooter(t) && shareBranch(t, from))) ? "promote" : null;
     if (!kind && ex.add.has(key(t))) kind = t.tier > from.tier ? "promote" : "side";
     if (!kind) continue;

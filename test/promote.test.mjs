@@ -56,6 +56,12 @@ test('promotion: mounted shooters side-grade with cavalry and ranged; features d
   assert.ok(!promotionPaths(cav[0], all).some(p => p.t.name === 'Bow B'), 'a lance rider does not become foot archers');
 });
 
+test('promotion: Tier 5 units do not side-grade', async () => {
+  const { promotionPaths } = await import('../module/promote.mjs');
+  const imp = [T('Guard A', 'Imperial', 5, 'infantry', 'qiangshu', 3000), T('Guard B', 'Imperial', 5, 'infantry', 'qiangshu', 3000)];
+  assert.deepStrictEqual(promotionPaths(imp[0], imp), []);
+});
+
 test('promotion: exceptions add and block paths', async () => {
   const { promotionPaths, parseExceptions } = await import('../module/promote.mjs');
   const ex = parseExceptions('Axe A > Pike A\n!Axe A > Blade A');
