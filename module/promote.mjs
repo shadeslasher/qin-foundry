@@ -203,7 +203,7 @@ export class PromoteApp extends foundry.applications.api.ApplicationV2 {
   static DEFAULT_OPTIONS = {
     classes: ["qin", "qin-recruit", "qin-promote"],
     window: { title: "Promote", icon: "fa-solid fa-angles-up", resizable: true },
-    position: { width: 470, height: 640 },
+    position: { width: 440, height: 560 },
     actions: { go: PromoteApp.#go, info: PromoteApp.#info, show: PromoteApp.#show },
   };
   /** Open the window for a player; or, given a unit, for its owner with that unit's promotions open. */
@@ -240,40 +240,36 @@ export class PromoteApp extends foundry.applications.api.ApplicationV2 {
     const prov = provider(), opt = prov ? await prov(this.userId) : null, list = await templates(), ex = exceptions(), city = cityFor(opt);
     const units = unitsOf(this.userId);
     this.paths = new Map();
-    const head = `<div class="qin-recruit-head">${pc ? `<img src="${esc(pc.img)}" alt=""><div><b>${esc(pc.name)}</b><div><i class="fa-solid fa-coins"></i> ${coin} coin</div></div>`
-      : `<div class="qin-muted">No character is assigned to ${esc(user?.name ?? "this player")}, so there's no coin to spend.</div>`}</div>
-      ${opt ? `<div class="qin-recruit-city">${opt.block ? `<span class="qin-muted">${esc(opt.block)}</span>` : `<b>${esc(opt.title)}</b><div class="qin-muted">${esc(opt.sub)}</div>`}</div>` : ""}`;
-    if (!units.length) return `${head}<p class="qin-muted">${esc(user?.name ?? "This player")} has no units yet.</p>`;
-    const card = (a) => {
+    // layout A (David, 2026-11-12): a slim header, units as rows with a level bar and one status line; buttons only when usable
+    const head = `<div class="qin-pr-head"><b>${esc(pc?.name ?? user?.name ?? "")}</b><span><i class="fa-solid fa-coins"></i> ${pc ? coin.toLocaleString() : "no character"}</span></div>
+      ${opt ? `<div class="qin-pr-city">${opt.block ? esc(opt.block) : `${esc(opt.title)} · ${esc(opt.sub.replace(/^.*?city · /, ""))}`}</div>` : ""}`;
+    if (!units.length) return `${head}<p class="qin-muted qin-pr-empty">${esc(user?.name ?? "This player")} has no units yet.</p>`;
+    const short = (r) => r.replace(/^Needs (an? )?/, "").replace(/ here$/, "").replace(/ \(.*\)$/, "");
+    const row = (a) => {
       const s = a.system, from = currentOf(a, list), level = s.level ?? 1, paths = promotionPaths(from, list, ex);
       this.paths.set(a.id, paths);
       const side = paths.filter(p => p.kind === "side"), up = paths.filter(p => p.kind === "promote");
       const hp = s.men?.max ? Math.round(100 * (s.men.value ?? 0) / s.men.max) : 100;
-      const btn = (kind, label, ps, need) => {
-        const open = this.shown?.actorId === a.id && this.shown?.kind === kind;
-        const why = !ps.length ? (kind === "side" ? "No side-grades" : `No Tier ${s.tier + 1} units`) : level < need ? `needs Level ${need}` : "";
-        return why ? `<button type="button" class="qin-pr-btn off" disabled>${label} · ${esc(why)}</button>`
-          : `<button type="button" class="qin-pr-btn ${open ? "on" : ""}" data-action="show" data-actor-id="${a.id}" data-kind="${kind}">${label} <i class="fa-solid fa-chevron-${open ? "up" : "down"}"></i></button>`;
-      };
+      const xpPct = level >= 5 ? 100 : Math.round(100 * ((level - 1) + (s.xp?.value ?? 0) / (s.xp?.max || 100)) / 4);
+      const canSide = side.length && level >= SIDE_LEVEL, canUp = up.length && level >= PROMOTE_LEVEL;
+      const goals = [!canSide && side.length && level < SIDE_LEVEL ? `side-grade at ${SIDE_LEVEL}` : "", !canUp && up.length && level < PROMOTE_LEVEL ? `promote at ${PROMOTE_LEVEL}` : ""].filter(Boolean);
+      const status = `Level ${level} · ${goals.length ? goals.join(" · ") : `${hp}% health`}`;
       const shownKind = this.shown?.actorId === a.id ? this.shown.kind : null;
-      const shownList = shownKind === "side" ? side : shownKind === "promote" ? up : [];
-      const rows = shownList.map(p => {
+      const btn = (kind, label) => `<button type="button" class="${shownKind === kind ? "on" : ""}" data-action="show" data-actor-id="${a.id}" data-kind="${kind}">${label}${shownKind === kind ? ' <i class="fa-solid fa-chevron-up"></i>' : ""}</button>`;
+      const choices = (shownKind === "side" ? side : shownKind === "promote" ? up : []).map(p => {
         const chk = promoteCheck({ level, coin, path: p, city, block: opt?.block ?? null, hasCharacter: !!pc });
-        return `<li class="${chk.ok ? "" : "off"}"><img src="${esc(p.t.img)}" alt="" data-unit-uuid="${esc(p.t.id)}"><span class="qin-party-tag tier t${Math.min(5, p.t.tier)}">T${p.t.tier}</span>
-          <a class="nm" data-unit-uuid="${esc(p.t.id)}">${esc(p.t.name)}</a><span class="cost"><i class="fa-solid fa-coins"></i> ${p.cost}</span>
-          ${chk.ok ? `<button type="button" data-action="go" data-actor="${a.id}" data-uuid="${esc(p.t.id)}">${p.kind === "promote" ? "Promote" : "Side-grade"}</button>` : `<span class="qin-recruit-why">${esc(chk.reason)}</span>`}</li>`;
+        return `<div class="qin-pr-choice ${chk.ok ? "" : "off"}"><img src="${esc(p.t.img)}" alt="" data-unit-uuid="${esc(p.t.id)}">
+          <span data-unit-uuid="${esc(p.t.id)}">${esc(p.t.name)} <small>T${p.t.tier}</small></span><span class="qin-pr-cost">${p.cost.toLocaleString()}</span>
+          ${chk.ok ? `<button type="button" data-action="go" data-actor="${a.id}" data-uuid="${esc(p.t.id)}">${p.kind === "promote" ? "Promote" : "Side-grade"}</button>` : `<span class="qin-pr-why" data-tooltip="${esc(chk.reason)}">${esc(short(chk.reason))}</span>`}</div>`;
       }).join("");
-      return `<section class="qin-pr-card ${shownKind ? "open" : ""}">
-        <div class="qin-pr-top"><img src="${esc(a.img)}" alt="" data-unit-uuid="${esc(a.uuid)}">
-          <div class="qin-pr-main"><div><span class="qin-party-tag tier t${Math.min(5, s.tier)}">T${s.tier}</span> <b>${esc(a.name)}</b></div>
-            <div class="qin-muted">${esc(from.faction)} · ${esc(BRANCH_LABEL(from))}</div></div>
-          <div class="qin-pr-stats"><div>Level ${level}</div><div class="qin-muted">${hp}% health</div></div></div>
-        <div class="qin-pr-btns">${btn("side", "Side-grade", side, SIDE_LEVEL)}${btn("promote", "Promote", up, PROMOTE_LEVEL)}</div>
-        ${shownKind ? `<div class="qin-recruit-list"><div class="qin-muted qin-pr-note">${shownKind === "side" ? `Same tier · costs half the new unit's price · keeps level` : `Tier ${s.tier + 1} · costs the price difference · back to Level 1`}</div><ul>${rows}</ul></div>` : ""}
-      </section>`;
+      return `<div class="qin-pr-unit ${shownKind ? "open" : ""}">
+        <div class="qin-pr-row"><img src="${esc(a.img)}" alt="" data-unit-uuid="${esc(a.uuid)}">
+          <div class="qin-pr-mid"><div><span class="qin-pr-tier t${Math.min(5, s.tier)}">T${s.tier}</span><b data-unit-uuid="${esc(a.uuid)}">${esc(a.name)}</b> <span class="qin-muted">· ${esc(BRANCH_LABEL(from))}</span></div>
+            <div class="qin-pr-bar"><i style="width:${xpPct}%"></i></div><div class="qin-muted qin-pr-status">${esc(status)}</div></div>
+          <div class="qin-pr-acts">${canSide ? btn("side", "Side-grade") : ""}${canUp ? btn("promote", "Promote") : ""}</div></div>
+        ${choices ? `<div class="qin-pr-choices">${choices}</div>` : ""}</div>`;
     };
-    return `${head}<div class="qin-pr-cards">${units.map(card).join("")}</div>
-      <p class="qin-muted" style="font-size:11px">A unit keeps its name, officer, equipment and its health as a share. Trait choices start over.</p>`;
+    return `${head}<div class="qin-pr-list">${units.map(row).join("")}</div>`;
   }
   _replaceHTML(result, content) { hideUnitHover(); content.innerHTML = result; attachUnitHover(content); }
   _onClose(options) { hideUnitHover(); super._onClose?.(options); }
