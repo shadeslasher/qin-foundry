@@ -33,14 +33,16 @@ test('promotion: same army, same branch; side-grades at the same tier, promotion
   assert.deepStrictEqual(bw.map(p => p.t.name), ['Xbow A']);
 });
 
-test('promotion: mounted shooters are reached from both ranged and cavalry', async () => {
+test('promotion: mounted shooters side-grade with cavalry and ranged, promote as cavalry', async () => {
   const { promotionPaths, branchesOf } = await import('../module/promote.mjs');
   const all = [...list, ...cav];
   assert.deepStrictEqual(branchesOf(cav[1]), ['cavalry', 'ranged']);
-  assert.ok(promotionPaths(all.find(t => t.name === 'Bow A'), all).some(p => p.t.name === 'Horse Bow B' && p.kind === 'promote'), 'archers can take to horse');
-  assert.ok(promotionPaths(cav[0], all).some(p => p.t.name === 'Horse Bow B'), 'riders can take up bows');
-  assert.ok(!promotionPaths(cav[0], all).some(p => p.t.name === 'Bow B'), 'a lance rider does not become foot archers');
-  assert.deepStrictEqual(promotionPaths(cav[1], all).filter(p => p.kind === 'promote').map(p => p.t.name), ['Horse Bow C']);
+  assert.ok(!promotionPaths(all.find(t => t.name === 'Bow A'), all).some(p => p.t.name === 'Horse Bow B'), 'foot archers do not promote onto horses');
+  assert.ok(promotionPaths(cav[0], all).some(p => p.t.name === 'Horse Bow B' && p.kind === 'promote'), 'riders promote into horse archers');
+  const hb = promotionPaths(cav[1], all);
+  assert.deepStrictEqual(hb.filter(p => p.kind === 'side').map(p => p.t.name).sort(), ['Bow B', 'Lance B']);
+  assert.deepStrictEqual(hb.filter(p => p.kind === 'promote').map(p => p.t.name), ['Horse Bow C']);
+  assert.ok(promotionPaths(all.find(t => t.name === 'Bow B'), all).some(p => p.t.name === 'Horse Bow B' && p.kind === 'side'), 'archers side-grade onto horses');
 });
 
 test('promotion: exceptions add and block paths', async () => {
