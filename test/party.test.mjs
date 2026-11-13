@@ -116,3 +116,17 @@ test('equipment: siege ladders and a siege engine never together', async () => {
   assert.ok(!siegeClash(list, 'Siege Ladders'), 'the same kind is fine (no-op replace)');
   assert.ok(!siegeClash(list, 'War Drums'));
 });
+
+test('local troops: 2 per group per city for the party; War Elephants not counted here', async () => {
+  const { localUsed, isLocalPick, recruitCheck } = await import('../module/recruit.mjs');
+  const mk = (city, group) => ({ type: 'unit', system: { side: 'player' }, getFlag: (s, k) => k === 'recruitedAt' ? { city, group } : null });
+  const saved = globalThis.game; globalThis.game = { actors: { contents: [mk('Ridgeton', 'Steppe'), mk('Ridgeton', 'Steppe'), mk('Ridgeton', 'Hill'), mk('Other', 'Steppe')] } };
+  try {
+    assert.strictEqual(localUsed('Steppe', 'Ridgeton'), 2);
+    assert.strictEqual(localUsed('Hill', 'Ridgeton'), 1);
+    const opt = { title: 'Ridgeton', local: ['Steppe Rider', 'War Elephants'], specialUnits: [] };
+    assert.strictEqual(isLocalPick({ name: 'Steppe Rider' }, opt), true);
+    assert.strictEqual(isLocalPick({ name: 'War Elephants' }, opt), false);
+    assert.strictEqual(recruitCheck({ coin: 9999, cost: 10, hasCharacter: true, city: { offered: true, cap: 99, tier: 2, full: 'full' } }).reason, 'full');
+  } finally { globalThis.game = saved; }
+});

@@ -51,6 +51,16 @@ export function inService(t, opt) {
   return a ? owner(a).name : null;
 }
 
+/** Local troop limit (David, 2026-11-13): per city and per local group (Xiongnu, Qiang…), 2 units for the whole party;
+ *  a unit counts while it serves (flag recruitedAt = { city, group }, kept through promotions). War Elephants: one in all. */
+export const LOCAL_LIMIT = 2;
+export const isLocalPick = (t, opt) => !!opt && (opt.local ?? []).includes(t.name) && !(opt.specialUnits ?? []).includes(t.name) && !UNIQUE_UNITS.includes(t.name);
+export function localUsed(group, city) {
+  return (game.actors?.contents ?? []).filter(a => a.type === "unit" && a.system?.side === "player"
+    && a.getFlag?.(SYSTEM_ID, "recruitedAt")?.city === city && a.getFlag(SYSTEM_ID, "recruitedAt")?.group === group).length;
+}
+const localFull = (t, opt) => isLocalPick(t, opt) && localUsed(t.faction, opt.title) >= LOCAL_LIMIT ? `${LOCAL_LIMIT} ${t.faction} units from ${opt.title} already serve` : null;
+
 /** The cap chips (pure): per kind of unit, the highest tier this city recruits once its features count (David, 2026-11-12). */
 export function capChips(opt) {
   const has = (keys) => !Array.isArray(opt.featureKeys) || keys.some(k => opt.featureKeys.includes(k));
@@ -79,6 +89,7 @@ export function recruitCheck({ coin, cost, armies, army, hasCharacter = true, ci
     if (city.promoteOnly) return { ok: false, reason: "Promotion only" };
     if (city.missing) return { ok: false, reason: `Needs ${withArticle(city.missing)} here` };
     if (city.taken) return { ok: false, reason: `Already serving ${city.taken}` };
+    if (city.full) return { ok: false, reason: city.full };
   } else if (!armies.includes(army)) return { ok: false, reason: `This player can't recruit ${army} units.` };
   if (!(cost > 0)) return { ok: false, reason: "This unit has no recruitment cost set." };
   if (coin < cost) return { ok: false, reason: `Not enough coin (${coin} of ${cost}).` };
@@ -98,12 +109,13 @@ async function recruitOnGM(requesterId, { userId, uuid }) {
   if (prov) {
     opt = await prov(userId);
     if (opt.block) return { ok: false, error: opt.block };
-    city = { ...cityOffer(t, opt, await templates()), tier: t.tier, base: opt.baseCap, levelCaps: opt.levelCaps, taken: inService(t, opt) };
+    city = { ...cityOffer(t, opt, await templates()), tier: t.tier, base: opt.baseCap, levelCaps: opt.levelCaps, taken: inService(t, opt), full: localFull(t, opt) };
   }
   const chk = recruitCheck({ coin: pc?.system?.coin ?? 0, cost: t.cost, armies: armiesFor(user), army: t.faction, hasCharacter: !!pc, city });
   if (!chk.ok) return { ok: false, error: chk.reason };
   const actor = await createUnit({ template: uuid, name: "", owner: user.id, side: "player", officer: "" });
   if (!actor) return { ok: false, error: "The unit couldn't be created." };
+  if (isLocalPick(t, opt)) await actor.setFlag(SYSTEM_ID, "recruitedAt", { city: opt.title, group: t.faction });
   await pc.update({ "system.coin": Math.max(0, (pc.system.coin ?? 0) - t.cost) });
   ChatMessage.create({ content: `<p><b>${esc(user.name)}</b> recruits <b>${esc(actor.name)}</b> for ${t.cost} coin${opt ? ` at ${esc(opt.title)}` : ""}.</p>`, speaker: { alias: pc.name } });
   return { ok: true, name: actor.name };
@@ -186,7 +198,7 @@ export class RecruitApp extends foundry.applications.api.ApplicationV2 {
       if (opt.block) { this.list = []; return `${top}<div class="qin-pr-city">${esc(opt.block)}</div>`; }
       const all = await templates();
       this.list = all.filter(t => t.cost > 0 && cityOffer(t, opt).offered);
-      const chkOf = (t) => recruitCheck({ coin, cost: t.cost, hasCharacter: !!pc, city: { ...cityOffer(t, opt, all), tier: t.tier, base: opt.baseCap, levelCaps: opt.levelCaps, taken: inService(t, opt) } });
+      const chkOf = (t) => recruitCheck({ coin, cost: t.cost, hasCharacter: !!pc, city: { ...cityOffer(t, opt, all), tier: t.tier, base: opt.baseCap, levelCaps: opt.levelCaps, taken: inService(t, opt), full: localFull(t, opt) } });
       const city = `<div class="qin-pr-city">${esc(opt.title)} · ${esc(opt.sub.replace(/^.*?city · /, ""))}</div>`;
       const chips = `<div class="qin-rc-chips">${capChips(opt).map(c => `<span class="qin-recruit-cap ${c.top < c.cap ? "low" : ""}" data-tooltip="${esc(c.why)}">${esc(c.label)} T${c.top}</span>`).join("")}</div>`;
       const tabOf = (t) => (opt.unique ?? []).includes(t.faction) ? "imperial" : opt.local.includes(t.name) || (opt.specialUnits ?? []).includes(t.name) ? "local" : branchOf(t);
@@ -194,14 +206,15 @@ export class RecruitApp extends foundry.applications.api.ApplicationV2 {
       const okIn = (k) => this.list.some(t => tabOf(t) === k && chkOf(t).ok);
       if (!TABS.some(([k]) => k === this.tab)) this.tab = (TABS.find(([k]) => okIn(k)) ?? TABS[0])?.[0];
       const tabs = `<nav class="qin-rc-tabs">${TABS.map(([k, label]) => `<a class="${k === this.tab ? "on" : ""}" data-action="tab" data-tab="${k}">${label}</a>`).join("")}</nav>`;
-      const short = (t, r) => /^Already serving /.test(r) ? r.replace("Already serving", "Taken:") : /^Not recruitable here$/.test(r) && t.tier >= 4 ? "Promotion only" : r.replace(/^Needs (an? )?(.*) here$/, "$2").replace(/ \(.*\)$/, "");
+      const short = (t, r) => / already serve$/.test(r) ? "Limit reached" : /^Already serving /.test(r) ? r.replace("Already serving", "Taken:") : /^Not recruitable here$/.test(r) && t.tier >= 4 ? "Promotion only" : r.replace(/^Needs (an? )?(.*) here$/, "$2").replace(/ \(.*\)$/, "");
       const line = (t) => { const chk = chkOf(t);
         return `<div class="qin-pr-choice qin-rc-row ${chk.ok ? "" : "off"}"><img src="${esc(t.img)}" alt="" data-unit-uuid="${esc(t.id)}">
           <span data-unit-uuid="${esc(t.id)}"><span class="qin-pr-tier t${Math.min(5, t.tier)}">T${t.tier}</span>${esc(t.name)}</span><span class="qin-pr-cost" data-tooltip="Upkeep ${Math.round(t.cost / 4)} a month">${t.cost.toLocaleString()}</span>
           ${chk.ok ? `<button type="button" data-action="buy" data-uuid="${esc(t.id)}">Recruit</button>` : `<span class="qin-pr-why" data-tooltip="${esc(chk.reason)}">${esc(short(t, chk.reason))}</span>`}</div>`; };
       const inTab = this.list.filter(t => tabOf(t) === this.tab).sort(sort);
       const armiesHere = [...new Set(inTab.map(t => t.faction))].sort((a, b) => (opt.groups.indexOf(a) + 1 || 99) - (opt.groups.indexOf(b) + 1 || 99));
-      const body = this.tab === "local" ? `<div class="qin-rc-grp">Local troops of ${esc(opt.title)}</div>${inTab.map(line).join("")}${inTab.some(t => UNIQUE_UNITS.includes(t.name)) ? '<p class="qin-muted">War Elephants: one unit across all players.</p>' : ""}`
+      const body = this.tab === "local" ? [...new Set(inTab.map(t => t.faction))].map(g => { const lim = inTab.some(t => t.faction === g && isLocalPick(t, opt));
+          return `<div class="qin-rc-grp">${esc(g)} · local troops of ${esc(opt.title)}${lim ? ` <span class="qin-muted">(${Math.max(0, LOCAL_LIMIT - localUsed(g, opt.title))} of ${LOCAL_LIMIT} left for the party)</span>` : ""}</div>${inTab.filter(t => t.faction === g).map(line).join("")}`; }).join("") + (inTab.some(t => UNIQUE_UNITS.includes(t.name)) ? '<p class="qin-muted">War Elephants: one unit across all players.</p>' : "")
         : this.tab === "imperial" ? `<div class="qin-rc-grp">Seat of the Emperor · one of each across all players</div>${inTab.map(line).join("")}`
         : armiesHere.map(g => `<div class="qin-rc-grp">${esc(g)}</div>${inTab.filter(t => t.faction === g).map(line).join("")}`).join("");
       return `${top}${city}${chips}${tabs}<div class="qin-rc-list">${body || `<p class="qin-muted">No units to recruit here.</p>`}</div>`;
