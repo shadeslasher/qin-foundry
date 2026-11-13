@@ -194,7 +194,7 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
       // players recruit from the world map's city menu when city recruiting is on (David, 2026-11-12); the GM keeps the button
       return `<div class="qin-party-recruit">${gm || !cityRecruiting() ? `<button type="button" data-action="recruit" data-id="${g.user.id}"><i class="fa-solid fa-plus"></i> Recruit</button>` : ""}
         <button type="button" data-action="promote" data-id="${g.user.id}" data-tooltip="Promote or side-grade ${esc(g.user.name)}'s units"><i class="fa-solid fa-angles-up"></i> Promote</button>
-        <span class="qin-muted">${cityRecruiting() ? (gm ? "In their faction's cities" : "Recruit from a city's menu on the map") : armies.length ? esc(armies.join(", ")) : "No armies allowed yet"}</span>
+        <span class="qin-muted">${cityRecruiting() ? (gm ? "In their faction's cities" : "Troops: right-click your city on the map") : armies.length ? esc(armies.join(", ")) : "No armies allowed yet"}</span>
         ${gm && !cityRecruiting() ? `<button type="button" class="qin-party-armies" data-action="armies" data-id="${g.user.id}" data-tooltip="Choose which armies ${esc(g.user.name)} can recruit from"><i class="fa-solid fa-chess-rook"></i></button>` : ""}</div>`;
     };
     const fold = folded();

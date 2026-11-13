@@ -1435,3 +1435,8 @@ details.qin-unique-bonuses > summary small { font-weight: normal; font-size: cal
 .qin-rc-grp { font-size: .8em; opacity: .7; margin: 7px 0 2px; }
 .qin-rc-row { grid-template-columns: 30px 1fr auto auto; }
 .qin-rc-row img { width: 30px; height: 30px; }
+/* Troops window (city menu): Recruit / Promote tabs */
+.qin-troops .window-content { padding: 0; }
+.qin-tr-tabs { display: flex; border-bottom: 1px solid rgba(160,140,100,.45); }
+.qin-tr-tabs a { flex: 1; text-align: center; padding: 7px 0; cursor: pointer; opacity: .65; }
+.qin-tr-tabs a.on { opacity: 1; border-bottom: 2px solid #c9a13a; color: #e6c46a; }
