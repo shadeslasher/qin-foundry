@@ -149,3 +149,10 @@ test('Northern veterans: one per Prosperity level above Low, never promoted', as
   assert.deepStrictEqual([1, 2, 3].map(p => hireLimit(n, { title: 'X', prosperity: p })), [0, 1, 2]);
   assert.deepStrictEqual(promotionPaths(n, [n, { ...n, name: 'North Vet Spears', tier: 3 }, { ...n, name: 'North Ji' }]), []);
 });
+
+test('recruiting stops at the unit limit', async () => {
+  const { recruitCheck } = await import('../module/recruit.mjs');
+  const city = { offered: true, cap: 99, tier: 1, command: { used: 3, limit: 3, why: 'Major' } };
+  assert.strictEqual(recruitCheck({ coin: 9999, cost: 10, hasCharacter: true, city }).reason, 'Your command is full (3 of 3 units, Major)');
+  assert.strictEqual(recruitCheck({ coin: 9999, cost: 10, hasCharacter: true, city: { ...city, command: { used: 2, limit: 3 } } }).ok, true);
+});

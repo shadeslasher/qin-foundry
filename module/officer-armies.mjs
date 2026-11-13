@@ -46,7 +46,9 @@ export async function homeOf(off) {
 export async function officerGrants(known) {
   const { partyOfficers } = await import("./officer-codex.mjs");
   const offs = [];
-  for (const o of partyOfficers()) offs.push({ uuid: o.uuid, name: o.name, armies: homeArmies(await homeOf(o), known) });
+  // an army whose faction isn't its own faction yet stays closed (rtk13-map armyReady; David 2026-11-13: Lu Bu's troops)
+  const ready = game.modules?.get?.("rtk13-map")?.active ? game.modules.get("rtk13-map").api?.armyReady : null;
+  for (const o of partyOfficers()) offs.push({ uuid: o.uuid, name: o.name, armies: homeArmies(await homeOf(o), known).filter(a => !ready || ready(a)) });
   const units = (game.actors?.contents ?? []).filter(a => a.type === "unit").map(a => ({ via: a.getFlag(SYSTEM_ID, VIA_FLAG) }));
   return freeGrants(offs, units);
 }

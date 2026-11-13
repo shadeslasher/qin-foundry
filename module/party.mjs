@@ -99,6 +99,7 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
       heal: PartyPanel.#act, morale: PartyPanel.#act, open: PartyPanel.#open,
       recruit: PartyPanel.#recruit, promote: PartyPanel.#promote, armies: PartyPanel.#armies, coin: PartyPanel.#coin,
       removeUnit: (ev, el) => removeUnit(game.actors.get(el.dataset.id)),
+      disband: async (ev, el) => { const { disbandUnit } = await import("./recruit.mjs"); await disbandUnit(game.actors.get(el.dataset.id)); },
       equip: (ev, el) => EquipmentPicker.open(game.actors.get(el.dataset.id)),
       tab: (ev, el) => { setTab(el.dataset.tab); PartyPanel.refresh(); },
       offSheet: (ev, el) => fromUuidSync(el.dataset.uuid)?.sheet?.render(true),
@@ -153,7 +154,7 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
         <button type="button" data-action="heal" data-scope="${scope}" data-id="${id}" data-tooltip="Heal to full"><i class="fa-solid fa-heart-pulse"></i></button>
         <button type="button" data-action="morale" data-scope="${scope}" data-id="${id}" data-tooltip="Set morale to its default (${DEFAULT_MORALE}, more for Disciplined units)"><i class="fa-solid fa-flag"></i></button>
         ${scope === "unit" ? `<button type="button" class="qin-party-remove" data-action="removeUnit" data-id="${id}" data-tooltip="Remove from the party"><i class="fa-solid fa-user-minus"></i></button>` : ""}</span>`
-      : scope === "unit" && a?.isOwner ? `<span class="qin-party-btns">${equipBtn(a)}</span>` : ""; // a player equips their own units
+      : scope === "unit" && a?.isOwner ? `<span class="qin-party-btns">${equipBtn(a)}<button type="button" data-action="disband" data-id="${a.id}" data-tooltip="Disband this unit (gone for good, no coin back)"><i class="fa-solid fa-trash"></i></button></span>` : ""; // a player equips, promotes or disbands their own units
     // officer: the owning player's characters (eligible ones only), editable by whoever owns the unit
     const officerPicker = (a, g) => {
       const s = a.system, cur = s.officerActor;

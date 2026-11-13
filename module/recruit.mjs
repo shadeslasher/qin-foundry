@@ -108,6 +108,8 @@ export function recruitCheck({ coin, cost, armies, army, hasCharacter = true, ci
     if (city.missing) return { ok: false, reason: `Needs ${withArticle(city.missing)} here` };
     if (city.taken) return { ok: false, reason: `Already serving ${city.taken}` };
     if (city.full) return { ok: false, reason: city.full };
+    // each player's unit limit (rank; David, 2026-11-13: recruit caps stop recruitment)
+    if (city.command && city.command.used >= city.command.limit) return { ok: false, reason: `Your command is full (${city.command.used} of ${city.command.limit} units, ${city.command.why})` };
   } else if (!armies.includes(army)) return { ok: false, reason: `This player can't recruit ${army} units.` };
   if (!(cost > 0)) return { ok: false, reason: "This unit has no recruitment cost set." };
   if (coin < cost) return { ok: false, reason: `Not enough coin (${coin} of ${cost}).` };
@@ -145,6 +147,35 @@ async function recruitOnGM(requesterId, { userId, uuid }) {
 
 export function registerRecruitQuery() {
   CONFIG.queries[QUERY] = async ({ requesterId, data }) => recruitOnGM(requesterId, data);
+  CONFIG.queries[DISBAND] = async ({ requesterId, data }) => disbandOnGM(requesterId, data);
+}
+
+// ---------------------------------------------------------------- disband (David, 2026-11-13: players can disband a unit)
+const DISBAND = `${SYSTEM_ID}.disband`;
+async function disbandOnGM(requesterId, { actorId }) {
+  const requester = game.users.get(requesterId), actor = game.actors.get(actorId);
+  if (!actor || actor.type !== "unit") return { ok: false, error: "No such unit." };
+  if (!requester?.isGM && !actor.testUserPermission(requester, "OWNER")) return { ok: false, error: "That isn't your unit." };
+  const name = actor.name;
+  for (const sc of game.scenes) { const ids = sc.tokens.filter(t => t.actorId === actor.id).map(t => t.id); if (ids.length) await sc.deleteEmbeddedDocuments("Token", ids); }
+  await actor.delete();
+  ChatMessage.create({ content: `<p><b>${esc(requester?.name ?? "")}</b> disbands <b>${esc(name)}</b>.</p>` });
+  return { ok: true, name };
+}
+/** A player (or the GM) disbands one of their units: asks first, then the GM's client deletes it. No coin back. */
+export async function disbandUnit(actor) {
+  if (!actor) return;
+  const ok = await foundry.applications.api.DialogV2.confirm({ window: { title: "Disband unit" }, rejectClose: false,
+    content: `<p>Disband <b>${esc(actor.name)}</b>?</p><p class="qin-muted">The unit is gone for good (no coin back). Its officer is free to lead another unit.</p>` });
+  if (!ok) return;
+  let res;
+  if (game.user.isGM) res = await disbandOnGM(game.user.id, { actorId: actor.id });
+  else {
+    const gm = game.users.activeGM;
+    if (!gm) return ui.notifications.warn("The GM needs to be connected to disband a unit.");
+    try { res = await gm.query(DISBAND, { requesterId: game.user.id, data: { actorId: actor.id } }, { timeout: 30000 }); } catch (e) { res = { ok: false, error: e.message }; }
+  }
+  if (!res?.ok) ui.notifications.warn(res?.error ?? "Disbanding failed."); else ui.notifications.info(`${res.name} is disbanded.`);
 }
 
 async function requestRecruit(data) {
@@ -217,11 +248,12 @@ export class RecruitApp extends foundry.applications.api.ApplicationV2 {
     const typeOf = (t) => TYPES.some(([c]) => c === t.category) ? t.category : "infantry";
     if (opt) {
       // clean layout (David, 2026-11-12): slim header, short cap chips, tabs by kind of unit, slim rows grouped by army
-      const top = `<div class="qin-pr-head"><b>${esc(pc?.name ?? user?.name ?? "")}</b><span><i class="fa-solid fa-coins"></i> ${pc ? coin.toLocaleString() : "no character"}</span></div>`;
+      const cmd = opt.command ? ` <span class="qin-muted" data-tooltip="Units you lead now, and your limit (${esc(opt.command.why)}). Disband a unit from the Party panel to make room.">· ${opt.command.used}/${opt.command.limit} units</span>` : "";
+      const top = `<div class="qin-pr-head"><b>${esc(pc?.name ?? user?.name ?? "")}${cmd}</b><span><i class="fa-solid fa-coins"></i> ${pc ? coin.toLocaleString() : "no character"}</span></div>`;
       if (opt.block) { this.list = []; return `${top}<div class="qin-pr-city">${esc(opt.block)}</div>`; }
       const all = await templates();
       this.list = all.filter(t => t.cost > 0 && cityOffer(t, opt).offered);
-      const chkOf = (t) => recruitCheck({ coin, cost: t.cost, hasCharacter: !!pc, city: { ...cityOffer(t, opt, all), tier: t.tier, base: opt.baseCap, levelCaps: opt.levelCaps, taken: inService(t, opt), full: localFull(t, opt) } });
+      const chkOf = (t) => recruitCheck({ coin, cost: t.cost, hasCharacter: !!pc, city: { ...cityOffer(t, opt, all), tier: t.tier, base: opt.baseCap, levelCaps: opt.levelCaps, taken: inService(t, opt), full: localFull(t, opt), command: opt.command ?? null } });
       const city = `<div class="qin-pr-city">${esc(opt.title)} · ${esc(opt.sub.replace(/^.*?city · /, ""))}</div>${opt.foreign || opt.alliedCity ? `<div class="qin-pr-city">${esc(opt.foreign || opt.alliedCity)}</div>` : ""}`;
       const chips = opt.foreign ? "" : `<div class="qin-rc-chips">${capChips(opt).map(c => `<span class="qin-recruit-cap ${c.top < c.cap ? "low" : ""}" data-tooltip="${esc(c.why)}">${esc(c.label)} T${c.top}</span>`).join("")}</div>`;
       const tabOf = (t) => (opt.unique ?? []).includes(t.faction) ? "imperial" : opt.local.includes(t.name) || (opt.specialUnits ?? []).includes(t.name) ? "local" : branchOf(t);
