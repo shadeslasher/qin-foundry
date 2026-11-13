@@ -3,6 +3,7 @@
 //   (swords, sabres, axes, maces: every other infantry). Axe Band ↔ Sabre Militia, Spear Guards ↔ Ji Infantry.
 // - Side-grade: same army, same branch, same tier; needs Level 2; keeps level and XP. Costs the price difference
 //   half the new unit's recruitment cost (David, 2026-11-12).
+// - Han units may also move into their faction's lord armies (not Mercenary, Imperial, Northern or frontier troops).
 // - Promote: same army, same branch, next tier; needs Level 4; back to Level 1. Costs the price difference.
 // - Only in a city of the player's own faction (the world map's recruitOptions), when the world map module is active;
 //   otherwise anywhere. A promotion also needs the branch's feature in that city, at any Prosperity (David, 2026-11-12;
@@ -17,7 +18,7 @@ import { templates } from "./new-unit.mjs";
 
 
 import { attachUnitHover, hideUnitHover } from "./unit-hover.mjs";
-import { inService } from "./recruit.mjs";
+import { inService, armiesFor } from "./recruit.mjs";
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
 const QUERY = `${SYSTEM_ID}.promote`;
 export const SIDE_SHARE = 0.5, SIDE_LEVEL = 2, PROMOTE_LEVEL = 4;
@@ -52,7 +53,13 @@ export function parseExceptions(text) {
  * level = its level, list = all templates, ex = parseExceptions(...).
  * Returns [{ t, kind: "side"|"promote", cost, needLevel }] sorted by kind, tier, cost.
  */
-export function promotionPaths(from, list, ex = { add: new Set(), block: new Set() }) {
+// Han units may also side-grade or promote into the lord armies of the player's faction (David, 2026-11-13), not into
+// the place- or feature-bound groups below.
+export const BRIDGE_FROM = "Han";
+export const NO_BRIDGE = ["Han", "Mercenary", "Imperial", "Northern", "Qiang", "Xiliang", "Xiongnu", "Xianbei"];
+/** The armies a Han unit may move into, from a list of the player's armies (pure). */
+export const bridgeArmies = (groups) => (groups ?? []).filter(g => !NO_BRIDGE.includes(g));
+export function promotionPaths(from, list, ex = { add: new Set(), block: new Set() }, bridge = []) {
   const key = (t) => `${from.name.toLowerCase()}>${t.name.toLowerCase()}`, out = [];
   for (const t of list) {
     if (t.name === from.name || !(t.cost > 0)) continue;
@@ -61,7 +68,7 @@ export function promotionPaths(from, list, ex = { add: new Set(), block: new Set
     // side-grades: any shared branch (mounted shooters ↔ cavalry or ranged); promotions: the unit's own branch, or into
     // mounted shooters from ranged infantry too (David, 2026-11-12)
     // Tier 5 (Imperial) units don't side-grade (David, 2026-11-13)
-    if (t.faction === from.faction) kind = t.tier === from.tier && from.tier < 5 && shareBranch(t, from) ? "side"
+    if (t.faction === from.faction || (from.faction === BRIDGE_FROM && bridge.includes(t.faction))) kind = t.tier === from.tier && from.tier < 5 && shareBranch(t, from) ? "side"
       : t.tier === from.tier + 1 && (branchOf(t) === branchOf(from) || (isMountedShooter(t) && shareBranch(t, from))) ? "promote" : null;
     if (!kind && ex.add.has(key(t))) kind = t.tier > from.tier ? "promote" : "side";
     if (!kind) continue;
@@ -135,11 +142,12 @@ function currentOf(actor, list) {
   return { name: base?.name ?? actor.name, faction: base?.faction ?? "Other", tier: s.tier, category: s.category, weaponSkill: s.weaponSkill, cost: s.cost, range: s.range };
 }
 
+const bridgeFor = (user, opt) => bridgeArmies(opt && !opt.block ? opt.groups : armiesFor(user));
 const exceptions = () => { try { return parseExceptions(game.settings.get(SYSTEM_ID, "promotionExceptions")); } catch { return undefined; } };
 async function context(actor) {
   const list = await templates(), from = currentOf(actor, list);
   const user = ownerOfUnit(actor), prov = provider(), opt = prov && user ? await prov(user.id) : null;
-  return { list, from, paths: promotionPaths(from, list, exceptions()), user, opt };
+  return { list, from, paths: promotionPaths(from, list, exceptions(), bridgeFor(user, opt)), user, opt };
 }
 /** A player's units for the Promote window: their own player-side units. */
 export const unitsOf = (userId) => (game.actors?.contents ?? []).filter(a => a.type === "unit" && a.system?.side === "player" && ownerOfUnit(a)?.id === userId)
@@ -241,7 +249,7 @@ export class PromoteApp extends foundry.applications.api.ApplicationV2 {
   async _renderHTML() {
     const user = game.users.get(this.userId), pc = user?.character, coin = pc?.system?.coin ?? 0;
     const prov = provider(), opt = prov ? await prov(this.userId) : null, list = await templates(), ex = exceptions(), city = cityFor(opt);
-    const units = unitsOf(this.userId);
+    const units = unitsOf(this.userId), bridge = bridgeFor(user, opt);
     this.paths = new Map();
     // layout A (David, 2026-11-12): a slim header, units as rows with a level bar and one status line; buttons only when usable
     const head = `<div class="qin-pr-head"><b>${esc(pc?.name ?? user?.name ?? "")}</b><span><i class="fa-solid fa-coins"></i> ${pc ? coin.toLocaleString() : "no character"}</span></div>
@@ -249,7 +257,7 @@ export class PromoteApp extends foundry.applications.api.ApplicationV2 {
     if (!units.length) return `${head}<p class="qin-muted qin-pr-empty">${esc(user?.name ?? "This player")} has no units yet.</p>`;
     const short = (r) => r.replace(/^Already serving /, "Taken: ").replace(/^Needs (an? )?/, "").replace(/ here$/, "").replace(/ \(.*\)$/, "");
     const row = (a) => {
-      const s = a.system, from = currentOf(a, list), level = s.level ?? 1, paths = promotionPaths(from, list, ex);
+      const s = a.system, from = currentOf(a, list), level = s.level ?? 1, paths = promotionPaths(from, list, ex, bridge);
       this.paths.set(a.id, paths);
       const side = paths.filter(p => p.kind === "side"), up = paths.filter(p => p.kind === "promote");
       const hp = s.men?.max ? Math.round(100 * (s.men.value ?? 0) / s.men.max) : 100;

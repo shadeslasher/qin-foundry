@@ -101,3 +101,15 @@ test('promotion: equipment stays unless the new unit cannot use it', async () =>
   assert.deepStrictEqual(keptEquipment(tl, { category: 'infantry', range: 1 }).map(e => e.name), ['War Drums']);
   assert.deepStrictEqual(keptEquipment(tl, { category: 'cavalry', range: 3 }).map(e => e.name), ['Saddle+', 'Fine Arrows', 'War Drums']);
 });
+
+test('promotion: Han units may move into the faction\'s lord armies, not into place-bound groups', async () => {
+  const { promotionPaths, bridgeArmies } = await import('../module/promote.mjs');
+  const han = T('Han Pike', 'Han', 1, 'infantry', 'qiangshu', 500);
+  const more = [han, T('Lord Pike', 'Lordly', 2, 'infantry', 'qiangshu', 900), T('Lord Pike 1', 'Lordly', 1, 'infantry', 'qiangshu', 520),
+    T('Frontier Pike', 'Qiang', 2, 'infantry', 'qiangshu', 900), T('Hired Pike', 'Mercenary', 1, 'infantry', 'qiangshu', 500)];
+  const bridge = bridgeArmies(['Han', 'Lordly', 'Mercenary', 'Qiang', 'Imperial', 'Northern']);
+  assert.deepStrictEqual(bridge, ['Lordly']);
+  assert.deepStrictEqual(promotionPaths(han, more, undefined, bridge).map(p => [p.t.name, p.kind]), [['Lord Pike 1', 'side'], ['Lord Pike', 'promote']]);
+  assert.deepStrictEqual(promotionPaths(han, more).map(p => p.t.name), [], 'no bridge without the faction\'s armies');
+  assert.deepStrictEqual(promotionPaths(more[2], [...more, T('Han Pike 2', 'Han', 1, 'infantry', 'qiangshu', 500)], undefined, bridge).map(p => p.t.name), ['Lord Pike'], 'lord units don\'t go back to Han');
+});
