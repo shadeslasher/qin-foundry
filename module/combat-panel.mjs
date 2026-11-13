@@ -295,7 +295,7 @@ function techniquesOf(actor) {
 
 /** Live updates: the actor, its items and the combat. */
 /** I (David, 2026-11-10; C is Foundry's own character-sheet key): the Combat panel of the selected token's character, else your own character; press again to close it. */
-function togglePanelKey() {
+export function togglePanelKey() {
   const tok = canvas?.tokens?.controlled?.find(t => t.actor && t.actor.type !== "unit");
   const actor = tok?.actor ?? game.user.character;
   if (!actor || actor.type === "unit") return ui.notifications.info("Select a character's token first (or have a character assigned to you).");

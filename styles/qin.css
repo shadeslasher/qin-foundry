@@ -1493,3 +1493,36 @@ details.qin-unique-bonuses > summary small { font-weight: normal; font-size: cal
 .qin-pd-acts .qin-pd-danger { margin-left: auto; border-color: rgba(200,80,70,.7); color: #f0a49b; }
 .qin-pd-acts .qin-pd-danger:hover { background: rgba(160,40,30,.35); }
 .qin-party .qin-party-wrap:not(.qin-pv2) { overflow-y: auto; height: 100%; min-height: 0; }
+
+/* ---------- Panel dock (left of the screen, beside the scene controls) */
+#qin-dock { position: fixed; z-index: 35; width: 196px; display: flex; flex-direction: column; background: rgba(24, 21, 18, 0.94);
+  border: 1px solid #6b5630; border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,0.5); color: #e6dccb; font-family: var(--font-primary, Signika, sans-serif);
+  user-select: none; overflow: hidden; pointer-events: auto; }
+#qin-dock.rail { width: 44px; }
+#qin-dock .qd-h { display: flex; align-items: center; gap: 6px; padding: 6px 8px 4px 10px; color: #f0c870; font-size: 14px; font-weight: 600; letter-spacing: 0.04em; }
+#qin-dock.rail .qd-h { justify-content: center; padding: 6px 0 4px; }
+#qin-dock .qd-c { margin-left: auto; color: #a89878; cursor: pointer; padding: 2px 4px; border-radius: 4px; }
+#qin-dock.rail .qd-c { margin: 0; }
+#qin-dock .qd-c:hover { color: #f0c870; background: rgba(212,166,74,0.12); }
+#qin-dock .qd-body { overflow-y: auto; padding: 0 5px 6px; scrollbar-width: thin; }
+#qin-dock .qd-sec { font-size: 10.5px; color: #c9a24e; letter-spacing: 0.1em; text-transform: uppercase; margin: 8px 6px 3px; }
+#qin-dock .qd-sep { height: 1px; background: #4a4238; margin: 5px 4px; }
+#qin-dock .qd-i { position: relative; display: flex; align-items: center; gap: 9px; height: 28px; padding: 0 7px; border-radius: 5px; color: #e6dccb; font-size: 13px; cursor: pointer; text-decoration: none; }
+#qin-dock.rail .qd-i { justify-content: center; padding: 0; height: 32px; }
+#qin-dock .qd-i > i { width: 18px; text-align: center; font-size: 14px; color: #cdb98e; }
+#qin-dock.rail .qd-i > i { font-size: 16px; }
+#qin-dock .qd-i:hover { background: rgba(212,166,74,0.14); color: #fff4d6; }
+#qin-dock .qd-i:hover > i { color: #f0c870; }
+#qin-dock .qd-i.on:not(.sw) { background: #4a3818; color: #f6d488; box-shadow: inset 0 0 0 1px #b8862b; }
+#qin-dock .qd-i.on:not(.sw) > i { color: #f6d488; }
+#qin-dock.rail .qd-i.sw.on { background: rgba(212,166,74,0.18); }
+#qin-dock.rail .qd-i.sw.on > i { color: #f6d488; }
+#qin-dock .qd-l { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#qin-dock kbd { font: 11px var(--font-primary, sans-serif); color: #a89878; border: 1px solid #5a5040; border-radius: 4px; padding: 0 5px; background: none; box-shadow: none; }
+#qin-dock .qd-b { min-width: 17px; height: 17px; border-radius: 9px; padding: 0 5px; background: #8a6a24; color: #fff4d6; font-size: 11px; line-height: 17px; text-align: center; font-weight: 600; }
+#qin-dock .qd-b.w { background: #b23a2a; }
+#qin-dock.rail .qd-b { position: absolute; top: 0; right: 0; }
+#qin-dock .qd-s { width: 26px; height: 14px; border-radius: 8px; background: #4a4238; position: relative; flex: none; transition: background 0.15s; }
+#qin-dock .qd-s::after { content: ""; position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%; background: #d9cfbf; transition: left 0.15s; }
+#qin-dock .qd-i.on .qd-s { background: #a8822f; }
+#qin-dock .qd-i.on .qd-s::after { left: 14px; background: #fff4d6; }

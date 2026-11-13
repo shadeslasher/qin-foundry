@@ -80,6 +80,7 @@ const Base = foundry.applications.api.ApplicationV2;
 export class UnitEditorApp extends Base {
   static #inst;
   static open() { (this.#inst ??= new UnitEditorApp()).render(true); return this.#inst; }
+  static get isOpen() { return !!this.#inst?.rendered; }
   static DEFAULT_OPTIONS = {
     id: "qin-unit-editor", classes: ["qin", "qin-sheet", "qin-unit-editor"],
     window: { title: "Unit Editor", icon: "fa-solid fa-hammer", resizable: true },

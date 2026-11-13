@@ -74,7 +74,7 @@ export class TacticsApp extends Base {
     const p = this.position, el = this.element;
     if (!el || (this.#anchor && (Math.round(p.left) !== this.#anchor.left || Math.round(p.top) !== this.#anchor.top))) return; // moved by hand
     requestAnimationFrame(() => {
-      const controls = document.getElementById("scene-controls") ?? document.getElementById("controls");
+      const controls = document.getElementById("qin-dock") ?? document.getElementById("scene-controls") ?? document.getElementById("controls");
       const players = document.getElementById("players");
       const left = Math.round(Math.max(8, (controls?.getBoundingClientRect().right ?? 60) + 10));
       const floor = players ? Math.min(window.innerHeight, players.getBoundingClientRect().top) : window.innerHeight;

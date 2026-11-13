@@ -432,7 +432,7 @@ const Builder = {
     if (!this.el.isConnected) document.body.appendChild(this.el);
     show ??= this.el.style.display !== "block";
     this.el.style.display = show ? "block" : "none";
-    if (show) { const c = document.getElementById("scene-controls")?.getBoundingClientRect(); if (c?.width && !this.moved) this.el.style.left = `${Math.round(c.right + 12)}px`; }
+    if (show) { const c = (document.getElementById("qin-dock") ?? document.getElementById("scene-controls"))?.getBoundingClientRect(); if (c?.width && !this.moved) this.el.style.left = `${Math.round(c.right + 12)}px`; }
     this.refresh();
   },
   refresh() {
@@ -494,6 +494,7 @@ async function loadSaved(s) {
   draft.cast = cast; draft.bg = s.bg ?? "";
 }
 export const toggleCutsceneMaker = (show) => Builder.toggle(show);
+export const cutsceneMakerOpen = () => Builder.el?.style.display === "block";
 
 /* ------------------------------------------------------------------ setup */
 Hooks.once("init", () => {
@@ -505,9 +506,3 @@ Hooks.once("init", () => {
   });
 });
 Hooks.once("ready", () => { render(); });
-Hooks.on("getSceneControlButtons", (controls) => {
-  if (!game.user?.isGM) return;
-  const tool = { name: "qinCutscene", title: "Cutscene Maker", icon: "fa-solid fa-clapperboard", order: 103, button: true, visible: true, onChange: () => toggleCutsceneMaker() };
-  if (Array.isArray(controls)) controls.find(c => c.name === "token")?.tools.push({ ...tool, onClick: tool.onChange });
-  else if (controls.tokens?.tools) controls.tokens.tools.qinCutscene = tool;
-});

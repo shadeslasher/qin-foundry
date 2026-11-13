@@ -227,6 +227,7 @@ export function drawDangerZone() {
   danger = g;
 }
 
+export function dangerZoneOn() { return dangerOn; }
 export function toggleDangerZone() {
   dangerOn = !dangerOn;
   drawDangerZone();

@@ -26,7 +26,7 @@ import { refreshTactics, registerTactics } from "./module/battle/tactics-ui.mjs"
 import { registerDeployZones, drawDeployZones, setDeployChangeHandler } from "./module/battle/deploy.mjs";
 import { registerPreBattleCover } from "./module/battle/cover.mjs";
 import { registerReinforcements, drawReinforceZones, setReinforceChangeHandler } from "./module/battle/reinforce.mjs";
-import { registerTileTip, toggleTileTip } from "./module/battle/tile-tip.mjs";
+import { registerTileTip, toggleTileTip, tileTipEnabled } from "./module/battle/tile-tip.mjs";
 import { registerDeployDrawing, syncDeployDrawing } from "./module/battle/deploy-draw.mjs";
 import { panToActiveOfficer, registerTurnPan } from "./module/battle/turn-pan.mjs";
 import { registerBattleSpeed } from "./module/battle/battle-speed.mjs";
@@ -36,7 +36,7 @@ import { registerRevealPick } from "./module/battle/reveal-pick.mjs";
 import { registerFireFx, drawFires } from "./module/battle/fire-fx.mjs";
 import { HotkeyGuide } from "./module/hotkeys.mjs";
 import { registerSounds, registerSoundPack, onBattleSetting, primeBattleSounds, primeTokenPositions, onUnitTokenMoved, SoundPanel, playMoment } from "./module/sound.mjs";
-import { registerNameLabels, toggleNameLabels } from "./module/battle/name-labels.mjs";
+import { registerNameLabels, toggleNameLabels, nameLabelsOn } from "./module/battle/name-labels.mjs";
 import { registerEquipment } from "./module/equipment.mjs";
 import { registerTurnBanner, renderTurnBanner } from "./module/battle/turn-banner.mjs";
 import { registerObjectives, refreshObjectives, setObjectivesChangeHandler } from "./module/battle/objectives-ui.mjs";
@@ -44,7 +44,7 @@ import { NEW_UNIT_TOOL, newUnitDialog, registerNewUnitDrop } from "./module/new-
 import { UNIT_EDITOR_TOOL, UnitEditorApp, registerUnitEditor, reapplyUnitEdits } from "./module/unit-editor.mjs";
 import { registerMapRenderer, syncBattleMap, initBattleMapSync, redrawScene, MapEditorApp } from "./module/battle/maprender.mjs";
 import { importBattleMap } from "./module/battle/battlemap.mjs";
-import { registerUnitInfo, openUnitInfo, openOfficerView, registerDangerZoneKey, toggleDangerZone } from "./module/unit-info.mjs";
+import { registerUnitInfo, openUnitInfo, openOfficerView, registerDangerZoneKey, toggleDangerZone, dangerZoneOn } from "./module/unit-info.mjs";
 
 const { SYSTEM_ID } = CFG;
 
@@ -59,7 +59,9 @@ import { registerCompendiumSync } from "./module/compendium-sync.mjs";
 import { partRowHTML, chipHTML, formatValue } from "./module/rules/sources.mjs";
 import { registerCombatState } from "./module/combat-state.mjs";
 import { registerSkillEffects } from "./module/skill-effects.mjs";
-import { CombatPanel, registerCombatPanel } from "./module/combat-panel.mjs";
+import { CombatPanel, registerCombatPanel, togglePanelKey } from "./module/combat-panel.mjs";
+import { registerDock } from "./module/dock.mjs";
+import { toggleCutsceneMaker, cutsceneMakerOpen } from "./module/cutscene.mjs";
 registerCombatState();
 registerSkillEffects();
 registerCombatPanel();
@@ -233,6 +235,7 @@ Hooks.once("init", () => {
   });
   registerParty();
   registerOfficerCodex();
+  registerDock();
   registerOfficerLimit();
   game.keybindings.register(SYSTEM_ID, "tileTip", {
     name: "Tile info", hint: "Show a small tooltip by the cursor describing the square under it (terrain, buildings and their effects). Press again to turn it off.",
@@ -340,16 +343,23 @@ Hooks.once("init", () => {
 });
 Hooks.on("controlToken", onUnitSelected);
 
-Hooks.on("getSceneControlButtons", (controls) => {
-  const tool = {
-    name: "qinBattle", title: "Battle panel", icon: "fa-solid fa-chess-rook", order: 99,
-    button: true, visible: true, onChange: () => BattlePanel.open(),
-  };
-  const codexTool = { name: "qinOfficers", title: "Officers (O)", icon: "fa-solid fa-book-open", order: 100, button: true, visible: true, onChange: () => OfficerCodex.toggle() };
-  const unitTool = { ...NEW_UNIT_TOOL, visible: !!game.user?.isGM }, editTool = { ...UNIT_EDITOR_TOOL, visible: !!game.user?.isGM };
-  if (Array.isArray(controls)) controls.find(c => c.name === "token")?.tools.push({ ...tool, onClick: tool.onChange }, { ...codexTool, onClick: codexTool.onChange }, { ...unitTool, onClick: unitTool.onChange }, { ...editTool, onClick: editTool.onChange });
-  else if (controls.tokens?.tools) { controls.tokens.tools.qinBattle = tool; controls.tokens.tools.qinOfficers = codexTool; controls.tokens.tools.qinNewUnit = unitTool; controls.tokens.tools.qinUnitEditor = editTool; }
-});
+/* ---------- The panel dock at the left of the screen (replaces our scene-control buttons, David 2026-11-13) */
+function addDockEntries() {
+  const d = game.qinDock, onCanvas = () => !!canvas?.ready;
+  d.add({ id: "party", section: "campaign", order: 10, label: "Party", icon: "fa-solid fa-people-group", key: "qin.partyPanel", onClick: () => PartyPanel.toggle(), active: () => !!PartyPanel.instance?.rendered });
+  d.add({ id: "officers", section: "campaign", order: 20, label: "Officers", icon: "fa-solid fa-book-open", key: "qin.officerCodex", onClick: () => OfficerCodex.toggle(), active: () => !!OfficerCodex.instance?.rendered });
+  d.add({ id: "battle", section: "battle", order: 10, label: "Battle", icon: "fa-solid fa-chess-rook", key: "qin.battlePanel", onClick: () => { if (BattlePanel.instance?.rendered) BattlePanel.instance.close(); else BattlePanel.open(); }, active: () => !!BattlePanel.instance?.rendered });
+  d.add({ id: "combat", section: "battle", order: 20, label: "Combat panel", icon: "fa-solid fa-hand-fist", key: "qin.combatPanel", onClick: () => togglePanelKey(), active: () => [...(CombatPanel.instances?.values?.() ?? [])].some(a => a.rendered) });
+  d.add({ id: "names", section: "battle", order: 30, label: "Unit names", icon: "fa-solid fa-tag", key: "qin.nameLabels", visible: onCanvas, onClick: () => toggleNameLabels(), switch: () => nameLabelsOn() });
+  d.add({ id: "tiletip", section: "battle", order: 40, label: "Tile info", icon: "fa-solid fa-circle-info", key: "qin.tileTip", visible: onCanvas, onClick: () => toggleTileTip(), switch: () => tileTipEnabled() });
+  d.add({ id: "danger", section: "battle", order: 50, label: "Danger zone", icon: "fa-solid fa-triangle-exclamation", key: "qin.dangerZone", visible: onCanvas, onClick: () => toggleDangerZone(), switch: () => dangerZoneOn() });
+  d.add({ id: "sounds", section: "tools", order: 10, label: "Sounds", icon: "fa-solid fa-volume-high", key: "qin.soundPanel", onClick: () => SoundPanel.toggle(), active: () => !!SoundPanel.instance?.rendered });
+  d.add({ id: "hotkeys", section: "tools", order: 20, label: "Hotkeys", icon: "fa-solid fa-keyboard", key: "qin.hotkeys", onClick: () => HotkeyGuide.toggle(), active: () => !!HotkeyGuide.instance?.rendered });
+  d.add({ id: "newunit", section: "gm", gm: true, order: 10, label: "New unit", icon: NEW_UNIT_TOOL.icon, key: "qin.newUnit", onClick: () => newUnitDialog() });
+  d.add({ id: "uniteditor", section: "gm", gm: true, order: 20, label: "Unit editor", icon: UNIT_EDITOR_TOOL.icon, onClick: () => UnitEditorApp.open(), active: () => UnitEditorApp.isOpen });
+  d.add({ id: "cutscene", section: "gm", gm: true, order: 30, label: "Cutscenes", icon: "fa-solid fa-clapperboard", key: "qin.cutsceneMaker", onClick: () => toggleCutsceneMaker(), active: () => cutsceneMakerOpen() });
+}
+Hooks.once("ready", addDockEntries);
 
 /* ---------- Macro bar: drag a weapon (or Tao, technique...) onto the hotbar to get a click-to-use button */
 async function rollItemMacro(name, uuid) {
