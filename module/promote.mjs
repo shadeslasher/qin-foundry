@@ -14,6 +14,7 @@
 // - The GM can add or block single paths in the setting "Promotion exceptions" (lines "A > B" add, "!A > B" block).
 // The unit keeps its name (unless it was just the unit's type name), owner, officer, side, equipment (a Saddle or
 // Fine Arrows it can no longer use is dropped), and its health as a share; trait choices start over.
+import { budgetOf, setBudget, budgetHtml } from "./budget.mjs";
 import { SYSTEM_ID } from "./config.mjs";
 import { templates } from "./new-unit.mjs";
 
@@ -147,7 +148,7 @@ export function promoteCheck({ level, coin, path, city = null, block = null, has
     const need = path.needFeatures ?? (path.kind === "promote" ? neededFeatures(path.t) : []);
     if (need.length && !need.some(k => (city.features ?? []).includes(k))) return { ok: false, reason: `Needs ${withArticle(need.map(k => FEATURE_NAMES[k] ?? k).join(" or "))} here` };
   }
-  if (coin < path.cost) return { ok: false, reason: `Not enough coin (${coin} of ${path.cost})` };
+  if (coin < path.cost) return { ok: false, reason: `Not enough budget (${coin} of ${path.cost})` };
   return { ok: true, reason: "" };
 }
 
@@ -201,7 +202,7 @@ async function promoteOnGM(requesterId, { actorId, uuid }) {
   const path = paths.find(p => p.t.id === uuid);
   if (!path) return { ok: false, error: "This unit can't become that one." };
   const pc = user?.character;
-  const chk = promoteCheck({ level: actor.system.level ?? 1, coin: pc?.system?.coin ?? 0, path, city: cityFor(opt), block: opt?.block ?? null, hasCharacter: !!pc, taken: inService(path.t, opt) });
+  const chk = promoteCheck({ level: actor.system.level ?? 1, coin: budgetOf(pc), path, city: cityFor(opt), block: opt?.block ?? null, hasCharacter: !!pc, taken: inService(path.t, opt) });
   if (!chk.ok) return { ok: false, error: chk.reason };
   const src = await fromUuid(path.t.id); if (!src) return { ok: false, error: "That unit couldn't be found." };
   const n = src.toObject(), old = actor.system, oldName = actor.name;
@@ -221,9 +222,9 @@ async function promoteOnGM(requesterId, { actorId, uuid }) {
   await actor.update({ system }, { recursive: false });
   await actor.update({ name, img, "prototypeToken.name": name, "prototypeToken.texture.src": tex, [`flags.${SYSTEM_ID}.template`]: path.t.id });
   for (const sc of game.scenes) for (const tk of sc.tokens.filter(t => t.actorId === actor.id && t.actorLink)) await tk.update({ name, "texture.src": tex });
-  if (path.cost) await pc.update({ "system.coin": Math.max(0, (pc.system.coin ?? 0) - path.cost) });
+  if (path.cost) await setBudget(pc, budgetOf(pc) - path.cost); // the army budget pays (David, 2026-11-13)
   const where = opt && !opt.block ? ` at ${esc(opt.title)}` : "";
-  await ChatMessage.create({ content: `<p><b>${esc(oldName)}</b> ${promote ? "is promoted to" : "retrains as"} <b>${esc(path.t.name)}</b>${where}${path.cost ? ` for ${path.cost} coin` : ""}.</p>`, speaker: { alias: pc?.name ?? game.user.name } });
+  await ChatMessage.create({ content: `<p><b>${esc(oldName)}</b> ${promote ? "is promoted to" : "retrains as"} <b>${esc(path.t.name)}</b>${where}${path.cost ? ` for ${path.cost} budget` : ""}.</p>`, speaker: { alias: pc?.name ?? game.user.name } });
   return { ok: true, name: path.t.name };
 }
 
@@ -281,7 +282,7 @@ export class PromoteApp extends foundry.applications.api.ApplicationV2 {
     const a = game.actors.get(target.dataset.actor), p = this.paths?.get(a?.id)?.find(x => x.t.id === target.dataset.uuid); if (!a || !p) return;
     const promote = p.kind === "promote";
     const ok = await foundry.applications.api.DialogV2.confirm({ window: { title: promote ? "Promote" : "Side-grade" }, rejectClose: false,
-      content: `<p>${esc(a.name)} becomes <b>${esc(p.t.name)}</b> (Tier ${p.t.tier})${p.cost ? ` for <b>${p.cost}</b> coin` : ""}.</p><p>${promote ? "It goes back to Level 1." : "It keeps its level and XP."} Trait choices start over; equipment stays.</p>` });
+      content: `<p>${esc(a.name)} becomes <b>${esc(p.t.name)}</b> (Tier ${p.t.tier})${p.cost ? ` for <b>${p.cost}</b> budget` : ""}.</p><p>${promote ? "It goes back to Level 1." : "It keeps its level and XP."} Trait choices start over; equipment stays.</p>` });
     if (!ok) return;
     target.disabled = true;
     const res = await requestPromote({ actorId: a.id, uuid: p.t.id });
@@ -289,12 +290,12 @@ export class PromoteApp extends foundry.applications.api.ApplicationV2 {
     this.render();
   }
   async _renderHTML() {
-    const user = game.users.get(this.userId), pc = user?.character, coin = pc?.system?.coin ?? 0;
+    const user = game.users.get(this.userId), pc = user?.character, coin = budgetOf(pc);
     const prov = provider(), opt = prov ? ownCity(await prov(this.userId)) : null, list = await templates(), ex = exceptions(), city = cityFor(opt);
     const units = unitsOf(this.userId), { bridge } = await bridgeWithOfficers(user, opt);
     this.paths = new Map();
     // layout A (David, 2026-11-12): a slim header, units as rows with a level bar and one status line; buttons only when usable
-    const head = `<div class="qin-pr-head"><b>${esc(pc?.name ?? user?.name ?? "")}</b><span><i class="fa-solid fa-coins"></i> ${pc ? coin.toLocaleString() : "no character"}</span></div>
+    const head = `<div class="qin-pr-head"><b>${esc(pc?.name ?? user?.name ?? "")}</b><span>${pc ? budgetHtml(coin) : "no character"}</span></div>
       ${opt ? `<div class="qin-pr-city">${opt.block ? esc(opt.block) : `${esc(opt.title)} · ${esc(opt.sub.replace(/^.*?city · /, ""))}`}</div>` : ""}`;
     if (!units.length) return `${head}<p class="qin-muted qin-pr-empty">${esc(user?.name ?? "This player")} has no units yet.</p>`;
     const short = (r) => r.replace(/^Already serving /, "Taken: ").replace(/^Needs (an? )?/, "").replace(/ here$/, "").replace(/ \(.*\)$/, "");

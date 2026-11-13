@@ -1573,3 +1573,4 @@ details.qin-unique-bonuses > summary small { font-weight: normal; font-size: cal
 .qin-siege-switch .qin-switch.on { background: #5d8a3e; }
 .qin-siege-switch .qin-switch.on span { left: 21px; }
 .qin-siege-switch p { margin: 4px 0 0; font-size: 12px; }
+.qin-party-money.budget, .qin-budget { color: #9fd18a; }

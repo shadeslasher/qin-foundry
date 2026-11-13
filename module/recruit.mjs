@@ -2,6 +2,7 @@
 // from the compendium. The GM's client does the work (players can't create actors), through a query.
 // Where and what: when a world-map module offers recruitOptions (rtk13-map: the city the party is in, its owner's army,
 // Prosperity tier caps and feature bonuses; David, 2026-11-12) that decides; otherwise the armies the GM picks per player.
+import { budgetOf, setBudget, budgetHtml } from "./budget.mjs";
 import { SYSTEM_ID } from "./config.mjs";
 import { templates, createUnit } from "./new-unit.mjs";
 import { promotedInto, neededFeatures, FEATURE_NAMES, withArticle, branchOf } from "./promote.mjs";
@@ -100,7 +101,7 @@ export function capReason(tier, cap, base, levelCaps = [0, 2, 3, 4]) {
 /** May this be bought? { ok, reason } (pure). With city options, armies is ignored and offered / tier / cap decide. */
 export function recruitCheck({ coin, cost, armies, army, hasCharacter = true, city = null }) {
   // city: { offered, cap, base, tier, levelCaps? }
-  if (!hasCharacter) return { ok: false, reason: "No character is assigned to this player, so there's no coin to spend." };
+  if (!hasCharacter) return { ok: false, reason: "No character is assigned to this player, so there's no budget to spend." };
   if (city) {
     if (!city.offered) return { ok: false, reason: "Not recruited in this city." };
     if (city.tier > city.cap) return { ok: false, reason: capReason(city.tier, city.cap, city.base ?? city.cap, city.levelCaps) };
@@ -112,7 +113,7 @@ export function recruitCheck({ coin, cost, armies, army, hasCharacter = true, ci
     if (city.command && city.command.used >= city.command.limit) return { ok: false, reason: `Your command is full (${city.command.used} of ${city.command.limit} units, ${city.command.why})` };
   } else if (!armies.includes(army)) return { ok: false, reason: `This player can't recruit ${army} units.` };
   if (!(cost > 0)) return { ok: false, reason: "This unit has no recruitment cost set." };
-  if (coin < cost) return { ok: false, reason: `Not enough coin (${coin} of ${cost}).` };
+  if (coin < cost) return { ok: false, reason: `Not enough budget (${coin} of ${cost}).` };
   return { ok: true, reason: "" };
 }
 
@@ -133,15 +134,15 @@ async function recruitOnGM(requesterId, { userId, uuid }) {
     city = { ...cityOffer(t, opt, await templates()), tier: t.tier, base: opt.baseCap, levelCaps: opt.levelCaps, taken: inService(t, opt), full: localFull(t, opt), command: opt.command ?? null };
   }
   if (!off) off = await withOfficers(null, armiesFor(user));
-  const chk = recruitCheck({ coin: pc?.system?.coin ?? 0, cost: t.cost, armies: [...armiesFor(user), ...off.extra], army: t.faction, hasCharacter: !!pc, city });
+  const chk = recruitCheck({ coin: budgetOf(pc), cost: t.cost, armies: [...armiesFor(user), ...off.extra], army: t.faction, hasCharacter: !!pc, city });
   if (!chk.ok) return { ok: false, error: chk.reason };
   const actor = await createUnit({ template: uuid, name: "", owner: user.id, side: "player", officer: "" });
   if (!actor) return { ok: false, error: "The unit couldn't be created." };
   if (opt && hireLimit(t, opt) != null) await actor.setFlag(SYSTEM_ID, "recruitedAt", { city: opt.title, group: t.faction });
   const via = off.extra.includes(t.faction) ? grantFor(t.faction, off.grants) : null;
   if (via) await actor.setFlag(SYSTEM_ID, VIA_FLAG, via.uuid);
-  await pc.update({ "system.coin": Math.max(0, (pc.system.coin ?? 0) - t.cost) });
-  ChatMessage.create({ content: `<p><b>${esc(user.name)}</b> recruits <b>${esc(actor.name)}</b> for ${t.cost} coin${opt ? ` at ${esc(opt.title)}` : ""}${via ? ` through ${esc(via.name)} (only he can lead it)` : ""}.</p>`, speaker: { alias: pc.name } });
+  await setBudget(pc, budgetOf(pc) - t.cost); // the army budget pays, not personal coins (David, 2026-11-13)
+  ChatMessage.create({ content: `<p><b>${esc(user.name)}</b> recruits <b>${esc(actor.name)}</b> for ${t.cost} budget${opt ? ` at ${esc(opt.title)}` : ""}${via ? ` through ${esc(via.name)} (only he can lead it)` : ""}.</p>`, speaker: { alias: pc.name } });
   return { ok: true, name: actor.name };
 }
 
@@ -166,7 +167,7 @@ async function disbandOnGM(requesterId, { actorId }) {
 export async function disbandUnit(actor) {
   if (!actor) return;
   const ok = await foundry.applications.api.DialogV2.confirm({ window: { title: "Disband unit" }, rejectClose: false,
-    content: `<p>Disband <b>${esc(actor.name)}</b>?</p><p class="qin-muted">The unit is gone for good (no coin back). Its officer is free to lead another unit.</p>` });
+    content: `<p>Disband <b>${esc(actor.name)}</b>?</p><p class="qin-muted">The unit is gone for good (no budget back). Its officer is free to lead another unit.</p>` });
   if (!ok) return;
   let res;
   if (game.user.isGM) res = await disbandOnGM(game.user.id, { actorId: actor.id });
@@ -228,7 +229,7 @@ export class RecruitApp extends foundry.applications.api.ApplicationV2 {
   static async #buy(event, target) {
     const t = this.list?.find(x => x.id === target.dataset.uuid); if (!t) return;
     const ok = await foundry.applications.api.DialogV2.confirm({ window: { title: "Recruit" },
-      content: `<p>Recruit <b>${esc(t.name)}</b> for <b>${t.cost}</b> coin? Upkeep ${Math.round(t.cost / 4)} a month.</p>`, rejectClose: false });
+      content: `<p>Recruit <b>${esc(t.name)}</b> for <b>${t.cost}</b> budget? Upkeep ${Math.round(t.cost / 4)} a month.</p>`, rejectClose: false });
     if (!ok) return;
     target.disabled = true;
     await requestRecruit({ userId: this.userId, uuid: t.id });
@@ -236,11 +237,11 @@ export class RecruitApp extends foundry.applications.api.ApplicationV2 {
   }
 
   async _renderHTML() {
-    const user = game.users.get(this.userId), pc = user?.character, coin = pc?.system?.coin ?? 0, prov = provider();
+    const user = game.users.get(this.userId), pc = user?.character, coin = budgetOf(pc), prov = provider();
     const opt = prov ? await prov(this.userId) : null;
     const offs = await withOfficers(opt, armiesFor(user));
-    const head = `<div class="qin-recruit-head">${pc ? `<img src="${esc(pc.img)}" alt=""><div><b>${esc(pc.name)}</b><div><i class="fa-solid fa-coins"></i> ${coin} coin</div></div>`
-      : `<div class="qin-muted">No character is assigned to ${esc(user?.name ?? "this player")} (User Configuration), so there's no coin to spend.</div>`}</div>`;
+    const head = `<div class="qin-recruit-head">${pc ? `<img src="${esc(pc.img)}" alt=""><div><b>${esc(pc.name)}</b><div>${budgetHtml(coin)}</div></div>`
+      : `<div class="qin-muted">No character is assigned to ${esc(user?.name ?? "this player")} (User Configuration), so there's no budget to spend.</div>`}</div>`;
     const row = (t, chk) => `<li class="${chk.ok ? "" : "off"}"><img src="${esc(t.img)}" alt="" data-unit-uuid="${esc(t.id)}"><span class="qin-party-tag tier t${Math.min(5, t.tier)}">T${t.tier}</span>
           <a class="nm" data-unit-uuid="${esc(t.id)}">${esc(t.name)}</a><span class="cost" data-tooltip="Upkeep ${Math.round(t.cost / 4)} a month"><i class="fa-solid fa-coins"></i> ${t.cost}</span>
           ${chk.ok ? `<button type="button" data-action="buy" data-uuid="${esc(t.id)}">Recruit</button>` : `<span class="qin-recruit-why">${esc(chk.reason)}</span>`}</li>`;
@@ -249,7 +250,7 @@ export class RecruitApp extends foundry.applications.api.ApplicationV2 {
     if (opt) {
       // clean layout (David, 2026-11-12): slim header, short cap chips, tabs by kind of unit, slim rows grouped by army
       const cmd = opt.command ? ` <span class="qin-muted" data-tooltip="Units you lead now, and your limit (${esc(opt.command.why)}). Disband a unit from the Party panel to make room.">· ${opt.command.used}/${opt.command.limit} units</span>` : "";
-      const top = `<div class="qin-pr-head"><b>${esc(pc?.name ?? user?.name ?? "")}${cmd}</b><span><i class="fa-solid fa-coins"></i> ${pc ? coin.toLocaleString() : "no character"}</span></div>`;
+      const top = `<div class="qin-pr-head"><b>${esc(pc?.name ?? user?.name ?? "")}${cmd}</b><span>${pc ? budgetHtml(coin) : "no character"}</span></div>`;
       if (opt.block) { this.list = []; return `${top}<div class="qin-pr-city">${esc(opt.block)}</div>`; }
       const all = await templates();
       this.list = all.filter(t => t.cost > 0 && cityOffer(t, opt).offered);

@@ -10,6 +10,7 @@ import { ownerFolder } from "./new-unit.mjs";
 import { partyOfficers, addToParty, removeFromParty, assignOfficer, isPartyOfficer } from "./officer-codex.mjs";
 import { factionList, factionOf } from "./factions.mjs";
 import { siegeTabHTML, siegeActions, carryTag } from "./party-siege.mjs";
+import { budgetOf, setBudget } from "./budget.mjs";
 
 /** A unit the GM has exempted from upkeep (David, 2026-11-12): the Party panel and the world map's season bills skip it. */
 export const noUpkeep = (actor) => !!actor?.flags?.qin?.noUpkeep;
@@ -129,21 +130,23 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
   static #promote(event, target) { PromoteApp.open(target.dataset.id); }
   /** Add (or take, with a negative number) coin: one player's character, or every player's at once (GM). */
   static async #coin(event, target) {
-    const all = target.dataset.scope === "all";
+    const all = target.dataset.scope === "all", budget = target.dataset.kind === "budget"; // the army budget (GM only) or personal coins
     const users = all ? partyGroups().map(g => g.user) : [game.users.get(target.dataset.id)].filter(Boolean);
-    if (!game.user.isGM && (all || users[0]?.id !== game.user.id)) return;
+    if (!game.user.isGM && (budget || all || users[0]?.id !== game.user.id)) return;
+    const word = budget ? "budget" : "coin";
     const pcs = users.map(u => u.character).filter(Boolean);
     if (!pcs.length) return ui.notifications.warn(all ? "No player has a character assigned yet." : "This player has no character assigned (User Configuration).");
     const who = all ? `everyone in the party (${pcs.map(p => p.name).join(", ")})` : pcs[0].name;
     const n = await foundry.applications.api.DialogV2.prompt({
-      window: { title: all ? "Coin for the party" : `Coin: ${pcs[0].name}` }, rejectClose: false,
-      content: `<p>How much coin ${all ? "does each character get" : `does ${esc(pcs[0].name)} get`}? A negative number takes coin away.</p>
+      window: { title: all ? `${budget ? "Budget" : "Coin"} for the party` : `${budget ? "Budget" : "Coin"}: ${pcs[0].name}` }, rejectClose: false,
+      content: `<p>How much ${budget ? "army budget" : "personal coin"} ${all ? "does each player get" : `does ${esc(pcs[0].name)} get`}? A negative number takes it away.</p>${budget ? `<p class="qin-muted">The budget pays only for units, equipment and upkeep (victories, events).</p>` : ""}
         <input type="number" name="coin" value="100" step="25" autofocus style="width:100%">`,
       ok: { label: "Add", icon: "fa-solid fa-coins", callback: (ev, button) => Number(button.form.elements.coin.value) },
     });
     if (!n) return;
-    await Actor.updateDocuments(pcs.map(pc => ({ _id: pc.id, "system.coin": Math.max(0, (pc.system.coin ?? 0) + n) })));
-    ChatMessage.create({ content: `<p><b>${n > 0 ? `+${n}` : n} coin</b> for ${esc(who)}.</p>`, speaker: { alias: game.user.name } });
+    if (budget) for (const pc of pcs) await setBudget(pc, budgetOf(pc) + n);
+    else await Actor.updateDocuments(pcs.map(pc => ({ _id: pc.id, "system.coin": Math.max(0, (pc.system.coin ?? 0) + n) })));
+    ChatMessage.create({ content: `<p><b>${n > 0 ? `+${n}` : n} ${word}</b> for ${esc(who)}.</p>`, speaker: { alias: game.user.name } });
   }
   static #armies(event, target) { pickArmies(target.dataset.id); }
 
@@ -201,15 +204,18 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
           ${gm ? `<button type="button" data-action="heal" data-scope="unit" data-id="${a.id}"><i class="fa-solid fa-heart-pulse"></i> Heal</button>
           <button type="button" data-action="morale" data-scope="unit" data-id="${a.id}" data-tooltip="Set morale to its default (${DEFAULT_MORALE}, more for Disciplined units)"><i class="fa-solid fa-flag"></i> Reset morale</button>
           <button type="button" data-action="removeUnit" data-id="${a.id}" data-tooltip="Take it out of the party (kept in the Actors list)"><i class="fa-solid fa-user-minus"></i> Remove</button>` : ""}
-          ${a.isOwner && !gm ? `<button type="button" class="qin-pd-danger" data-action="disband" data-id="${a.id}" data-tooltip="Gone for good, no coin back"><i class="fa-solid fa-trash"></i> Disband</button>` : ""}
-          ${gm ? `<button type="button" class="qin-pd-danger" data-action="disband" data-id="${a.id}" data-tooltip="Gone for good, no coin back"><i class="fa-solid fa-trash"></i> Disband</button>` : ""}</div></aside>`;
+          ${a.isOwner && !gm ? `<button type="button" class="qin-pd-danger" data-action="disband" data-id="${a.id}" data-tooltip="Gone for good, no budget back"><i class="fa-solid fa-trash"></i> Disband</button>` : ""}
+          ${gm ? `<button type="button" class="qin-pd-danger" data-action="disband" data-id="${a.id}" data-tooltip="Gone for good, no budget back"><i class="fa-solid fa-trash"></i> Disband</button>` : ""}</div></aside>`;
     };
     const upkeep = (units) => units.reduce((n, a) => n + upkeepOf(a), 0);
     const cmd = (u) => { try { return game.modules.get("rtk13-map")?.api?.commandLimit?.(u) ?? null; } catch { return null; } };
     const playerHead = (g) => {
       const pc = g.user.character, coin = pc?.system?.coin, mine = g.user.id === game.user.id, c = cmd(g.user), f = fold.has(g.user.id);
-      const addCoin = (gm || mine) && pc ? `<button type="button" class="qin-party-coin" data-action="coin" data-id="${g.user.id}" data-tooltip="Add coin to ${esc(pc.name)}"><i class="fa-solid fa-plus"></i></button>` : "";
-      const facts = [pc ? esc(pc.name) : "", coin !== undefined ? `<span class="qin-party-money"><i class="fa-solid fa-coins"></i> ${coin} coin</span>${addCoin}` : "",
+      const addCoin = (gm || mine) && pc ? `<button type="button" class="qin-party-coin" data-action="coin" data-id="${g.user.id}" data-tooltip="Add personal coin to ${esc(pc.name)}"><i class="fa-solid fa-plus"></i></button>` : "";
+      const addBudget = gm && pc ? `<button type="button" class="qin-party-coin" data-action="coin" data-kind="budget" data-id="${g.user.id}" data-tooltip="Add army budget for ${esc(g.user.name)} (victories, events)"><i class="fa-solid fa-plus"></i></button>` : "";
+      const facts = [pc ? esc(pc.name) : "",
+        pc ? `<span class="qin-party-money budget" data-tooltip="Army budget: pays for units, equipment and upkeep"><i class="fa-solid fa-sack-dollar"></i> ${budgetOf(pc).toLocaleString()}</span>${addBudget}` : "",
+        coin !== undefined ? `<span class="qin-party-money" data-tooltip="Personal coins (not for the army)"><i class="fa-solid fa-coins"></i> ${coin.toLocaleString()} coin</span>${addCoin}` : "",
         `${upkeep(g.units)}/mo`, c ? `<span data-tooltip="${esc(c.why ?? "")}">command ${c.used}/${c.limit}</span>` : `${g.units.length} unit${g.units.length === 1 ? "" : "s"}`].filter(Boolean).join(" · ");
       const canAct = gm || mine;
       return `<div class="qin-pr-player">
@@ -235,7 +241,7 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
       <span class="qin-pr-tot">${all.length} unit${all.length === 1 ? "" : "s"} · <span class="qin-party-money"><i class="fa-solid fa-coins"></i> ${upkeep(all)}/mo</span></span>
       ${gm && groups.length ? `<span class="qin-pr-allbtns"><button type="button" data-action="heal" data-scope="all"><i class="fa-solid fa-heart-pulse"></i> Heal all</button>
         <button type="button" data-action="morale" data-scope="all"><i class="fa-solid fa-flag"></i> Reset morale</button>
-        <button type="button" data-action="coin" data-scope="all" data-tooltip="Add the same amount of coin to every player's character"><i class="fa-solid fa-coins"></i> Add coin</button></span>` : ""}</div>`;
+        <button type="button" data-action="coin" data-scope="all" data-kind="budget" data-tooltip="Add the same army budget to every player (victories, events)"><i class="fa-solid fa-sack-dollar"></i> Add budget</button></span>` : ""}</div>`;
     const offs = partyOfficers(), tab = getTab();
     const tabs = `<nav class="qin-party-tabs"><a data-action="tab" data-tab="units" class="${tab === "units" ? "on" : ""}">Units</a><a data-action="tab" data-tab="officers" class="${tab === "officers" ? "on" : ""}">Officers <small>(${offs.length})</small></a><a data-action="tab" data-tab="siege" class="${tab === "siege" ? "on" : ""}">Siege</a></nav>`;
     if (tab === "siege") return `<div class="qin-party-wrap qin-pv2">${tabs}${siegeTabHTML(groups, gm)}</div>`;
