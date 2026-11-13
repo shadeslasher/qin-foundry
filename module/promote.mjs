@@ -31,6 +31,7 @@ export function branchOf(t) {
 export function branchesOf(t) {
   return t.category === "cavalry" && (t.range ?? 1) > 1 ? ["cavalry", "ranged"] : [branchOf(t)];
 }
+export const isMountedShooter = (t) => t.category === "cavalry" && (t.range ?? 1) > 1;
 const shareBranch = (a, b) => branchesOf(a).some(x => branchesOf(b).includes(x));
 
 /** "A > B" adds, "!A > B" blocks (pure). Returns { add: Set, block: Set } of "a>b" keys (lower case). */
@@ -55,12 +56,15 @@ export function promotionPaths(from, list, ex = { add: new Set(), block: new Set
     if (t.name === from.name || !(t.cost > 0)) continue;
     if (ex.block.has(key(t))) continue;
     let kind = null;
-    // side-grades: any shared branch (mounted shooters ↔ cavalry or ranged); promotions: the unit's own branch only
-    if (t.faction === from.faction) kind = t.tier === from.tier && shareBranch(t, from) ? "side" : t.tier === from.tier + 1 && branchOf(t) === branchOf(from) ? "promote" : null;
+    // side-grades: any shared branch (mounted shooters ↔ cavalry or ranged); promotions: the unit's own branch, or into
+    // mounted shooters from ranged infantry too (David, 2026-11-12)
+    if (t.faction === from.faction) kind = t.tier === from.tier && shareBranch(t, from) ? "side"
+      : t.tier === from.tier + 1 && (branchOf(t) === branchOf(from) || (isMountedShooter(t) && shareBranch(t, from))) ? "promote" : null;
     if (!kind && ex.add.has(key(t))) kind = t.tier > from.tier ? "promote" : "side";
     if (!kind) continue;
     const diff = Math.max(0, t.cost - (from.cost ?? 0));
-    out.push({ t, kind, cost: kind === "side" ? Math.max(SIDE_FEE, diff) : diff, needLevel: kind === "side" ? SIDE_LEVEL : PROMOTE_LEVEL });
+    out.push({ t, kind, cost: kind === "side" ? Math.max(SIDE_FEE, diff) : diff, needLevel: kind === "side" ? SIDE_LEVEL : PROMOTE_LEVEL,
+      needFeatures: requiredFeatures(from, t, kind) });
   }
   // the same unit can sit in several packs: keep one per name
   const seen = new Set();
@@ -78,6 +82,19 @@ export function neededFeatures(t) {
   const own = BRANCH_FEATURE[branchOf(t)];
   return (t.range ?? 1) > 1 && own !== "fletcher" ? [own, "fletcher"] : [own];
 }
+/**
+ * The city features (any one of them) a move needs (pure). Into mounted shooters (David, 2026-11-12): from foot ranged
+ * units Horse Pastures, from melee cavalry a Fletcher, from mounted shooters either. Other promotions: the new unit's
+ * feature; other side-grades: none.
+ */
+export function requiredFeatures(from, t, kind) {
+  if (isMountedShooter(t)) {
+    if (isMountedShooter(from)) return ["pastures", "fletcher"];
+    if (from.category === "cavalry") return ["fletcher"];
+    if (from.category === "ranged" || (from.range ?? 1) > 1) return ["pastures"];
+  }
+  return kind === "promote" ? neededFeatures(t) : [];
+}
 /** The Prosperity a city needs to promote into this tier (pure): Tier 2 Low, 3 Mid, 4 High. */
 export const minProsperity = (tier) => Math.max(1, tier - 1);
 
@@ -86,11 +103,11 @@ export function promoteCheck({ level, coin, path, city = null, block = null, has
   if (block) return { ok: false, reason: block };
   if (!hasCharacter) return { ok: false, reason: "No character to pay." };
   if (level < path.needLevel) return { ok: false, reason: `Needs Level ${path.needLevel}` };
-  if (city && path.kind === "promote") {
-    // the branch's feature in the city, at any Prosperity (David, 2026-11-12: "promotion only needs the feature")
-    if (path.t.tier >= 5) return { ok: false, reason: "Can't be trained by promotion" };
-    const need = neededFeatures(path.t);
-    if (!need.some(k => (city.features ?? []).includes(k))) return { ok: false, reason: `Needs ${withArticle(need.map(k => FEATURE_NAMES[k] ?? k).join(" or "))} here` };
+  if (city) {
+    // the move's feature in the city, at any Prosperity (David, 2026-11-12: "promotion only needs the feature")
+    if (path.kind === "promote" && path.t.tier >= 5) return { ok: false, reason: "Can't be trained by promotion" };
+    const need = path.needFeatures ?? (path.kind === "promote" ? neededFeatures(path.t) : []);
+    if (need.length && !need.some(k => (city.features ?? []).includes(k))) return { ok: false, reason: `Needs ${withArticle(need.map(k => FEATURE_NAMES[k] ?? k).join(" or "))} here` };
   }
   if (coin < path.cost) return { ok: false, reason: `Not enough coin (${coin} of ${path.cost})` };
   return { ok: true, reason: "" };
