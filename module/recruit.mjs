@@ -130,7 +130,7 @@ async function recruitOnGM(requesterId, { userId, uuid }) {
     opt = await prov(userId);
     if (opt.block) return { ok: false, error: opt.block };
     off = await withOfficers(opt);
-    city = { ...cityOffer(t, opt, await templates()), tier: t.tier, base: opt.baseCap, levelCaps: opt.levelCaps, taken: inService(t, opt), full: localFull(t, opt) };
+    city = { ...cityOffer(t, opt, await templates()), tier: t.tier, base: opt.baseCap, levelCaps: opt.levelCaps, taken: inService(t, opt), full: localFull(t, opt), command: opt.command ?? null };
   }
   if (!off) off = await withOfficers(null, armiesFor(user));
   const chk = recruitCheck({ coin: pc?.system?.coin ?? 0, cost: t.cost, armies: [...armiesFor(user), ...off.extra], army: t.faction, hasCharacter: !!pc, city });
