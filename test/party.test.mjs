@@ -141,3 +141,11 @@ test('mercenaries: any city, no feature or cap, limit by Prosperity, never promo
   assert.strictEqual(hireLimit(m, { ...low, mercLimit: 3 }), 3);
   assert.deepStrictEqual(promotionPaths(m, [m, { ...m, name: 'Hired Axes' }, { ...m, name: 'Hired Elite', tier: 3 }]), []);
 });
+
+test('Northern veterans: one per Prosperity level above Low, never promoted', async () => {
+  const { hireLimit } = await import('../module/recruit.mjs');
+  const { promotionPaths } = await import('../module/promote.mjs');
+  const n = { name: 'North Spears', faction: 'Northern', tier: 2, category: 'infantry', weaponSkill: 'qiangshu', cost: 900 };
+  assert.deepStrictEqual([1, 2, 3].map(p => hireLimit(n, { title: 'X', prosperity: p })), [0, 1, 2]);
+  assert.deepStrictEqual(promotionPaths(n, [n, { ...n, name: 'North Vet Spears', tier: 3 }, { ...n, name: 'North Ji' }]), []);
+});

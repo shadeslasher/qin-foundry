@@ -76,7 +76,7 @@ export const LINKS = [["Qiang Warriors", "Qiang Raiders", ["pastures"]], ["Qiang
 export const promotedInto = (t, list) => list.some(u => u.faction === t.faction && u.tier < t.tier && u.name !== t.name
   && promotionPaths(u, list).some(p => p.kind === "promote" && p.t.name === t.name));
 /** Armies whose units never side-grade or promote (David, 2026-11-13). */
-export const FIXED_ARMIES = ["Mercenary"];
+export const FIXED_ARMIES = ["Mercenary", "Northern"];
 export function promotionPaths(from, list, ex = { add: new Set(), block: new Set() }, bridge = []) {
   if (FIXED_ARMIES.includes(from.faction)) return [];
   const key = (t) => `${from.name.toLowerCase()}>${t.name.toLowerCase()}`, out = [];
