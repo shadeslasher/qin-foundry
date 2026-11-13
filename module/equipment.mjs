@@ -35,6 +35,8 @@ async function saveList(actor, list) {
 export const isCavalry = (actor) => (actor?.system?.category ?? "") === "cavalry";
 /** Fine Arrows are for units that shoot (range 2+, hybrids included; David, 2026-11-12). */
 export const isRangedUnit = (actor) => (actor?.system?.range ?? 1) > 1;
+/** A unit owned by a player (not only the GM). */
+export const playerOwned = (actor) => !!actor && (game.users ?? []).some(u => !u.isGM && actor.testUserPermission?.(u, "OWNER"));
 /** Who may equip a unit: the GM, or the unit's owner (David, 2026-10-25). */
 export const canEquip = (actor) => !!actor && (game.user.isGM || actor.isOwner);
 export async function equipUnit(actor, name) {
@@ -42,6 +44,7 @@ export async function equipUnit(actor, name) {
   const src = foundry.utils.deepClone(actor._source.system.traitList ?? []);
   if (equipmentFamily(name) === "Fine Arrows" && !isRangedUnit(actor)) return ui.notifications.warn(`${actor.name} doesn't shoot: only ranged units can use Fine Arrows.`);
   if (equipmentFamily(name) === "Saddle" && !isCavalry(actor)) return ui.notifications.warn(`${actor.name} isn't cavalry: only cavalry can use a saddle.`);
+  if (equipmentKind(name) === "siege" && playerOwned(actor)) return ui.notifications.warn("Players' siege equipment is handed out from the Party panel's Siege tab during deployment.");
   if (siegeClash(src, name)) return ui.notifications.warn(`${actor.name} already carries siege equipment: drop it first (a unit carries ladders or an engine, never both).`);
   const swapped = gearReplaced(src, name);
   const list = equipList(src, name); if (!list) return;
@@ -74,6 +77,9 @@ export class EquipmentPicker extends foundry.applications.api.ApplicationV2 {
   static async #unequip(ev, el) { await unequipUnit(this.actor, el.dataset.name); this.render(); }
   async _renderHTML() {
     const have = new Map(equipmentOf(this.actor).map(e => [equipmentFamily(e.name), e.name]));
+    // players' units get siege equipment from their owner's stock at deployment (David, 2026-11-13); units nobody owns
+    // (the GM's enemies) still carry it on their sheet
+    const siegeHere = !playerOwned(this.actor);
     const gear = [...have.keys()].find(k => equipmentKind(EQUIPMENT.find(f => f.family === k)?.tiers[0].name) === "gear") ?? null;
     const section = (f) => {
       const cur = have.get(f.family);
@@ -87,8 +93,8 @@ export class EquipmentPicker extends foundry.applications.api.ApplicationV2 {
       </section>`;
     };
     return `<div class="qin-eq-wrap">
-      <p class="qin-eq-intro">${esc(this.actor.name)} can carry one of each upgrade, one piece of gear and one piece of siege equipment. A better tier replaces the one it has.</p>
-      ${["upgrade", "gear", "siege"].map(kind => `<div class="qin-eq-kind">${esc(KIND_LABEL[kind])}</div>${EQUIPMENT.filter(f => f.kind === kind).map(section).join("")}`).join("")}
+      <p class="qin-eq-intro">${esc(this.actor.name)} can carry one of each upgrade${siegeHere ? ", one piece of gear and one piece of siege equipment" : " and one piece of gear"}. A better tier replaces the one it has.${siegeHere ? "" : " Siege equipment is handed out from the Party panel's Siege tab during deployment."}</p>
+      ${(siegeHere ? ["upgrade", "gear", "siege"] : ["upgrade", "gear"]).map(kind => `<div class="qin-eq-kind">${esc(KIND_LABEL[kind])}</div>${EQUIPMENT.filter(f => f.kind === kind).map(section).join("")}`).join("")}
     </div>`;
   }
   _replaceHTML(result, content) {

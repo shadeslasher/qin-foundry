@@ -61,6 +61,7 @@ import { registerCombatState } from "./module/combat-state.mjs";
 import { registerSkillEffects } from "./module/skill-effects.mjs";
 import { CombatPanel, registerCombatPanel, togglePanelKey } from "./module/combat-panel.mjs";
 import { registerDock } from "./module/dock.mjs";
+import { registerSiegeStock } from "./module/siege-stock.mjs";
 import { toggleCutsceneMaker, cutsceneMakerOpen } from "./module/cutscene.mjs";
 registerCombatState();
 registerSkillEffects();
@@ -236,6 +237,7 @@ Hooks.once("init", () => {
   registerParty();
   registerOfficerCodex();
   registerDock();
+  registerSiegeStock();
   registerOfficerLimit();
   game.keybindings.register(SYSTEM_ID, "tileTip", {
     name: "Tile info", hint: "Show a small tooltip by the cursor describing the square under it (terrain, buildings and their effects). Press again to turn it off.",

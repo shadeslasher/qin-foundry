@@ -297,6 +297,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
       // before the first round is fought (setup, tactics) the heading reads "Deployment", not "Round 1" (David, 2026-10-31)
       round: t.round, roundLabel: ["setup", "tactics"].includes(t.phase) ? "Deployment" : null, phase: PHASE_NAME[t.phase], prompt,
       deployList: deployListState(), held, controls, order, units,
+      siegeCard: game.user.isGM && t.phase === "tactics" ? { on: !!battle.siegeDeploy } : null, // David, 2026-11-13
       log: (s.log || []).slice(-12).reverse().map(e => e.text), recentClosed: recentClosed(),
       wrongScene: canvas.scene?.id !== battle.sceneId, battleScene: scene?.name,
       showSkip: game.user.isGM && !["setup", "start", "tactics", "over"].includes(p.kind),
@@ -343,6 +344,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
     if (d.type === "openTactics") return TacticsApp.open();
     if (d.type === "drawFreehand") return (await import("./deploy-draw.mjs")).startFreehand();
     const action = { type: d.type };
+    if (d.type === "allowSiege") action.on = d.on === "true";
     for (const k of ["unitId", "choice", "index", "result"]) if (d[k] !== undefined) action[k] = k === "index" ? Number(d[k]) : d[k];
     await battleRequest(action);
   }

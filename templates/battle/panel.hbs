@@ -85,6 +85,13 @@
       {{/each}}
     </div>
   </div>
+  {{#if siegeCard}}
+  <div class="qin-card qin-siege-switch">
+    <div class="qin-siege-row"><i class="fa-solid fa-dungeon"></i><b>Allow siege equipment</b>
+      <button type="button" class="qin-switch {{#if siegeCard.on}}on{{/if}}" data-action="do" data-type="allowSiege" data-on="{{#if siegeCard.on}}false{{else}}true{{/if}}" title="{{#if siegeCard.on}}Lock siege equipment{{else}}Let players hand out ladders and engines, and place catapults{{/if}}"><span></span></button></div>
+    <p class="qin-muted">{{#if siegeCard.on}}Players can hand out ladders and engines and place catapults (Party panel, Siege tab).{{else}}Off when deployment starts. On: players hand out siege equipment and place catapults.{{/if}}</p>
+  </div>
+  {{/if}}
   <div class="qin-battle-scroll">{{!-- everything under the prompt scrolls, the deploy list included (2026-11-01) --}}
   {{#if deploy}}{{> deployCard}}{{/if}}
   {{#if objCard}}{{> objectivesCard}}{{/if}}

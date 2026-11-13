@@ -71,6 +71,8 @@ function battleEdits(scene) {
     }
   }
   for (const k of Object.keys(b.siege?.fires ?? {})) { const [x, y] = k.split(",").map(Number); edits.push({ x, y, overlay: "fire", on: true }); }
+  // catapults the players set up at deployment (David, 2026-11-13); a burned one is gone
+  for (const c of b.siege?.catapults ?? []) if (!b.siege?.burnt?.[c.x + "," + c.y]) edits.push({ x: c.x, y: c.y, overlay: "catapult", on: true });
   return edits;
 }
 
@@ -164,7 +166,8 @@ const battleMapKey = () => {
   const b = getBattle();
   if (!b.active) return "";
   return b.sceneId + "|" + [...(b.siege?.gates ?? []).filter(g => g.state === "burned").map(g => g.id),
-    ...Object.keys(b.siege?.fires ?? {}).map(k => "f" + k), ...Object.keys(b.siege?.burnt ?? {}).map(k => "b" + k)].sort().join(",");
+    ...Object.keys(b.siege?.fires ?? {}).map(k => "f" + k), ...Object.keys(b.siege?.burnt ?? {}).map(k => "b" + k),
+    ...(b.siege?.catapults ?? []).map(c => "c" + c.x + "," + c.y)].sort().join(",");
 };
 /** Called whenever the battle setting changes: one GM redraws when the drawn changes (burned gates) change. */
 export function syncBattleMap() {

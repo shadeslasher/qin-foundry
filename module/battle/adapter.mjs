@@ -8,6 +8,7 @@ import * as E from "./engine.mjs";
 import { traitTiersOf, shieldArmorOf } from "./traits.mjs";
 import { REINFORCE_FLAG, REINFORCE_TOKEN_FLAG, zonesOf as reinforceZonesOf, isWaiting as isWaitingReinforcement } from "./reinforce-rules.mjs";
 import { equipmentByName } from "./equipment-data.mjs";
+import { allStocks, settleSiegeLosses } from "../siege-stock.mjs";
 import { officerEligibility } from "../officer-rules.mjs";
 export { traitTiersOf, shieldArmorOf };
 import { HEROIC_ACTIONS } from "./engine-data.mjs";
@@ -168,6 +169,8 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
   s.skillInterjects = battle.skillInterjects ?? []; s.skillExtra = battle.skillExtra ?? []; // short extra turns skills hand out
   s.skillOrder = battle.skillOrder ?? []; s.skillCancelTactic = battle.skillCancelTactic ?? []; s.skFallen = battle.skFallen ?? {};
   s.tileOverrides = battle.tileOverrides ?? {};
+  s.siegeDeploy = !!battle.siegeDeploy; s.siegeIssued = battle.siegeIssued ?? null; // siege equipment hand-outs (David, 2026-11-13)
+  try { s.siegeStock = allStocks(); } catch { s.siegeStock = null; }
   s.revealPicks = battle.revealPicks ?? []; // battle-start reveals waiting for the GM (or the AI) to pick a hidden enemy
   s.deployZones = scene?.getFlag?.(SYSTEM_ID, DEPLOY_FLAG) ?? []; // deployment squares, saved with the scene
   s.objectives = foundry.utils.deepClone(scene?.getFlag?.(SYSTEM_ID, OBJECTIVES_FLAG) ?? emptyObjectives()); // victory / defeat conditions
@@ -235,7 +238,8 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
       facing: meta.facing ?? null, hidden: sys.hidden, status: sys.status,
       fierceCharge: fierce ? 1 + fierce[1].length : (traitTiersOf(sys.traits)['fierce charge'] || 0), // Fierce Charge EX = 4 (David, 2026-10-31)
       traitTiers: traitTiersOf(sys.traits), fx: tok.getFlag?.(SYSTEM_ID, "arrived") ? { ...(meta.fx ?? {}), reinforced: true } : (meta.fx ?? {}), // arrived as a reinforcement (battlefield skills)
-      carry: meta.carry !== undefined ? meta.carry : startingCarry(sys.traits),
+      // players' units get siege equipment handed out at deployment (their stock); others carry what their sheet says
+      carry: meta.carry !== undefined ? meta.carry : ownerUserId(a) ? null : startingCarry(sys.traits),
       mods: meta.mods ?? [], overwatch: !!meta.overwatch, heroicUsed: meta.heroicUsed ?? 0, lastHeroic: meta.lastHeroic ?? null,
       surrounded: meta.surrounded ?? false, round: meta.round ?? { activated: false, moved: false, cannotMove: false, holding: false, attacked: false, skillUsed: false, heroicUsed: false, meleeTarget: null, meleeAttacker: null },
     });
@@ -322,11 +326,12 @@ async function writeBack(battle, s, scene) {
     if (battle.startMen[u.id] === undefined) battle.startMen[u.id] = sys.men.value;
     if (sys.status !== u.status) upd["system.status"] = u.status;
     if (sys.hidden !== !!u.hidden) upd["system.hidden"] = !!u.hidden;
-    // siege equipment dropped or picked up in battle: the sheet's Equipment follows (ladders / engine entries)
+    // siege equipment dropped or picked up in battle: the sheet's Equipment follows (ladders / engine entries);
+    // players' units don't keep it on the sheet (their stock is counted at the end of the battle)
     const carried = u.carry === "ladders" ? "Siege Ladders" : u.carry === "engine" ? "Siege Engine" : null;
     const list = tok.actor._source?.system?.traitList ?? sys.traitList ?? [];
     const has = list.filter(e => e.equip && (e.name === "Siege Ladders" || e.name === "Siege Engine")).map(e => e.name);
-    if (!(has.length === (carried ? 1 : 0) && (!carried || has[0] === carried))) {
+    if (!u.owner && !(has.length === (carried ? 1 : 0) && (!carried || has[0] === carried))) {
       const kept = list.filter(e => !(e.equip && (e.name === "Siege Ladders" || e.name === "Siege Engine")));
       const piece = carried ? equipmentByName(carried) : null;
       upd["system.traitList"] = piece ? [...kept, { name: piece.name, desc: piece.desc, level: 1, upgrades: [], options: [], chosen: -1, equip: true }] : kept;
@@ -363,6 +368,7 @@ async function writeBack(battle, s, scene) {
   battle.skillInterjects = s.skillInterjects ?? []; battle.skillExtra = s.skillExtra ?? [];
   battle.skillOrder = s.skillOrder ?? []; battle.skillCancelTactic = s.skillCancelTactic ?? []; battle.skFallen = s.skFallen ?? {};
   battle.tileOverrides = s.tileOverrides ?? {};
+  battle.siegeDeploy = !!s.siegeDeploy; battle.siegeIssued = s.siegeIssued ?? null;
   battle.revealPicks = s.revealPicks ?? [];
   battle.objState = s.objState ?? null;
   battle.aiSeen = s.aiSeen ?? null;
@@ -609,6 +615,14 @@ async function runActionNow(userId, action) {
         await o.update({ "system.bol.damage": 0 }, { qinBattle: true });
       }
     } catch (e) { console.warn("Qin | healing duelists", e); }
+    // siege equipment: players lose what was used (ladders set up, engines left on the field, catapults burned)
+    try {
+      const sc = game.scenes.get(battle.sceneId), back = {};
+      const plus = (o, k) => { (back[o] ??= { ladders: 0, engine: 0, catapult: 0 })[k]++; };
+      for (const tok of unitTokens(sc)) { const c = battle.meta?.[tok.id]?.carry, o = tok.actor && ownerUserId(tok.actor); if (o && (c === "ladders" || c === "engine")) plus(o, c); }
+      for (const c of battle.siege?.catapults ?? []) if (c.owner && c.owner !== "host" && !battle.siege?.burnt?.[c.x + "," + c.y]) plus(c.owner, "catapult");
+      await settleSiegeLosses(battle, back);
+    } catch (e) { console.warn("Qin | siege equipment after the battle", e); }
     await game.settings.set(SYSTEM_ID, SETTING, emptyBattle());
     return { ok: true };
   } else if (!battle.active) {

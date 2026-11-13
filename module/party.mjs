@@ -9,6 +9,7 @@ import { EquipmentPicker, equipmentOf } from "./equipment.mjs";
 import { ownerFolder } from "./new-unit.mjs";
 import { partyOfficers, addToParty, removeFromParty, assignOfficer, isPartyOfficer } from "./officer-codex.mjs";
 import { factionList, factionOf } from "./factions.mjs";
+import { siegeTabHTML, siegeActions, carryTag } from "./party-siege.mjs";
 
 /** A unit the GM has exempted from upkeep (David, 2026-11-12): the Party panel and the world map's season bills skip it. */
 export const noUpkeep = (actor) => !!actor?.flags?.qin?.noUpkeep;
@@ -107,6 +108,7 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
       offClear: async (ev, el) => { const u = game.actors.get(el.dataset.id); if (u?.isOwner) await u.update({ "system.officer": "" }); },
       upkeep: async (ev, el) => { const a = game.actors.get(el.dataset.id); if (game.user.isGM && a) await a.update({ "flags.qin.noUpkeep": !noUpkeep(a) }); },
       select: (ev, el) => { const i = PartyPanel.instance; if (i && i.selected !== el.dataset.id) { i.selected = el.dataset.id; i.render(); } },
+      ...siegeActions,
       fold: (ev, el) => { const f = folded(); f.has(el.dataset.id) ? f.delete(el.dataset.id) : f.add(el.dataset.id); saveFolded(f); PartyPanel.refresh(); },
     },
   };
@@ -175,7 +177,7 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
     const row = (a, g) => { const s = a.system, [hb, mb, xb] = bars(s);
       return `<div class="qin-pr-row${a.id === sel ? " sel" : ""}">
         <img src="${esc(a.img)}" alt="" data-action="select" data-id="${a.id}" data-tooltip="Show details">
-        <div class="qin-pr-unit" data-action="select" data-id="${a.id}"><div class="qin-pr-nm">${esc(a.name)} ${statusTag(s)}</div>
+        <div class="qin-pr-unit" data-action="select" data-id="${a.id}"><div class="qin-pr-nm">${esc(a.name)} ${statusTag(s)}${carryTag(a)}</div>
           <div class="qin-pr-sub">${tierTag(s)} Lv ${s.level ?? 1}${s.unitType ? ` · ${esc(s.unitType)}` : ""}${s.cost ? ` · ${noUpkeep(a) ? "no upkeep" : `${s.upkeep}/mo`}` : ""}</div></div>
         <div class="qin-pr-off">${officerPicker(a, g)}</div>
         <div data-action="select" data-id="${a.id}">${hb}</div><div data-action="select" data-id="${a.id}">${mb}</div><div data-action="select" data-id="${a.id}">${xb}</div>
@@ -235,7 +237,8 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
         <button type="button" data-action="morale" data-scope="all"><i class="fa-solid fa-flag"></i> Reset morale</button>
         <button type="button" data-action="coin" data-scope="all" data-tooltip="Add the same amount of coin to every player's character"><i class="fa-solid fa-coins"></i> Add coin</button></span>` : ""}</div>`;
     const offs = partyOfficers(), tab = getTab();
-    const tabs = `<nav class="qin-party-tabs"><a data-action="tab" data-tab="units" class="${tab === "units" ? "on" : ""}">Units</a><a data-action="tab" data-tab="officers" class="${tab === "officers" ? "on" : ""}">Officers <small>(${offs.length})</small></a></nav>`;
+    const tabs = `<nav class="qin-party-tabs"><a data-action="tab" data-tab="units" class="${tab === "units" ? "on" : ""}">Units</a><a data-action="tab" data-tab="officers" class="${tab === "officers" ? "on" : ""}">Officers <small>(${offs.length})</small></a><a data-action="tab" data-tab="siege" class="${tab === "siege" ? "on" : ""}">Siege</a></nav>`;
+    if (tab === "siege") return `<div class="qin-party-wrap qin-pv2">${tabs}${siegeTabHTML(groups, gm)}</div>`;
     if (tab === "officers") {
       const leads = (o) => (game.actors?.contents ?? []).find(u => u.type === "unit" && u.system?.officer === o.uuid);
       const row = (o) => { const u = leads(o), d = o.system.details ?? {}, own = u ? ownerOf(u) : null;
@@ -273,7 +276,7 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
 
 /** Which tab of the Party window is open, in this browser. */
 const TAB_KEY = "qin.partyTab";
-function getTab() { try { return localStorage.getItem(TAB_KEY) === "officers" ? "officers" : "units"; } catch { return "units"; } }
+function getTab() { try { const t = localStorage.getItem(TAB_KEY); return t === "officers" || t === "siege" ? t : "units"; } catch { return "units"; } }
 function setTab(t) { try { localStorage.setItem(TAB_KEY, t); } catch { /* fine */ } }
 
 /** Players whose units are folded away in this browser (David, 2026-11-01). */
@@ -285,5 +288,6 @@ function saveFolded(set) { try { localStorage.setItem(FOLD_KEY, JSON.stringify([
 export function registerParty() {
   const refresh = (doc) => { if (doc?.type === undefined || doc.type === "unit" || doc.type === "character" || doc.documentName === "User") PartyPanel.refresh(); };
   for (const h of ["createActor", "updateActor", "deleteActor", "updateUser"]) Hooks.on(h, refresh);
+  Hooks.on("updateSetting", (st) => { if (st.key === "qin.battle" && getTab() === "siege") PartyPanel.refresh(); }); // the Siege tab follows the battle
   for (const h of ["createActor", "updateActor", "deleteActor", "updateUser"]) Hooks.on(h, () => RecruitApp.refreshAll());
 }

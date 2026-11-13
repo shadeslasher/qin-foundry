@@ -1526,3 +1526,50 @@ details.qin-unique-bonuses > summary small { font-weight: normal; font-size: cal
 #qin-dock .qd-s::after { content: ""; position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%; background: #d9cfbf; transition: left 0.15s; }
 #qin-dock .qd-i.on .qd-s { background: #a8822f; }
 #qin-dock .qd-i.on .qd-s::after { left: 14px; background: #fff4d6; }
+
+/* ---------- Party panel: Siege tab (David, 2026-11-13) */
+.qin-sg { overflow-y: auto; height: calc(100% - 40px); padding: 2px 10px 10px; }
+.qin-sg-ban { display: flex; align-items: center; gap: 10px; margin: 8px 0; padding: 8px 12px; border-radius: 6px; background: #2a2420; border: 1px solid #5a4a38; color: #d9c9a8; }
+.qin-sg-ban.on { background: #26331f; border-color: #5d7a3e; color: #d3e6b9; }
+.qin-sg-ban span { flex: 1; }
+.qin-sg-ban button { flex: none; width: auto; padding: 2px 10px; }
+.qin-sg-card { margin: 10px 0; border: 1px solid #3e362c; border-radius: 8px; background: rgba(20, 17, 14, 0.55); }
+.qin-sg-head { display: flex; align-items: center; gap: 8px; padding: 7px 10px; background: rgba(255,255,255,0.04); border-bottom: 1px solid #3e362c; }
+.qin-sg-head b { font-size: 14px; }
+.qin-sg-cap { margin-left: auto; color: #d9c9a8; font-size: 12px; }
+.qin-sg-stocks { display: flex; gap: 8px; padding: 8px 10px; border-bottom: 1px solid #2e2822; }
+.qin-sg-stock { flex: 1; display: flex; align-items: center; gap: 8px; padding: 6px 9px; border: 1px solid #3e362c; border-radius: 6px; background: rgba(255,255,255,0.03); }
+.qin-sg-stock > i { color: #cdb98e; font-size: 15px; width: 18px; text-align: center; }
+.qin-sg-stock > b { font-size: 18px; color: #f6d488; min-width: 14px; }
+.qin-sg-stock > span { display: flex; flex-direction: column; line-height: 1.15; }
+.qin-sg-stock small { color: #a89878; font-size: 11px; }
+.qin-sg-adj { margin-left: auto; display: flex; flex-direction: column; gap: 2px; }
+.qin-sg-adj a { color: #a89878; font-size: 10px; cursor: pointer; } .qin-sg-adj a:hover { color: #f0c870; }
+.qin-sg-row { display: flex; align-items: center; gap: 9px; padding: 6px 10px; border-bottom: 1px solid #2a241e; }
+.qin-sg-row:last-child { border-bottom: 0; }
+.qin-sg-row img { width: 28px; height: 28px; border-radius: 50%; border: 1px solid #8a7450; object-fit: cover; flex: none; }
+.qin-sg-row > i { width: 28px; text-align: center; color: #d6bd85; font-size: 17px; }
+.qin-sg-row.sub { padding-left: 47px; }
+.qin-sg-row.sub a { color: #a89878; cursor: pointer; } .qin-sg-row.sub a:hover { color: #f0c870; }
+.qin-sg-row button { flex: none; width: auto; padding: 2px 10px; line-height: 22px; }
+.qin-sg-nm { flex: 1; display: flex; flex-direction: column; line-height: 1.2; }
+.qin-sg-nm small { color: #a89878; font-size: 11px; }
+.qin-sg-burnt { color: #e0705a; font-size: 11px; }
+.qin-sg-seg { display: flex; border: 1px solid #5a5040; border-radius: 5px; overflow: hidden; flex: none; }
+.qin-sg-seg button { border: 0; border-left: 1px solid #5a5040; border-radius: 0; background: transparent; color: #d9c9a8; padding: 2px 11px; line-height: 22px; width: auto; margin: 0; }
+.qin-sg-seg button:first-child { border-left: 0; }
+.qin-sg-seg button.on { background: #5a4520; color: #f6d488; }
+.qin-sg-seg button:disabled { color: #5e564a; cursor: default; }
+.qin-sg-seg button:not(:disabled):not(.on):hover { background: rgba(212,166,74,0.14); }
+.qin-sg-place { color: #f0c870; border-color: #6b5630; }
+.qin-sg-none { padding: 6px 10px; }
+.qin-sg-carry { color: #d6bd85; font-size: 11px; margin-left: 4px; }
+
+/* Battle window: allow siege equipment (GM, deployment) */
+.qin-siege-switch .qin-siege-row { display: flex; align-items: center; gap: 10px; }
+.qin-siege-switch .qin-siege-row b { flex: 1; }
+.qin-siege-switch .qin-switch { flex: none; width: 38px; height: 20px; padding: 0; border-radius: 10px; background: #9a8a6a; border: 0; position: relative; cursor: pointer; }
+.qin-siege-switch .qin-switch span { position: absolute; left: 3px; top: 3px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: left 0.15s; }
+.qin-siege-switch .qin-switch.on { background: #5d8a3e; }
+.qin-siege-switch .qin-switch.on span { left: 21px; }
+.qin-siege-switch p { margin: 4px 0 0; font-size: 12px; }

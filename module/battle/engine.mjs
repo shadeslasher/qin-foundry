@@ -5,6 +5,7 @@ import * as data from './engine-data.mjs';
 import * as SK from './skills.mjs';
 import { deployMoveCheck, zoneSet } from './deploy-rules.mjs';
 import { evaluateObjectives, freshObjState, emptyObjectives } from './objectives.mjs';
+import { catapultTileOk, siegeInUse, issuedNow, SIEGE_PLURAL } from './siege-deploy.mjs';
 
 // Four sides. Any two different sides are hostile; units of the same side never attack each other.
 const SIDES = ['player', 'enemy', 'ally', 'neutral'];
@@ -306,7 +307,7 @@ function gateHostile(u, g) {
 }
 /** Catapults (David, 2026-11-04): a ranged unit on a catapult square bombards enemy gates up to this far away, for double damage. */
 const CATAPULT_RANGE = 10;
-const onCatapult = (s, u) => overlaysAt(s, u.x, u.y).includes('catapult') && (typeOf(s, u) || {}).weapon === 'ranged'; // only ranged units work a catapult (David, 2026-11-04)
+const onCatapult = (s, u) => overlaysAt(s, u.x, u.y).includes('catapult') && !(s.siege && s.siege.burnt && s.siege.burnt[u.x + ',' + u.y]) && (typeOf(s, u) || {}).weapon === 'ranged'; // only ranged units work a catapult (David, 2026-11-04)
 const gateDist = (g, u) => Math.min(...g.squares.map(([x, y]) => Math.abs(x - u.x) + Math.abs(y - u.y)));
 const gateTargets = (s, u) => (onCatapult(s, u) || SK.flag(s, u, 'gateRange')
   ? (s.siege && s.siege.gates ? s.siege.gates.filter(g => gateDist(g, u) <= Math.max(onCatapult(s, u) ? CATAPULT_RANGE : 0, Number(SK.flag(s, u, 'gateRange')) || 0)) : [])
@@ -2145,12 +2146,69 @@ const ACTIONS = {
     if (o && o !== u) return err('Tile occupied');
     u.x = a.x; u.y = a.y; settle(s);
   },
+  // ---------- siege equipment during deployment (David, 2026-11-13): the GM allows it; players hand out their stock
+  allowSiege(s, actor, a) {
+    if (!actor.host) return err('Only the GM can allow siege equipment');
+    if (s.turn.phase !== 'tactics') return err('Siege equipment is handed out during deployment');
+    s.siegeDeploy = !!a.on;
+    log(s, a.on ? 'The GM allows siege equipment: hand out ladders and engines, and place catapults.' : 'Siege equipment is locked.', { type: 'siegeDeploy', on: !!a.on });
+  },
+  assignSiege(s, actor, a) { // a.kind: 'ladders' | 'engine' | null
+    const u = unitById(s, a.unitId); if (!u) return err('No such unit');
+    const kind = a.kind || null;
+    if (kind && kind !== 'ladders' && kind !== 'engine') return err('Ladders or a siege engine?');
+    if (!actor.host) {
+      if (!controls(s, actor, u)) return err('You can only equip your own units');
+      if (s.turn.phase !== 'tactics') return err('Siege equipment is handed out during deployment');
+      if (!s.siegeDeploy) return err('The GM hasn\'t allowed siege equipment yet');
+    }
+    if ((u.carry || null) === kind) return;
+    if (kind && isCavalry(s, u)) return err('Cavalry can\'t carry siege equipment');
+    if (kind && u.owner && u.owner !== 'host' && s.siegeStock) {
+      const have = (s.siegeStock[u.owner] || {})[kind] || 0, used = siegeInUse(s, u.owner)[kind];
+      if (used >= have) return err(have ? 'All your ' + SIEGE_PLURAL[kind] + ' are handed out' : 'You have no ' + SIEGE_PLURAL[kind] + ' in stock');
+    }
+    u.carry = kind;
+  },
+  placeCatapult(s, actor, a) {
+    const k = a.x + ',' + a.y;
+    if (!s.map.tiles) return err('Catapults need an imported battle map');
+    const owner = actor.host ? (a.owner || 'host') : actor.id;
+    if (!actor.host) {
+      if (s.turn.phase !== 'tactics') return err('Catapults are placed during deployment');
+      if (!s.siegeDeploy) return err('The GM hasn\'t allowed siege equipment yet');
+      if (!zoneSet(s.deployZones).has(k)) return err('Place catapults inside your deployment zone');
+    }
+    const chk = catapultTileOk(s.map.tiles[k]); if (!chk.ok) return err(chk.reason);
+    if (owner !== 'host' && s.siegeStock) {
+      const have = (s.siegeStock[owner] || {}).catapult || 0;
+      if (siegeInUse(s, owner).catapult >= have) return err(have ? 'All your catapults are placed' : 'You have no catapults in stock');
+    }
+    const sg = siegeState(s), before = s.map.tiles[k], now = JSON.parse(JSON.stringify(before));
+    now.overlays = [...(now.overlays || []), 'catapult'];
+    s.map.tiles = { ...s.map.tiles, [k]: now };
+    (s.tileOverrides ||= {})[k] = { tile: now, before: JSON.parse(JSON.stringify(before)), until: null, catapult: true };
+    (sg.catapults ||= []).push({ x: a.x, y: a.y, owner });
+    log(s, (s.players[owner]?.name || 'The GM') + ' sets up a catapult.', { type: 'catapult', x: a.x, y: a.y });
+  },
+  removeCatapult(s, actor, a) {
+    const sg = s.siege, k = a.x + ',' + a.y;
+    const c = sg && (sg.catapults || []).find(c => c.x === a.x && c.y === a.y); if (!c) return err('No placed catapult there');
+    if (!actor.host) {
+      if (c.owner !== actor.id) return err('That catapult isn\'t yours');
+      if (s.turn.phase !== 'tactics' || !s.siegeDeploy) return err('Catapults can only be taken down during deployment');
+    }
+    sg.catapults = sg.catapults.filter(x => x !== c);
+    const o = s.tileOverrides && s.tileOverrides[k];
+    if (o) { s.map.tiles = { ...s.map.tiles, [k]: o.before }; delete s.tileOverrides[k]; }
+  },
   startBattle(s) {
     if (s.turn.phase !== 'setup') return err('Battle already started');
     s.duels = freshDuels();
     // Tactics come first: before initiative or anything else
     s.turn = freshTurn('tactics', 1);
     s.tactics = { phase: 'setup', sides: { player: null, ally: null, enemy: null }, placed: [], nextId: 1 };
+    s.siegeDeploy = false; // the GM switches siege equipment on during deployment (David, 2026-11-13)
     for (const u of s.units) u.round = newRoundFlags();
     for (const u of s.units) u.facing = null; // no facing until a unit attacks or is attacked
     log(s, 'Battle begins. Tacticians, choose your tactics.');
@@ -2166,6 +2224,10 @@ const ACTIONS = {
     s.objState = freshObjState(); s.outcome = null; s.objEval = null; s.aiSeen = null;
     for (const u of s.units) u.round = newRoundFlags();
     delete s.skillsBegun; delete s.skillExtra; delete s.skillInterjects; delete s.revealPicks; for (const u of s.units) SK.resetUnit(u);
+    s.siegeDeploy = false; delete s.siegeIssued;
+    for (const u of s.units) if (u.owner && u.owner !== 'host') u.carry = null; // players' siege equipment back to stock
+    for (const c of (s.siege && s.siege.catapults) || []) { const k = c.x + ',' + c.y, o = s.tileOverrides && s.tileOverrides[k]; if (o) { s.map.tiles = { ...s.map.tiles, [k]: o.before }; delete s.tileOverrides[k]; } }
+    if (s.siege) s.siege.catapults = [];
     log(s, 'Host returned to setup.');
   },
   startRound(s, actor) {
@@ -2256,6 +2318,7 @@ const ACTIONS = {
     if (s.turn.phase !== 'tactics' || !T) return err('Not in the tactics phase');
     T.phase = 'battle';
     s.turn.phase = 'start';
+    s.siegeDeploy = false; s.siegeIssued = issuedNow(s); // what each player handed out: losses are counted against it
     const n = T.placed.length;
     log(s, n ? n + ' tactic' + (n === 1 ? ' is' : 's are') + ' set. Round 1 is ready to start.' : 'No tactics placed. Round 1 is ready to start.');
   },
@@ -2264,6 +2327,7 @@ const ACTIONS = {
     if (s.turn.phase !== 'tactics' || !T) return err('Not in the tactics phase');
     T.placed = []; T.phase = 'battle';
     s.turn.phase = 'start';
+    s.siegeDeploy = false; s.siegeIssued = issuedNow(s);
     log(s, 'Tactics skipped. Round 1 is ready to start.');
   },
 
