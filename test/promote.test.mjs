@@ -142,3 +142,29 @@ test('set links: Qiang foot units promote into the Qiang horse with Horse Pastur
   assert.deepStrictEqual(promotionPaths(q[0], q).map(p => [p.t.name, p.kind, p.needFeatures.join()]), [['Qiang Raiders', 'promote', 'pastures']]);
   assert.strictEqual(promotedInto(q[1], q), true);
 });
+
+test('officer armies: home folder opens its own army once; aliases; never Han or frontier troops', async () => {
+  const { homeArmies, freeGrants, grantFor } = await import('../module/officer-armies.mjs');
+  const known = ['Han', 'Lordly', 'Song', 'Liu Bei', 'Qiang'];
+  assert.deepStrictEqual(homeArmies('Lordly', known), ['Lordly']);
+  assert.deepStrictEqual(homeArmies('Yuan Shao', known), ['Song']);
+  assert.deepStrictEqual(homeArmies('Shu', known), ['Liu Bei']);
+  assert.deepStrictEqual(homeArmies('Han', known), []);
+  assert.deepStrictEqual(homeArmies('Qiang', known), []);
+  assert.deepStrictEqual(homeArmies('Nobody', known), []);
+  const offs = [{ uuid: 'A', name: 'Aide', armies: ['Lordly'] }, { uuid: 'B', name: 'Bo', armies: ['Song'] }, { uuid: 'C', name: 'Cy', armies: [] }];
+  const free = freeGrants(offs, [{ via: 'B' }, { via: null }]);
+  assert.deepStrictEqual(free.map(o => o.name), ['Aide'], 'Bo\'s unit already serves; Cy opens nothing');
+  assert.strictEqual(grantFor('Lordly', free).uuid, 'A');
+});
+
+test('officer lock: only the opening officer may lead the unit', async () => {
+  const { officerEligibility } = await import('../module/officer-rules.mjs');
+  const saved = globalThis.game; const unit = { id: 'u1', getFlag: (s, k) => k === 'viaOfficer' ? 'Actor.off1' : null };
+  globalThis.game = { actors: { get: (id) => id === 'u1' ? unit : null, contents: [] }, users: { contents: [] } };
+  globalThis.fromUuidSync = (u) => ({ name: u === 'Actor.off1' ? 'Aide' : 'X' });
+  try {
+    assert.strictEqual(officerEligibility({ type: 'character', uuid: 'Actor.off2' }, {}, 'u1').reason, 'only Aide can lead it');
+    assert.strictEqual(officerEligibility({ type: 'character', uuid: 'Actor.off1' }, {}, 'u1').ok, true);
+  } finally { globalThis.game = saved; delete globalThis.fromUuidSync; }
+});

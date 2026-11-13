@@ -7,6 +7,14 @@ import { templates, createUnit } from "./new-unit.mjs";
 import { promotedInto, neededFeatures, FEATURE_NAMES, withArticle, branchOf } from "./promote.mjs";
 
 import { attachUnitHover, hideUnitHover } from "./unit-hover.mjs";
+import { officerGrants, grantFor, VIA_FLAG } from "./officer-armies.mjs";
+/** Add the party officers' open armies to city options or an army list (David, 2026-11-13). */
+async function withOfficers(opt, armies = []) {
+  const grants = await officerGrants(RECRUIT_ARMIES), have = opt && !opt.block ? opt.groups ?? [] : armies;
+  const extra = [...new Set(grants.flatMap(g => g.armies))].filter(a => !have.includes(a));
+  if (opt && !opt.block) opt.officerArmies = extra;
+  return { grants, extra };
+}
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
 export const RECRUIT_ARMIES = ["Han", "Bandits", "Yellow Turbans", "Qiang", "Northern", "Cao Cao", "Wei", "Xiongnu", "Xianbei", "Song", "Xiliang", "Mercenary", "Wu", "Yuan Shu", "Gongsun Zan", "Lu Bu", "Liu Bei", "Liu Biao", "Liu Yan", "Kong Rong", "Tao Qian", "Lu Zhi", "Yan Baihu", "Liu Chong", "Nanman", "Imperial"];
 export const ARMIES_FLAG = "recruitArmies";
@@ -25,7 +33,7 @@ export function cityOffer(t, opt, list = null) {
   // units opened by a city feature (Elephant Grounds → War Elephants, David 2026-11-13): any owner, no cap, no other feature
   if ((opt.specialUnits ?? []).includes(t.name)) return { offered: true, cap: 99 };
   const local = (opt.local ?? []).includes(t.name);
-  const offered = (opt.groups ?? []).includes(t.faction) || local;
+  const offered = (opt.groups ?? []).includes(t.faction) || (opt.officerArmies ?? []).includes(t.faction) || local;
   if (!offered) return { offered: false, cap: 0 };
   // local troops (David, 2026-11-13): any Prosperity, but only the lowest tier of each chain; the rest come by promotion
   if (local) return { offered: true, cap: 99, missing: null, promoteOnly: !!list && promotedInto(t, list) };
@@ -105,19 +113,23 @@ async function recruitOnGM(requesterId, { userId, uuid }) {
   if (!t) return { ok: false, error: "That unit couldn't be found." };
   const pc = user.character;
   const prov = provider();
-  let city = null, opt = null;
+  let city = null, opt = null, off = null;
   if (prov) {
     opt = await prov(userId);
     if (opt.block) return { ok: false, error: opt.block };
+    off = await withOfficers(opt);
     city = { ...cityOffer(t, opt, await templates()), tier: t.tier, base: opt.baseCap, levelCaps: opt.levelCaps, taken: inService(t, opt), full: localFull(t, opt) };
   }
-  const chk = recruitCheck({ coin: pc?.system?.coin ?? 0, cost: t.cost, armies: armiesFor(user), army: t.faction, hasCharacter: !!pc, city });
+  if (!off) off = await withOfficers(null, armiesFor(user));
+  const chk = recruitCheck({ coin: pc?.system?.coin ?? 0, cost: t.cost, armies: [...armiesFor(user), ...off.extra], army: t.faction, hasCharacter: !!pc, city });
   if (!chk.ok) return { ok: false, error: chk.reason };
   const actor = await createUnit({ template: uuid, name: "", owner: user.id, side: "player", officer: "" });
   if (!actor) return { ok: false, error: "The unit couldn't be created." };
   if (isLocalPick(t, opt)) await actor.setFlag(SYSTEM_ID, "recruitedAt", { city: opt.title, group: t.faction });
+  const via = off.extra.includes(t.faction) ? grantFor(t.faction, off.grants) : null;
+  if (via) await actor.setFlag(SYSTEM_ID, VIA_FLAG, via.uuid);
   await pc.update({ "system.coin": Math.max(0, (pc.system.coin ?? 0) - t.cost) });
-  ChatMessage.create({ content: `<p><b>${esc(user.name)}</b> recruits <b>${esc(actor.name)}</b> for ${t.cost} coin${opt ? ` at ${esc(opt.title)}` : ""}.</p>`, speaker: { alias: pc.name } });
+  ChatMessage.create({ content: `<p><b>${esc(user.name)}</b> recruits <b>${esc(actor.name)}</b> for ${t.cost} coin${opt ? ` at ${esc(opt.title)}` : ""}${via ? ` through ${esc(via.name)} (only he can lead it)` : ""}.</p>`, speaker: { alias: pc.name } });
   return { ok: true, name: actor.name };
 }
 
@@ -185,6 +197,7 @@ export class RecruitApp extends foundry.applications.api.ApplicationV2 {
   async _renderHTML() {
     const user = game.users.get(this.userId), pc = user?.character, coin = pc?.system?.coin ?? 0, prov = provider();
     const opt = prov ? await prov(this.userId) : null;
+    const offs = await withOfficers(opt, armiesFor(user));
     const head = `<div class="qin-recruit-head">${pc ? `<img src="${esc(pc.img)}" alt=""><div><b>${esc(pc.name)}</b><div><i class="fa-solid fa-coins"></i> ${coin} coin</div></div>`
       : `<div class="qin-muted">No character is assigned to ${esc(user?.name ?? "this player")} (User Configuration), so there's no coin to spend.</div>`}</div>`;
     const row = (t, chk) => `<li class="${chk.ok ? "" : "off"}"><img src="${esc(t.img)}" alt="" data-unit-uuid="${esc(t.id)}"><span class="qin-party-tag tier t${Math.min(5, t.tier)}">T${t.tier}</span>
@@ -216,10 +229,10 @@ export class RecruitApp extends foundry.applications.api.ApplicationV2 {
       const body = this.tab === "local" ? [...new Set(inTab.map(t => t.faction))].map(g => { const lim = inTab.some(t => t.faction === g && isLocalPick(t, opt));
           return `<div class="qin-rc-grp">${esc(g)} · local troops of ${esc(opt.title)}${lim ? ` <span class="qin-muted">(${Math.max(0, LOCAL_LIMIT - localUsed(g, opt.title))} of ${LOCAL_LIMIT} left for the party)</span>` : ""}</div>${inTab.filter(t => t.faction === g).map(line).join("")}`; }).join("") + (inTab.some(t => UNIQUE_UNITS.includes(t.name)) ? '<p class="qin-muted">War Elephants: one unit across all players.</p>' : "")
         : this.tab === "imperial" ? `<div class="qin-rc-grp">Seat of the Emperor · one of each across all players</div>${inTab.map(line).join("")}`
-        : armiesHere.map(g => `<div class="qin-rc-grp">${esc(g)}</div>${inTab.filter(t => t.faction === g).map(line).join("")}`).join("");
+        : armiesHere.map(g => `<div class="qin-rc-grp">${esc(g)}${(opt.officerArmies ?? []).includes(g) ? ` <span class="qin-muted">· through ${esc(grantFor(g, offs.grants)?.name ?? "")} (one unit, only he leads it)</span>` : ""}</div>${inTab.filter(t => t.faction === g).map(line).join("")}`).join("");
       return `${top}${city}${chips}${tabs}<div class="qin-rc-list">${body || `<p class="qin-muted">No units to recruit here.</p>`}</div>`;
     }
-    const armies = armiesFor(user);
+    const armies = [...armiesFor(user), ...offs.extra];
     this.list = (await templates()).filter(t => armies.includes(t.faction));
     if (!armies.length) return `${head}<p class="qin-muted">The GM hasn't chosen which armies ${esc(user?.name ?? "this player")} can recruit from yet.</p>`;
     const rows = RECRUIT_ARMIES.filter(a => armies.includes(a)).flatMap(army => TYPES.map(([k, label]) => {

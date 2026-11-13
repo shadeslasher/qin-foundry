@@ -2,7 +2,10 @@
 // the officer's skill in the unit's weapon gives Attack +1 per level above 1 (engine buildRoll; above 2 until 2026-11-03). A unit with two weapons
 // (weaponSkill2, e.g. Azure Dragons' spear and bow) counts the officer's higher of the two skills.
 
-import { SKILLS } from "./config.mjs";
+import { SKILLS, SYSTEM_ID } from "./config.mjs";
+/** A unit opened by an officer (officer-armies.mjs) can only be led by him: his uuid, or null. */
+export const lockedOfficer = (unit) => unit?.getFlag?.(SYSTEM_ID, "viaOfficer") ?? unit?.flags?.[SYSTEM_ID]?.viaOfficer ?? null;
+const lockName = (uuid) => { try { return fromUuidSync(uuid)?.name ?? "its officer"; } catch { return "its officer"; } };
 
 const skillOf = (actor, key) => {
   try { const v = actor.getSkill?.(key)?.value; if (Number.isFinite(v)) return v; } catch { /* fall through */ }
@@ -27,6 +30,8 @@ export function officerEligibility(officer, unit, unitId = null) {
   if (!officer || officer.type !== "character") return { ok: false, reason: "not a character" };
   // the one-unit check is for choosing an officer (pickers pass the unit's id); in battle the unit is a token copy
   // that would clash with its own actor, so the battle passes no id and skips it
+  const lock = unitId ? lockedOfficer(globalThis.game?.actors?.get?.(unitId)) : null;
+  if (lock && lock !== officer.uuid) return { ok: false, reason: `only ${lockName(lock)} can lead it` };
   const other = unitId ? playerOfficerConflict(officer, unitId) : null;
   if (other) return { ok: false, reason: `leads ${other.name}` };
   return { ok: true, reason: "" };
@@ -52,6 +57,8 @@ export function playerOfficerConflict(officer, unitId) {
 export function registerOfficerLimit() {
   const check = (doc, officerUuid) => {
     if (!officerUuid) return;
+    const lock = lockedOfficer(doc);
+    if (lock && lock !== officerUuid) { ui.notifications.warn(`Only ${lockName(lock)} can lead ${doc.name}.`); return false; }
     let off = null; try { off = fromUuidSync(officerUuid); } catch { off = null; }
     const other = playerOfficerConflict(off, doc.id);
     if (!other) return;

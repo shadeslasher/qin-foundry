@@ -19,7 +19,8 @@ import { templates } from "./new-unit.mjs";
 
 
 import { attachUnitHover, hideUnitHover } from "./unit-hover.mjs";
-import { inService, armiesFor } from "./recruit.mjs";
+import { inService, armiesFor, RECRUIT_ARMIES } from "./recruit.mjs";
+import { officerGrants, grantFor, VIA_FLAG } from "./officer-armies.mjs";
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
 const QUERY = `${SYSTEM_ID}.promote`;
 export const SIDE_SHARE = 0.5, SIDE_LEVEL = 2, PROMOTE_LEVEL = 4;
@@ -163,11 +164,19 @@ function currentOf(actor, list) {
 }
 
 const bridgeFor = (user, opt) => bridgeArmies(opt && !opt.block ? opt.groups : armiesFor(user));
+/** The Han bridge plus the armies the party's officers open (David, 2026-11-13: one unit per officer). */
+async function bridgeWithOfficers(user, opt) {
+  const base = bridgeFor(user, opt), grants = await officerGrants(RECRUIT_ARMIES);
+  const have = opt && !opt.block ? opt.groups ?? [] : armiesFor(user);
+  const extra = [...new Set(grants.flatMap(g => g.armies))].filter(a => !have.includes(a));
+  return { bridge: [...new Set([...base, ...extra])], grants, extra };
+}
 const exceptions = () => { try { return parseExceptions(game.settings.get(SYSTEM_ID, "promotionExceptions")); } catch { return undefined; } };
 async function context(actor) {
   const list = await templates(), from = currentOf(actor, list);
   const user = ownerOfUnit(actor), prov = provider(), opt = prov && user ? await prov(user.id) : null;
-  return { list, from, paths: promotionPaths(from, list, exceptions(), bridgeFor(user, opt)), user, opt };
+  const { bridge, grants, extra } = await bridgeWithOfficers(user, opt);
+  return { list, from, paths: promotionPaths(from, list, exceptions(), bridge), user, opt, grants, extra };
 }
 /** A player's units for the Promote window: their own player-side units. */
 export const unitsOf = (userId) => (game.actors?.contents ?? []).filter(a => a.type === "unit" && a.system?.side === "player" && ownerOfUnit(a)?.id === userId)
@@ -180,7 +189,7 @@ async function promoteOnGM(requesterId, { actorId, uuid }) {
   const requester = game.users.get(requesterId), actor = game.actors.get(actorId);
   if (!actor || actor.type !== "unit") return { ok: false, error: "No such unit." };
   if (!requester?.isGM && !actor.testUserPermission(requester, "OWNER")) return { ok: false, error: "That isn't your unit." };
-  const { from, paths, user, opt } = await context(actor);
+  const { from, paths, user, opt, grants, extra } = await context(actor);
   const path = paths.find(p => p.t.id === uuid);
   if (!path) return { ok: false, error: "This unit can't become that one." };
   const pc = user?.character;
@@ -190,7 +199,12 @@ async function promoteOnGM(requesterId, { actorId, uuid }) {
   const n = src.toObject(), old = actor.system, oldName = actor.name;
   const share = old.men?.max ? (old.men.value ?? 0) / old.men.max : 1, max = n.system.men?.max ?? 75;
   const promote = path.kind === "promote";
-  const system = { ...n.system, side: old.side, officer: old.officer, status: old.status, hidden: false,
+  // the officer's mark (officer-armies.mjs): kept within the same army, set when moving into an army an officer opens
+  // (then only he may lead it), dropped when leaving it
+  const oldVia = actor.getFlag(SYSTEM_ID, VIA_FLAG) ?? null;
+  const via = oldVia && path.t.faction === from.faction ? oldVia : extra.includes(path.t.faction) ? grantFor(path.t.faction, grants)?.uuid ?? null : null;
+  if (via !== oldVia) await actor.update({ [`flags.${SYSTEM_ID}.${VIA_FLAG}`]: via });
+  const system = { ...n.system, side: old.side, officer: via && old.officer !== via ? "" : old.officer, status: old.status, hidden: false,
     men: { max, value: Math.max(1, Math.round(max * share)) }, morale: old.morale,
     level: promote ? 1 : old.level, xp: promote ? { value: 0, max: old.xp?.max ?? 100 } : old.xp,
     traitList: [...(n.system.traitList ?? []), ...keptEquipment(old.traitList, path.t)] };
@@ -269,7 +283,7 @@ export class PromoteApp extends foundry.applications.api.ApplicationV2 {
   async _renderHTML() {
     const user = game.users.get(this.userId), pc = user?.character, coin = pc?.system?.coin ?? 0;
     const prov = provider(), opt = prov ? await prov(this.userId) : null, list = await templates(), ex = exceptions(), city = cityFor(opt);
-    const units = unitsOf(this.userId), bridge = bridgeFor(user, opt);
+    const units = unitsOf(this.userId), { bridge } = await bridgeWithOfficers(user, opt);
     this.paths = new Map();
     // layout A (David, 2026-11-12): a slim header, units as rows with a level bar and one status line; buttons only when usable
     const head = `<div class="qin-pr-head"><b>${esc(pc?.name ?? user?.name ?? "")}</b><span><i class="fa-solid fa-coins"></i> ${pc ? coin.toLocaleString() : "no character"}</span></div>
