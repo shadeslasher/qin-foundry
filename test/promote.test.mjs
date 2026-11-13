@@ -122,3 +122,16 @@ test('recruit: a feature-opened unit has no cap and needs no army or other featu
   assert.deepStrictEqual(cityOffer(big, { groups: ['Han'], caps: { cavalry: 1 }, featureKeys: [], specialUnits: ['Big Beast'] }), { offered: true, cap: 99 });
   assert.strictEqual(cityOffer(big, { groups: ['Han'], caps: { cavalry: 1 }, featureKeys: [] }).offered, false);
 });
+
+test('local troops: any Prosperity, only chain roots recruitable; frontier groups skip a missing tier', async () => {
+  const { cityOffer, recruitCheck } = await import('../module/recruit.mjs');
+  const { promotionPaths } = await import('../module/promote.mjs');
+  const loc = [T('Steppe Rider', 'Xiongnu', 2, 'cavalry', 'qiangshu', 900), T('Steppe Heavy', 'Xiongnu', 4, 'cavalry', 'qiangshu', 2000),
+    T('Hill Axe', 'Qiang', 2, 'infantry', 'chuishu', 800), T('Hill Horse', 'Qiang', 3, 'cavalry', 'qiangshu', 1300)];
+  const opt = { groups: ['Han'], caps: { cavalry: 1, infantry: 1 }, baseCap: 1, levelCaps: [0, 1, 2, 3], featureKeys: [], local: loc.map(t => t.name) };
+  const ok = (t) => recruitCheck({ coin: 1e6, cost: t.cost, city: { ...cityOffer(t, opt, loc), tier: t.tier, base: 1, levelCaps: opt.levelCaps } });
+  assert.deepStrictEqual(loc.map(t => ok(t).ok), [true, false, true, true], 'T4 is promotion only; a T3 nothing promotes into is a root');
+  assert.strictEqual(ok(loc[1]).reason, 'Promotion only');
+  assert.deepStrictEqual(promotionPaths(loc[0], loc).map(p => [p.t.name, p.kind, p.needFeatures.join()]), [['Steppe Heavy', 'promote', 'pastures']]);
+  assert.deepStrictEqual(promotionPaths(T('Han Horse', 'Han', 2, 'cavalry', 'qiangshu', 900), [...loc, T('Han Heavy', 'Han', 4, 'cavalry', 'qiangshu', 2000)]).map(p => p.t.name), [], 'no tier skip outside frontier groups');
+});

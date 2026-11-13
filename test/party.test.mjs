@@ -64,7 +64,7 @@ test('city recruiting: offered by army or local name, tier cap by type, hybrids 
   const { cityOffer, capReason, recruitCheck } = await import('../module/recruit.mjs');
   const opt = { groups: ['Alpha', 'Mercenary'], local: ['Test Riders'], uncapped: ['Imperial'], caps: { infantry: 3, ranged: 3, cavalry: 4 }, baseCap: 3 };
   assert.deepStrictEqual(cityOffer({ faction: 'Beta', name: 'X', category: 'infantry', tier: 1 }, opt), { offered: false, cap: 0 });
-  assert.strictEqual(cityOffer({ faction: 'Beta', name: 'Test Riders', category: 'cavalry', tier: 2 }, opt).cap, 4);
+  assert.strictEqual(cityOffer({ faction: 'Beta', name: 'Test Riders', category: 'cavalry', tier: 2 }, opt).cap, 99, 'local troops ignore Prosperity');
   assert.strictEqual(cityOffer({ faction: 'Alpha', name: 'X', category: 'infantry', tier: 1, range: 3 }, { ...opt, caps: { infantry: 2, ranged: 3, cavalry: 2 } }).cap, 3);
   assert.strictEqual(capReason(4, 3, 3), 'Needs High Prosperity');
   assert.strictEqual(capReason(4, 4, 3), 'Needs Mid Prosperity');

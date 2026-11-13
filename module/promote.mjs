@@ -60,6 +60,18 @@ export const BRIDGE_FROM = "Han";
 export const NO_BRIDGE = ["Han", "Mercenary", "Imperial", "Northern", "Qiang", "Xiliang", "Xiongnu", "Xianbei"];
 /** The armies a Han unit may move into, from a list of the player's armies (pure). */
 export const bridgeArmies = (groups) => (groups ?? []).filter(g => !NO_BRIDGE.includes(g));
+// frontier local troops (David, 2026-11-13) promote into the next tier their group has in that branch, skipping a missing one
+// (Xiongnu Cavalry T2 → the T4s)
+export const LOCAL_GROUPS = ["Qiang", "Xiongnu", "Xianbei", "Xiliang"];
+const upBranch = (from, t) => branchOf(t) === branchOf(from) || (isMountedShooter(t) && shareBranch(t, from));
+function nextTier(from, t, list) {
+  if (!LOCAL_GROUPS.includes(from.faction) || t.faction !== from.faction) return from.tier + 1;
+  const tiers = list.filter(u => u.faction === from.faction && u.tier > from.tier && upBranch(from, u)).map(u => u.tier);
+  return tiers.length ? Math.min(...tiers) : from.tier + 1;
+}
+/** Can some other unit of its own group promote into t? (pure) Local troops that can are promotion only. */
+export const promotedInto = (t, list) => list.some(u => u.faction === t.faction && u.tier < t.tier && u.name !== t.name
+  && promotionPaths(u, list).some(p => p.kind === "promote" && p.t.name === t.name));
 export function promotionPaths(from, list, ex = { add: new Set(), block: new Set() }, bridge = []) {
   const key = (t) => `${from.name.toLowerCase()}>${t.name.toLowerCase()}`, out = [];
   for (const t of list) {
@@ -71,7 +83,7 @@ export function promotionPaths(from, list, ex = { add: new Set(), block: new Set
     // Tier 5 (Imperial) units don't side-grade (David, 2026-11-13)
     const side = t.tier === from.tier && from.tier < 5 && shareBranch(t, from);
     if (t.faction === from.faction || (from.faction === BRIDGE_FROM && bridge.includes(t.faction))) kind = side ? "side"
-      : t.tier === from.tier + 1 && (branchOf(t) === branchOf(from) || (isMountedShooter(t) && shareBranch(t, from))) ? "promote" : null;
+      : t.tier === nextTier(from, t, list) && upBranch(from, t) ? "promote" : null;
     // lord units may side-grade back into Han, never promote into it (David, 2026-11-13)
     else if (t.faction === BRIDGE_FROM && !NO_BRIDGE.includes(from.faction) && side) kind = "side";
     if (!kind && ex.add.has(key(t))) kind = t.tier > from.tier ? "promote" : "side";

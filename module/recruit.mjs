@@ -4,7 +4,7 @@
 // Prosperity tier caps and feature bonuses; David, 2026-11-12) that decides; otherwise the armies the GM picks per player.
 import { SYSTEM_ID } from "./config.mjs";
 import { templates, createUnit } from "./new-unit.mjs";
-import { neededFeatures, FEATURE_NAMES, withArticle, branchOf } from "./promote.mjs";
+import { promotedInto, neededFeatures, FEATURE_NAMES, withArticle, branchOf } from "./promote.mjs";
 
 import { attachUnitHover, hideUnitHover } from "./unit-hover.mjs";
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
@@ -21,12 +21,14 @@ const provider = () => game.modules?.get?.("rtk13-map")?.active ? game.modules.g
 export const cityRecruiting = () => !!provider();
 
 /** Is this unit offered by these city options, and its tier cap there (pure). Hybrids (range 2+) use their best type. */
-export function cityOffer(t, opt) {
+export function cityOffer(t, opt, list = null) {
   // units opened by a city feature (Elephant Grounds → War Elephants, David 2026-11-13): any owner, no cap, no other feature
   if ((opt.specialUnits ?? []).includes(t.name)) return { offered: true, cap: 99 };
   const local = (opt.local ?? []).includes(t.name);
   const offered = (opt.groups ?? []).includes(t.faction) || local;
   if (!offered) return { offered: false, cap: 0 };
+  // local troops (David, 2026-11-13): any Prosperity, but only the lowest tier of each chain; the rest come by promotion
+  if (local) return { offered: true, cap: 99, missing: null, promoteOnly: !!list && promotedInto(t, list) };
   if ((opt.uncapped ?? []).includes(t.faction)) return { offered: true, cap: 99 };
   const types = [t.category in (opt.caps ?? {}) ? t.category : "infantry", ...((t.range ?? 1) > 1 ? ["ranged"] : [])];
   const cap = Math.max(...types.map(k => opt.caps?.[k] ?? 0));
@@ -74,6 +76,7 @@ export function recruitCheck({ coin, cost, armies, army, hasCharacter = true, ci
   if (city) {
     if (!city.offered) return { ok: false, reason: "Not recruited in this city." };
     if (city.tier > city.cap) return { ok: false, reason: capReason(city.tier, city.cap, city.base ?? city.cap, city.levelCaps) };
+    if (city.promoteOnly) return { ok: false, reason: "Promotion only" };
     if (city.missing) return { ok: false, reason: `Needs ${withArticle(city.missing)} here` };
     if (city.taken) return { ok: false, reason: `Already serving ${city.taken}` };
   } else if (!armies.includes(army)) return { ok: false, reason: `This player can't recruit ${army} units.` };
@@ -95,7 +98,7 @@ async function recruitOnGM(requesterId, { userId, uuid }) {
   if (prov) {
     opt = await prov(userId);
     if (opt.block) return { ok: false, error: opt.block };
-    city = { ...cityOffer(t, opt), tier: t.tier, base: opt.baseCap, levelCaps: opt.levelCaps, taken: inService(t, opt) };
+    city = { ...cityOffer(t, opt, await templates()), tier: t.tier, base: opt.baseCap, levelCaps: opt.levelCaps, taken: inService(t, opt) };
   }
   const chk = recruitCheck({ coin: pc?.system?.coin ?? 0, cost: t.cost, armies: armiesFor(user), army: t.faction, hasCharacter: !!pc, city });
   if (!chk.ok) return { ok: false, error: chk.reason };
@@ -183,7 +186,7 @@ export class RecruitApp extends foundry.applications.api.ApplicationV2 {
       if (opt.block) { this.list = []; return `${top}<div class="qin-pr-city">${esc(opt.block)}</div>`; }
       const all = await templates();
       this.list = all.filter(t => t.cost > 0 && cityOffer(t, opt).offered);
-      const chkOf = (t) => recruitCheck({ coin, cost: t.cost, hasCharacter: !!pc, city: { ...cityOffer(t, opt), tier: t.tier, base: opt.baseCap, levelCaps: opt.levelCaps, taken: inService(t, opt) } });
+      const chkOf = (t) => recruitCheck({ coin, cost: t.cost, hasCharacter: !!pc, city: { ...cityOffer(t, opt, all), tier: t.tier, base: opt.baseCap, levelCaps: opt.levelCaps, taken: inService(t, opt) } });
       const city = `<div class="qin-pr-city">${esc(opt.title)} · ${esc(opt.sub.replace(/^.*?city · /, ""))}</div>`;
       const chips = `<div class="qin-rc-chips">${capChips(opt).map(c => `<span class="qin-recruit-cap ${c.top < c.cap ? "low" : ""}" data-tooltip="${esc(c.why)}">${esc(c.label)} T${c.top}</span>`).join("")}</div>`;
       const tabOf = (t) => (opt.unique ?? []).includes(t.faction) ? "imperial" : opt.local.includes(t.name) || (opt.specialUnits ?? []).includes(t.name) ? "local" : branchOf(t);
