@@ -104,6 +104,8 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
       disband: async (ev, el) => { const { disbandUnit } = await import("./recruit.mjs"); await disbandUnit(game.actors.get(el.dataset.id)); },
       equip: (ev, el) => EquipmentPicker.open(game.actors.get(el.dataset.id)),
       partyTab: (ev, el) => { setTab(el.dataset.tab); PartyPanel.refresh(); },   // not "tab": Foundry 14 keeps that action name for its own tabs
+      pcSheet: (ev, el) => game.users.get(el.dataset.id)?.character?.sheet?.render(true),
+      ranks: async (ev, el) => { const pc = game.users.get(el.dataset.id)?.character; const f = game.modules.get("rtk13-map")?.api?.editRanks; if (pc && f) { await f([pc]); PartyPanel.refresh(); } },
       offSheet: (ev, el) => fromUuidSync(el.dataset.uuid)?.sheet?.render(true),
       offRemove: async (ev, el) => { const a = fromUuidSync(el.dataset.uuid); if (a) await removeFromParty(a); PartyPanel.refresh(); },
       offClear: async (ev, el) => { const u = game.actors.get(el.dataset.id); if (u?.isOwner) await u.update({ "system.officer": "" }); },
@@ -213,20 +215,24 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
       const pc = g.user.character, coin = pc?.system?.coin, mine = g.user.id === game.user.id, c = cmd(g.user), f = fold.has(g.user.id);
       const addCoin = (gm || mine) && pc ? `<button type="button" class="qin-party-coin" data-action="coin" data-id="${g.user.id}" data-tooltip="Add personal coin to ${esc(pc.name)}"><i class="fa-solid fa-plus"></i></button>` : "";
       const addBudget = gm && pc ? `<button type="button" class="qin-party-coin" data-action="coin" data-kind="budget" data-id="${g.user.id}" data-tooltip="Add army budget for ${esc(g.user.name)} (victories, events)"><i class="fa-solid fa-plus"></i></button>` : "";
-      const facts = [pc ? esc(pc.name) : "",
+      // rank and office (David, 2026-11-13): the GM clicks to change them
+      const office = c ? [c.rankName && c.rank ? c.rankName : "No rank", c.civilName, c.court].filter(Boolean).join(" · ") : "";
+      const rankTag = c && pc ? (gm ? `<a class="qin-pr-rank" data-action="ranks" data-id="${g.user.id}" data-tooltip="Change ${esc(pc.name)}'s military rank and civil office"><i class="fa-solid fa-medal"></i> ${esc(office)} <i class="fa-solid fa-pen fa-xs"></i></a>`
+        : `<span class="qin-pr-rank"><i class="fa-solid fa-medal"></i> ${esc(office)}</span>`) : "";
+      const facts = [pc ? `<a class="qin-pr-pc" data-action="pcSheet" data-id="${g.user.id}" data-tooltip="Open ${esc(pc.name)}'s character sheet">${esc(pc.name)}</a>` : "", rankTag,
         pc ? `<span class="qin-party-money budget" data-tooltip="Army budget: pays for units, equipment and upkeep"><i class="fa-solid fa-sack-dollar"></i> ${budgetOf(pc).toLocaleString()}</span>${addBudget}` : "",
         coin !== undefined ? `<span class="qin-party-money" data-tooltip="Personal coins (not for the army)"><i class="fa-solid fa-coins"></i> ${coin.toLocaleString()} coin</span>${addCoin}` : "",
         `${upkeep(g.units)}/mo`, c ? `<span data-tooltip="${esc(c.why ?? "")}">command ${c.used}/${c.limit}</span>` : `${g.units.length} unit${g.units.length === 1 ? "" : "s"}`].filter(Boolean).join(" · ");
       const canAct = gm || mine;
       return `<div class="qin-pr-player">
         <a class="qin-party-fold" data-action="fold" data-id="${g.user.id}" data-tooltip="${f ? "Show" : "Hide"} ${esc(g.user.name)}'s units"><i class="fa-solid fa-chevron-${f ? "right" : "down"}"></i></a>
-        <span class="qin-party-dot" style="background:${esc(g.user.color?.css ?? g.user.color ?? "#888")}"></span><b>${esc(g.user.name)}</b><span class="qin-pr-facts">${facts}</span>
-        <span class="qin-pr-pbtns">${canAct && (gm || !cityRecruiting()) ? `<button type="button" data-action="recruit" data-id="${g.user.id}"><i class="fa-solid fa-plus"></i> Recruit</button>` : ""}
+        <span class="qin-party-dot" style="background:${esc(g.user.color?.css ?? g.user.color ?? "#888")}"></span>${pc ? `<a class="qin-pr-pc" data-action="pcSheet" data-id="${g.user.id}" data-tooltip="Open ${esc(pc.name)}'s character sheet"><b>${esc(g.user.name)}</b></a>` : `<b>${esc(g.user.name)}</b>`}<span class="qin-pr-facts">${facts}</span>
+        <span class="qin-pr-pbtns">${canAct && !cityRecruiting() ? `<button type="button" data-action="recruit" data-id="${g.user.id}"><i class="fa-solid fa-plus"></i> Recruit</button>` : ""}
           ${canAct ? `<button type="button" data-action="promote" data-id="${g.user.id}" data-tooltip="Promote or side-grade ${esc(g.user.name)}'s units"><i class="fa-solid fa-angles-up"></i> Promote</button>` : ""}
           ${gm && !cityRecruiting() ? `<button type="button" class="ic" data-action="armies" data-id="${g.user.id}" data-tooltip="Choose which armies ${esc(g.user.name)} can recruit from"><i class="fa-solid fa-chess-rook"></i></button>` : ""}
           ${gm ? `<button type="button" class="ic" data-action="heal" data-scope="player" data-id="${g.user.id}" data-tooltip="Heal ${esc(g.user.name)}'s units"><i class="fa-solid fa-heart-pulse"></i></button>
           <button type="button" class="ic" data-action="morale" data-scope="player" data-id="${g.user.id}" data-tooltip="Reset the morale of ${esc(g.user.name)}'s units"><i class="fa-solid fa-flag"></i></button>` : ""}</span></div>
-        ${!gm && cityRecruiting() && mine ? `<div class="qin-pr-hint qin-muted">Recruit troops: right-click your city on the world map.</div>` : ""}`;
+        ${!gm && cityRecruiting() && mine ? `<div class="qin-pr-hint qin-muted">Recruit troops: right-click the city the party is in on the world map (Troops).</div>` : ""}`;
     };
     const fold = folded();
     const roster = groups.length ? `<div class="qin-pr-cols"><span></span><span>Unit</span><span>Officer</span><span>Health</span><span>Morale</span><span>XP</span><span></span></div>`

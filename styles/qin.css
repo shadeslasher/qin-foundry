@@ -1574,3 +1574,9 @@ details.qin-unique-bonuses > summary small { font-weight: normal; font-size: cal
 .qin-siege-switch .qin-switch.on span { left: 21px; }
 .qin-siege-switch p { margin: 4px 0 0; font-size: 12px; }
 .qin-party-money.budget, .qin-budget { color: #9fd18a; }
+/* Party panel: the player's name opens the character sheet; rank and office (the GM clicks to edit) — 2026-11-13 */
+.qin-pr-player a.qin-pr-pc { cursor: pointer; color: inherit; text-decoration: none; }
+.qin-pr-player a.qin-pr-pc:hover, .qin-pr-player a.qin-pr-pc:hover b { color: #f1d99a; text-decoration: underline; }
+.qin-pr-rank { display: inline-flex; align-items: center; gap: 4px; padding: 0 6px; border-radius: 3px; background: rgba(201,168,92,.14); color: #e3cf98; font-size: .92em; }
+a.qin-pr-rank { cursor: pointer; } a.qin-pr-rank:hover { background: rgba(201,168,92,.3); color: #fff; }
+a.qin-pr-rank .fa-pen { opacity: .6; }
