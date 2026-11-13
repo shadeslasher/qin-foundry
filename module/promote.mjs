@@ -2,7 +2,7 @@
 // - Branch: cavalry, ranged (mounted shooters side-grade with both, promote as cavalry), spear infantry (spear / ji / halberd units: weapon skill qiangshu) or blade infantry
 //   (swords, sabres, axes, maces: every other infantry). Axe Band ↔ Sabre Militia, Spear Guards ↔ Ji Infantry.
 // - Side-grade: same army, same branch, same tier; needs Level 2; keeps level and XP. Costs the price difference
-//   if the new unit costs more, at least SIDE_FEE.
+//   half the new unit's recruitment cost (David, 2026-11-12).
 // - Promote: same army, same branch, next tier; needs Level 4; back to Level 1. Costs the price difference.
 // - Only in a city of the player's own faction (the world map's recruitOptions), when the world map module is active;
 //   otherwise anywhere. A promotion also needs the branch's feature in that city, at any Prosperity (David, 2026-11-12;
@@ -18,7 +18,7 @@ import { templates } from "./new-unit.mjs";
 
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
 const QUERY = `${SYSTEM_ID}.promote`;
-export const SIDE_FEE = 100, SIDE_LEVEL = 2, PROMOTE_LEVEL = 4;
+export const SIDE_SHARE = 0.5, SIDE_LEVEL = 2, PROMOTE_LEVEL = 4;
 export const BRANCH_NAMES = { cavalry: "Cavalry", ranged: "Ranged", spear: "Spear infantry", blade: "Blade infantry" };
 
 /** A unit's branch (pure): cavalry, ranged, spear or blade. */
@@ -63,7 +63,7 @@ export function promotionPaths(from, list, ex = { add: new Set(), block: new Set
     if (!kind && ex.add.has(key(t))) kind = t.tier > from.tier ? "promote" : "side";
     if (!kind) continue;
     const diff = Math.max(0, t.cost - (from.cost ?? 0));
-    out.push({ t, kind, cost: kind === "side" ? Math.max(SIDE_FEE, diff) : diff, needLevel: kind === "side" ? SIDE_LEVEL : PROMOTE_LEVEL,
+    out.push({ t, kind, cost: kind === "side" ? Math.round(t.cost * SIDE_SHARE) : diff, needLevel: kind === "side" ? SIDE_LEVEL : PROMOTE_LEVEL,
       needFeatures: requiredFeatures(from, t, kind) });
   }
   // the same unit can sit in several packs: keep one per name

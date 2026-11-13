@@ -25,10 +25,10 @@ test('promotion: branches split spear and blade infantry', async () => {
 test('promotion: same army, same branch; side-grades at the same tier, promotions one tier up', async () => {
   const { promotionPaths } = await import('../module/promote.mjs');
   const ps = promotionPaths(list[2], list);   // Axe A
-  assert.deepStrictEqual(ps.map(p => [p.t.name, p.kind, p.cost]), [['Blade A', 'side', 100], ['Axe B', 'promote', 350]]);
+  assert.deepStrictEqual(ps.map(p => [p.t.name, p.kind, p.cost]), [['Blade A', 'side', 300], ['Axe B', 'promote', 350]], 'side-grade: half the new unit\'s cost');
   const sp = promotionPaths(list[0], list);   // Pike A: not Beta's pike, not tier 3
   assert.deepStrictEqual(sp.map(p => p.t.name), ['Halberd A', 'Pike B']);
-  assert.strictEqual(sp[0].cost, 100, 'side-grade at least the flat fee');
+  assert.strictEqual(sp[0].cost, 275, 'half of 550');
   const bw = promotionPaths(list[8], list);
   assert.deepStrictEqual(bw.map(p => p.t.name), ['Xbow A']);
 });

@@ -35,6 +35,18 @@ export function cityOffer(t, opt) {
   }
   return { offered: true, cap, missing };
 }
+/** The cap chips (pure): per kind of unit, the highest tier this city recruits once its features count (David, 2026-11-12). */
+export function capChips(opt) {
+  const has = (keys) => !Array.isArray(opt.featureKeys) || keys.some(k => opt.featureKeys.includes(k));
+  const kinds = [["Spear", "infantry", ["armorsmith"]], ["Blade", "infantry", ["weaponsmith"]], ["Ranged", "ranged", ["fletcher"]],
+    ["Cavalry", "cavalry", ["pastures"]], ["Mounted archers", "cavalry", ["pastures", "fletcher"]]];
+  return kinds.map(([label, type, keys]) => {
+    const cap = opt.caps?.[type] ?? 0, ok = has(keys), top = ok ? cap : Math.min(cap, 1);
+    const names = keys.map(k => FEATURE_NAMES[k] ?? k).join(" or ");
+    return { label, cap, top, why: ok ? `${opt.prosperityName ?? ""} Prosperity: up to Tier ${cap}`.trim() : `Above Tier 1 needs ${withArticle(names)}` };
+  });
+}
+
 /** Why a tier is above the cap, in Prosperity words (pure). levelCaps[i] = the tier cap of Prosperity i (Ruins, Low, Mid, High). */
 export function capReason(tier, cap, base, levelCaps = [0, 2, 3, 4]) {
   const need = tier - (cap - base), i = levelCaps.findIndex(c => c >= need);
@@ -154,8 +166,8 @@ export class RecruitApp extends foundry.applications.api.ApplicationV2 {
       const all = await templates();
       this.list = all.filter(t => t.cost > 0 && cityOffer(t, opt).offered);
       const chkOf = (t) => recruitCheck({ coin, cost: t.cost, hasCharacter: !!pc, city: { ...cityOffer(t, opt), tier: t.tier, base: opt.baseCap, levelCaps: opt.levelCaps } });
-      const capChip = ([k, label]) => `<span class="qin-recruit-cap ${opt.capWhy[k] ? "up" : ""}" ${opt.capWhy[k] ? `data-tooltip="+1 from ${esc(opt.capWhy[k])}"` : ""}>${label} up to T${opt.caps[k]}</span>`;
-      const city = `<div class="qin-recruit-city"><b>${esc(opt.title)}</b><div class="qin-muted">${esc(opt.sub)}</div><div class="qin-recruit-caps">${TYPES.map(capChip).join("")}</div></div>`;
+      const city = `<div class="qin-recruit-city"><b>${esc(opt.title)}</b><div class="qin-muted">${esc(opt.sub)}</div><div class="qin-recruit-caps">${capChips(opt).map(c =>
+        `<span class="qin-recruit-cap ${c.top < c.cap ? "low" : ""}" data-tooltip="${esc(c.why)}">${esc(c.label)} up to T${c.top}</span>`).join("")}</div></div>`;
       const local = this.list.filter(t => opt.local.includes(t.name));
       const sections = [...opt.groups.flatMap(g => TYPES.map(([k, label]) => [`${g} · ${label}`, this.list.filter(t => t.faction === g && !local.includes(t) && typeOf(t) === k)])),
         [`Local troops (${opt.title})`, local]];
