@@ -4,6 +4,7 @@
 // Prosperity tier caps and feature bonuses; David, 2026-11-12) that decides; otherwise the armies the GM picks per player.
 import { SYSTEM_ID } from "./config.mjs";
 import { templates, createUnit } from "./new-unit.mjs";
+import { neededFeatures, FEATURE_NAMES, withArticle } from "./promote.mjs";
 
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
 export const RECRUIT_ARMIES = ["Han", "Bandits", "Yellow Turbans", "Qiang", "Northern", "Cao Cao", "Wei", "Xiongnu", "Xianbei", "Song", "Xiliang", "Mercenary", "Wu", "Yuan Shu", "Gongsun Zan", "Lu Bu", "Liu Bei", "Liu Biao", "Liu Yan", "Kong Rong", "Tao Qian", "Lu Zhi", "Yan Baihu", "Liu Chong", "Nanman", "Imperial"];
@@ -20,11 +21,19 @@ export const cityRecruiting = () => !!provider();
 
 /** Is this unit offered by these city options, and its tier cap there (pure). Hybrids (range 2+) use their best type. */
 export function cityOffer(t, opt) {
-  const offered = (opt.groups ?? []).includes(t.faction) || (opt.local ?? []).includes(t.name);
+  const local = (opt.local ?? []).includes(t.name);
+  const offered = (opt.groups ?? []).includes(t.faction) || local;
   if (!offered) return { offered: false, cap: 0 };
   if ((opt.uncapped ?? []).includes(t.faction)) return { offered: true, cap: 99 };
   const types = [t.category in (opt.caps ?? {}) ? t.category : "infantry", ...((t.range ?? 1) > 1 ? ["ranged"] : [])];
-  return { offered: true, cap: Math.max(...types.map(k => opt.caps?.[k] ?? 0)) };
+  const cap = Math.max(...types.map(k => opt.caps?.[k] ?? 0));
+  // above Tier 1 the city also needs the unit's feature, as for promotions (David, 2026-11-12); local troops come trained
+  let missing = null;
+  if (Array.isArray(opt.featureKeys) && (t.tier ?? 1) > 1 && !local) {
+    const need = neededFeatures(t);
+    if (!need.some(k => opt.featureKeys.includes(k))) missing = need.map(k => FEATURE_NAMES[k] ?? k).join(" or ");
+  }
+  return { offered: true, cap, missing };
 }
 /** Why a tier is above the cap, in Prosperity words (pure). levelCaps[i] = the tier cap of Prosperity i (Ruins, Low, Mid, High). */
 export function capReason(tier, cap, base, levelCaps = [0, 2, 3, 4]) {
@@ -39,6 +48,7 @@ export function recruitCheck({ coin, cost, armies, army, hasCharacter = true, ci
   if (city) {
     if (!city.offered) return { ok: false, reason: "Not recruited in this city." };
     if (city.tier > city.cap) return { ok: false, reason: capReason(city.tier, city.cap, city.base ?? city.cap, city.levelCaps) };
+    if (city.missing) return { ok: false, reason: `Needs ${withArticle(city.missing)} here` };
   } else if (!armies.includes(army)) return { ok: false, reason: `This player can't recruit ${army} units.` };
   if (!(cost > 0)) return { ok: false, reason: "This unit has no recruitment cost set." };
   if (coin < cost) return { ok: false, reason: `Not enough coin (${coin} of ${cost}).` };

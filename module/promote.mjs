@@ -68,6 +68,8 @@ export function promotionPaths(from, list, ex = { add: new Set(), block: new Set
     .sort((a, b) => (a.kind === b.kind ? 0 : a.kind === "side" ? -1 : 1) || a.t.tier - b.t.tier || a.cost - b.cost || a.t.name.localeCompare(b.t.name));
 }
 
+/** "a Weaponsmith", "an Armorsmith or Fletcher", "Horse Pastures" (pure). */
+export const withArticle = (names) => /^Horse/.test(names) ? names : `${/^[AEIOU]/.test(names) ? "an" : "a"} ${names}`;
 export const FEATURE_NAMES = { weaponsmith: "Weaponsmith", armorsmith: "Armorsmith", fletcher: "Fletcher", pastures: "Horse Pastures" };
 const BRANCH_FEATURE = { spear: "armorsmith", blade: "weaponsmith", ranged: "fletcher", cavalry: "pastures" };
 const PROSPERITY = ["Ruins", "Low", "Mid", "High"];
@@ -88,7 +90,7 @@ export function promoteCheck({ level, coin, path, city = null, block = null, has
     const need = neededFeatures(path.t), min = minProsperity(path.t.tier);
     if (min > 3) return { ok: false, reason: "Can't be trained by promotion" };
     const names = need.map(k => FEATURE_NAMES[k] ?? k).join(" or ");
-    if ((city.prosperity ?? 0) < min || !need.some(k => (city.features ?? []).includes(k))) return { ok: false, reason: `Needs ${/^[AEIOU]/.test(names) ? "an" : "a"} ${names} in a ${PROSPERITY[min]} city` };
+    if ((city.prosperity ?? 0) < min || !need.some(k => (city.features ?? []).includes(k))) return { ok: false, reason: `Needs ${withArticle(names)} in a ${PROSPERITY[min]} city` };
   }
   if (coin < path.cost) return { ok: false, reason: `Not enough coin (${coin} of ${path.cost})` };
   return { ok: true, reason: "" };

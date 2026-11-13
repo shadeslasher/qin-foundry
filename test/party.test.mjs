@@ -71,6 +71,14 @@ test('city recruiting: offered by army or local name, tier cap by type, hybrids 
   assert.strictEqual(capReason(5, 3, 3), 'Not recruitable here');
   assert.strictEqual(capReason(2, 1, 1, [0, 1, 2, 3]), 'Needs Mid Prosperity');
   assert.strictEqual(capReason(4, 1, 1, [0, 1, 2, 3]), 'Not recruitable here');
+  // above Tier 1 the city needs the unit's feature; local troops and uncapped armies don't
+  const fopt = { ...opt, caps: { infantry: 3, ranged: 3, cavalry: 3 }, featureKeys: ['weaponsmith'] };
+  const cav2 = { faction: 'Alpha', name: 'Riders', category: 'cavalry', tier: 2 };
+  assert.strictEqual(cityOffer(cav2, fopt).missing, 'Horse Pastures');
+  assert.strictEqual(recruitCheck({ coin: 9999, cost: 100, hasCharacter: true, city: { ...cityOffer(cav2, fopt), tier: 2, base: 3 } }).reason, 'Needs Horse Pastures here');
+  assert.strictEqual(cityOffer({ ...cav2, tier: 1 }, fopt).missing, null, 'Tier 1 needs no feature');
+  assert.strictEqual(cityOffer({ ...cav2, name: 'Test Riders' }, fopt).missing, null, 'local troops need no feature');
+  assert.strictEqual(cityOffer({ faction: 'Alpha', name: 'Blades', category: 'infantry', weaponSkill: 'jianshu', tier: 3 }, fopt).missing, null);
   const city = { offered: true, cap: 3, base: 3, tier: 4 };
   assert.ok(!recruitCheck({ coin: 9999, cost: 100, hasCharacter: true, city }).ok);
   assert.ok(recruitCheck({ coin: 9999, cost: 100, hasCharacter: true, city: { ...city, tier: 3 } }).ok);
