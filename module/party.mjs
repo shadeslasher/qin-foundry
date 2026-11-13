@@ -192,6 +192,7 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
       if (!gm && g.user.id !== game.user.id) return "";
       const armies = armiesFor(g.user);
       return `<div class="qin-party-recruit"><button type="button" data-action="recruit" data-id="${g.user.id}"><i class="fa-solid fa-plus"></i> Recruit</button>
+        <button type="button" data-action="promote" data-id="${g.user.id}" data-tooltip="Promote or side-grade ${esc(g.user.name)}'s units"><i class="fa-solid fa-angles-up"></i> Promote</button>
         <span class="qin-muted">${cityRecruiting() ? "In your faction's cities" : armies.length ? esc(armies.join(", ")) : "No armies allowed yet"}</span>
         ${gm && !cityRecruiting() ? `<button type="button" class="qin-party-armies" data-action="armies" data-id="${g.user.id}" data-tooltip="Choose which armies ${esc(g.user.name)} can recruit from"><i class="fa-solid fa-chess-rook"></i></button>` : ""}</div>`;
     };

@@ -131,12 +131,15 @@ function currentOf(actor, list) {
   return { name: base?.name ?? actor.name, faction: base?.faction ?? "Other", tier: s.tier, category: s.category, weaponSkill: s.weaponSkill, cost: s.cost, range: s.range };
 }
 
+const exceptions = () => { try { return parseExceptions(game.settings.get(SYSTEM_ID, "promotionExceptions")); } catch { return undefined; } };
 async function context(actor) {
   const list = await templates(), from = currentOf(actor, list);
-  let ex; try { ex = parseExceptions(game.settings.get(SYSTEM_ID, "promotionExceptions")); } catch { ex = undefined; }
   const user = ownerOfUnit(actor), prov = provider(), opt = prov && user ? await prov(user.id) : null;
-  return { list, from, paths: promotionPaths(from, list, ex), user, opt };
+  return { list, from, paths: promotionPaths(from, list, exceptions()), user, opt };
 }
+/** A player's units for the Promote window: their own player-side units. */
+export const unitsOf = (userId) => (game.actors?.contents ?? []).filter(a => a.type === "unit" && a.system?.side === "player" && ownerOfUnit(a)?.id === userId)
+  .sort((a, b) => (b.system.tier ?? 0) - (a.system.tier ?? 0) || String(a.name).localeCompare(String(b.name)));
 // what the city has for promotions
 const cityFor = (opt) => opt && !opt.block ? { prosperity: opt.prosperity ?? 0, features: opt.featureKeys ?? [] } : null;
 
@@ -190,52 +193,89 @@ async function requestPromote(data) {
   return res;
 }
 
-/** The Promote window for one unit. */
+const BRANCH_LABEL = (from) => branchesOf(from).map(b => BRANCH_NAMES[b]).join(" and ");
+
+/** The Promote window for one player (David, 2026-11-12): every unit they own as a card, with Side-grade and Promote
+ *  buttons at the bottom that open that unit's choices under the card. */
 export class PromoteApp extends foundry.applications.api.ApplicationV2 {
   static #open = new Map();
   static DEFAULT_OPTIONS = {
     classes: ["qin", "qin-recruit", "qin-promote"],
     window: { title: "Promote", icon: "fa-solid fa-angles-up", resizable: true },
-    position: { width: 430, height: 560 },
-    actions: { go: PromoteApp.#go, info: PromoteApp.#info },
+    position: { width: 470, height: 640 },
+    actions: { go: PromoteApp.#go, info: PromoteApp.#info, show: PromoteApp.#show },
   };
-  static open(actorId) {
-    let app = this.#open.get(actorId);
-    if (!app) { app = new PromoteApp({ id: `qin-promote-${actorId}` }); app.actorId = actorId; this.#open.set(actorId, app); }
+  /** Open the window for a player; or, given a unit, for its owner with that unit's promotions open. */
+  static open(id) {
+    const actor = game.actors.get(id), userId = actor ? ownerOfUnit(actor)?.id : id;
+    if (!userId) return ui.notifications.warn("No player owns this unit.");
+    let app = this.#open.get(userId);
+    if (!app) { app = new PromoteApp({ id: `qin-promote-${userId}` }); app.userId = userId; this.#open.set(userId, app); }
+    if (actor) app.shown = { actorId: actor.id, kind: "promote" };
     app.render({ force: true });
     return app;
   }
   static refreshAll() { for (const app of this.#open.values()) if (app.rendered) app.render(); }
-  get title() { return `Promote: ${game.actors.get(this.actorId)?.name ?? ""}`; }
+  get title() { return `Promote: ${game.users.get(this.userId)?.name ?? ""}`; }
   static async #info(event, target) { (await import("./unit-info.mjs")).openUnitInfoForActor(target.dataset.uuid); }
+  static #show(event, target) {
+    const { actorId, kind } = target.dataset;
+    this.shown = this.shown?.actorId === actorId && this.shown?.kind === kind ? null : { actorId, kind };
+    this.render();
+  }
   static async #go(event, target) {
-    const p = this.paths?.find(x => x.t.id === target.dataset.uuid); if (!p) return;
-    const a = game.actors.get(this.actorId), promote = p.kind === "promote";
+    const a = game.actors.get(target.dataset.actor), p = this.paths?.get(a?.id)?.find(x => x.t.id === target.dataset.uuid); if (!a || !p) return;
+    const promote = p.kind === "promote";
     const ok = await foundry.applications.api.DialogV2.confirm({ window: { title: promote ? "Promote" : "Side-grade" }, rejectClose: false,
       content: `<p>${esc(a.name)} becomes <b>${esc(p.t.name)}</b> (Tier ${p.t.tier})${p.cost ? ` for <b>${p.cost}</b> coin` : ""}.</p><p>${promote ? "It goes back to Level 1." : "It keeps its level and XP."} Trait choices start over; equipment stays.</p>` });
     if (!ok) return;
     target.disabled = true;
-    await requestPromote({ actorId: this.actorId, uuid: p.t.id });
+    const res = await requestPromote({ actorId: a.id, uuid: p.t.id });
+    if (res?.ok) this.shown = null;
     this.render();
   }
   async _renderHTML() {
-    const a = game.actors.get(this.actorId); if (!a) return `<p class="qin-muted">That unit is gone.</p>`;
-    const { from, paths, user, opt } = await context(a);
-    this.paths = paths;
-    const s = a.system, pc = user?.character, coin = pc?.system?.coin ?? 0, level = s.level ?? 1;
-    const head = `<div class="qin-recruit-city"><span class="qin-party-tag tier t${Math.min(5, s.tier)}">T${s.tier}</span> <b>${esc(a.name)}</b> · ${esc(from.faction)} · ${branchesOf(from).map(b => esc(BRANCH_NAMES[b])).join(" and ")} <span style="float:right">Level ${level}</span>
-      <div class="qin-muted">${opt ? (opt.block ? esc(opt.block) : `At ${esc(opt.sub)}`) : ""}${pc ? ` · <i class="fa-solid fa-coins"></i> ${coin} coin` : user ? "" : " · no player owns this unit"}</div></div>`;
-    const row = (p) => {
-      const chk = promoteCheck({ level, coin, path: p, city: cityFor(opt), block: opt?.block ?? null, hasCharacter: !!pc });
-      return `<li class="${chk.ok ? "" : "off"}"><img src="${esc(p.t.img)}" alt="" data-action="info" data-uuid="${esc(p.t.id)}"><span class="qin-party-tag tier t${Math.min(5, p.t.tier)}">T${p.t.tier}</span>
-        <a class="nm" data-action="info" data-uuid="${esc(p.t.id)}" data-tooltip="Show this unit's details">${esc(p.t.name)}</a><span class="cost"><i class="fa-solid fa-coins"></i> ${p.cost}</span>
-        ${chk.ok ? `<button type="button" data-action="go" data-uuid="${esc(p.t.id)}">${p.kind === "promote" ? "Promote" : "Side-grade"}</button>` : `<span class="qin-recruit-why">${esc(chk.reason)}</span>`}</li>`;
+    const user = game.users.get(this.userId), pc = user?.character, coin = pc?.system?.coin ?? 0;
+    const prov = provider(), opt = prov ? await prov(this.userId) : null, list = await templates(), ex = exceptions(), city = cityFor(opt);
+    const units = unitsOf(this.userId);
+    this.paths = new Map();
+    const head = `<div class="qin-recruit-head">${pc ? `<img src="${esc(pc.img)}" alt=""><div><b>${esc(pc.name)}</b><div><i class="fa-solid fa-coins"></i> ${coin} coin</div></div>`
+      : `<div class="qin-muted">No character is assigned to ${esc(user?.name ?? "this player")}, so there's no coin to spend.</div>`}</div>
+      ${opt ? `<div class="qin-recruit-city">${opt.block ? `<span class="qin-muted">${esc(opt.block)}</span>` : `<b>${esc(opt.title)}</b><div class="qin-muted">${esc(opt.sub)}</div>`}</div>` : ""}`;
+    if (!units.length) return `${head}<p class="qin-muted">${esc(user?.name ?? "This player")} has no units yet.</p>`;
+    const card = (a) => {
+      const s = a.system, from = currentOf(a, list), level = s.level ?? 1, paths = promotionPaths(from, list, ex);
+      this.paths.set(a.id, paths);
+      const side = paths.filter(p => p.kind === "side"), up = paths.filter(p => p.kind === "promote");
+      const hp = s.men?.max ? Math.round(100 * (s.men.value ?? 0) / s.men.max) : 100;
+      const btn = (kind, label, ps, need) => {
+        const open = this.shown?.actorId === a.id && this.shown?.kind === kind;
+        const why = !ps.length ? (kind === "side" ? "No side-grades" : `No Tier ${s.tier + 1} units`) : level < need ? `needs Level ${need}` : "";
+        return why ? `<button type="button" class="qin-pr-btn off" disabled>${label} · ${esc(why)}</button>`
+          : `<button type="button" class="qin-pr-btn ${open ? "on" : ""}" data-action="show" data-actor-id="${a.id}" data-kind="${kind}">${label} <i class="fa-solid fa-chevron-${open ? "up" : "down"}"></i></button>`;
+      };
+      const shownKind = this.shown?.actorId === a.id ? this.shown.kind : null;
+      const shownList = shownKind === "side" ? side : shownKind === "promote" ? up : [];
+      const rows = shownList.map(p => {
+        const chk = promoteCheck({ level, coin, path: p, city, block: opt?.block ?? null, hasCharacter: !!pc });
+        return `<li class="${chk.ok ? "" : "off"}"><img src="${esc(p.t.img)}" alt="" data-action="info" data-uuid="${esc(p.t.id)}"><span class="qin-party-tag tier t${Math.min(5, p.t.tier)}">T${p.t.tier}</span>
+          <a class="nm" data-action="info" data-uuid="${esc(p.t.id)}" data-tooltip="Show this unit's details">${esc(p.t.name)}</a><span class="cost"><i class="fa-solid fa-coins"></i> ${p.cost}</span>
+          ${chk.ok ? `<button type="button" data-action="go" data-actor="${a.id}" data-uuid="${esc(p.t.id)}">${p.kind === "promote" ? "Promote" : "Side-grade"}</button>` : `<span class="qin-recruit-why">${esc(chk.reason)}</span>`}</li>`;
+      }).join("");
+      return `<section class="qin-pr-card ${shownKind ? "open" : ""}">
+        <div class="qin-pr-top"><img src="${esc(a.img)}" alt="" data-action="info" data-uuid="${esc(a.uuid)}">
+          <div class="qin-pr-main"><div><span class="qin-party-tag tier t${Math.min(5, s.tier)}">T${s.tier}</span> <b>${esc(a.name)}</b></div>
+            <div class="qin-muted">${esc(from.faction)} · ${esc(BRANCH_LABEL(from))}</div></div>
+          <div class="qin-pr-stats"><div>Level ${level}</div><div class="qin-muted">${hp}% health</div></div></div>
+        <div class="qin-pr-btns">${btn("side", "Side-grade", side, SIDE_LEVEL)}${btn("promote", "Promote", up, PROMOTE_LEVEL)}</div>
+        ${shownKind ? `<div class="qin-recruit-list"><div class="qin-muted qin-pr-note">${shownKind === "side" ? `Same tier · costs half the new unit's price · keeps level` : `Tier ${s.tier + 1} · costs the price difference · back to Level 1`}</div><ul>${rows}</ul></div>` : ""}
+      </section>`;
     };
-    const side = paths.filter(p => p.kind === "side"), up = paths.filter(p => p.kind === "promote");
-    const sec = (h, ps) => ps.length ? `<h4>${h}</h4><ul>${ps.map(row).join("")}</ul>` : "";
-    const body = sec(`Side-grade (Tier ${s.tier}, needs Level ${SIDE_LEVEL}) · keeps level`, side) + sec(`Promote to Tier ${s.tier + 1} (needs Level ${PROMOTE_LEVEL}) · back to Level 1`, up);
-    return `${head}<div class="qin-recruit-list">${body || `<p class="qin-muted">No side-grades or promotions for this unit.</p>`}</div>
-      <p class="qin-muted" style="font-size:11px">Keeps its name, officer, equipment and its health as a share. Trait choices start over.</p>`;
+    return `${head}<div class="qin-pr-cards">${units.map(card).join("")}</div>
+      <p class="qin-muted" style="font-size:11px">A unit keeps its name, officer, equipment and its health as a share. Trait choices start over.</p>`;
   }
   _replaceHTML(result, content) { content.innerHTML = result; }
 }
+
+// refresh open Promote windows when units or coin change
+if (globalThis.Hooks) for (const h of ["updateActor", "createActor", "deleteActor"]) Hooks.on(h, () => PromoteApp.refreshAll());
