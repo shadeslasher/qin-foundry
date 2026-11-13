@@ -16,6 +16,7 @@ import { SYSTEM_ID } from "./config.mjs";
 import { templates } from "./new-unit.mjs";
 
 
+import { attachUnitHover, hideUnitHover } from "./unit-hover.mjs";
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
 const QUERY = `${SYSTEM_ID}.promote`;
 export const SIDE_SHARE = 0.5, SIDE_LEVEL = 2, PROMOTE_LEVEL = 4;
@@ -258,12 +259,12 @@ export class PromoteApp extends foundry.applications.api.ApplicationV2 {
       const shownList = shownKind === "side" ? side : shownKind === "promote" ? up : [];
       const rows = shownList.map(p => {
         const chk = promoteCheck({ level, coin, path: p, city, block: opt?.block ?? null, hasCharacter: !!pc });
-        return `<li class="${chk.ok ? "" : "off"}"><img src="${esc(p.t.img)}" alt="" data-action="info" data-uuid="${esc(p.t.id)}"><span class="qin-party-tag tier t${Math.min(5, p.t.tier)}">T${p.t.tier}</span>
-          <a class="nm" data-action="info" data-uuid="${esc(p.t.id)}" data-tooltip="Show this unit's details">${esc(p.t.name)}</a><span class="cost"><i class="fa-solid fa-coins"></i> ${p.cost}</span>
+        return `<li class="${chk.ok ? "" : "off"}"><img src="${esc(p.t.img)}" alt="" data-unit-uuid="${esc(p.t.id)}"><span class="qin-party-tag tier t${Math.min(5, p.t.tier)}">T${p.t.tier}</span>
+          <a class="nm" data-unit-uuid="${esc(p.t.id)}">${esc(p.t.name)}</a><span class="cost"><i class="fa-solid fa-coins"></i> ${p.cost}</span>
           ${chk.ok ? `<button type="button" data-action="go" data-actor="${a.id}" data-uuid="${esc(p.t.id)}">${p.kind === "promote" ? "Promote" : "Side-grade"}</button>` : `<span class="qin-recruit-why">${esc(chk.reason)}</span>`}</li>`;
       }).join("");
       return `<section class="qin-pr-card ${shownKind ? "open" : ""}">
-        <div class="qin-pr-top"><img src="${esc(a.img)}" alt="" data-action="info" data-uuid="${esc(a.uuid)}">
+        <div class="qin-pr-top"><img src="${esc(a.img)}" alt="" data-unit-uuid="${esc(a.uuid)}">
           <div class="qin-pr-main"><div><span class="qin-party-tag tier t${Math.min(5, s.tier)}">T${s.tier}</span> <b>${esc(a.name)}</b></div>
             <div class="qin-muted">${esc(from.faction)} · ${esc(BRANCH_LABEL(from))}</div></div>
           <div class="qin-pr-stats"><div>Level ${level}</div><div class="qin-muted">${hp}% health</div></div></div>
@@ -274,7 +275,8 @@ export class PromoteApp extends foundry.applications.api.ApplicationV2 {
     return `${head}<div class="qin-pr-cards">${units.map(card).join("")}</div>
       <p class="qin-muted" style="font-size:11px">A unit keeps its name, officer, equipment and its health as a share. Trait choices start over.</p>`;
   }
-  _replaceHTML(result, content) { content.innerHTML = result; }
+  _replaceHTML(result, content) { hideUnitHover(); content.innerHTML = result; attachUnitHover(content); }
+  _onClose(options) { hideUnitHover(); super._onClose?.(options); }
 }
 
 // refresh open Promote windows when units or coin change

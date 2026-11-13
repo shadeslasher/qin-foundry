@@ -1410,3 +1410,5 @@ details.qin-unique-bonuses > summary h3 { display: flex; align-items: baseline; 
 details.qin-unique-bonuses > summary h3::before { content: "▸"; font-size: .8em; transition: transform .15s; }
 details.qin-unique-bonuses[open] > summary h3::before { transform: rotate(90deg); }
 details.qin-unique-bonuses > summary small { font-weight: normal; font-size: calc(11px * var(--qin-scale, 1.15)); }
+/* unit stat card when hovering a unit in the Recruit / Promote windows: above the windows, no centring shift */
+.qin-token-hover.qin-unit-hover { z-index: 10000; transform: none; }

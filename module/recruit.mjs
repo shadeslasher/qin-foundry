@@ -6,6 +6,7 @@ import { SYSTEM_ID } from "./config.mjs";
 import { templates, createUnit } from "./new-unit.mjs";
 import { neededFeatures, FEATURE_NAMES, withArticle } from "./promote.mjs";
 
+import { attachUnitHover, hideUnitHover } from "./unit-hover.mjs";
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
 export const RECRUIT_ARMIES = ["Han", "Bandits", "Yellow Turbans", "Qiang", "Northern", "Cao Cao", "Wei", "Xiongnu", "Xianbei", "Song", "Xiliang", "Mercenary", "Wu", "Yuan Shu", "Gongsun Zan", "Lu Bu", "Liu Bei", "Liu Biao", "Liu Yan", "Kong Rong", "Tao Qian", "Lu Zhi", "Yan Baihu", "Liu Chong", "Nanman", "Imperial"];
 export const ARMIES_FLAG = "recruitArmies";
@@ -156,8 +157,8 @@ export class RecruitApp extends foundry.applications.api.ApplicationV2 {
     const opt = prov ? await prov(this.userId) : null;
     const head = `<div class="qin-recruit-head">${pc ? `<img src="${esc(pc.img)}" alt=""><div><b>${esc(pc.name)}</b><div><i class="fa-solid fa-coins"></i> ${coin} coin</div></div>`
       : `<div class="qin-muted">No character is assigned to ${esc(user?.name ?? "this player")} (User Configuration), so there's no coin to spend.</div>`}</div>`;
-    const row = (t, chk) => `<li class="${chk.ok ? "" : "off"}"><img src="${esc(t.img)}" alt="" data-action="info" data-uuid="${esc(t.id)}"><span class="qin-party-tag tier t${Math.min(5, t.tier)}">T${t.tier}</span>
-          <a class="nm" data-action="info" data-uuid="${esc(t.id)}" data-tooltip="Show this unit's details">${esc(t.name)}</a><span class="cost" data-tooltip="Upkeep ${Math.round(t.cost / 4)} a month"><i class="fa-solid fa-coins"></i> ${t.cost}</span>
+    const row = (t, chk) => `<li class="${chk.ok ? "" : "off"}"><img src="${esc(t.img)}" alt="" data-unit-uuid="${esc(t.id)}"><span class="qin-party-tag tier t${Math.min(5, t.tier)}">T${t.tier}</span>
+          <a class="nm" data-unit-uuid="${esc(t.id)}">${esc(t.name)}</a><span class="cost" data-tooltip="Upkeep ${Math.round(t.cost / 4)} a month"><i class="fa-solid fa-coins"></i> ${t.cost}</span>
           ${chk.ok ? `<button type="button" data-action="buy" data-uuid="${esc(t.id)}">Recruit</button>` : `<span class="qin-recruit-why">${esc(chk.reason)}</span>`}</li>`;
     const sort = (a, b) => a.tier - b.tier || a.cost - b.cost || a.name.localeCompare(b.name);
     const typeOf = (t) => TYPES.some(([c]) => c === t.category) ? t.category : "infantry";
@@ -184,5 +185,6 @@ export class RecruitApp extends foundry.applications.api.ApplicationV2 {
     })).join("");
     return `${head}<div class="qin-recruit-list">${rows || `<p class="qin-muted">No units with a cost in these armies.</p>`}</div>`;
   }
-  _replaceHTML(result, content) { content.innerHTML = result; }
+  _replaceHTML(result, content) { hideUnitHover(); content.innerHTML = result; attachUnitHover(content); }
+  _onClose(options) { hideUnitHover(); super._onClose?.(options); }
 }
