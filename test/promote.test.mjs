@@ -168,3 +168,9 @@ test('officer lock: only the opening officer may lead the unit', async () => {
     assert.strictEqual(officerEligibility({ type: 'character', uuid: 'Actor.off1' }, {}, 'u1').ok, true);
   } finally { globalThis.game = saved; delete globalThis.fromUuidSync; }
 });
+
+test('War Elephants never change into anything', async () => {
+  const { promotionPaths } = await import('../module/promote.mjs');
+  const we = T('War Elephants', 'Southern', 4, 'cavalry', 'qiangshu', 3000);
+  assert.deepStrictEqual(promotionPaths(we, [we, T('Big Horse', 'Han', 4, 'cavalry', 'qiangshu', 2000)]), []);
+});

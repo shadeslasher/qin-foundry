@@ -77,8 +77,11 @@ export const promotedInto = (t, list) => list.some(u => u.faction === t.faction 
   && promotionPaths(u, list).some(p => p.kind === "promote" && p.t.name === t.name));
 /** Armies whose units never side-grade or promote (David, 2026-11-13). */
 export const FIXED_ARMIES = ["Mercenary", "Northern"];
+/** Single units that stay what they are (one-of-a-kind, opened by a feature): War Elephants (found in testing 2026-11-13:
+ *  they could side-grade into Han Tier 4 cavalry and so free the one-elephant slot). */
+export const FIXED_UNITS = ["War Elephants"];
 export function promotionPaths(from, list, ex = { add: new Set(), block: new Set() }, bridge = []) {
-  if (FIXED_ARMIES.includes(from.faction)) return [];
+  if (FIXED_ARMIES.includes(from.faction) || FIXED_UNITS.includes(from.name)) return [];
   const key = (t) => `${from.name.toLowerCase()}>${t.name.toLowerCase()}`, out = [];
   for (const t of list) {
     if (t.name === from.name || !(t.cost > 0)) continue;
