@@ -103,7 +103,7 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
       removeUnit: (ev, el) => removeUnit(game.actors.get(el.dataset.id)),
       disband: async (ev, el) => { const { disbandUnit } = await import("./recruit.mjs"); await disbandUnit(game.actors.get(el.dataset.id)); },
       equip: (ev, el) => EquipmentPicker.open(game.actors.get(el.dataset.id)),
-      tab: (ev, el) => { setTab(el.dataset.tab); PartyPanel.refresh(); },
+      partyTab: (ev, el) => { setTab(el.dataset.tab); PartyPanel.refresh(); },   // not "tab": Foundry 14 keeps that action name for its own tabs
       offSheet: (ev, el) => fromUuidSync(el.dataset.uuid)?.sheet?.render(true),
       offRemove: async (ev, el) => { const a = fromUuidSync(el.dataset.uuid); if (a) await removeFromParty(a); PartyPanel.refresh(); },
       offClear: async (ev, el) => { const u = game.actors.get(el.dataset.id); if (u?.isOwner) await u.update({ "system.officer": "" }); },
@@ -243,7 +243,7 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
         <button type="button" data-action="morale" data-scope="all"><i class="fa-solid fa-flag"></i> Reset morale</button>
         <button type="button" data-action="coin" data-scope="all" data-kind="budget" data-tooltip="Add the same army budget to every player (victories, events)"><i class="fa-solid fa-sack-dollar"></i> Add budget</button></span>` : ""}</div>`;
     const offs = partyOfficers(), tab = getTab();
-    const tabs = `<nav class="qin-party-tabs"><a data-action="tab" data-tab="units" class="${tab === "units" ? "on" : ""}">Units</a><a data-action="tab" data-tab="officers" class="${tab === "officers" ? "on" : ""}">Officers <small>(${offs.length})</small></a><a data-action="tab" data-tab="siege" class="${tab === "siege" ? "on" : ""}">Siege</a></nav>`;
+    const tabs = `<nav class="qin-party-tabs"><a data-action="partyTab" data-tab="units" class="${tab === "units" ? "on" : ""}">Units</a><a data-action="partyTab" data-tab="officers" class="${tab === "officers" ? "on" : ""}">Officers <small>(${offs.length})</small></a><a data-action="partyTab" data-tab="siege" class="${tab === "siege" ? "on" : ""}">Siege</a></nav>`;
     if (tab === "siege") return `<div class="qin-party-wrap qin-pv2">${tabs}${siegeTabHTML(groups, gm)}</div>`;
     if (tab === "officers") {
       const leads = (o) => (game.actors?.contents ?? []).find(u => u.type === "unit" && u.system?.officer === o.uuid);

@@ -213,7 +213,7 @@ export class RecruitApp extends foundry.applications.api.ApplicationV2 {
     classes: ["qin", "qin-recruit", "qin-promote"],
     window: { title: "Recruit", icon: "fa-solid fa-coins", resizable: true },
     position: { width: 420, height: 600 },
-    actions: { buy: RecruitApp.#buy, info: RecruitApp.#info, tab: RecruitApp.#tab },
+    actions: { buy: RecruitApp.#buy, info: RecruitApp.#info, rcTab: RecruitApp.#tab },   // not "tab": Foundry 14 keeps that name
   };
   static #tab(event, target) { this.tab = target.dataset.tab; this.render(); }
   static open(userId) {
@@ -261,7 +261,7 @@ export class RecruitApp extends foundry.applications.api.ApplicationV2 {
       const TABS = [["spear", "Spear"], ["blade", "Blade"], ["ranged", "Ranged"], ["cavalry", "Cavalry"], ["local", "Local"], ["imperial", "Imperial"]].filter(([k]) => this.list.some(t => tabOf(t) === k));
       const okIn = (k) => this.list.some(t => tabOf(t) === k && chkOf(t).ok);
       if (!TABS.some(([k]) => k === this.tab)) this.tab = (TABS.find(([k]) => okIn(k)) ?? TABS[0])?.[0];
-      const tabs = `<nav class="qin-rc-tabs">${TABS.map(([k, label]) => `<a class="${k === this.tab ? "on" : ""}" data-action="tab" data-tab="${k}">${label}</a>`).join("")}</nav>`;
+      const tabs = `<nav class="qin-rc-tabs">${TABS.map(([k, label]) => `<a class="${k === this.tab ? "on" : ""}" data-action="rcTab" data-tab="${k}">${label}</a>`).join("")}</nav>`;
       const short = (t, r) => / already serve$/.test(r) ? "Limit reached" : /^Already serving /.test(r) ? r.replace("Already serving", "Taken:") : /^Not recruitable here$/.test(r) && t.tier >= 4 ? "Promotion only" : r.replace(/^Needs (an? )?(.*) here$/, "$2").replace(/ \(.*\)$/, "");
       const line = (t) => { const chk = chkOf(t);
         return `<div class="qin-pr-choice qin-rc-row ${chk.ok ? "" : "off"}"><img src="${esc(t.img)}" alt="" data-unit-uuid="${esc(t.id)}">
