@@ -40,12 +40,12 @@ export function factionGroup(f) {
 /** Units to start from: the units in Actor compendiums (e.g. Three Kingdoms Battle Units). */
 export async function templates() {
   const info = (sys) => ({ category: sys?.category ?? "infantry", tier: Number(sys?.tier) || 99, faction: factionGroup(sys?.faction), cost: Number(sys?.cost) || 0,
-    damage: Number(sys?.damage) || 0, pen: Number(sys?.armorPen) || 0, armor: Number(sys?.armor) || 0 });
+    damage: Number(sys?.damage) || 0, pen: Number(sys?.armorPen) || 0, armor: Number(sys?.armor) || 0, range: Number(sys?.range) || 1 });
   const out = []; // compendium units only (copies already in the world aren't offered as templates)
   for (const pack of game.packs ?? []) {
     if (pack.documentName !== "Actor") continue;
     let index;
-    try { index = await pack.getIndex({ fields: ["type", "img", "prototypeToken.texture.src", "system.category", "system.tier", "system.faction", "system.cost", "system.damage", "system.armorPen", "system.armor"] }); } catch { continue; }
+    try { index = await pack.getIndex({ fields: ["type", "img", "prototypeToken.texture.src", "system.category", "system.tier", "system.faction", "system.cost", "system.damage", "system.armorPen", "system.armor", "system.range"] }); } catch { continue; }
     for (const e of index) {
       if (e.type !== "unit") continue;
       try { out.push({ id: e.uuid ?? `Compendium.${pack.collection}.Actor.${e._id}`, name: String(e.name ?? "Unit"), img: e.prototypeToken?.texture?.src || e.img, world: false, ...info(e.system) }); }

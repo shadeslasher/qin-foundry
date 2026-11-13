@@ -60,6 +60,20 @@ test('recruiting: needs a character, an allowed army, a cost and enough coin', a
   assert.ok(!recruitCheck({ ...base, cost: 0 }).ok, 'no cost set');
 });
 
+test('city recruiting: offered by army or local name, tier cap by type, hybrids use their best type', async () => {
+  const { cityOffer, capReason, recruitCheck } = await import('../module/recruit.mjs');
+  const opt = { groups: ['Alpha', 'Mercenary'], local: ['Test Riders'], uncapped: ['Imperial'], caps: { infantry: 3, ranged: 3, cavalry: 4 }, baseCap: 3 };
+  assert.deepStrictEqual(cityOffer({ faction: 'Beta', name: 'X', category: 'infantry', tier: 1 }, opt), { offered: false, cap: 0 });
+  assert.strictEqual(cityOffer({ faction: 'Beta', name: 'Test Riders', category: 'cavalry', tier: 2 }, opt).cap, 4);
+  assert.strictEqual(cityOffer({ faction: 'Alpha', name: 'X', category: 'infantry', tier: 1, range: 3 }, { ...opt, caps: { infantry: 2, ranged: 3, cavalry: 2 } }).cap, 3);
+  assert.strictEqual(capReason(4, 3, 3), 'Needs High Prosperity');
+  assert.strictEqual(capReason(4, 4, 3), 'Needs Mid Prosperity');
+  assert.strictEqual(capReason(5, 3, 3), 'Not recruitable here');
+  const city = { offered: true, cap: 3, base: 3, tier: 4 };
+  assert.ok(!recruitCheck({ coin: 9999, cost: 100, hasCharacter: true, city }).ok);
+  assert.ok(recruitCheck({ coin: 9999, cost: 100, hasCharacter: true, city: { ...city, tier: 3 } }).ok);
+});
+
 test('equipment: one piece per family, a better tier replaces, remove by name', async () => {
   const { equipList, unequipList } = await import('../module/equipment.mjs');
   let list = [{ name: 'Precision', desc: '', level: 1, upgrades: [], options: [], chosen: -1 }];

@@ -1,6 +1,7 @@
 // Recruiting units with coin (from the Party panel). A player spends their character's coin on a battle unit
-// from the compendium, limited to the armies the GM allows them (user flag). The GM's client does the work
-// (players can't create actors), through a query.
+// from the compendium. The GM's client does the work (players can't create actors), through a query.
+// Where and what: when a world-map module offers recruitOptions (rtk13-map: the city the party is in, its owner's army,
+// Prosperity tier caps and feature bonuses; David, 2026-11-12) that decides; otherwise the armies the GM picks per player.
 import { SYSTEM_ID } from "./config.mjs";
 import { templates, createUnit } from "./new-unit.mjs";
 
@@ -13,10 +14,31 @@ const TYPES = [["infantry", "Infantry"], ["ranged", "Ranged Infantry"], ["cavalr
 /** The armies a player may recruit from (none until the GM picks some). */
 export const armiesFor = (user) => (user?.getFlag?.(SYSTEM_ID, ARMIES_FLAG) ?? []).filter(a => RECRUIT_ARMIES.includes(a));
 
-/** May this be bought? { ok, reason } (pure). */
-export function recruitCheck({ coin, cost, armies, army, hasCharacter = true }) {
+/** The world map's recruitment rules, if a module provides them: async (userId) → options (see rtk13-map recruit.js). */
+const provider = () => game.modules?.get?.("rtk13-map")?.active ? game.modules.get("rtk13-map").api?.recruitOptions ?? null : null;
+export const cityRecruiting = () => !!provider();
+
+/** Is this unit offered by these city options, and its tier cap there (pure). Hybrids (range 2+) use their best type. */
+export function cityOffer(t, opt) {
+  const offered = (opt.groups ?? []).includes(t.faction) || (opt.local ?? []).includes(t.name);
+  if (!offered) return { offered: false, cap: 0 };
+  if ((opt.uncapped ?? []).includes(t.faction)) return { offered: true, cap: 99 };
+  const types = [t.category in (opt.caps ?? {}) ? t.category : "infantry", ...((t.range ?? 1) > 1 ? ["ranged"] : [])];
+  return { offered: true, cap: Math.max(...types.map(k => opt.caps?.[k] ?? 0)) };
+}
+/** Why a tier is above the cap, in Prosperity words (pure). */
+export function capReason(tier, cap, base) {
+  const need = tier - (cap - base);
+  return need <= 2 ? "Needs Low Prosperity" : need <= 3 ? "Needs Mid Prosperity" : need <= 4 ? "Needs High Prosperity" : "Not recruitable here";
+}
+
+/** May this be bought? { ok, reason } (pure). With city options, armies is ignored and offered / tier / cap decide. */
+export function recruitCheck({ coin, cost, armies, army, hasCharacter = true, city = null }) {
   if (!hasCharacter) return { ok: false, reason: "No character is assigned to this player, so there's no coin to spend." };
-  if (!armies.includes(army)) return { ok: false, reason: `This player can't recruit ${army} units.` };
+  if (city) {
+    if (!city.offered) return { ok: false, reason: "Not recruited in this city." };
+    if (city.tier > city.cap) return { ok: false, reason: capReason(city.tier, city.cap, city.base ?? city.cap) };
+  } else if (!armies.includes(army)) return { ok: false, reason: `This player can't recruit ${army} units.` };
   if (!(cost > 0)) return { ok: false, reason: "This unit has no recruitment cost set." };
   if (coin < cost) return { ok: false, reason: `Not enough coin (${coin} of ${cost}).` };
   return { ok: true, reason: "" };
@@ -30,12 +52,19 @@ async function recruitOnGM(requesterId, { userId, uuid }) {
   const t = (await templates()).find(x => x.id === uuid);
   if (!t) return { ok: false, error: "That unit couldn't be found." };
   const pc = user.character;
-  const chk = recruitCheck({ coin: pc?.system?.coin ?? 0, cost: t.cost, armies: armiesFor(user), army: t.faction, hasCharacter: !!pc });
+  const prov = provider();
+  let city = null, opt = null;
+  if (prov) {
+    opt = await prov(userId);
+    if (opt.block) return { ok: false, error: opt.block };
+    city = { ...cityOffer(t, opt), tier: t.tier, base: opt.baseCap };
+  }
+  const chk = recruitCheck({ coin: pc?.system?.coin ?? 0, cost: t.cost, armies: armiesFor(user), army: t.faction, hasCharacter: !!pc, city });
   if (!chk.ok) return { ok: false, error: chk.reason };
   const actor = await createUnit({ template: uuid, name: "", owner: user.id, side: "player", officer: "" });
   if (!actor) return { ok: false, error: "The unit couldn't be created." };
   await pc.update({ "system.coin": Math.max(0, (pc.system.coin ?? 0) - t.cost) });
-  ChatMessage.create({ content: `<p><b>${esc(user.name)}</b> recruits <b>${esc(actor.name)}</b> for ${t.cost} coin.</p>`, speaker: { alias: pc.name } });
+  ChatMessage.create({ content: `<p><b>${esc(user.name)}</b> recruits <b>${esc(actor.name)}</b> for ${t.cost} coin${opt ? ` at ${esc(opt.title)}` : ""}.</p>`, speaker: { alias: pc.name } });
   return { ok: true, name: actor.name };
 }
 
@@ -100,21 +129,35 @@ export class RecruitApp extends foundry.applications.api.ApplicationV2 {
   }
 
   async _renderHTML() {
-    const user = game.users.get(this.userId), pc = user?.character, coin = pc?.system?.coin ?? 0, armies = armiesFor(user);
-    this.list = (await templates()).filter(t => armies.includes(t.faction));
+    const user = game.users.get(this.userId), pc = user?.character, coin = pc?.system?.coin ?? 0, prov = provider();
+    const opt = prov ? await prov(this.userId) : null;
     const head = `<div class="qin-recruit-head">${pc ? `<img src="${esc(pc.img)}" alt=""><div><b>${esc(pc.name)}</b><div><i class="fa-solid fa-coins"></i> ${coin} coin</div></div>`
       : `<div class="qin-muted">No character is assigned to ${esc(user?.name ?? "this player")} (User Configuration), so there's no coin to spend.</div>`}</div>`;
+    const row = (t, chk) => `<li class="${chk.ok ? "" : "off"}"><img src="${esc(t.img)}" alt="" data-action="info" data-uuid="${esc(t.id)}"><span class="qin-party-tag tier t${Math.min(5, t.tier)}">T${t.tier}</span>
+          <a class="nm" data-action="info" data-uuid="${esc(t.id)}" data-tooltip="Show this unit's details">${esc(t.name)}</a><span class="cost" data-tooltip="Upkeep ${Math.round(t.cost / 4)} a month"><i class="fa-solid fa-coins"></i> ${t.cost}</span>
+          ${chk.ok ? `<button type="button" data-action="buy" data-uuid="${esc(t.id)}">Recruit</button>` : `<span class="qin-recruit-why">${esc(chk.reason)}</span>`}</li>`;
+    const sort = (a, b) => a.tier - b.tier || a.cost - b.cost || a.name.localeCompare(b.name);
+    const typeOf = (t) => TYPES.some(([c]) => c === t.category) ? t.category : "infantry";
+    if (opt) {
+      if (opt.block) { this.list = []; return `${head}<p class="qin-muted">${esc(opt.block)}</p>`; }
+      const all = await templates();
+      this.list = all.filter(t => t.cost > 0 && cityOffer(t, opt).offered);
+      const chkOf = (t) => recruitCheck({ coin, cost: t.cost, hasCharacter: !!pc, city: { ...cityOffer(t, opt), tier: t.tier, base: opt.baseCap } });
+      const capChip = ([k, label]) => `<span class="qin-recruit-cap ${opt.capWhy[k] ? "up" : ""}" ${opt.capWhy[k] ? `data-tooltip="+1 from ${esc(opt.capWhy[k])}"` : ""}>${label} up to T${opt.caps[k]}</span>`;
+      const city = `<div class="qin-recruit-city"><b>${esc(opt.title)}</b><div class="qin-muted">${esc(opt.sub)}</div><div class="qin-recruit-caps">${TYPES.map(capChip).join("")}</div></div>`;
+      const local = this.list.filter(t => opt.local.includes(t.name));
+      const sections = [...opt.groups.flatMap(g => TYPES.map(([k, label]) => [`${g} · ${label}`, this.list.filter(t => t.faction === g && !local.includes(t) && typeOf(t) === k)])),
+        [`Local troops (${opt.title})`, local]];
+      const rows = sections.filter(([, ts]) => ts.length).map(([h, ts]) => `<h4>${esc(h)}</h4><ul>${ts.sort(sort).map(t => row(t, chkOf(t))).join("")}</ul>`).join("");
+      return `${head}${city}<div class="qin-recruit-list">${rows || `<p class="qin-muted">No units with a cost to recruit here.</p>`}</div>`;
+    }
+    const armies = armiesFor(user);
+    this.list = (await templates()).filter(t => armies.includes(t.faction));
     if (!armies.length) return `${head}<p class="qin-muted">The GM hasn't chosen which armies ${esc(user?.name ?? "this player")} can recruit from yet.</p>`;
     const rows = RECRUIT_ARMIES.filter(a => armies.includes(a)).flatMap(army => TYPES.map(([k, label]) => {
-      const ts = this.list.filter(t => t.faction === army && (t.category === k || (k === "infantry" && !TYPES.some(([c]) => c === t.category))))
-        .sort((a, b) => a.tier - b.tier || a.cost - b.cost || a.name.localeCompare(b.name));
+      const ts = this.list.filter(t => t.faction === army && typeOf(t) === k).sort(sort);
       if (!ts.length) return "";
-      return `<h4>${army} · ${label}</h4><ul>${ts.map(t => {
-        const chk = recruitCheck({ coin, cost: t.cost, armies, army: t.faction, hasCharacter: !!pc });
-        return `<li class="${chk.ok ? "" : "off"}"><img src="${esc(t.img)}" alt="" data-action="info" data-uuid="${esc(t.id)}"><span class="qin-party-tag tier t${Math.min(5, t.tier)}">T${t.tier}</span>
-          <a class="nm" data-action="info" data-uuid="${esc(t.id)}" data-tooltip="Show this unit's details">${esc(t.name)}</a><span class="cost" data-tooltip="Upkeep ${Math.round(t.cost / 4)} a month"><i class="fa-solid fa-coins"></i> ${t.cost}</span>
-          <button type="button" data-action="buy" data-uuid="${esc(t.id)}" ${chk.ok ? "" : `disabled data-tooltip="${esc(chk.reason)}"`}>Recruit</button></li>`;
-      }).join("")}</ul>`;
+      return `<h4>${army} · ${label}</h4><ul>${ts.map(t => row(t, recruitCheck({ coin, cost: t.cost, armies, army: t.faction, hasCharacter: !!pc }))).join("")}</ul>`;
     })).join("");
     return `${head}<div class="qin-recruit-list">${rows || `<p class="qin-muted">No units with a cost in these armies.</p>`}</div>`;
   }

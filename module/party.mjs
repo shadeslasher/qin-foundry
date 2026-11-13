@@ -3,7 +3,7 @@
 // one player's units, or the whole party.
 
 import { officerEligibility } from "./officer-rules.mjs";
-import { RecruitApp, pickArmies, armiesFor } from "./recruit.mjs";
+import { RecruitApp, pickArmies, armiesFor, cityRecruiting } from "./recruit.mjs";
 import { EquipmentPicker, equipmentOf } from "./equipment.mjs";
 import { ownerFolder } from "./new-unit.mjs";
 import { partyOfficers, addToParty, removeFromParty, assignOfficer, isPartyOfficer } from "./officer-codex.mjs";
@@ -189,8 +189,8 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
       if (!gm && g.user.id !== game.user.id) return "";
       const armies = armiesFor(g.user);
       return `<div class="qin-party-recruit"><button type="button" data-action="recruit" data-id="${g.user.id}"><i class="fa-solid fa-plus"></i> Recruit</button>
-        <span class="qin-muted">${armies.length ? esc(armies.join(", ")) : "No armies allowed yet"}</span>
-        ${gm ? `<button type="button" class="qin-party-armies" data-action="armies" data-id="${g.user.id}" data-tooltip="Choose which armies ${esc(g.user.name)} can recruit from"><i class="fa-solid fa-chess-rook"></i></button>` : ""}</div>`;
+        <span class="qin-muted">${cityRecruiting() ? "In your faction's cities" : armies.length ? esc(armies.join(", ")) : "No armies allowed yet"}</span>
+        ${gm && !cityRecruiting() ? `<button type="button" class="qin-party-armies" data-action="armies" data-id="${g.user.id}" data-tooltip="Choose which armies ${esc(g.user.name)} can recruit from"><i class="fa-solid fa-chess-rook"></i></button>` : ""}</div>`;
     };
     const fold = folded();
     const body = groups.length ? groups.map(g => `<section class="qin-party-player${fold.has(g.user.id) ? " folded" : ""}">
