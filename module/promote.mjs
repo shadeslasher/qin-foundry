@@ -69,6 +69,8 @@ function nextTier(from, t, list) {
   const tiers = list.filter(u => u.faction === from.faction && u.tier > from.tier && upBranch(from, u)).map(u => u.tier);
   return tiers.length ? Math.min(...tiers) : from.tier + 1;
 }
+// set promotion links across branches (David, 2026-11-13): [from, to, features]
+export const LINKS = [["Qiang Warriors", "Qiang Raiders", ["pastures"]], ["Qiang Polearms", "Qiang Marauders", ["pastures"]]];
 /** Can some other unit of its own group promote into t? (pure) Local troops that can are promotion only. */
 export const promotedInto = (t, list) => list.some(u => u.faction === t.faction && u.tier < t.tier && u.name !== t.name
   && promotionPaths(u, list).some(p => p.kind === "promote" && p.t.name === t.name));
@@ -86,11 +88,13 @@ export function promotionPaths(from, list, ex = { add: new Set(), block: new Set
       : t.tier === nextTier(from, t, list) && upBranch(from, t) ? "promote" : null;
     // lord units may side-grade back into Han, never promote into it (David, 2026-11-13)
     else if (t.faction === BRIDGE_FROM && !NO_BRIDGE.includes(from.faction) && side) kind = "side";
+    const link = LINKS.find(([a, b]) => a === from.name && b === t.name);
+    if (!kind && link) kind = "promote";
     if (!kind && ex.add.has(key(t))) kind = t.tier > from.tier ? "promote" : "side";
     if (!kind) continue;
     const diff = Math.max(0, t.cost - (from.cost ?? 0));
     out.push({ t, kind, cost: kind === "side" ? Math.round(t.cost * SIDE_SHARE) : diff, needLevel: kind === "side" ? SIDE_LEVEL : PROMOTE_LEVEL,
-      needFeatures: requiredFeatures(from, t, kind) });
+      needFeatures: LINKS.find(([a, b]) => a === from.name && b === t.name)?.[2] ?? requiredFeatures(from, t, kind) });
   }
   // the same unit can sit in several packs: keep one per name
   const seen = new Set();

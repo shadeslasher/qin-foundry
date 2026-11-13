@@ -135,3 +135,10 @@ test('local troops: any Prosperity, only chain roots recruitable; frontier group
   assert.deepStrictEqual(promotionPaths(loc[0], loc).map(p => [p.t.name, p.kind, p.needFeatures.join()]), [['Steppe Heavy', 'promote', 'pastures']]);
   assert.deepStrictEqual(promotionPaths(T('Han Horse', 'Han', 2, 'cavalry', 'qiangshu', 900), [...loc, T('Han Heavy', 'Han', 4, 'cavalry', 'qiangshu', 2000)]).map(p => p.t.name), [], 'no tier skip outside frontier groups');
 });
+
+test('set links: Qiang foot units promote into the Qiang horse with Horse Pastures', async () => {
+  const { promotionPaths, promotedInto } = await import('../module/promote.mjs');
+  const q = [T('Qiang Warriors', 'Qiang', 2, 'infantry', 'chuishu', 800), T('Qiang Raiders', 'Qiang', 3, 'cavalry', 'daoshu', 1300)];
+  assert.deepStrictEqual(promotionPaths(q[0], q).map(p => [p.t.name, p.kind, p.needFeatures.join()]), [['Qiang Raiders', 'promote', 'pastures']]);
+  assert.strictEqual(promotedInto(q[1], q), true);
+});
