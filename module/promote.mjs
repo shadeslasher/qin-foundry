@@ -5,8 +5,8 @@
 //   if the new unit costs more, at least SIDE_FEE.
 // - Promote: same army, same branch, next tier; needs Level 4; back to Level 1. Costs the price difference.
 // - Only in a city of the player's own faction (the world map's recruitOptions), when the world map module is active;
-//   otherwise anywhere. A promotion also needs the branch's feature in a city of enough Prosperity (David, 2026-11-12):
-//   Tier 2 a Low city, Tier 3 Mid, Tier 4 High. Spear infantry: Armorsmith; blade infantry: Weaponsmith; ranged: Fletcher;
+//   otherwise anywhere. A promotion also needs the branch's feature in that city, at any Prosperity (David, 2026-11-12;
+//   first version also needed Low/Mid/High for Tier 2/3/4). Spear infantry: Armorsmith; blade infantry: Weaponsmith; ranged: Fletcher;
 //   cavalry: Horse Pastures; mounted shooters: Pastures or Fletcher; infantry that also shoots: its own or a Fletcher.
 //   Side-grades need no feature.
 // - The GM can add or block single paths in the setting "Promotion exceptions" (lines "A > B" add, "!A > B" block).
@@ -87,10 +87,10 @@ export function promoteCheck({ level, coin, path, city = null, block = null, has
   if (!hasCharacter) return { ok: false, reason: "No character to pay." };
   if (level < path.needLevel) return { ok: false, reason: `Needs Level ${path.needLevel}` };
   if (city && path.kind === "promote") {
-    const need = neededFeatures(path.t), min = minProsperity(path.t.tier);
-    if (min > 3) return { ok: false, reason: "Can't be trained by promotion" };
-    const names = need.map(k => FEATURE_NAMES[k] ?? k).join(" or ");
-    if ((city.prosperity ?? 0) < min || !need.some(k => (city.features ?? []).includes(k))) return { ok: false, reason: `Needs ${withArticle(names)} in a ${PROSPERITY[min]} city` };
+    // the branch's feature in the city, at any Prosperity (David, 2026-11-12: "promotion only needs the feature")
+    if (path.t.tier >= 5) return { ok: false, reason: "Can't be trained by promotion" };
+    const need = neededFeatures(path.t);
+    if (!need.some(k => (city.features ?? []).includes(k))) return { ok: false, reason: `Needs ${withArticle(need.map(k => FEATURE_NAMES[k] ?? k).join(" or "))} here` };
   }
   if (coin < path.cost) return { ok: false, reason: `Not enough coin (${coin} of ${path.cost})` };
   return { ok: true, reason: "" };

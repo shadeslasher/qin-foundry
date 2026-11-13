@@ -58,7 +58,7 @@ test('promotion: level, coin and city cap', async () => {
   assert.ok(promoteCheck({ level: 2, coin: 999, path: side }).ok);
   assert.strictEqual(promoteCheck({ level: 3, coin: 999, path: up }).reason, 'Needs Level 4');
   assert.ok(!promoteCheck({ level: 4, coin: 100, path: up }).ok, 'coin');
-  assert.strictEqual(promoteCheck({ level: 4, coin: 999, path: up, city: { prosperity: 1, features: [] } }).reason, 'Needs a Weaponsmith in a Low city');
+  assert.strictEqual(promoteCheck({ level: 4, coin: 999, path: up, city: { prosperity: 1, features: [] } }).reason, 'Needs a Weaponsmith here');
   assert.ok(promoteCheck({ level: 4, coin: 999, path: up, city: { prosperity: 1, features: ['weaponsmith'] } }).ok);
   assert.ok(promoteCheck({ level: 2, coin: 999, path: side, city: { prosperity: 1, features: [] } }).ok, 'side-grades need no feature');
   assert.ok(!promoteCheck({ level: 4, coin: 999, path: up, block: 'not here' }).ok);
@@ -72,8 +72,10 @@ test('promotion: features and Prosperity by tier', async () => {
   assert.deepStrictEqual(neededFeatures({ category: 'ranged', range: 3 }), ['fletcher']);
   assert.deepStrictEqual([2, 3, 4].map(minProsperity), [1, 2, 3]);
   const path = { kind: 'promote', needLevel: 4, cost: 0, t: { tier: 4, category: 'infantry', weaponSkill: 'qiangshu', range: 3 } };
-  assert.strictEqual(promoteCheck({ level: 4, coin: 0, path, city: { prosperity: 2, features: ['fletcher'] } }).reason, 'Needs an Armorsmith or Fletcher in a High city');
-  assert.ok(promoteCheck({ level: 4, coin: 0, path, city: { prosperity: 3, features: ['fletcher'] } }).ok);
+  assert.ok(promoteCheck({ level: 4, coin: 0, path, city: { prosperity: 1, features: ['fletcher'] } }).ok, 'any Prosperity with the feature');
+  assert.strictEqual(promoteCheck({ level: 4, coin: 0, path, city: { prosperity: 3, features: ['weaponsmith'] } }).reason, 'Needs an Armorsmith or Fletcher here');
+  const cav = { kind: 'promote', needLevel: 4, cost: 0, t: { tier: 4, category: 'cavalry', range: 1 } };
+  assert.strictEqual(promoteCheck({ level: 4, coin: 0, path: cav, city: { prosperity: 1, features: [] } }).reason, 'Needs Horse Pastures here');
 });
 
 test('promotion: equipment stays unless the new unit cannot use it', async () => {
