@@ -985,12 +985,13 @@ function rallyingBanner(s, u) {
 }
 /** Saddle: Attack +1; Saddle+ also melee defense +1; Saddle++ also movement +1. Cavalry only (David, 2026-11-12). */
 const saddleOf = (s, u) => (typeOf(s, u)?.category === 'cavalry' ? trait(u, 'saddle') : 0);
-/** War Horn: may this unit sound it now? (one use, then a round to recharge) */
+/** War Horn: may this unit sound it now? (one use, then 3 rounds to recharge: David, 2026-11-13) */
 function hornReady(s, u) {
   if (!trait(u, 'war horn')) return false;
   const used = fx(u).hornRound;
-  return used === undefined || s.turn.round - used >= 2;
+  return used === undefined || s.turn.round - used >= HORN_RECHARGE + 1;
 }
+const HORN_RECHARGE = 3;
 /**
  * Medical Supplies (David, 2026-11-09): the Tend the Wounded action heals the unit or an adjacent ally by a share of its
  * full health (15% / 15% / 20% for base / + / ++), never above what it had when the battle began; 2 / 3 / 3 uses a battle.

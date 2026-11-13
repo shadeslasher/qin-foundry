@@ -389,6 +389,8 @@ test('War Horn: Reinvigorate gives an adjacent ally that has acted a fresh turn 
   assert.strictEqual(s.turn.activation?.unitId, b, 'the ally is active again right away');
   assert.ok(!R.unitById(s, b).round.attacked && !R.unitById(s, b).round.moved);
   assert.ok(!R.hornReady(s, R.unitById(s, h)), 'recharging');
+  const hu = R.unitById(s, h), r0 = s.turn.round;
+  for (const [d, ok] of [[1, false], [3, false], [4, true]]) { s.turn.round = r0 + d; assert.strictEqual(R.hornReady(s, hu), ok, `round +${d}`); }
 });
 
 test('Splash Attack: other enemies next to the defender take 2 casualties (Splash Attack+ 4) when the attack lands', async () => {

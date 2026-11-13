@@ -37,7 +37,7 @@ export const EQUIPMENT = [
     { name: "Rallying Banner++", desc: "Adjacent allied units gain 6 morale at the end of this unit's turn." },
   ] },
   { family: "War Horn", kind: "gear", tiers: [
-    { name: "War Horn", desc: "Adds the Reinvigorate action: an adjacent allied unit reactivates and takes another turn immediately. Using it ends this unit's turn. Needs 1 turn to recharge after use." },
+    { name: "War Horn", desc: "Adds the Reinvigorate action: an adjacent allied unit reactivates and takes another turn immediately. Using it ends this unit's turn. Needs 3 turns to recharge after use." },
   ] },
   { family: "Medical Supplies", kind: "gear", tiers: [
     { name: "Medical Supplies", desc: "Adds the Tend the Wounded action: this unit or an adjacent ally regains 15% of its full health (never above its health at the start of the battle). 2 uses per battle. Takes the unit's turn; not while an enemy is next to it." },
