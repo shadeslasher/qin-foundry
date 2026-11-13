@@ -26,18 +26,19 @@ export function cityOffer(t, opt) {
   const types = [t.category in (opt.caps ?? {}) ? t.category : "infantry", ...((t.range ?? 1) > 1 ? ["ranged"] : [])];
   return { offered: true, cap: Math.max(...types.map(k => opt.caps?.[k] ?? 0)) };
 }
-/** Why a tier is above the cap, in Prosperity words (pure). */
-export function capReason(tier, cap, base) {
-  const need = tier - (cap - base);
-  return need <= 2 ? "Needs Low Prosperity" : need <= 3 ? "Needs Mid Prosperity" : need <= 4 ? "Needs High Prosperity" : "Not recruitable here";
+/** Why a tier is above the cap, in Prosperity words (pure). levelCaps[i] = the tier cap of Prosperity i (Ruins, Low, Mid, High). */
+export function capReason(tier, cap, base, levelCaps = [0, 2, 3, 4]) {
+  const need = tier - (cap - base), i = levelCaps.findIndex(c => c >= need);
+  return i >= 1 ? `Needs ${["", "Low", "Mid", "High"][i]} Prosperity` : "Not recruitable here";
 }
 
 /** May this be bought? { ok, reason } (pure). With city options, armies is ignored and offered / tier / cap decide. */
 export function recruitCheck({ coin, cost, armies, army, hasCharacter = true, city = null }) {
+  // city: { offered, cap, base, tier, levelCaps? }
   if (!hasCharacter) return { ok: false, reason: "No character is assigned to this player, so there's no coin to spend." };
   if (city) {
     if (!city.offered) return { ok: false, reason: "Not recruited in this city." };
-    if (city.tier > city.cap) return { ok: false, reason: capReason(city.tier, city.cap, city.base ?? city.cap) };
+    if (city.tier > city.cap) return { ok: false, reason: capReason(city.tier, city.cap, city.base ?? city.cap, city.levelCaps) };
   } else if (!armies.includes(army)) return { ok: false, reason: `This player can't recruit ${army} units.` };
   if (!(cost > 0)) return { ok: false, reason: "This unit has no recruitment cost set." };
   if (coin < cost) return { ok: false, reason: `Not enough coin (${coin} of ${cost}).` };
@@ -57,7 +58,7 @@ async function recruitOnGM(requesterId, { userId, uuid }) {
   if (prov) {
     opt = await prov(userId);
     if (opt.block) return { ok: false, error: opt.block };
-    city = { ...cityOffer(t, opt), tier: t.tier, base: opt.baseCap };
+    city = { ...cityOffer(t, opt), tier: t.tier, base: opt.baseCap, levelCaps: opt.levelCaps };
   }
   const chk = recruitCheck({ coin: pc?.system?.coin ?? 0, cost: t.cost, armies: armiesFor(user), army: t.faction, hasCharacter: !!pc, city });
   if (!chk.ok) return { ok: false, error: chk.reason };
@@ -142,7 +143,7 @@ export class RecruitApp extends foundry.applications.api.ApplicationV2 {
       if (opt.block) { this.list = []; return `${head}<p class="qin-muted">${esc(opt.block)}</p>`; }
       const all = await templates();
       this.list = all.filter(t => t.cost > 0 && cityOffer(t, opt).offered);
-      const chkOf = (t) => recruitCheck({ coin, cost: t.cost, hasCharacter: !!pc, city: { ...cityOffer(t, opt), tier: t.tier, base: opt.baseCap } });
+      const chkOf = (t) => recruitCheck({ coin, cost: t.cost, hasCharacter: !!pc, city: { ...cityOffer(t, opt), tier: t.tier, base: opt.baseCap, levelCaps: opt.levelCaps } });
       const capChip = ([k, label]) => `<span class="qin-recruit-cap ${opt.capWhy[k] ? "up" : ""}" ${opt.capWhy[k] ? `data-tooltip="+1 from ${esc(opt.capWhy[k])}"` : ""}>${label} up to T${opt.caps[k]}</span>`;
       const city = `<div class="qin-recruit-city"><b>${esc(opt.title)}</b><div class="qin-muted">${esc(opt.sub)}</div><div class="qin-recruit-caps">${TYPES.map(capChip).join("")}</div></div>`;
       const local = this.list.filter(t => opt.local.includes(t.name));

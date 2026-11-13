@@ -58,9 +58,22 @@ test('promotion: level, coin and city cap', async () => {
   assert.ok(promoteCheck({ level: 2, coin: 999, path: side }).ok);
   assert.strictEqual(promoteCheck({ level: 3, coin: 999, path: up }).reason, 'Needs Level 4');
   assert.ok(!promoteCheck({ level: 4, coin: 100, path: up }).ok, 'coin');
-  assert.strictEqual(promoteCheck({ level: 4, coin: 999, path: up, city: { cap: 1, base: 1 } }).reason, 'Needs Low Prosperity');
-  assert.ok(promoteCheck({ level: 4, coin: 999, path: up, city: { cap: 2, base: 2 } }).ok);
+  assert.strictEqual(promoteCheck({ level: 4, coin: 999, path: up, city: { prosperity: 1, features: [] } }).reason, 'Needs a Weaponsmith in a Low city');
+  assert.ok(promoteCheck({ level: 4, coin: 999, path: up, city: { prosperity: 1, features: ['weaponsmith'] } }).ok);
+  assert.ok(promoteCheck({ level: 2, coin: 999, path: side, city: { prosperity: 1, features: [] } }).ok, 'side-grades need no feature');
   assert.ok(!promoteCheck({ level: 4, coin: 999, path: up, block: 'not here' }).ok);
+});
+
+test('promotion: features and Prosperity by tier', async () => {
+  const { neededFeatures, minProsperity, promoteCheck } = await import('../module/promote.mjs');
+  assert.deepStrictEqual(neededFeatures({ category: 'infantry', weaponSkill: 'qiangshu', range: 1 }), ['armorsmith']);
+  assert.deepStrictEqual(neededFeatures({ category: 'infantry', weaponSkill: 'qiangshu', range: 3 }), ['armorsmith', 'fletcher']);
+  assert.deepStrictEqual(neededFeatures({ category: 'cavalry', range: 3 }), ['pastures', 'fletcher']);
+  assert.deepStrictEqual(neededFeatures({ category: 'ranged', range: 3 }), ['fletcher']);
+  assert.deepStrictEqual([2, 3, 4].map(minProsperity), [1, 2, 3]);
+  const path = { kind: 'promote', needLevel: 4, cost: 0, t: { tier: 4, category: 'infantry', weaponSkill: 'qiangshu', range: 3 } };
+  assert.strictEqual(promoteCheck({ level: 4, coin: 0, path, city: { prosperity: 2, features: ['fletcher'] } }).reason, 'Needs an Armorsmith or Fletcher in a High city');
+  assert.ok(promoteCheck({ level: 4, coin: 0, path, city: { prosperity: 3, features: ['fletcher'] } }).ok);
 });
 
 test('promotion: equipment stays unless the new unit cannot use it', async () => {

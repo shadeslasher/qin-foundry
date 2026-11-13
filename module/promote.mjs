@@ -4,14 +4,17 @@
 // - Side-grade: same army, same branch, same tier; needs Level 2; keeps level and XP. Costs the price difference
 //   if the new unit costs more, at least SIDE_FEE.
 // - Promote: same army, same branch, next tier; needs Level 4; back to Level 1. Costs the price difference.
-// - Only in a city of the player's own faction, under that city's tier cap (the world map's recruitOptions), when the
-//   world map module is active; otherwise anywhere.
+// - Only in a city of the player's own faction (the world map's recruitOptions), when the world map module is active;
+//   otherwise anywhere. A promotion also needs the branch's feature in a city of enough Prosperity (David, 2026-11-12):
+//   Tier 2 a Low city, Tier 3 Mid, Tier 4 High. Spear infantry: Armorsmith; blade infantry: Weaponsmith; ranged: Fletcher;
+//   cavalry: Horse Pastures; mounted shooters: Pastures or Fletcher; infantry that also shoots: its own or a Fletcher.
+//   Side-grades need no feature.
 // - The GM can add or block single paths in the setting "Promotion exceptions" (lines "A > B" add, "!A > B" block).
 // The unit keeps its name (unless it was just the unit's type name), owner, officer, side, equipment (a Saddle or
 // Fine Arrows it can no longer use is dropped), and its health as a share; trait choices start over.
 import { SYSTEM_ID } from "./config.mjs";
 import { templates } from "./new-unit.mjs";
-import { cityOffer, capReason } from "./recruit.mjs";
+
 
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
 const QUERY = `${SYSTEM_ID}.promote`;
@@ -65,12 +68,28 @@ export function promotionPaths(from, list, ex = { add: new Set(), block: new Set
     .sort((a, b) => (a.kind === b.kind ? 0 : a.kind === "side" ? -1 : 1) || a.t.tier - b.t.tier || a.cost - b.cost || a.t.name.localeCompare(b.t.name));
 }
 
-/** May this path be taken now? { ok, reason } (pure). city = { offered, cap, base, tier } or null (no city rules). */
+export const FEATURE_NAMES = { weaponsmith: "Weaponsmith", armorsmith: "Armorsmith", fletcher: "Fletcher", pastures: "Horse Pastures" };
+const BRANCH_FEATURE = { spear: "armorsmith", blade: "weaponsmith", ranged: "fletcher", cavalry: "pastures" };
+const PROSPERITY = ["Ruins", "Low", "Mid", "High"];
+/** The city features any one of which lets a unit be promoted into t (pure). */
+export function neededFeatures(t) {
+  const own = BRANCH_FEATURE[branchOf(t)];
+  return (t.range ?? 1) > 1 && own !== "fletcher" ? [own, "fletcher"] : [own];
+}
+/** The Prosperity a city needs to promote into this tier (pure): Tier 2 Low, 3 Mid, 4 High. */
+export const minProsperity = (tier) => Math.max(1, tier - 1);
+
+/** May this path be taken now? { ok, reason } (pure). city = { prosperity, features: [keys] } or null (no city rules). */
 export function promoteCheck({ level, coin, path, city = null, block = null, hasCharacter = true }) {
   if (block) return { ok: false, reason: block };
   if (!hasCharacter) return { ok: false, reason: "No character to pay." };
   if (level < path.needLevel) return { ok: false, reason: `Needs Level ${path.needLevel}` };
-  if (city && path.t.tier > city.cap) return { ok: false, reason: capReason(path.t.tier, city.cap, city.base ?? city.cap) };
+  if (city && path.kind === "promote") {
+    const need = neededFeatures(path.t), min = minProsperity(path.t.tier);
+    if (min > 3) return { ok: false, reason: "Can't be trained by promotion" };
+    const names = need.map(k => FEATURE_NAMES[k] ?? k).join(" or ");
+    if ((city.prosperity ?? 0) < min || !need.some(k => (city.features ?? []).includes(k))) return { ok: false, reason: `Needs ${/^[AEIOU]/.test(names) ? "an" : "a"} ${names} in a ${PROSPERITY[min]} city` };
+  }
   if (coin < path.cost) return { ok: false, reason: `Not enough coin (${coin} of ${path.cost})` };
   return { ok: true, reason: "" };
 }
@@ -99,8 +118,8 @@ async function context(actor) {
   const user = ownerOfUnit(actor), prov = provider(), opt = prov && user ? await prov(user.id) : null;
   return { list, from, paths: promotionPaths(from, list, ex), user, opt };
 }
-// the city's tier cap for this unit's type (the army doesn't matter here: a unit keeps its own army)
-const cityFor = (opt, t) => opt && !opt.block ? { ...cityOffer(t, { ...opt, groups: [t.faction], local: [] }), base: opt.baseCap } : null;
+// what the city has for promotions
+const cityFor = (opt) => opt && !opt.block ? { prosperity: opt.prosperity ?? 0, features: opt.featureKeys ?? [] } : null;
 
 /** GM side: check again and turn the unit into the new one. */
 async function promoteOnGM(requesterId, { actorId, uuid }) {
@@ -111,7 +130,7 @@ async function promoteOnGM(requesterId, { actorId, uuid }) {
   const path = paths.find(p => p.t.id === uuid);
   if (!path) return { ok: false, error: "This unit can't become that one." };
   const pc = user?.character;
-  const chk = promoteCheck({ level: actor.system.level ?? 1, coin: pc?.system?.coin ?? 0, path, city: cityFor(opt, path.t), block: opt?.block ?? null, hasCharacter: !!pc });
+  const chk = promoteCheck({ level: actor.system.level ?? 1, coin: pc?.system?.coin ?? 0, path, city: cityFor(opt), block: opt?.block ?? null, hasCharacter: !!pc });
   if (!chk.ok) return { ok: false, error: chk.reason };
   const src = await fromUuid(path.t.id); if (!src) return { ok: false, error: "That unit couldn't be found." };
   const n = src.toObject(), old = actor.system, oldName = actor.name;
@@ -188,7 +207,7 @@ export class PromoteApp extends foundry.applications.api.ApplicationV2 {
     const head = `<div class="qin-recruit-city"><span class="qin-party-tag tier t${Math.min(5, s.tier)}">T${s.tier}</span> <b>${esc(a.name)}</b> · ${esc(from.faction)} · ${branchesOf(from).map(b => esc(BRANCH_NAMES[b])).join(" and ")} <span style="float:right">Level ${level}</span>
       <div class="qin-muted">${opt ? (opt.block ? esc(opt.block) : `At ${esc(opt.sub)}`) : ""}${pc ? ` · <i class="fa-solid fa-coins"></i> ${coin} coin` : user ? "" : " · no player owns this unit"}</div></div>`;
     const row = (p) => {
-      const chk = promoteCheck({ level, coin, path: p, city: cityFor(opt, p.t), block: opt?.block ?? null, hasCharacter: !!pc });
+      const chk = promoteCheck({ level, coin, path: p, city: cityFor(opt), block: opt?.block ?? null, hasCharacter: !!pc });
       return `<li class="${chk.ok ? "" : "off"}"><img src="${esc(p.t.img)}" alt="" data-action="info" data-uuid="${esc(p.t.id)}"><span class="qin-party-tag tier t${Math.min(5, p.t.tier)}">T${p.t.tier}</span>
         <a class="nm" data-action="info" data-uuid="${esc(p.t.id)}" data-tooltip="Show this unit's details">${esc(p.t.name)}</a><span class="cost"><i class="fa-solid fa-coins"></i> ${p.cost}</span>
         ${chk.ok ? `<button type="button" data-action="go" data-uuid="${esc(p.t.id)}">${p.kind === "promote" ? "Promote" : "Side-grade"}</button>` : `<span class="qin-recruit-why">${esc(chk.reason)}</span>`}</li>`;

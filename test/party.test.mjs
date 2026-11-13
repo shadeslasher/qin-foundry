@@ -69,6 +69,8 @@ test('city recruiting: offered by army or local name, tier cap by type, hybrids 
   assert.strictEqual(capReason(4, 3, 3), 'Needs High Prosperity');
   assert.strictEqual(capReason(4, 4, 3), 'Needs Mid Prosperity');
   assert.strictEqual(capReason(5, 3, 3), 'Not recruitable here');
+  assert.strictEqual(capReason(2, 1, 1, [0, 1, 2, 3]), 'Needs Mid Prosperity');
+  assert.strictEqual(capReason(4, 1, 1, [0, 1, 2, 3]), 'Not recruitable here');
   const city = { offered: true, cap: 3, base: 3, tier: 4 };
   assert.ok(!recruitCheck({ coin: 9999, cost: 100, hasCharacter: true, city }).ok);
   assert.ok(recruitCheck({ coin: 9999, cost: 100, hasCharacter: true, city: { ...city, tier: 3 } }).ok);
