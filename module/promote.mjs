@@ -1,5 +1,5 @@
 // Unit promotion tree (David, 2026-11-12). Built from the units themselves, no hand-made tree:
-// - Branch: cavalry, ranged, spear infantry (spear / ji / halberd units: weapon skill qiangshu) or blade infantry
+// - Branch: cavalry, ranged (mounted shooters count as both), spear infantry (spear / ji / halberd units: weapon skill qiangshu) or blade infantry
 //   (swords, sabres, axes, maces: every other infantry). Axe Band ↔ Sabre Militia, Spear Guards ↔ Ji Infantry.
 // - Side-grade: same army, same branch, same tier; needs Level 2; keeps level and XP. Costs the price difference
 //   if the new unit costs more, at least SIDE_FEE.
@@ -23,6 +23,12 @@ export function branchOf(t) {
   if (t.category === "cavalry" || t.category === "ranged") return t.category;
   return t.weaponSkill === "qiangshu" ? "spear" : "blade";
 }
+/** Its branches (pure): mounted shooters (cavalry with range 2+: Mounted Archers, Mounted Crossbows, Heavy Mounted Archers…)
+ *  sit in both Cavalry and Ranged, so archers and riders can both become them (David, 2026-11-12). */
+export function branchesOf(t) {
+  return t.category === "cavalry" && (t.range ?? 1) > 1 ? ["cavalry", "ranged"] : [branchOf(t)];
+}
+const shareBranch = (a, b) => branchesOf(a).some(x => branchesOf(b).includes(x));
 
 /** "A > B" adds, "!A > B" blocks (pure). Returns { add: Set, block: Set } of "a>b" keys (lower case). */
 export function parseExceptions(text) {
@@ -41,12 +47,12 @@ export function parseExceptions(text) {
  * Returns [{ t, kind: "side"|"promote", cost, needLevel }] sorted by kind, tier, cost.
  */
 export function promotionPaths(from, list, ex = { add: new Set(), block: new Set() }) {
-  const br = branchOf(from), key = (t) => `${from.name.toLowerCase()}>${t.name.toLowerCase()}`, out = [];
+  const key = (t) => `${from.name.toLowerCase()}>${t.name.toLowerCase()}`, out = [];
   for (const t of list) {
     if (t.name === from.name || !(t.cost > 0)) continue;
     if (ex.block.has(key(t))) continue;
     let kind = null;
-    if (t.faction === from.faction && branchOf(t) === br) kind = t.tier === from.tier ? "side" : t.tier === from.tier + 1 ? "promote" : null;
+    if (t.faction === from.faction && shareBranch(t, from)) kind = t.tier === from.tier ? "side" : t.tier === from.tier + 1 ? "promote" : null;
     if (!kind && ex.add.has(key(t))) kind = t.tier > from.tier ? "promote" : "side";
     if (!kind) continue;
     const diff = Math.max(0, t.cost - (from.cost ?? 0));
@@ -178,7 +184,7 @@ export class PromoteApp extends foundry.applications.api.ApplicationV2 {
     const { from, paths, user, opt } = await context(a);
     this.paths = paths;
     const s = a.system, pc = user?.character, coin = pc?.system?.coin ?? 0, level = s.level ?? 1;
-    const head = `<div class="qin-recruit-city"><span class="qin-party-tag tier t${Math.min(5, s.tier)}">T${s.tier}</span> <b>${esc(a.name)}</b> · ${esc(from.faction)} · ${esc(BRANCH_NAMES[branchOf(from)])} <span style="float:right">Level ${level}</span>
+    const head = `<div class="qin-recruit-city"><span class="qin-party-tag tier t${Math.min(5, s.tier)}">T${s.tier}</span> <b>${esc(a.name)}</b> · ${esc(from.faction)} · ${branchesOf(from).map(b => esc(BRANCH_NAMES[b])).join(" and ")} <span style="float:right">Level ${level}</span>
       <div class="qin-muted">${opt ? (opt.block ? esc(opt.block) : `At ${esc(opt.sub)}`) : ""}${pc ? ` · <i class="fa-solid fa-coins"></i> ${coin} coin` : user ? "" : " · no player owns this unit"}</div></div>`;
     const row = (p) => {
       const chk = promoteCheck({ level, coin, path: p, city: cityFor(opt, p.t), block: opt?.block ?? null, hasCharacter: !!pc });
