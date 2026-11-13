@@ -165,7 +165,7 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
       return noUpkeep(a)
         ? `<span class="qin-party-tag coin off ${gm ? "click" : ""}" ${gm ? `data-action="upkeep" data-id="${a.id}"` : ""} data-tooltip="Recruitment cost ${s.cost} · no upkeep${gm ? " (click to charge upkeep again)" : ""}"><i class="fa-solid fa-coins"></i> No upkeep</span>`
         : `<span class="qin-party-tag coin ${gm ? "click" : ""}" ${gm ? `data-action="upkeep" data-id="${a.id}"` : ""} data-tooltip="Recruitment cost ${s.cost} · upkeep ${s.upkeep} a month${gm ? " (click: no upkeep for this unit)" : ""}"><i class="fa-solid fa-coins"></i> ${s.upkeep}/mo</span>`; };
-    const bar = (cls, v, m, label) => `<div class="qin-pr-bar"><div class="qin-bar ${cls}"><i style="width:${pct(v, m)}%"></i></div><small>${label}</small></div>`;
+    const bar = (cls, v, m, label) => `<div class="qin-prb"><div class="qin-bar ${cls}"><i style="width:${pct(v, m)}%"></i></div><small>${label}</small></div>`;
     const bars = (s) => [
       bar("", s.men.value, s.men.max, `${s.men.value} / ${s.men.max}`),
       bar("morale", s.morale, 100, `${s.morale}${s.moraleState ? ` · ${esc(s.moraleState)}` : ""}`),
@@ -215,9 +215,9 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
         <span class="qin-party-dot" style="background:${esc(g.user.color?.css ?? g.user.color ?? "#888")}"></span><b>${esc(g.user.name)}</b><span class="qin-pr-facts">${facts}</span>
         <span class="qin-pr-pbtns">${canAct && (gm || !cityRecruiting()) ? `<button type="button" data-action="recruit" data-id="${g.user.id}"><i class="fa-solid fa-plus"></i> Recruit</button>` : ""}
           ${canAct ? `<button type="button" data-action="promote" data-id="${g.user.id}" data-tooltip="Promote or side-grade ${esc(g.user.name)}'s units"><i class="fa-solid fa-angles-up"></i> Promote</button>` : ""}
-          ${gm && !cityRecruiting() ? `<button type="button" data-action="armies" data-id="${g.user.id}" data-tooltip="Choose which armies ${esc(g.user.name)} can recruit from"><i class="fa-solid fa-chess-rook"></i></button>` : ""}
-          ${gm ? `<button type="button" data-action="heal" data-scope="player" data-id="${g.user.id}" data-tooltip="Heal ${esc(g.user.name)}'s units"><i class="fa-solid fa-heart-pulse"></i></button>
-          <button type="button" data-action="morale" data-scope="player" data-id="${g.user.id}" data-tooltip="Reset the morale of ${esc(g.user.name)}'s units"><i class="fa-solid fa-flag"></i></button>` : ""}</span></div>
+          ${gm && !cityRecruiting() ? `<button type="button" class="ic" data-action="armies" data-id="${g.user.id}" data-tooltip="Choose which armies ${esc(g.user.name)} can recruit from"><i class="fa-solid fa-chess-rook"></i></button>` : ""}
+          ${gm ? `<button type="button" class="ic" data-action="heal" data-scope="player" data-id="${g.user.id}" data-tooltip="Heal ${esc(g.user.name)}'s units"><i class="fa-solid fa-heart-pulse"></i></button>
+          <button type="button" class="ic" data-action="morale" data-scope="player" data-id="${g.user.id}" data-tooltip="Reset the morale of ${esc(g.user.name)}'s units"><i class="fa-solid fa-flag"></i></button>` : ""}</span></div>
         ${!gm && cityRecruiting() && mine ? `<div class="qin-pr-hint qin-muted">Recruit troops: right-click your city on the world map.</div>` : ""}`;
     };
     const fold = folded();

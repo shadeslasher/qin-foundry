@@ -1460,7 +1460,7 @@ details.qin-unique-bonuses > summary small { font-weight: normal; font-size: cal
 .qin-pr-player b { font-size: 1.02em; }
 .qin-pr-facts { font-size: .8em; opacity: .85; display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .qin-pr-pbtns { margin-left: auto; display: flex; gap: 4px; }
-.qin-pr-pbtns button:has(> i:only-child) { width: 26px; padding: 1px 0; }
+.qin-pr-pbtns button.ic { width: 26px; padding: 1px 0; }
 .qin-pr-hint { font-size: .78em; padding: 2px 8px; }
 .qin-pr-row { padding: 4px 6px; border-bottom: 1px solid rgba(160,140,100,.18); border-radius: 3px; }
 .qin-pr-row:hover { background: rgba(160,140,100,.08); }
@@ -1471,9 +1471,10 @@ details.qin-unique-bonuses > summary small { font-weight: normal; font-size: cal
 .qin-pr-nm { font-weight: 600; display: flex; align-items: center; gap: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .qin-pr-sub { font-size: .76em; opacity: .8; display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 .qin-pr-off .qin-party-off { margin: 0; }
-.qin-pr-bar .qin-bar { height: 7px; margin: 0; background: rgba(160,150,130,.35); }
-.qin-pr-bar .qin-bar.morale i { background: #3a78c8; } .qin-pr-bar .qin-bar.xp i { background: #b58b2a; }
-.qin-pr-bar small { display: block; font-size: .72em; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+.qin-prb { height: auto; overflow: visible; min-width: 0; }
+.qin-prb .qin-bar { height: 7px; margin: 0; background: rgba(160,150,130,.35); }
+.qin-prb .qin-bar.morale i { background: #3a78c8; } .qin-prb .qin-bar.xp i { background: #b58b2a; }
+.qin-prb small { display: block; font-size: .72em; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
 .qin-pr-acts { display: flex; gap: 3px; justify-content: flex-end; opacity: .35; }
 .qin-pr-row:hover .qin-pr-acts, .qin-pr-row.sel .qin-pr-acts { opacity: 1; }
 .qin-pr-acts button { width: 24px; height: 22px; padding: 0; line-height: 1; flex: none; font-size: .8em; }
