@@ -79,6 +79,7 @@ test('city recruiting: offered by army or local name, tier cap by type, hybrids 
   assert.strictEqual(cityOffer({ ...cav2, tier: 1 }, fopt).missing, null, 'Tier 1 needs no feature');
   assert.strictEqual(cityOffer({ ...cav2, name: 'Test Riders' }, fopt).missing, null, 'local troops need no feature');
   assert.strictEqual(cityOffer({ faction: 'Alpha', name: 'Blades', category: 'infantry', weaponSkill: 'jianshu', tier: 3 }, fopt).missing, null);
+  assert.strictEqual(recruitCheck({ coin: 9999, cost: 100, hasCharacter: true, city: { offered: true, cap: 99, tier: 5, taken: 'Bo' } }).reason, 'Already serving Bo', 'one of each');
   const { capChips } = await import('../module/recruit.mjs');
   assert.deepStrictEqual(capChips(fopt).map(c => [c.label, c.top]), [['Spear', 1], ['Blade', 3], ['Ranged', 1], ['Cavalry', 1], ['Mounted archers', 1]]);
   const city = { offered: true, cap: 3, base: 3, tier: 4 };

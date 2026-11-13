@@ -17,6 +17,7 @@ import { templates } from "./new-unit.mjs";
 
 
 import { attachUnitHover, hideUnitHover } from "./unit-hover.mjs";
+import { inService } from "./recruit.mjs";
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
 const QUERY = `${SYSTEM_ID}.promote`;
 export const SIDE_SHARE = 0.5, SIDE_LEVEL = 2, PROMOTE_LEVEL = 4;
@@ -100,8 +101,9 @@ export function requiredFeatures(from, t, kind) {
 export const minProsperity = (tier) => Math.max(1, tier - 1);
 
 /** May this path be taken now? { ok, reason } (pure). city = { prosperity, features: [keys] } or null (no city rules). */
-export function promoteCheck({ level, coin, path, city = null, block = null, hasCharacter = true }) {
+export function promoteCheck({ level, coin, path, city = null, block = null, hasCharacter = true, taken = null }) {
   if (block) return { ok: false, reason: block };
+  if (taken) return { ok: false, reason: `Already serving ${taken}` };
   if (!hasCharacter) return { ok: false, reason: "No character to pay." };
   if (level < path.needLevel) return { ok: false, reason: `Needs Level ${path.needLevel}` };
   if (city) {
@@ -153,7 +155,7 @@ async function promoteOnGM(requesterId, { actorId, uuid }) {
   const path = paths.find(p => p.t.id === uuid);
   if (!path) return { ok: false, error: "This unit can't become that one." };
   const pc = user?.character;
-  const chk = promoteCheck({ level: actor.system.level ?? 1, coin: pc?.system?.coin ?? 0, path, city: cityFor(opt), block: opt?.block ?? null, hasCharacter: !!pc });
+  const chk = promoteCheck({ level: actor.system.level ?? 1, coin: pc?.system?.coin ?? 0, path, city: cityFor(opt), block: opt?.block ?? null, hasCharacter: !!pc, taken: inService(path.t, opt) });
   if (!chk.ok) return { ok: false, error: chk.reason };
   const src = await fromUuid(path.t.id); if (!src) return { ok: false, error: "That unit couldn't be found." };
   const n = src.toObject(), old = actor.system, oldName = actor.name;
@@ -244,7 +246,7 @@ export class PromoteApp extends foundry.applications.api.ApplicationV2 {
     const head = `<div class="qin-pr-head"><b>${esc(pc?.name ?? user?.name ?? "")}</b><span><i class="fa-solid fa-coins"></i> ${pc ? coin.toLocaleString() : "no character"}</span></div>
       ${opt ? `<div class="qin-pr-city">${opt.block ? esc(opt.block) : `${esc(opt.title)} · ${esc(opt.sub.replace(/^.*?city · /, ""))}`}</div>` : ""}`;
     if (!units.length) return `${head}<p class="qin-muted qin-pr-empty">${esc(user?.name ?? "This player")} has no units yet.</p>`;
-    const short = (r) => r.replace(/^Needs (an? )?/, "").replace(/ here$/, "").replace(/ \(.*\)$/, "");
+    const short = (r) => r.replace(/^Already serving /, "Taken: ").replace(/^Needs (an? )?/, "").replace(/ here$/, "").replace(/ \(.*\)$/, "");
     const row = (a) => {
       const s = a.system, from = currentOf(a, list), level = s.level ?? 1, paths = promotionPaths(from, list, ex);
       this.paths.set(a.id, paths);
@@ -257,7 +259,7 @@ export class PromoteApp extends foundry.applications.api.ApplicationV2 {
       const shownKind = this.shown?.actorId === a.id ? this.shown.kind : null;
       const btn = (kind, label) => `<button type="button" class="${shownKind === kind ? "on" : ""}" data-action="show" data-actor-id="${a.id}" data-kind="${kind}">${label}${shownKind === kind ? ' <i class="fa-solid fa-chevron-up"></i>' : ""}</button>`;
       const choices = (shownKind === "side" ? side : shownKind === "promote" ? up : []).map(p => {
-        const chk = promoteCheck({ level, coin, path: p, city, block: opt?.block ?? null, hasCharacter: !!pc });
+        const chk = promoteCheck({ level, coin, path: p, city, block: opt?.block ?? null, hasCharacter: !!pc, taken: inService(p.t, opt) });
         return `<div class="qin-pr-choice ${chk.ok ? "" : "off"}"><img src="${esc(p.t.img)}" alt="" data-unit-uuid="${esc(p.t.id)}">
           <span data-unit-uuid="${esc(p.t.id)}">${esc(p.t.name)} <small>T${p.t.tier}</small></span><span class="qin-pr-cost">${p.cost.toLocaleString()}</span>
           ${chk.ok ? `<button type="button" data-action="go" data-actor="${a.id}" data-uuid="${esc(p.t.id)}">${p.kind === "promote" ? "Promote" : "Side-grade"}</button>` : `<span class="qin-pr-why" data-tooltip="${esc(chk.reason)}">${esc(short(chk.reason))}</span>`}</div>`;
