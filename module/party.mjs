@@ -4,6 +4,7 @@
 
 import { officerEligibility } from "./officer-rules.mjs";
 import { RecruitApp, pickArmies, armiesFor, cityRecruiting } from "./recruit.mjs";
+import { PromoteApp } from "./promote.mjs";
 import { EquipmentPicker, equipmentOf } from "./equipment.mjs";
 import { ownerFolder } from "./new-unit.mjs";
 import { partyOfficers, addToParty, removeFromParty, assignOfficer, isPartyOfficer } from "./officer-codex.mjs";
@@ -96,7 +97,7 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
     position: { width: 360, height: 620, top: 70, left: 70 },
     actions: {
       heal: PartyPanel.#act, morale: PartyPanel.#act, open: PartyPanel.#open,
-      recruit: PartyPanel.#recruit, armies: PartyPanel.#armies, coin: PartyPanel.#coin,
+      recruit: PartyPanel.#recruit, promote: PartyPanel.#promote, armies: PartyPanel.#armies, coin: PartyPanel.#coin,
       removeUnit: (ev, el) => removeUnit(game.actors.get(el.dataset.id)),
       equip: (ev, el) => EquipmentPicker.open(game.actors.get(el.dataset.id)),
       tab: (ev, el) => { setTab(el.dataset.tab); PartyPanel.refresh(); },
@@ -121,6 +122,7 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
   }
   static #open(event, target) { game.actors.get(target.dataset.id)?.sheet?.render(true); }
   static #recruit(event, target) { RecruitApp.open(target.dataset.id); }
+  static #promote(event, target) { PromoteApp.open(target.dataset.id); }
   /** Add (or take, with a negative number) coin: one player's character, or every player's at once (GM). */
   static async #coin(event, target) {
     const all = target.dataset.scope === "all";
@@ -144,7 +146,8 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
   async _renderHTML() {
     const gm = game.user.isGM, groups = partyGroups();
     const pct = (v, m) => Math.max(0, Math.min(100, m ? (100 * v) / m : 0));
-    const equipBtn = (a) => `<button type="button" data-action="equip" data-id="${a.id}" data-tooltip="Equip this unit"><i class="fa-solid fa-shield-halved"></i></button>`;
+    const equipBtn = (a) => `<button type="button" data-action="equip" data-id="${a.id}" data-tooltip="Equip this unit"><i class="fa-solid fa-shield-halved"></i></button>`
+      + `<button type="button" data-action="promote" data-id="${a.id}" data-tooltip="Promote or side-grade this unit"><i class="fa-solid fa-angles-up"></i></button>`;
     const btns = (scope, id = "", a = null) => gm ? `<span class="qin-party-btns">
         ${scope === "unit" ? equipBtn(a) : ""}
         <button type="button" data-action="heal" data-scope="${scope}" data-id="${id}" data-tooltip="Heal to full"><i class="fa-solid fa-heart-pulse"></i></button>

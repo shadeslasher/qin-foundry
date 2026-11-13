@@ -2,6 +2,7 @@ import { PartyPanel, registerParty } from "./module/party.mjs";
 import { OfficerCodex, registerOfficerCodex } from "./module/officer-codex.mjs";
 import { registerOfficerLimit } from "./module/officer-rules.mjs";
 import { registerRecruitQuery } from "./module/recruit.mjs";
+import { registerPromoteQuery } from "./module/promote.mjs";
 import * as CFG from "./module/config.mjs";
 import { CharacterData, HenchmanData, UnitData } from "./module/data/actor-models.mjs";
 import * as IM from "./module/data/item-models.mjs";
@@ -261,6 +262,7 @@ Hooks.once("init", () => {
   registerDeployDrop();
   registerNewUnitDrop();
   registerRecruitQuery();
+  registerPromoteQuery();
   registerCombatQuery();
 });
 
