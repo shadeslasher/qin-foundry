@@ -9,7 +9,9 @@ import { SYSTEM_ID } from "./config.mjs";
 
 export const VIA_FLAG = "viaOfficer";
 // folder names that aren't army names
-export const HOME_ALIASES = { Shu: ["Liu Bei"], "Yuan Shao": ["Song"], "Zhang Yan": ["Bandits"], "Cao Cao": ["Cao Cao", "Wei"], Wei: ["Wei", "Cao Cao"], "Dong Zhuo": ["Lu Bu"] };
+export const HOME_ALIASES = { Shu: ["Liu Bei"], "Yuan Shao": ["Song"], "Zhang Yan": ["Bandits"], "Cao Cao": ["Cao Cao", "Wei"], Wei: ["Wei", "Cao Cao"] };
+// Dong Zhuo's own officers open nothing: Lu Bu's troops follow Lu Bu's officers (folder "Lu Bu"), who keep that home when he
+// breaks from Dong Zhuo (David, 2026-11-13).
 export const NEVER = ["Han", "Mercenary", "Imperial", "Northern", "Qiang", "Xiliang", "Xiongnu", "Xianbei"];
 
 /** The armies a home faction opens (pure). known = the army names that exist. */
