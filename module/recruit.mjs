@@ -22,6 +22,8 @@ export const cityRecruiting = () => !!provider();
 
 /** Is this unit offered by these city options, and its tier cap there (pure). Hybrids (range 2+) use their best type. */
 export function cityOffer(t, opt) {
+  // units opened by a city feature (Elephant Grounds → War Elephants, David 2026-11-13): any owner, no cap, no other feature
+  if ((opt.specialUnits ?? []).includes(t.name)) return { offered: true, cap: 99 };
   const local = (opt.local ?? []).includes(t.name);
   const offered = (opt.groups ?? []).includes(t.faction) || local;
   if (!offered) return { offered: false, cap: 0 };
@@ -38,8 +40,10 @@ export function cityOffer(t, opt) {
 }
 /** One of each (David, 2026-11-13: the Imperial troops at the Seat of the Emperor): the player already holding this unit, or null. */
 export const UNIQUE_ARMIES = ["Imperial"];
+/** Single units held by one player at most (David, 2026-11-13: War Elephants, from the Elephant Grounds). */
+export const UNIQUE_UNITS = ["War Elephants"];
 export function inService(t, opt) {
-  if (![...UNIQUE_ARMIES, ...(opt?.unique ?? [])].includes(t.faction)) return null;
+  if (![...UNIQUE_ARMIES, ...(opt?.unique ?? [])].includes(t.faction) && !UNIQUE_UNITS.includes(t.name)) return null;
   const owner = (a) => game.users.find(u => !u.isGM && a.testUserPermission(u, "OWNER"));
   const a = game.actors.find(a => a.type === "unit" && (a.getFlag(SYSTEM_ID, "template") === t.id || a.name === t.name) && owner(a));
   return a ? owner(a).name : null;
@@ -182,7 +186,7 @@ export class RecruitApp extends foundry.applications.api.ApplicationV2 {
       const chkOf = (t) => recruitCheck({ coin, cost: t.cost, hasCharacter: !!pc, city: { ...cityOffer(t, opt), tier: t.tier, base: opt.baseCap, levelCaps: opt.levelCaps, taken: inService(t, opt) } });
       const city = `<div class="qin-pr-city">${esc(opt.title)} · ${esc(opt.sub.replace(/^.*?city · /, ""))}</div>`;
       const chips = `<div class="qin-rc-chips">${capChips(opt).map(c => `<span class="qin-recruit-cap ${c.top < c.cap ? "low" : ""}" data-tooltip="${esc(c.why)}">${esc(c.label)} T${c.top}</span>`).join("")}</div>`;
-      const tabOf = (t) => (opt.unique ?? []).includes(t.faction) ? "imperial" : opt.local.includes(t.name) ? "local" : branchOf(t);
+      const tabOf = (t) => (opt.unique ?? []).includes(t.faction) ? "imperial" : opt.local.includes(t.name) || (opt.specialUnits ?? []).includes(t.name) ? "local" : branchOf(t);
       const TABS = [["spear", "Spear"], ["blade", "Blade"], ["ranged", "Ranged"], ["cavalry", "Cavalry"], ["local", "Local"], ["imperial", "Imperial"]].filter(([k]) => this.list.some(t => tabOf(t) === k));
       const okIn = (k) => this.list.some(t => tabOf(t) === k && chkOf(t).ok);
       if (!TABS.some(([k]) => k === this.tab)) this.tab = (TABS.find(([k]) => okIn(k)) ?? TABS[0])?.[0];
@@ -194,7 +198,7 @@ export class RecruitApp extends foundry.applications.api.ApplicationV2 {
           ${chk.ok ? `<button type="button" data-action="buy" data-uuid="${esc(t.id)}">Recruit</button>` : `<span class="qin-pr-why" data-tooltip="${esc(chk.reason)}">${esc(short(t, chk.reason))}</span>`}</div>`; };
       const inTab = this.list.filter(t => tabOf(t) === this.tab).sort(sort);
       const armiesHere = [...new Set(inTab.map(t => t.faction))].sort((a, b) => (opt.groups.indexOf(a) + 1 || 99) - (opt.groups.indexOf(b) + 1 || 99));
-      const body = this.tab === "local" ? `<div class="qin-rc-grp">Local troops of ${esc(opt.title)}</div>${inTab.map(line).join("")}`
+      const body = this.tab === "local" ? `<div class="qin-rc-grp">Local troops of ${esc(opt.title)}</div>${inTab.map(line).join("")}${inTab.some(t => UNIQUE_UNITS.includes(t.name)) ? '<p class="qin-muted">War Elephants: one unit across all players.</p>' : ""}`
         : this.tab === "imperial" ? `<div class="qin-rc-grp">Seat of the Emperor · one of each across all players</div>${inTab.map(line).join("")}`
         : armiesHere.map(g => `<div class="qin-rc-grp">${esc(g)}</div>${inTab.filter(t => t.faction === g).map(line).join("")}`).join("");
       return `${top}${city}${chips}${tabs}<div class="qin-rc-list">${body || `<p class="qin-muted">No units to recruit here.</p>`}</div>`;

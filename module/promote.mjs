@@ -3,7 +3,8 @@
 //   (swords, sabres, axes, maces: every other infantry). Axe Band ↔ Sabre Militia, Spear Guards ↔ Ji Infantry.
 // - Side-grade: same army, same branch, same tier; needs Level 2; keeps level and XP. Costs the price difference
 //   half the new unit's recruitment cost (David, 2026-11-12).
-// - Han units may also move into their faction's lord armies (not Mercenary, Imperial, Northern or frontier troops).
+// - Han units may also move into their faction's lord armies (not Mercenary, Imperial, Northern or frontier troops);
+//   lord units may side-grade (not promote) into Han.
 // - Promote: same army, same branch, next tier; needs Level 4; back to Level 1. Costs the price difference.
 // - Only in a city of the player's own faction (the world map's recruitOptions), when the world map module is active;
 //   otherwise anywhere. A promotion also needs the branch's feature in that city, at any Prosperity (David, 2026-11-12;
@@ -68,8 +69,11 @@ export function promotionPaths(from, list, ex = { add: new Set(), block: new Set
     // side-grades: any shared branch (mounted shooters ↔ cavalry or ranged); promotions: the unit's own branch, or into
     // mounted shooters from ranged infantry too (David, 2026-11-12)
     // Tier 5 (Imperial) units don't side-grade (David, 2026-11-13)
-    if (t.faction === from.faction || (from.faction === BRIDGE_FROM && bridge.includes(t.faction))) kind = t.tier === from.tier && from.tier < 5 && shareBranch(t, from) ? "side"
+    const side = t.tier === from.tier && from.tier < 5 && shareBranch(t, from);
+    if (t.faction === from.faction || (from.faction === BRIDGE_FROM && bridge.includes(t.faction))) kind = side ? "side"
       : t.tier === from.tier + 1 && (branchOf(t) === branchOf(from) || (isMountedShooter(t) && shareBranch(t, from))) ? "promote" : null;
+    // lord units may side-grade back into Han, never promote into it (David, 2026-11-13)
+    else if (t.faction === BRIDGE_FROM && !NO_BRIDGE.includes(from.faction) && side) kind = "side";
     if (!kind && ex.add.has(key(t))) kind = t.tier > from.tier ? "promote" : "side";
     if (!kind) continue;
     const diff = Math.max(0, t.cost - (from.cost ?? 0));

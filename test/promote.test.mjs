@@ -111,5 +111,14 @@ test('promotion: Han units may move into the faction\'s lord armies, not into pl
   assert.deepStrictEqual(bridge, ['Lordly']);
   assert.deepStrictEqual(promotionPaths(han, more, undefined, bridge).map(p => [p.t.name, p.kind]), [['Lord Pike 1', 'side'], ['Lord Pike', 'promote']]);
   assert.deepStrictEqual(promotionPaths(han, more).map(p => p.t.name), [], 'no bridge without the faction\'s armies');
-  assert.deepStrictEqual(promotionPaths(more[2], [...more, T('Han Pike 2', 'Han', 1, 'infantry', 'qiangshu', 500)], undefined, bridge).map(p => p.t.name), ['Lord Pike'], 'lord units don\'t go back to Han');
+  assert.deepStrictEqual(promotionPaths(more[2], [...more, T('Han Pike 2', 'Han', 1, 'infantry', 'qiangshu', 500)], undefined, bridge).map(p => [p.t.name, p.kind]), [['Han Pike', 'side'], ['Han Pike 2', 'side'], ['Lord Pike', 'promote']], 'lord units side-grade into Han');
+  assert.deepStrictEqual(promotionPaths(more[2], [...more, T('Han Pike 3', 'Han', 2, 'infantry', 'qiangshu', 900)], undefined, bridge).map(p => p.t.name).includes('Han Pike 3'), false, 'but never promote into Han');
+  assert.deepStrictEqual(promotionPaths(more[4], more, undefined, bridge).map(p => p.t.name), [], 'Mercenaries don\'t side-grade into Han');
+});
+
+test('recruit: a feature-opened unit has no cap and needs no army or other feature', async () => {
+  const { cityOffer } = await import('../module/recruit.mjs');
+  const big = T('Big Beast', 'Southern', 4, 'cavalry', 'qiangshu', 3000);
+  assert.deepStrictEqual(cityOffer(big, { groups: ['Han'], caps: { cavalry: 1 }, featureKeys: [], specialUnits: ['Big Beast'] }), { offered: true, cap: 99 });
+  assert.strictEqual(cityOffer(big, { groups: ['Han'], caps: { cavalry: 1 }, featureKeys: [] }).offered, false);
 });
