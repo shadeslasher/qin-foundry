@@ -4,7 +4,7 @@
 // Prosperity tier caps and feature bonuses; David, 2026-11-12) that decides; otherwise the armies the GM picks per player.
 import { SYSTEM_ID } from "./config.mjs";
 import { templates, createUnit } from "./new-unit.mjs";
-import { neededFeatures, FEATURE_NAMES, withArticle } from "./promote.mjs";
+import { neededFeatures, FEATURE_NAMES, withArticle, branchOf } from "./promote.mjs";
 
 import { attachUnitHover, hideUnitHover } from "./unit-hover.mjs";
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
@@ -127,11 +127,12 @@ export async function pickArmies(userId) {
 export class RecruitApp extends foundry.applications.api.ApplicationV2 {
   static #open = new Map();
   static DEFAULT_OPTIONS = {
-    classes: ["qin", "qin-recruit"],
+    classes: ["qin", "qin-recruit", "qin-promote"],
     window: { title: "Recruit", icon: "fa-solid fa-coins", resizable: true },
     position: { width: 420, height: 600 },
-    actions: { buy: RecruitApp.#buy, info: RecruitApp.#info },
+    actions: { buy: RecruitApp.#buy, info: RecruitApp.#info, tab: RecruitApp.#tab },
   };
+  static #tab(event, target) { this.tab = target.dataset.tab; this.render(); }
   static open(userId) {
     let app = this.#open.get(userId);
     if (!app) { app = new RecruitApp({ id: `qin-recruit-${userId}` }); app.userId = userId; this.#open.set(userId, app); }
@@ -163,17 +164,29 @@ export class RecruitApp extends foundry.applications.api.ApplicationV2 {
     const sort = (a, b) => a.tier - b.tier || a.cost - b.cost || a.name.localeCompare(b.name);
     const typeOf = (t) => TYPES.some(([c]) => c === t.category) ? t.category : "infantry";
     if (opt) {
-      if (opt.block) { this.list = []; return `${head}<p class="qin-muted">${esc(opt.block)}</p>`; }
+      // clean layout (David, 2026-11-12): slim header, short cap chips, tabs by kind of unit, slim rows grouped by army
+      const top = `<div class="qin-pr-head"><b>${esc(pc?.name ?? user?.name ?? "")}</b><span><i class="fa-solid fa-coins"></i> ${pc ? coin.toLocaleString() : "no character"}</span></div>`;
+      if (opt.block) { this.list = []; return `${top}<div class="qin-pr-city">${esc(opt.block)}</div>`; }
       const all = await templates();
       this.list = all.filter(t => t.cost > 0 && cityOffer(t, opt).offered);
       const chkOf = (t) => recruitCheck({ coin, cost: t.cost, hasCharacter: !!pc, city: { ...cityOffer(t, opt), tier: t.tier, base: opt.baseCap, levelCaps: opt.levelCaps } });
-      const city = `<div class="qin-recruit-city"><b>${esc(opt.title)}</b><div class="qin-muted">${esc(opt.sub)}</div><div class="qin-recruit-caps">${capChips(opt).map(c =>
-        `<span class="qin-recruit-cap ${c.top < c.cap ? "low" : ""}" data-tooltip="${esc(c.why)}">${esc(c.label)} up to T${c.top}</span>`).join("")}</div></div>`;
-      const local = this.list.filter(t => opt.local.includes(t.name));
-      const sections = [...opt.groups.flatMap(g => TYPES.map(([k, label]) => [`${g} · ${label}`, this.list.filter(t => t.faction === g && !local.includes(t) && typeOf(t) === k)])),
-        [`Local troops (${opt.title})`, local]];
-      const rows = sections.filter(([, ts]) => ts.length).map(([h, ts]) => `<h4>${esc(h)}</h4><ul>${ts.sort(sort).map(t => row(t, chkOf(t))).join("")}</ul>`).join("");
-      return `${head}${city}<div class="qin-recruit-list">${rows || `<p class="qin-muted">No units with a cost to recruit here.</p>`}</div>`;
+      const city = `<div class="qin-pr-city">${esc(opt.title)} · ${esc(opt.sub.replace(/^.*?city · /, ""))}</div>`;
+      const chips = `<div class="qin-rc-chips">${capChips(opt).map(c => `<span class="qin-recruit-cap ${c.top < c.cap ? "low" : ""}" data-tooltip="${esc(c.why)}">${esc(c.label)} T${c.top}</span>`).join("")}</div>`;
+      const tabOf = (t) => opt.local.includes(t.name) ? "local" : branchOf(t);
+      const TABS = [["spear", "Spear"], ["blade", "Blade"], ["ranged", "Ranged"], ["cavalry", "Cavalry"], ["local", "Local"]].filter(([k]) => this.list.some(t => tabOf(t) === k));
+      const okIn = (k) => this.list.some(t => tabOf(t) === k && chkOf(t).ok);
+      if (!TABS.some(([k]) => k === this.tab)) this.tab = (TABS.find(([k]) => okIn(k)) ?? TABS[0])?.[0];
+      const tabs = `<nav class="qin-rc-tabs">${TABS.map(([k, label]) => `<a class="${k === this.tab ? "on" : ""}" data-action="tab" data-tab="${k}">${label}</a>`).join("")}</nav>`;
+      const short = (t, r) => /^Not recruitable here$/.test(r) && t.tier >= 4 ? "Promotion only" : r.replace(/^Needs (an? )?(.*) here$/, "$2").replace(/ \(.*\)$/, "");
+      const line = (t) => { const chk = chkOf(t);
+        return `<div class="qin-pr-choice qin-rc-row ${chk.ok ? "" : "off"}"><img src="${esc(t.img)}" alt="" data-unit-uuid="${esc(t.id)}">
+          <span data-unit-uuid="${esc(t.id)}"><span class="qin-pr-tier t${Math.min(5, t.tier)}">T${t.tier}</span>${esc(t.name)}</span><span class="qin-pr-cost" data-tooltip="Upkeep ${Math.round(t.cost / 4)} a month">${t.cost.toLocaleString()}</span>
+          ${chk.ok ? `<button type="button" data-action="buy" data-uuid="${esc(t.id)}">Recruit</button>` : `<span class="qin-pr-why" data-tooltip="${esc(chk.reason)}">${esc(short(t, chk.reason))}</span>`}</div>`; };
+      const inTab = this.list.filter(t => tabOf(t) === this.tab).sort(sort);
+      const armiesHere = [...new Set(inTab.map(t => t.faction))].sort((a, b) => (opt.groups.indexOf(a) + 1 || 99) - (opt.groups.indexOf(b) + 1 || 99));
+      const body = this.tab === "local" ? `<div class="qin-rc-grp">Local troops of ${esc(opt.title)}</div>${inTab.map(line).join("")}`
+        : armiesHere.map(g => `<div class="qin-rc-grp">${esc(g)}</div>${inTab.filter(t => t.faction === g).map(line).join("")}`).join("");
+      return `${top}${city}${chips}${tabs}<div class="qin-rc-list">${body || `<p class="qin-muted">No units to recruit here.</p>`}</div>`;
     }
     const armies = armiesFor(user);
     this.list = (await templates()).filter(t => armies.includes(t.faction));
