@@ -130,3 +130,14 @@ test('local troops: 2 per group per city for the party; War Elephants not counte
     assert.strictEqual(recruitCheck({ coin: 9999, cost: 10, hasCharacter: true, city: { offered: true, cap: 99, tier: 2, full: 'full' } }).reason, 'full');
   } finally { globalThis.game = saved; }
 });
+
+test('mercenaries: any city, no feature or cap, limit by Prosperity, never promoted', async () => {
+  const { cityOffer, hireLimit } = await import('../module/recruit.mjs');
+  const { promotionPaths } = await import('../module/promote.mjs');
+  const m = { name: 'Hired Blades', faction: 'Mercenary', tier: 2, category: 'infantry', weaponSkill: 'chuishu', cost: 800 };
+  const low = { title: 'Smalltown', groups: ['Mercenary'], mercenary: ['Mercenary'], mercLimit: 1, caps: {}, featureKeys: [], local: [] };
+  assert.deepStrictEqual(cityOffer(m, low), { offered: true, cap: 99, missing: null });
+  assert.strictEqual(hireLimit(m, low), 1);
+  assert.strictEqual(hireLimit(m, { ...low, mercLimit: 3 }), 3);
+  assert.deepStrictEqual(promotionPaths(m, [m, { ...m, name: 'Hired Axes' }, { ...m, name: 'Hired Elite', tier: 3 }]), []);
+});

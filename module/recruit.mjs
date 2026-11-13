@@ -11,7 +11,7 @@ import { officerGrants, grantFor, VIA_FLAG } from "./officer-armies.mjs";
 /** Add the party officers' open armies to city options or an army list (David, 2026-11-13). */
 async function withOfficers(opt, armies = []) {
   const grants = await officerGrants(RECRUIT_ARMIES), have = opt && !opt.block ? opt.groups ?? [] : armies;
-  const extra = [...new Set(grants.flatMap(g => g.armies))].filter(a => !have.includes(a));
+  const extra = opt?.foreign ? [] : [...new Set(grants.flatMap(g => g.armies))].filter(a => !have.includes(a));
   if (opt && !opt.block) opt.officerArmies = extra;
   return { grants, extra };
 }
@@ -32,6 +32,8 @@ export const cityRecruiting = () => !!provider();
 export function cityOffer(t, opt, list = null) {
   // units opened by a city feature (Elephant Grounds → War Elephants, David 2026-11-13): any owner, no cap, no other feature
   if ((opt.specialUnits ?? []).includes(t.name)) return { offered: true, cap: 99 };
+  // mercenaries (David, 2026-11-13): any city, no feature, no tier cap; limited per city by its Prosperity (see hireLimit)
+  if ((opt.mercenary ?? []).includes(t.faction)) return { offered: true, cap: 99, missing: null };
   const local = (opt.local ?? []).includes(t.name);
   const offered = (opt.groups ?? []).includes(t.faction) || (opt.officerArmies ?? []).includes(t.faction) || local;
   if (!offered) return { offered: false, cap: 0 };
@@ -67,7 +69,11 @@ export function localUsed(group, city) {
   return (game.actors?.contents ?? []).filter(a => a.type === "unit" && a.system?.side === "player"
     && a.getFlag?.(SYSTEM_ID, "recruitedAt")?.city === city && a.getFlag(SYSTEM_ID, "recruitedAt")?.group === group).length;
 }
-const localFull = (t, opt) => isLocalPick(t, opt) && localUsed(t.faction, opt.title) >= LOCAL_LIMIT ? `${LOCAL_LIMIT} ${t.faction} units from ${opt.title} already serve` : null;
+export const isMerc = (t, opt) => !!opt && (opt.mercenary ?? []).includes(t.faction);
+/** How many of this kind the party may have from this city: mercenaries by Prosperity (Low 1, Mid 2, High 3), local troops 2 per group. */
+export const hireLimit = (t, opt) => isMerc(t, opt) ? (opt.mercLimit ?? 0) : isLocalPick(t, opt) ? LOCAL_LIMIT : null;
+const localFull = (t, opt) => { const lim = hireLimit(t, opt);
+  return lim != null && localUsed(t.faction, opt.title) >= lim ? `${lim} ${isMerc(t, opt) ? "mercenary" : t.faction} unit${lim === 1 ? "" : "s"} from ${opt.title} already serve` : null; };
 
 /** The cap chips (pure): per kind of unit, the highest tier this city recruits once its features count (David, 2026-11-12). */
 export function capChips(opt) {
@@ -125,7 +131,7 @@ async function recruitOnGM(requesterId, { userId, uuid }) {
   if (!chk.ok) return { ok: false, error: chk.reason };
   const actor = await createUnit({ template: uuid, name: "", owner: user.id, side: "player", officer: "" });
   if (!actor) return { ok: false, error: "The unit couldn't be created." };
-  if (isLocalPick(t, opt)) await actor.setFlag(SYSTEM_ID, "recruitedAt", { city: opt.title, group: t.faction });
+  if (opt && hireLimit(t, opt) != null) await actor.setFlag(SYSTEM_ID, "recruitedAt", { city: opt.title, group: t.faction });
   const via = off.extra.includes(t.faction) ? grantFor(t.faction, off.grants) : null;
   if (via) await actor.setFlag(SYSTEM_ID, VIA_FLAG, via.uuid);
   await pc.update({ "system.coin": Math.max(0, (pc.system.coin ?? 0) - t.cost) });
@@ -212,8 +218,8 @@ export class RecruitApp extends foundry.applications.api.ApplicationV2 {
       const all = await templates();
       this.list = all.filter(t => t.cost > 0 && cityOffer(t, opt).offered);
       const chkOf = (t) => recruitCheck({ coin, cost: t.cost, hasCharacter: !!pc, city: { ...cityOffer(t, opt, all), tier: t.tier, base: opt.baseCap, levelCaps: opt.levelCaps, taken: inService(t, opt), full: localFull(t, opt) } });
-      const city = `<div class="qin-pr-city">${esc(opt.title)} · ${esc(opt.sub.replace(/^.*?city · /, ""))}</div>`;
-      const chips = `<div class="qin-rc-chips">${capChips(opt).map(c => `<span class="qin-recruit-cap ${c.top < c.cap ? "low" : ""}" data-tooltip="${esc(c.why)}">${esc(c.label)} T${c.top}</span>`).join("")}</div>`;
+      const city = `<div class="qin-pr-city">${esc(opt.title)} · ${esc(opt.sub.replace(/^.*?city · /, ""))}</div>${opt.foreign ? `<div class="qin-pr-city">${esc(opt.foreign)}</div>` : ""}`;
+      const chips = opt.foreign ? "" : `<div class="qin-rc-chips">${capChips(opt).map(c => `<span class="qin-recruit-cap ${c.top < c.cap ? "low" : ""}" data-tooltip="${esc(c.why)}">${esc(c.label)} T${c.top}</span>`).join("")}</div>`;
       const tabOf = (t) => (opt.unique ?? []).includes(t.faction) ? "imperial" : opt.local.includes(t.name) || (opt.specialUnits ?? []).includes(t.name) ? "local" : branchOf(t);
       const TABS = [["spear", "Spear"], ["blade", "Blade"], ["ranged", "Ranged"], ["cavalry", "Cavalry"], ["local", "Local"], ["imperial", "Imperial"]].filter(([k]) => this.list.some(t => tabOf(t) === k));
       const okIn = (k) => this.list.some(t => tabOf(t) === k && chkOf(t).ok);
@@ -229,7 +235,7 @@ export class RecruitApp extends foundry.applications.api.ApplicationV2 {
       const body = this.tab === "local" ? [...new Set(inTab.map(t => t.faction))].map(g => { const lim = inTab.some(t => t.faction === g && isLocalPick(t, opt));
           return `<div class="qin-rc-grp">${esc(g)} · local troops of ${esc(opt.title)}${lim ? ` <span class="qin-muted">(${Math.max(0, LOCAL_LIMIT - localUsed(g, opt.title))} of ${LOCAL_LIMIT} left for the party)</span>` : ""}</div>${inTab.filter(t => t.faction === g).map(line).join("")}`; }).join("") + (inTab.some(t => UNIQUE_UNITS.includes(t.name)) ? '<p class="qin-muted">War Elephants: one unit across all players.</p>' : "")
         : this.tab === "imperial" ? `<div class="qin-rc-grp">Seat of the Emperor · one of each across all players</div>${inTab.map(line).join("")}`
-        : armiesHere.map(g => `<div class="qin-rc-grp">${esc(g)}${(opt.officerArmies ?? []).includes(g) ? ` <span class="qin-muted">· through ${esc(grantFor(g, offs.grants)?.name ?? "")} (one unit, only he leads it)</span>` : ""}</div>${inTab.filter(t => t.faction === g).map(line).join("")}`).join("");
+        : armiesHere.map(g => `<div class="qin-rc-grp">${esc(g)}${(opt.mercenary ?? []).includes(g) ? ` <span class="qin-muted">(${Math.max(0, (opt.mercLimit ?? 0) - localUsed(g, opt.title))} of ${opt.mercLimit ?? 0} left here for the party; never promoted)</span>` : ""}${(opt.officerArmies ?? []).includes(g) ? ` <span class="qin-muted">· through ${esc(grantFor(g, offs.grants)?.name ?? "")} (one unit, only he leads it)</span>` : ""}</div>${inTab.filter(t => t.faction === g).map(line).join("")}`).join("");
       return `${top}${city}${chips}${tabs}<div class="qin-rc-list">${body || `<p class="qin-muted">No units to recruit here.</p>`}</div>`;
     }
     const armies = [...armiesFor(user), ...offs.extra];

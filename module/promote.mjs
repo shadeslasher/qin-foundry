@@ -75,7 +75,10 @@ export const LINKS = [["Qiang Warriors", "Qiang Raiders", ["pastures"]], ["Qiang
 /** Can some other unit of its own group promote into t? (pure) Local troops that can are promotion only. */
 export const promotedInto = (t, list) => list.some(u => u.faction === t.faction && u.tier < t.tier && u.name !== t.name
   && promotionPaths(u, list).some(p => p.kind === "promote" && p.t.name === t.name));
+/** Armies whose units never side-grade or promote (David, 2026-11-13). */
+export const FIXED_ARMIES = ["Mercenary"];
 export function promotionPaths(from, list, ex = { add: new Set(), block: new Set() }, bridge = []) {
+  if (FIXED_ARMIES.includes(from.faction)) return [];
   const key = (t) => `${from.name.toLowerCase()}>${t.name.toLowerCase()}`, out = [];
   for (const t of list) {
     if (t.name === from.name || !(t.cost > 0)) continue;
@@ -151,6 +154,8 @@ export function keptEquipment(traitList, t) {
 }
 
 // ---------------------------------------------------------------- Foundry side
+// promotions only in the party's own faction's city: a city where only mercenaries can be hired blocks them
+const ownCity = (o) => o?.foreign ? { block: o.foreign.replace(/^.*?: only mercenaries can be hired here; /, "").replace(/^promotions need/, "Promotions need") } : o;
 const provider = () => game.modules?.get?.("rtk13-map")?.active ? game.modules.get("rtk13-map").api?.recruitOptions ?? null : null;
 const ownerOfUnit = (a) => game.users.find(u => !u.isGM && a.ownership?.[u.id] === CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER) ?? null;
 
@@ -174,7 +179,7 @@ async function bridgeWithOfficers(user, opt) {
 const exceptions = () => { try { return parseExceptions(game.settings.get(SYSTEM_ID, "promotionExceptions")); } catch { return undefined; } };
 async function context(actor) {
   const list = await templates(), from = currentOf(actor, list);
-  const user = ownerOfUnit(actor), prov = provider(), opt = prov && user ? await prov(user.id) : null;
+  const user = ownerOfUnit(actor), prov = provider(), opt = prov && user ? ownCity(await prov(user.id)) : null;
   const { bridge, grants, extra } = await bridgeWithOfficers(user, opt);
   return { list, from, paths: promotionPaths(from, list, exceptions(), bridge), user, opt, grants, extra };
 }
@@ -282,7 +287,7 @@ export class PromoteApp extends foundry.applications.api.ApplicationV2 {
   }
   async _renderHTML() {
     const user = game.users.get(this.userId), pc = user?.character, coin = pc?.system?.coin ?? 0;
-    const prov = provider(), opt = prov ? await prov(this.userId) : null, list = await templates(), ex = exceptions(), city = cityFor(opt);
+    const prov = provider(), opt = prov ? ownCity(await prov(this.userId)) : null, list = await templates(), ex = exceptions(), city = cityFor(opt);
     const units = unitsOf(this.userId), { bridge } = await bridgeWithOfficers(user, opt);
     this.paths = new Map();
     // layout A (David, 2026-11-12): a slim header, units as rows with a level bar and one status line; buttons only when usable
