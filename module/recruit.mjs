@@ -11,7 +11,7 @@ import { officerGrants, grantFor, VIA_FLAG } from "./officer-armies.mjs";
 /** Add the party officers' open armies to city options or an army list (David, 2026-11-13). */
 async function withOfficers(opt, armies = []) {
   const grants = await officerGrants(RECRUIT_ARMIES), have = opt && !opt.block ? opt.groups ?? [] : armies;
-  const extra = opt?.foreign ? [] : [...new Set(grants.flatMap(g => g.armies))].filter(a => !have.includes(a));
+  const extra = opt?.foreign || opt?.alliedCity ? [] : [...new Set(grants.flatMap(g => g.armies))].filter(a => !have.includes(a));
   if (opt && !opt.block) opt.officerArmies = extra;
   return { grants, extra };
 }
@@ -222,7 +222,7 @@ export class RecruitApp extends foundry.applications.api.ApplicationV2 {
       const all = await templates();
       this.list = all.filter(t => t.cost > 0 && cityOffer(t, opt).offered);
       const chkOf = (t) => recruitCheck({ coin, cost: t.cost, hasCharacter: !!pc, city: { ...cityOffer(t, opt, all), tier: t.tier, base: opt.baseCap, levelCaps: opt.levelCaps, taken: inService(t, opt), full: localFull(t, opt) } });
-      const city = `<div class="qin-pr-city">${esc(opt.title)} · ${esc(opt.sub.replace(/^.*?city · /, ""))}</div>${opt.foreign ? `<div class="qin-pr-city">${esc(opt.foreign)}</div>` : ""}`;
+      const city = `<div class="qin-pr-city">${esc(opt.title)} · ${esc(opt.sub.replace(/^.*?city · /, ""))}</div>${opt.foreign || opt.alliedCity ? `<div class="qin-pr-city">${esc(opt.foreign || opt.alliedCity)}</div>` : ""}`;
       const chips = opt.foreign ? "" : `<div class="qin-rc-chips">${capChips(opt).map(c => `<span class="qin-recruit-cap ${c.top < c.cap ? "low" : ""}" data-tooltip="${esc(c.why)}">${esc(c.label)} T${c.top}</span>`).join("")}</div>`;
       const tabOf = (t) => (opt.unique ?? []).includes(t.faction) ? "imperial" : opt.local.includes(t.name) || (opt.specialUnits ?? []).includes(t.name) ? "local" : branchOf(t);
       const TABS = [["spear", "Spear"], ["blade", "Blade"], ["ranged", "Ranged"], ["cavalry", "Cavalry"], ["local", "Local"], ["imperial", "Imperial"]].filter(([k]) => this.list.some(t => tabOf(t) === k));

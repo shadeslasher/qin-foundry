@@ -158,7 +158,7 @@ export function keptEquipment(traitList, t) {
 
 // ---------------------------------------------------------------- Foundry side
 // promotions only in the party's own faction's city: a city where only mercenaries can be hired blocks them
-const ownCity = (o) => o?.foreign ? { block: o.foreign.replace(/^.*?: only mercenaries can be hired here; /, "").replace(/^promotions need/, "Promotions need") } : o;
+const ownCity = (o) => o?.foreign || o?.alliedCity ? { block: "Promotions need your own faction's city." } : o;
 const provider = () => game.modules?.get?.("rtk13-map")?.active ? game.modules.get("rtk13-map").api?.recruitOptions ?? null : null;
 const ownerOfUnit = (a) => game.users.find(u => !u.isGM && a.ownership?.[u.id] === CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER) ?? null;
 
