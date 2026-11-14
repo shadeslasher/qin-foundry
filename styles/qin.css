@@ -1592,3 +1592,16 @@ a.qin-pr-rank .fa-pen { opacity: .6; }
 .qin-troops .qin-rc-row button { border: 1px solid #6fb37a; background: rgba(70,140,80,.3); line-height: 1.5; padding: 0 10px; }
 .qin-troops .qin-rc-grp { margin-top: 8px; padding: 3px 4px; font-size: .8em; letter-spacing: .08em; text-transform: uppercase; color: #c9a13a; border-bottom: 1px solid rgba(201,161,58,.35); }
 .qin-troops .qin-rc-tabs a { padding: 2px 9px 5px; }
+/* Troops window: the player's units as small boxes (David, 2026-11-13, option A) */
+.qin-tr-units { padding: 4px 10px 6px; border-bottom: 1px solid rgba(160,140,100,.25); }
+.qin-tr-units .cap { font-size: .75em; letter-spacing: .1em; text-transform: uppercase; color: #c9a13a; margin-bottom: 4px; }
+.qin-tr-units .strip { display: flex; flex-wrap: wrap; gap: 5px; }
+.qin-tr-unit { width: 70px; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 4px 3px; border: 1px solid rgba(160,140,100,.45); border-radius: 4px; background: rgba(255,240,200,.04); cursor: pointer; text-align: center; }
+.qin-tr-unit:hover { border-color: #c9a13a; }
+.qin-tr-unit img { width: 26px; height: 26px; border-radius: 50%; border: 1px solid rgba(201,161,58,.6); object-fit: cover; }
+.qin-tr-unit .n { font-size: .78em; line-height: 1.15; max-width: 64px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qin-tr-unit .t { font-size: .7em; opacity: .65; }
+.qin-tr-unit .hb { width: 100%; height: 3px; background: rgba(255,255,255,.12); border-radius: 2px; margin-top: 2px; }
+.qin-tr-unit .hb span { display: block; height: 3px; border-radius: 2px; background: #6a9a4a; }
+.qin-tr-unit.down { opacity: .5; }
+.qin-tr-units .full { font-size: .8em; color: #e0a07a; margin-top: 4px; }
