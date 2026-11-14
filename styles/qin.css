@@ -1580,3 +1580,15 @@ details.qin-unique-bonuses > summary small { font-weight: normal; font-size: cal
 .qin-pr-rank { display: inline-flex; align-items: center; gap: 4px; padding: 0 6px; border-radius: 3px; background: rgba(201,168,92,.14); color: #e3cf98; font-size: .92em; }
 a.qin-pr-rank { cursor: pointer; } a.qin-pr-rank:hover { background: rgba(201,168,92,.3); color: #fff; }
 a.qin-pr-rank .fa-pen { opacity: .6; }
+/* Troops window: the GM's player switcher and cleaner rows (David, 2026-11-13) */
+.qin-tr-players { display: flex; gap: 6px; padding: 8px 10px; border-bottom: 1px solid rgba(160,140,100,.35); flex-wrap: wrap; }
+.qin-tr-pl { flex: 1 1 90px; display: flex; flex-direction: column; gap: 1px; padding: 5px 7px; border: 1px solid rgba(160,140,100,.35); border-radius: 4px; cursor: pointer; }
+.qin-tr-pl:hover { border-color: rgba(201,161,58,.7); }
+.qin-tr-pl.on { border-color: #c9a13a; background: rgba(201,161,58,.14); }
+.qin-tr-pl .n { display: flex; align-items: center; gap: 5px; font-weight: bold; }
+.qin-tr-pl .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.qin-tr-pl .s { font-size: .82em; opacity: .75; }
+.qin-troops .qin-rc-row { padding: 5px 4px; border-top: 1px solid rgba(160,140,100,.14); }
+.qin-troops .qin-rc-row button { border: 1px solid #6fb37a; background: rgba(70,140,80,.3); line-height: 1.5; padding: 0 10px; }
+.qin-troops .qin-rc-grp { margin-top: 8px; padding: 3px 4px; font-size: .8em; letter-spacing: .08em; text-transform: uppercase; color: #c9a13a; border-bottom: 1px solid rgba(201,161,58,.35); }
+.qin-troops .qin-rc-tabs a { padding: 2px 9px 5px; }
