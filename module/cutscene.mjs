@@ -11,6 +11,7 @@
 import { SYSTEM_ID } from "./config.mjs";
 import { fullArtInfo, halfArtInfo } from "./full-art.mjs";
 import { playMoment } from "./sound.mjs";
+import { userKnows, revealOfficer } from "./officer-codex.mjs";
 
 const STATE = "cutscene", SAVED = "cutsceneSaved";
 export const MAX_CAST = 5;
@@ -332,12 +333,14 @@ function render() {
     // every displayed officer gets his name under him
     let nm = names.get(c.key);
     if (!nm) { nm = document.createElement("div"); nm.className = "nm"; root.appendChild(nm); names.set(c.key, nm); }
-    nm.textContent = c.name; nm.style.left = `${L.x * 100}%`; nm.classList.toggle("on", lit.includes(c.key));
+    nm.textContent = knows(st, c) ? c.name : "????"; nm.style.left = `${L.x * 100}%`; nm.classList.toggle("on", lit.includes(c.key));
   });
   if (st.battle?.on && st.battle.clash && st.battle.clash !== seenClash) { const first = seenClash === null && fresh; seenClash = st.battle.clash; if (!first) clashFx(st, cast); }
   renderControls(st);
   StepBar.render();
 }
+/** A player sees an officer's name only if he knows him (his Officers window) or the GM revealed him in this scene. */
+const knows = (st, c) => game.user.isGM || (st.revealed ?? []).includes(c.key) || userKnows(c.uuid);
 function teardown() {
   ctl?.remove(); ctl = null;
   if (run) { run = null; Builder.refresh(); } StepBar.render();
@@ -375,6 +378,15 @@ const battleCancel = () => patch(st => { st.battle = null; });
 const pickSide = (key, side) => patch(st => { if (!st.battle) return; st.battle.sides ??= {}; if (side) st.battle.sides[key] = side; else delete st.battle.sides[key]; });
 const battleStart = () => patch(st => { const b = st.battle; if (!b) return; b.setup = false; b.on = true; b.preLit = litOf(st); st.lit = st.cast.filter(c => b.sides?.[c.key]).map(c => c.key); });
 const battleClash = () => patch(st => { if (st.battle?.on) st.battle.clash = foundry.utils.randomID(8); });
+/** Reveal (David, 2026-11-15): his name shows on everyone's screen, and the players online now get him in their Officers
+ *  window (offline players don't). */
+async function reveal(key) {
+  const c = state().cast?.find(x => x.key === key); if (!c) return;
+  const online = game.users.filter(u => u.active && !u.isGM).map(u => u.id);
+  if (online.length) await revealOfficer(c.uuid, online).catch(e => console.warn("Qin | reveal", e));
+  await patch(st => { st.revealed = [...new Set([...(st.revealed ?? []), key])]; });
+  ui.notifications.info(online.length ? `${c.name} revealed; added to the Officers window of ${game.users.filter(u => online.includes(u.id)).map(u => u.name).join(", ")}.` : `${c.name} revealed on screen; no players are online, so no one's Officers window changed.`);
+}
 const battleEnd = () => patch(st => { const pre = st.battle?.preLit ?? []; st.battle = null; st.lit = pre.filter(k => st.cast.some(c => c.key === k)); });
 
 /* ------------------------------------------------------------------ cutscene steps (David, 2026-11-15) */
@@ -389,6 +401,7 @@ export function stepLabel(s) {
     case "battle": { const side = (v) => (s.sides ?? []).filter(f => f.side === v).map(f => f.name).join(", ") || "?"; return `Battle: ${side("L")} vs ${side("R")}`; }
     case "clash": return "Clash";
     case "battleEnd": return "End battle";
+    case "reveal": return `Reveal ${s.name}`;
     default: return "?";
   }
 }
@@ -410,10 +423,13 @@ async function applyStep(s) {
     });
     case "clash": return battleClash();
     case "battleEnd": return battleEnd();
+    case "reveal": return k ? reveal(k) : missing();
   }
 }
 /** The GM's run through a cutscene: its steps, where he is, the scene as it was before each step (for Back). */
 let run = null, busy = false;
+/** True while the GM steps through a cutscene (other modules leave Space and the arrow keys alone then). */
+export const cutsceneStepping = () => !!run && cutsceneActive();
 const snap = () => foundry.utils.deepClone(state());
 /** A live action from the control bar: recorded as the next step while recording, then done. */
 async function live(step) {
@@ -538,7 +554,9 @@ function renderControls(st) {
       <div class="two"><span class="btn ${on ? "on" : ""}" data-a="display" title="Light this officer up or dim him again; several can be lit at once">${on ? "Displayed" : "Display"}</span>
       <span class="btn ${on && lit.length === 1 ? "on" : ""}" data-a="switch" title="Light only this officer; everyone else dims">Switch</span></div>
       <div class="two"><span class="btn" data-a="injure" title="He's struck: a sword-hit sound, he shakes and a gash opens across him (everyone sees it)">Injure</span>
-      <span class="btn red" data-a="leave" title="This officer leaves the scene; the others space out again">Leave</span></div></div>`; }).join("")
+      <span class="btn red" data-a="leave" title="This officer leaves the scene; the others space out again">Leave</span></div>
+      ${(() => { const done = (st.revealed ?? []).includes(c.key), need = !done && game.users.some(u => u.active && !u.isGM && !userKnows(c.uuid, u));
+        return `<span class="btn ${done ? "on" : ""} ${on ? "" : "off"}" data-a="reveal" title="${on ? (done ? "Revealed in this scene" : need ? "Players online see ???? — reveal his name and add him to their Officers window" : "Every player online already knows him; reveal anyway to show his name to late joiners") : "Display him first"}">${done ? "Revealed" : `<i class="fa-solid fa-eye"></i> Reveal${need ? " ????" : ""}`}</span>`; })()}</div>`; }).join("")
     + (bt?.on
       ? `<div class="mid"><div class="clashbtn" data-a="clash" title="The fighters lunge together once: three quick blows, sparks in the middle"><span>⚔ CLASH</span></div>
          <div class="end" data-a="battleEnd" title="Everyone goes back to where they stood"><span>End battle</span></div></div>`
@@ -555,6 +573,7 @@ function renderControls(st) {
     card.querySelector('[data-a="switch"]').onclick = () => live({ t: "switch", ...who });
     card.querySelector('[data-a="injure"]').onclick = () => live({ t: "injure", ...who });
     card.querySelector('[data-a="leave"]').onclick = () => live({ t: "leave", ...who });
+    card.querySelector('[data-a="reveal"]').onclick = () => live({ t: "reveal", ...who });
     for (const sp of card.querySelectorAll('[data-a="side"]')) sp.onclick = () => pickSide(card.dataset.k, sp.dataset.s);
   }
   const on = (a, fn) => { const el = ctl.querySelector(`[data-a="${a}"]`); if (el) el.onclick = fn; };
@@ -720,7 +739,7 @@ async function loadSaved(s) {
  *  New officers come in by dragging them onto the steps, a battle by recording it. */
 async function addStepDialog() {
   const known = new Map(); for (const c of draft.cast) known.set(c.uuid, c.name); for (const s of draft.steps) if (s.t === "enter") known.set(s.uuid, s.name);
-  const acts = [["display", "Display"], ["switch", "Switch to"], ["injure", "Injure"], ["leave", "Leaves"], ["clash", "Clash (in a battle)"], ["battleEnd", "End battle"]];
+  const acts = [["display", "Display"], ["switch", "Switch to"], ["injure", "Injure"], ["leave", "Leaves"], ["reveal", "Reveal name"], ["clash", "Clash (in a battle)"], ["battleEnd", "End battle"]];
   let got = null;
   try {
     got = await foundry.applications.api.DialogV2.prompt({ window: { title: "Add step" },

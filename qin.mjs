@@ -63,7 +63,7 @@ import { CombatPanel, registerCombatPanel, togglePanelKey } from "./module/comba
 import { registerDock } from "./module/dock.mjs";
 import { registerSiegeStock } from "./module/siege-stock.mjs";
 import { registerBudget } from "./module/budget.mjs";
-import { toggleCutsceneMaker, cutsceneMakerOpen, registerCutsceneBackgrounds } from "./module/cutscene.mjs";
+import { toggleCutsceneMaker, cutsceneMakerOpen, registerCutsceneBackgrounds, cutsceneStepping } from "./module/cutscene.mjs";
 registerCombatState();
 registerSkillEffects();
 registerCombatPanel();
@@ -83,7 +83,7 @@ Hooks.once("init", () => {
   CONFIG.QIN = CFG;
   CONFIG.qinFactions ??= {};
   globalThis.qin = game.qin = { config: CFG, rules: QinRules, openBattle: () => BattlePanel.open(), battleRequest, registerFactions, factionList, openUnitInfo, openOfficerView, importBattleMap: () => importBattleMap(SYSTEM_ID),
-    registerMapRenderer, registerCutsceneBackgrounds, redrawMap: (scene = canvas.scene) => redrawScene(scene), paintMap: (scene = canvas.scene) => MapEditorApp.open(scene), refreshBattlePanel: () => BattlePanel.refresh(), newUnit: () => newUnitDialog(), unitEditor: () => UnitEditorApp.open(), registerSoundPack, playSound: (m) => playMoment(m, { minGap: 0 }), openSounds: () => SoundPanel.toggle(), openCombatPanel: (actor) => CombatPanel.open(actor),
+    registerMapRenderer, registerCutsceneBackgrounds, cutsceneStepping, redrawMap: (scene = canvas.scene) => redrawScene(scene), paintMap: (scene = canvas.scene) => MapEditorApp.open(scene), refreshBattlePanel: () => BattlePanel.refresh(), newUnit: () => newUnitDialog(), unitEditor: () => UnitEditorApp.open(), registerSoundPack, playSound: (m) => playMoment(m, { minGap: 0 }), openSounds: () => SoundPanel.toggle(), openCombatPanel: (actor) => CombatPanel.open(actor),
     recorder: { record: Recorder.record }, testBench: { setup: TestBench.setup, reset: TestBench.reset, recordSkill: TestBench.recordSkill } };
 
   CONFIG.Actor.documentClass = QinActor;

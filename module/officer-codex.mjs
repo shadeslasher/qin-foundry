@@ -76,6 +76,24 @@ async function setShown(copy, shown, faction) {
   await copy.update(upd);
 }
 export const isShown = (copy) => !!copy?.getFlag(SYSTEM_ID, "codexShown");
+/** Players who met an officer (revealed in a cutscene, David 2026-11-15): flags.qin.codexKnown = [userId]. Those players
+ *  see him in the Officers window and can read his sheet, even when he isn't shown to everyone. */
+export const knownBy = (a) => a?.getFlag(SYSTEM_ID, "codexKnown") ?? [];
+/** GM: let these players know an officer (compendium or world uuid): read access and a place in their Officers window. */
+export async function revealOfficer(uuid, userIds) {
+  if (!game.user.isGM || !userIds?.length) return null;
+  const a = await ensureWorldOfficer(uuid); if (!a) return null;
+  const L = CONST.DOCUMENT_OWNERSHIP_LEVELS, upd = { [`flags.${SYSTEM_ID}.codexKnown`]: [...new Set([...knownBy(a), ...userIds])] };
+  for (const id of userIds) if ((a.ownership?.[id] ?? -1) < L.OBSERVER) upd[`ownership.${id}`] = L.OBSERVER;
+  await a.update(upd);
+  return a;
+}
+/** Does this user know the officer? (GM always; otherwise read access to his world copy.) */
+export function userKnows(uuid, user = game.user) {
+  if (user.isGM) return true;
+  const a = String(uuid ?? "").startsWith("Compendium.") ? worldCopyOf(uuid) : fromUuidSync(uuid);
+  return !!a?.testUserPermission?.(user, "OBSERVER");
+}
 
 /** Make an officer a unit's officer (unit = actor or token document); refuses one a player's officer already leads. */
 export async function assignOfficer(unit, uuid) {
@@ -173,7 +191,7 @@ export class OfficerCodex extends (globalThis.foundry?.applications?.api?.Applic
           faction, group, minor, copy, shown: isShown(copy) };
       });
     }
-    return game.actors.filter(a => a.type === "character" && isShown(a) && a.testUserPermission(game.user, "OBSERVER")).map(a => ({
+    return game.actors.filter(a => a.type === "character" && (isShown(a) || knownBy(a).includes(game.user.id)) && a.testUserPermission(game.user, "OBSERVER")).map(a => ({
       uuid: a.uuid, name: a.name, img: a.img, title: a.system.details?.title ?? "", tier: tierNum(a.system.details?.tier), type: a.system.details?.characterType ?? "",
       faction: a.getFlag(SYSTEM_ID, "codexFaction") || "Others", group: "", minor: false, copy: a, shown: true }));
   }
