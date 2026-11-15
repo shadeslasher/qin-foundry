@@ -11,8 +11,18 @@ import { playMoment } from "./sound.mjs";
 
 const STATE = "cutscene", SAVED = "cutsceneSaved";
 export const MAX_CAST = 5;
-/** Pre-set backgrounds: { key, name, src }. None yet: "Empty" (the map shows between the bars) is the only choice. */
+/** Pre-set backgrounds: { key, name, src, thumb?, group? }. The system ships none ("Empty": the map shows between the bars);
+ *  a module adds its own with game.qin.registerCutsceneBackgrounds([...]). */
 export const BACKGROUNDS = [];
+/** Add backgrounds (a later entry with the same key replaces the earlier one). Called by modules, e.g. at "setup". */
+export function registerCutsceneBackgrounds(list) {
+  for (const b of list ?? []) {
+    if (!b?.key || !b.src) { console.warn("Qin | a cutscene background needs { key, name, src }", b); continue; }
+    const i = BACKGROUNDS.findIndex(x => x.key === b.key), entry = { key: b.key, name: b.name ?? b.key, src: b.src, thumb: b.thumb ?? null, group: b.group ?? null };
+    if (i >= 0) BACKGROUNDS[i] = entry; else BACKGROUNDS.push(entry);
+  }
+  Builder.refresh?.();
+}
 const CHAR_PACK = "qin-3k-characters.characters";
 const esc = (t) => foundry.utils.escapeHTML?.(String(t ?? "")) ?? String(t ?? "");
 const route = (p) => (p && !/^(https?:|data:|\/)/.test(p) ? foundry.utils.getRoute(p) : p);
@@ -150,6 +160,31 @@ function css() {
   .qin-cs-panel .hit:hover { background: rgba(201,168,92,.22); } .qin-cs-panel .hit small { color: #8f897b; margin-left: auto; }
   .qin-cs-panel .hit i { width: 24px; height: 24px; border-radius: 50%; background-size: cover; background-position: 50% 10%; flex: none; }
   .qin-cs-panel .none { padding: 5px 7px; color: #8f897b; font-style: italic; font-size: 12px; }
+  #qin-cs-build .bgbtn { display: flex; gap: 9px; align-items: center; padding: 5px; border: 1px solid rgba(201,168,92,.6); border-radius: 4px; background: rgba(0,0,0,.35); cursor: pointer; }
+  #qin-cs-build .bgbtn:hover { background: rgba(201,168,92,.16); }
+  #qin-cs-build .bgbtn i { width: 96px; height: 54px; flex: none; border-radius: 3px; background: center/cover #222; border: 1px solid rgba(201,168,92,.4); }
+  #qin-cs-build .bgbtn i.none, #qin-cs-bgpick .card.empty .pic { background: repeating-linear-gradient(45deg, #2b2a27 0 10px, #232220 10px 20px); }
+  #qin-cs-build .bgbtn b { display: block; color: #fff4d6; font-weight: 600; } #qin-cs-build .bgbtn small { color: #b9b2a0; }
+  #qin-cs-build .bgbtn .chg { margin-left: auto; padding: 3px 8px; border: 1px solid rgba(201,168,92,.6); border-radius: 3px; font-size: 12px; flex: none; }
+  #qin-cs-bgpick { position: fixed; z-index: 99; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(1090px, 94vw); height: min(820px, 90vh); padding: 12px 14px; display: none; flex-direction: column; box-sizing: border-box; }
+  #qin-cs-bgpick .hd { display: flex; align-items: center; font-family: "Cinzel", var(--qin-font-display, serif); font-weight: 900; font-size: 16px; letter-spacing: 1px; text-transform: uppercase; color: #fff4d6; }
+  #qin-cs-bgpick .hd .x { margin-left: auto; cursor: pointer; color: #c9c2b0; } #qin-cs-bgpick .hd .x:hover { color: #fff; }
+  #qin-cs-bgpick .tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+  #qin-cs-bgpick .tools input { width: 260px; height: 28px; }
+  #qin-cs-bgpick .chip { padding: 3px 10px; border: 1px solid rgba(201,168,92,.45); border-radius: 12px; font-size: 12px; color: #d9d2bf; cursor: pointer; }
+  #qin-cs-bgpick .chip:hover { background: rgba(201,168,92,.18); } #qin-cs-bgpick .chip.on { background: #c9a85c; color: #1a1612; border-color: #c9a85c; font-weight: 700; }
+  #qin-cs-bgpick .grid { margin-top: 10px; overflow: auto; flex: 1; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; align-content: start; padding-right: 4px; }
+  #qin-cs-bgpick .grp { grid-column: 1 / -1; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: #c9a85c; border-bottom: 1px solid rgba(201,168,92,.3); padding: 6px 0 3px; }
+  #qin-cs-bgpick .card { border: 1px solid rgba(236,230,214,.15); border-radius: 4px; padding: 5px; background: rgba(0,0,0,.25); cursor: pointer; }
+  #qin-cs-bgpick .card:hover { border-color: rgba(232,196,90,.6); background: rgba(201,168,92,.08); }
+  #qin-cs-bgpick .card.sel { border-color: #e8c45a; box-shadow: 0 0 0 1px #e8c45a inset; background: rgba(201,168,92,.14); }
+  #qin-cs-bgpick .card .pic { aspect-ratio: 16 / 9; border-radius: 3px; background: center/cover #222; display: flex; align-items: center; justify-content: center; }
+  #qin-cs-bgpick .card .pic span { color: #b9b2a0; font-size: 12px; font-style: italic; }
+  #qin-cs-bgpick .card b { display: block; margin-top: 5px; font-weight: 600; color: #ece6d6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #qin-cs-bgpick .card small { color: #8f897b; font-size: 11px; }
+  #qin-cs-bgpick .none { grid-column: 1 / -1; color: #8f897b; font-style: italic; padding: 8px 2px; }
+  #qin-cs-bgpick .foot { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(236,230,214,.18); }
+  #qin-cs-bgpick .foot .btn { width: 120px; margin: 0; }
   #qin-cs-build { position: fixed; z-index: 97; left: 70px; top: 70px; width: 300px; padding: 9px 12px 12px; display: none; }
   #qin-cs-build .hd { display: flex; align-items: center; font-family: "Cinzel", var(--qin-font-display, serif); font-weight: 900; font-size: 16px; letter-spacing: 1px; text-transform: uppercase; color: #fff4d6; cursor: move; }
   #qin-cs-build .hd .x { margin-left: auto; cursor: pointer; color: #c9c2b0; } #qin-cs-build .hd .x:hover { color: #fff; }
@@ -445,7 +480,7 @@ const Builder = {
         ${full ? "" : `<input class="q" placeholder="Search officers…"><div class="hits"></div>`}
         <div class="drop">${full ? `The scene is full (${MAX_CAST}).` : "or drag officers here from the compendium"}</div></div>
       <div class="sec"><div class="lb">Background</div>
-        <select class="bg"><option value="">Empty (the map shows through)</option>${BACKGROUNDS.map(b => `<option value="${b.key}" ${draft.bg === b.key ? "selected" : ""}>${esc(b.name)}</option>`).join("")}</select></div>
+        ${(() => { const b = BACKGROUNDS.find(x => x.key === draft.bg); return `<div class="bgbtn" title="Choose the background">${b ? `<i style="background-image:url('${esc(route(b.thumb ?? b.src))}')"></i><div><b>${esc(b.name)}</b>${b.group ? `<small>${esc(b.group)}</small>` : ""}</div>` : `<i class="none"></i><div><b>Empty</b><small>the map shows through</small></div>`}<span class="chg">Change…</span></div>`; })()}</div>
       <div class="sec"><div class="lb">Saved scenes</div>
         <select class="sv"><option value="">${list.length ? "Choose a saved scene…" : "None saved yet"}</option>${list.map(s => `<option value="${s.id}" ${draft.sel === s.id ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select>
         <div class="three"><span class="btn ${draft.sel ? "" : "off"}" data-a="save" title="Save over the chosen scene">Save</span><span class="btn" data-a="saveas">Save as…</span><span class="btn red ${draft.sel ? "" : "off"}" data-a="delete">Delete</span></div></div>
@@ -461,7 +496,7 @@ const Builder = {
     el.ondragover = (e) => { e.preventDefault(); el.querySelector(".drop").classList.add("over"); };
     el.ondragleave = () => el.querySelector(".drop")?.classList.remove("over");
     el.ondrop = async (e) => { e.preventDefault(); e.stopPropagation(); const a = await actorFromDrop(e); if (a) add(a); else el.querySelector(".drop")?.classList.remove("over"); };
-    el.querySelector(".bg").onchange = (e) => { draft.bg = e.target.value; };
+    el.querySelector(".bgbtn").onclick = () => BgPicker.open(draft.bg, (key) => { draft.bg = key; this.refresh(); });
     el.querySelector(".sv").onchange = async (e) => { draft.sel = e.target.value; const s = saved().find(x => x.id === draft.sel); if (s) await loadSaved(s); this.refresh(); };
     const store = async (id, name) => {
       const entry = { id, name, bg: draft.bg || null, cast: draft.cast.map(c => ({ uuid: c.uuid, name: c.name })) };
@@ -488,6 +523,51 @@ const Builder = {
     };
   },
 };
+/* ------------------------------------------------------------------ GM: the background selector (David, 2026-11-15) */
+// A window of picture cards: Empty first, then the registered backgrounds grouped by their group, with a search box and
+// group chips. Click a card and press "Use background", or double-click a card. Esc or × cancels.
+const BgPicker = {
+  el: null, cur: "", done: null, q: "", grp: "",
+  open(cur, done) {
+    css();
+    this.el ??= Object.assign(document.createElement("div"), { id: "qin-cs-bgpick", className: "qin-cs-panel" });
+    if (!this.el.isConnected) document.body.appendChild(this.el);
+    this.cur = cur ?? ""; this.done = done; this.el.style.display = "flex"; this.render();
+    this.el.querySelector(".tools input")?.focus();
+  },
+  close() { if (this.el) this.el.style.display = "none"; },
+  pick(key) { this.close(); this.done?.(key); },
+  render() {
+    const groups = [...new Set(BACKGROUNDS.map(b => b.group).filter(Boolean))];
+    const q = this.q.trim().toLowerCase(), want = (b) => (!this.grp || b.group === this.grp) && (!q || b.name.toLowerCase().includes(q) || (b.group ?? "").toLowerCase().includes(q));
+    const card = (b) => `<div class="card ${this.cur === b.key ? "sel" : ""}" data-k="${esc(b.key)}" title="${esc(b.name)}"><div class="pic" style="background-image:url('${esc(route(b.thumb ?? b.src))}')"></div><b>${esc(b.name)}</b>${this.cur === b.key ? `<small>✓ current</small>` : ""}</div>`;
+    let body = (!this.grp && !q) || "empty".includes(q) ? `<div class="card empty ${this.cur ? "" : "sel"}" data-k=""><div class="pic"><span>No background</span></div><b>Empty</b><small>the map shows through</small></div>` : "";
+    const shown = BACKGROUNDS.filter(want);
+    if (groups.length) for (const g of [...groups, null]) { const l = shown.filter(b => (b.group ?? null) === g); if (l.length) body += (g ? `<div class="grp">${esc(g)}</div>` : `<div class="grp">Other</div>`) + l.map(card).join(""); }
+    else body += shown.map(card).join("");
+    if (!BACKGROUNDS.length) body += `<div class="none">No backgrounds are installed. A module can add some (game.qin.registerCutsceneBackgrounds).</div>`;
+    else if (!shown.length) body += `<div class="none">No background matches.</div>`;
+    const el = this.el, focused = document.activeElement === el.querySelector(".tools input"), caret = el.querySelector(".tools input")?.selectionStart;
+    el.innerHTML = `<div class="hd">Choose a background<span class="x"><i class="fa-solid fa-xmark"></i></span></div>
+      <div class="tools"><input placeholder="Search backgrounds…" value="${esc(this.q)}">${groups.length ? `<span class="chip ${this.grp ? "" : "on"}" data-g="">All</span>${groups.map(g => `<span class="chip ${this.grp === g ? "on" : ""}" data-g="${esc(g)}">${esc(g)}</span>`).join("")}` : ""}</div>
+      <div class="grid">${body}</div>
+      <div class="foot"><span class="btn" data-a="cancel">Cancel</span><span class="btn on" data-a="use">Use background</span></div>`;
+    el.querySelector(".x").onclick = () => this.close();
+    el.querySelector('[data-a="cancel"]').onclick = () => this.close();
+    el.querySelector('[data-a="use"]').onclick = () => this.pick(this.cur);
+    const inp = el.querySelector(".tools input");
+    inp.oninput = () => { this.q = inp.value; this.render(); };
+    inp.onkeydown = (e) => { if (e.key === "Escape") { e.stopPropagation(); this.close(); } };
+    if (focused) { inp.focus(); inp.setSelectionRange(caret, caret); }
+    for (const c of el.querySelectorAll(".chip")) c.onclick = () => { this.grp = c.dataset.g; this.render(); };
+    for (const c of el.querySelectorAll(".card")) {
+      c.onclick = () => { this.cur = c.dataset.k; for (const o of el.querySelectorAll(".card")) o.classList.toggle("sel", o === c); };
+      c.ondblclick = () => this.pick(c.dataset.k);
+    }
+  },
+};
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && BgPicker.el?.style.display === "flex") BgPicker.close(); });
+
 async function loadSaved(s) {
   const cast = [];
   for (const c of s.cast ?? []) { const a = await fromUuid(c.uuid).catch(() => null); if (a) cast.push(castEntry(a)); else ui.notifications.warn(`${c.name} is no longer in the world or the compendium; left out.`); }
