@@ -5,6 +5,9 @@
 // rest space out again. Works on any scene, battle or world map. While a scene plays the players can't move the map;
 // the GM can, and the camera tools still move the players' views.
 // The running scene lives in a world setting, so every client (and anyone joining late) draws the same thing.
+// Cutscenes (David, 2026-11-15): a saved scene also keeps a list of steps (enter, leave, display, switch, injure, battle,
+// clash, end battle). Record plays the scene and turns each live action into the next step; Play then runs them one at a
+// time with Next (Space / →) and Back (←), from a bar only the GM sees.
 import { SYSTEM_ID } from "./config.mjs";
 import { fullArtInfo, halfArtInfo } from "./full-art.mjs";
 import { playMoment } from "./sound.mjs";
@@ -196,7 +199,19 @@ function css() {
   #qin-cs-build .row small { color: #c98a6a; }
   #qin-cs-build .drop { margin-top: 6px; padding: 9px; border: 2px dashed rgba(201,168,92,.45); border-radius: 4px; text-align: center; color: #b9b2a0; font-size: 12px; }
   #qin-cs-build .three { display: flex; gap: 6px; } #qin-cs-build .three .btn { flex: 1; }
-  #qin-cs-build .play { margin-top: 10px; padding: 7px; font-size: 14px; }`;
+  #qin-cs-build .play { margin-top: 10px; padding: 7px; font-size: 14px; }
+  #qin-cs-build .steps { max-height: 230px; overflow: auto; }
+  #qin-cs-build .row .n { width: 16px; color: #8f897b; font-size: 11px; text-align: right; flex: none; }
+  #qin-cs-build .dirty { color: #e8c45a; font-size: 11px; margin-left: 4px; text-transform: none; letter-spacing: 0; }
+  #qin-cs-build .btn.rec { border-color: #a8402f; color: #ffb39d; } #qin-cs-build .btn.rec i, #qin-cs-step .recdot { color: #ff5a3c; }
+  #qin-cs-step { position: fixed; z-index: 96; left: 50%; transform: translateX(-50%); width: 440px; padding: 8px 10px; display: none; }
+  #qin-cs-step .line { display: flex; align-items: center; gap: 8px; }
+  #qin-cs-step .line .btn { margin: 0; width: 74px; } #qin-cs-step .line .btn.next { background: #c9a85c; color: #1a1612; font-weight: 700; }
+  #qin-cs-step .mid { flex: 1; text-align: center; min-width: 0; } #qin-cs-step .mid small { display: block; color: #b9b2a0; font-size: 11px; }
+  #qin-cs-step .mid b { display: block; color: #fff4d6; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #qin-cs-step .prog { height: 3px; margin-top: 7px; background: rgba(236,230,214,.15); border-radius: 2px; } #qin-cs-step .prog i { display: block; height: 3px; background: #e8c45a; border-radius: 2px; }
+  #qin-cs-step .foot { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 11px; color: #8f897b; }
+  #qin-cs-step .foot .btn { margin: 0 0 0 auto; padding: 2px 8px; font-size: 11px; }`;
   document.head.appendChild(s);
 }
 const slot = (i, n) => `${((i + 1) / (n + 1)) * 100}%`;
@@ -321,9 +336,11 @@ function render() {
   });
   if (st.battle?.on && st.battle.clash && st.battle.clash !== seenClash) { const first = seenClash === null && fresh; seenClash = st.battle.clash; if (!first) clashFx(st, cast); }
   renderControls(st);
+  StepBar.render();
 }
 function teardown() {
   ctl?.remove(); ctl = null;
+  if (run) { run = null; Builder.refresh(); } StepBar.render();
   if (!root || ending) return;
   const r = root; root = null; shown = new Map(); names = new Map();
   for (const el of r.querySelectorAll(".of")) el.classList.remove("here", "lit");
@@ -359,6 +376,100 @@ const pickSide = (key, side) => patch(st => { if (!st.battle) return; st.battle.
 const battleStart = () => patch(st => { const b = st.battle; if (!b) return; b.setup = false; b.on = true; b.preLit = litOf(st); st.lit = st.cast.filter(c => b.sides?.[c.key]).map(c => c.key); });
 const battleClash = () => patch(st => { if (st.battle?.on) st.battle.clash = foundry.utils.randomID(8); });
 const battleEnd = () => patch(st => { const pre = st.battle?.preLit ?? []; st.battle = null; st.lit = pre.filter(k => st.cast.some(c => c.key === k)); });
+
+/* ------------------------------------------------------------------ cutscene steps (David, 2026-11-15) */
+// A step names its officer by actor uuid (scene keys are new every time a scene plays).
+export function stepLabel(s) {
+  switch (s?.t) {
+    case "enter": return `${s.name} enters`;
+    case "leave": return `${s.name} leaves`;
+    case "display": return `Display ${s.name}`;
+    case "switch": return `Switch to ${s.name}`;
+    case "injure": return `Injure ${s.name}`;
+    case "battle": { const side = (v) => (s.sides ?? []).filter(f => f.side === v).map(f => f.name).join(", ") || "?"; return `Battle: ${side("L")} vs ${side("R")}`; }
+    case "clash": return "Clash";
+    case "battleEnd": return "End battle";
+    default: return "?";
+  }
+}
+const keyOf = (st, uuid) => st.cast?.find(c => c.uuid === uuid)?.key;
+/** Do one step on the running scene. */
+async function applyStep(s) {
+  const st = state(); if (!st.active || !s) return;
+  const k = s.uuid ? keyOf(st, s.uuid) : null;
+  const missing = () => ui.notifications.warn(`${s.name} isn't in the scene, so "${stepLabel(s)}" was skipped.`);
+  switch (s.t) {
+    case "enter": { const a = await fromUuid(s.uuid).catch(() => null); if (!a) return ui.notifications.warn(`${s.name} is no longer in the world or the compendium; skipped.`); return join(a); }
+    case "leave": return k ? leave(k) : missing();
+    case "display": return k ? display(k) : missing();
+    case "switch": return k ? switchTo(k) : missing();
+    case "injure": return k ? injure(k) : missing();
+    case "battle": return patch(st => {
+      const sides = {}; for (const f of s.sides ?? []) { const kk = keyOf(st, f.uuid); if (kk) sides[kk] = f.side; }
+      st.battle = { setup: false, on: true, sides, preLit: litOf(st) }; st.lit = st.cast.filter(c => sides[c.key]).map(c => c.key);
+    });
+    case "clash": return battleClash();
+    case "battleEnd": return battleEnd();
+  }
+}
+/** The GM's run through a cutscene: its steps, where he is, the scene as it was before each step (for Back). */
+let run = null, busy = false;
+const snap = () => foundry.utils.deepClone(state());
+/** A live action from the control bar: recorded as the next step while recording, then done. */
+async function live(step) {
+  if (run?.rec) { run.steps.splice(run.pos); run.steps.push(step); run.hist.splice(run.pos); run.hist.push(snap()); run.pos = run.steps.length; draft.dirty = true; Builder.refresh(); }
+  await applyStep(step);
+  StepBar.render();
+}
+async function stepNext() {
+  if (!run || busy || !cutsceneActive()) return;
+  if (run.pos >= run.steps.length) return endCutscene();
+  busy = true;
+  try { run.hist[run.pos] = snap(); await applyStep(run.steps[run.pos]); run.pos++; } finally { busy = false; }
+  StepBar.render();
+}
+async function stepBack() {
+  if (!run || busy || !cutsceneActive() || run.pos <= 0) return;
+  busy = true;
+  try {
+    run.pos--;
+    const st = foundry.utils.deepClone(run.hist[run.pos]);
+    delete st.hurt; if (st.battle) delete st.battle.clash;          // going back doesn't replay a blow or a clash
+    if (run.rec) { run.steps.splice(run.pos); run.hist.splice(run.pos); draft.dirty = true; Builder.refresh(); }   // recording: Back also takes the step out
+    st.id = state().id; await setState(st);
+  } finally { busy = false; }
+  StepBar.render();
+}
+/** The GM's bar while a cutscene runs: Back · step N of M, what Next does · Next; record from here / stop recording. */
+const StepBar = {
+  el: null,
+  render() {
+    const on = game.user.isGM && run && cutsceneActive();
+    if (!on) { if (this.el) this.el.style.display = "none"; return; }
+    css();
+    this.el ??= Object.assign(document.createElement("div"), { id: "qin-cs-step", className: "qin-cs-panel" });
+    if (!this.el.isConnected) document.body.appendChild(this.el);
+    const n = run.steps.length, p = run.pos, nextLbl = p < n ? stepLabel(run.steps[p]) : "End the scene";
+    this.el.innerHTML = `<div class="line"><span class="btn ${p ? "" : "off"}" data-a="back" title="Undo the last step (←)"><i class="fa-solid fa-backward-step"></i> Back</span>
+        <div class="mid"><small>${run.rec ? `<i class="fa-solid fa-circle recdot"></i> Recording · ` : ""}Step ${p} of ${n}</small><b title="${esc(nextLbl)}">Next: ${esc(nextLbl)}</b></div>
+        <span class="btn next" data-a="next" title="Do the next step (Space or →)">${p < n ? "Next" : "End"} <i class="fa-solid fa-forward-step"></i></span></div>
+      <div class="prog"><i style="width:${n ? Math.round(p / n * 100) : 0}%"></i></div>
+      <div class="foot"><span>Space or → next · ← back</span>${run.rec
+        ? `<span class="btn" data-a="stop" title="Stop recording; the steps so far stay in the Cutscene Maker">Stop recording</span>`
+        : `<span class="btn" data-a="rec" title="Your next actions replace the steps after this one">Record from here</span>`}</div>`;
+    this.el.querySelector('[data-a="back"]').onclick = stepBack;
+    this.el.querySelector('[data-a="next"]').onclick = stepNext;
+    const rec = this.el.querySelector('[data-a="rec"]'); if (rec) rec.onclick = () => { run.rec = true; this.render(); };
+    const stop = this.el.querySelector('[data-a="stop"]'); if (stop) stop.onclick = () => { run.rec = false; this.render(); Builder.refresh(); };
+    this.el.style.display = "block";
+    // just above the officer cards
+    setTimeout(() => {
+      if (!this.el || !ctl) return;
+      const tops = [ctl, ...ctl.children].map(e => e.getBoundingClientRect()).filter(b => b.height).map(b => b.top);
+      this.el.style.bottom = `${Math.round(window.innerHeight - Math.min(...tops, window.innerHeight - 12) + 8)}px`;
+    }, 40);
+  },
+};
 
 /** The injury on screen: the Melee hit sound, a blade streak across the chest, a gash that fades, blood, a red flash and a shake. */
 function injureFx(el, c) {
@@ -439,25 +550,28 @@ function renderControls(st) {
          <div class="battlebtn" data-a="battle" title="Set up a battle: pick who fights on each side"><span>⚔ Battle</span></div>
          <div class="end" data-a="end"><span><i class="fa-solid fa-stop"></i> End scene</span></div>`);
   for (const card of ctl.querySelectorAll(".card")) {
-    card.querySelector('[data-a="display"]').onclick = () => display(card.dataset.k);
-    card.querySelector('[data-a="switch"]').onclick = () => switchTo(card.dataset.k);
-    card.querySelector('[data-a="injure"]').onclick = () => injure(card.dataset.k);
-    card.querySelector('[data-a="leave"]').onclick = () => leave(card.dataset.k);
+    const c = st.cast.find(x => x.key === card.dataset.k), who = { uuid: c?.uuid, name: c?.name };
+    card.querySelector('[data-a="display"]').onclick = () => live({ t: "display", ...who });
+    card.querySelector('[data-a="switch"]').onclick = () => live({ t: "switch", ...who });
+    card.querySelector('[data-a="injure"]').onclick = () => live({ t: "injure", ...who });
+    card.querySelector('[data-a="leave"]').onclick = () => live({ t: "leave", ...who });
     for (const sp of card.querySelectorAll('[data-a="side"]')) sp.onclick = () => pickSide(card.dataset.k, sp.dataset.s);
   }
   const on = (a, fn) => { const el = ctl.querySelector(`[data-a="${a}"]`); if (el) el.onclick = fn; };
-  on("battle", battleSetup); on("battleCancel", battleCancel); on("battleStart", battleStart); on("clash", battleClash); on("battleEnd", battleEnd);
+  on("battle", battleSetup); on("battleCancel", battleCancel); on("clash", () => live({ t: "clash" })); on("battleEnd", () => live({ t: "battleEnd" }));
+  on("battleStart", () => { const sd = st.battle?.sides ?? {}; live({ t: "battle", sides: st.cast.filter(c => sd[c.key]).map(c => ({ uuid: c.uuid, name: c.name, side: sd[c.key] })) }); });
+  const joinLive = (a) => { if ((state().cast?.length ?? 0) >= MAX_CAST) return ui.notifications.warn(`A scene holds up to ${MAX_CAST} officers. Have one leave first.`); live({ t: "enter", uuid: a.uuid, name: a.name }); };
   on("end", () => endCutscene());
   const add = ctl.querySelector(".add"), inp = add?.querySelector("input");
   if (!add) return;
-  if (inp) { wireSearch(inp, add.querySelector(".hits"), join); if (typing != null) { inp.value = typing; inp.focus(); } }
+  if (inp) { wireSearch(inp, add.querySelector(".hits"), joinLive); if (typing != null) { inp.value = typing; inp.focus(); } }
   add.ondragover = (e) => { e.preventDefault(); add.classList.add("over"); };
   add.ondragleave = () => add.classList.remove("over");
-  add.ondrop = async (e) => { e.preventDefault(); e.stopPropagation(); add.classList.remove("over"); const a = await actorFromDrop(e); if (a) join(a); };
+  add.ondrop = async (e) => { e.preventDefault(); e.stopPropagation(); add.classList.remove("over"); const a = await actorFromDrop(e); if (a) joinLive(a); };
 }
 
 /* ------------------------------------------------------------------ GM: the Cutscene Maker panel (top left) */
-const draft = { cast: [], bg: "", sel: "" };
+const draft = { cast: [], bg: "", sel: "", steps: [], dirty: false };
 const Builder = {
   el: null,
   toggle(show) {
@@ -481,16 +595,42 @@ const Builder = {
         <div class="drop">${full ? `The scene is full (${MAX_CAST}).` : "or drag officers here from the compendium"}</div></div>
       <div class="sec"><div class="lb">Background</div>
         ${(() => { const b = BACKGROUNDS.find(x => x.key === draft.bg); return `<div class="bgbtn" title="Choose the background">${b ? `<i style="background-image:url('${esc(route(b.thumb ?? b.src))}')"></i><div><b>${esc(b.name)}</b>${b.group ? `<small>${esc(b.group)}</small>` : ""}</div>` : `<i class="none"></i><div><b>Empty</b><small>the map shows through</small></div>`}<span class="chg">Change…</span></div>`; })()}</div>
+      <div class="sec"><div class="lb">Cutscene steps (${draft.steps.length})${draft.dirty ? `<span class="dirty">· not saved</span>` : ""}</div>
+        <div class="three"><span class="btn rec ${playing ? "off" : ""}" data-a="record" title="Play the scene from the start; every action you take becomes the next step (replaces the steps)"><i class="fa-solid fa-circle"></i> Record</span><span class="btn" data-a="addstep" title="Add a step at the end">+ Add step</span></div>
+        <div class="steps">${draft.steps.map((s, i) => `<div class="row st" data-i="${i}"><span class="n">${i + 1}</span><b title="${esc(stepLabel(s))}">${esc(stepLabel(s))}</b>
+          <span class="a" data-a="up" title="Earlier"><i class="fa-solid fa-arrow-up"></i></span><span class="a" data-a="down" title="Later"><i class="fa-solid fa-arrow-down"></i></span><span class="a" data-a="del" title="Remove"><i class="fa-solid fa-xmark"></i></span></div>`).join("")
+          || `<div class="none">No steps: Play just sets the scene. Press Record to make a cutscene.</div>`}</div>
+        <div class="drop sdrop">drag an officer here to add an "enters" step</div></div>
       <div class="sec"><div class="lb">Saved scenes</div>
         <select class="sv"><option value="">${list.length ? "Choose a saved scene…" : "None saved yet"}</option>${list.map(s => `<option value="${s.id}" ${draft.sel === s.id ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select>
         <div class="three"><span class="btn ${draft.sel ? "" : "off"}" data-a="save" title="Save over the chosen scene">Save</span><span class="btn" data-a="saveas">Save as…</span><span class="btn red ${draft.sel ? "" : "off"}" data-a="delete">Delete</span></div></div>
-      <span class="btn on play ${playing ? "off" : ""}" data-a="play"><i class="fa-solid fa-play"></i> ${playing ? "A scene is playing" : "Play"}</span>`;
+      <span class="btn on play ${playing ? "off" : ""}" data-a="play"><i class="fa-solid fa-play"></i> ${playing ? "A scene is playing" : draft.steps.length ? `Play cutscene (${draft.steps.length} steps)` : "Play"}</span>`;
     el.querySelector(".x").onclick = () => this.toggle(false);
-    for (const row of el.querySelectorAll(".row")) {
+    for (const row of el.querySelectorAll(".row:not(.st)")) {
       const i = Number(row.dataset.i), mv = (d) => { const j = i + d; if (j < 0 || j >= draft.cast.length) return; [draft.cast[i], draft.cast[j]] = [draft.cast[j], draft.cast[i]]; this.refresh(); };
       row.querySelector('[data-a="up"]').onclick = () => mv(-1); row.querySelector('[data-a="down"]').onclick = () => mv(1);
       row.querySelector('[data-a="del"]').onclick = () => { draft.cast.splice(i, 1); this.refresh(); };
     }
+    for (const row of el.querySelectorAll(".row.st")) {
+      const i = Number(row.dataset.i), mv = (d) => { const j = i + d; if (j < 0 || j >= draft.steps.length) return; [draft.steps[i], draft.steps[j]] = [draft.steps[j], draft.steps[i]]; draft.dirty = true; this.refresh(); };
+      row.querySelector('[data-a="up"]').onclick = () => mv(-1); row.querySelector('[data-a="down"]').onclick = () => mv(1);
+      row.querySelector('[data-a="del"]').onclick = () => { draft.steps.splice(i, 1); draft.dirty = true; this.refresh(); };
+    }
+    el.querySelector('[data-a="record"]').onclick = async () => {
+      if (!draft.cast.length) return ui.notifications.warn("Add at least one officer to the scene first.");
+      if (draft.steps.length) {
+        const ok = await foundry.applications.api.DialogV2.confirm({ window: { title: "Record" }, content: `<p>Recording replaces the ${draft.steps.length} steps. To keep the start, play the cutscene, go to a step and press "Record from here" instead.</p>`, rejectClose: false }).catch(() => false);
+        if (!ok) return;
+      }
+      draft.steps = []; draft.dirty = true;
+      run = { steps: draft.steps, pos: 0, hist: [], rec: true };
+      await playCutscene(draft.cast, draft.bg); this.refresh();
+    };
+    el.querySelector('[data-a="addstep"]').onclick = () => addStepDialog();
+    const sd = el.querySelector(".sdrop");
+    sd.ondragover = (e) => { e.preventDefault(); e.stopPropagation(); sd.classList.add("over"); };
+    sd.ondragleave = () => sd.classList.remove("over");
+    sd.ondrop = async (e) => { e.preventDefault(); e.stopPropagation(); sd.classList.remove("over"); const a = await actorFromDrop(e); if (a) { draft.steps.push({ t: "enter", uuid: a.uuid, name: a.name }); draft.dirty = true; this.refresh(); } };
     const add = (a) => { if (draft.cast.length >= MAX_CAST) return ui.notifications.warn(`A scene holds up to ${MAX_CAST} officers.`); draft.cast.push(castEntry(a)); this.refresh(); el.querySelector(".q")?.focus(); };
     const q = el.querySelector(".q"); if (q) wireSearch(q, el.querySelector(".hits"), add);
     el.ondragover = (e) => { e.preventDefault(); el.querySelector(".drop").classList.add("over"); };
@@ -499,9 +639,9 @@ const Builder = {
     el.querySelector(".bgbtn").onclick = () => BgPicker.open(draft.bg, (key) => { draft.bg = key; this.refresh(); });
     el.querySelector(".sv").onchange = async (e) => { draft.sel = e.target.value; const s = saved().find(x => x.id === draft.sel); if (s) await loadSaved(s); this.refresh(); };
     const store = async (id, name) => {
-      const entry = { id, name, bg: draft.bg || null, cast: draft.cast.map(c => ({ uuid: c.uuid, name: c.name })) };
+      const entry = { id, name, bg: draft.bg || null, cast: draft.cast.map(c => ({ uuid: c.uuid, name: c.name })), steps: foundry.utils.deepClone(draft.steps) };
       const l = saved().filter(s => s.id !== id); l.push(entry); l.sort((a, b) => a.name.localeCompare(b.name));
-      await game.settings.set(SYSTEM_ID, SAVED, l); draft.sel = id; this.refresh(); ui.notifications.info(`Saved the scene "${name}".`);
+      await game.settings.set(SYSTEM_ID, SAVED, l); draft.sel = id; draft.dirty = false; this.refresh(); ui.notifications.info(`Saved the scene "${name}".`);
     };
     el.querySelector('[data-a="save"]').onclick = () => { const s = saved().find(x => x.id === draft.sel); if (s) store(s.id, s.name); };
     el.querySelector('[data-a="saveas"]').onclick = async () => {
@@ -511,7 +651,10 @@ const Builder = {
       if (name) store(foundry.utils.randomID(8), name);
     };
     el.querySelector('[data-a="delete"]').onclick = async () => { await game.settings.set(SYSTEM_ID, SAVED, saved().filter(s => s.id !== draft.sel)); draft.sel = ""; this.refresh(); };
-    el.querySelector('[data-a="play"]').onclick = () => playCutscene(draft.cast, draft.bg);
+    el.querySelector('[data-a="play"]').onclick = async () => {
+      run = draft.steps.length ? { steps: draft.steps, pos: 0, hist: [], rec: false } : null;
+      await playCutscene(draft.cast, draft.bg); StepBar.render();
+    };
     // drag the panel by its title
     const hd = el.querySelector(".hd");
     hd.onpointerdown = (e) => {
@@ -571,7 +714,25 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape" && BgPicker
 async function loadSaved(s) {
   const cast = [];
   for (const c of s.cast ?? []) { const a = await fromUuid(c.uuid).catch(() => null); if (a) cast.push(castEntry(a)); else ui.notifications.warn(`${c.name} is no longer in the world or the compendium; left out.`); }
-  draft.cast = cast; draft.bg = s.bg ?? "";
+  draft.cast = cast; draft.bg = s.bg ?? ""; draft.steps = foundry.utils.deepClone(s.steps ?? []); draft.dirty = false;
+}
+/** Add step by hand: an action and one of the officers the cutscene knows (the opening cast and anyone who enters).
+ *  New officers come in by dragging them onto the steps, a battle by recording it. */
+async function addStepDialog() {
+  const known = new Map(); for (const c of draft.cast) known.set(c.uuid, c.name); for (const s of draft.steps) if (s.t === "enter") known.set(s.uuid, s.name);
+  const acts = [["display", "Display"], ["switch", "Switch to"], ["injure", "Injure"], ["leave", "Leaves"], ["clash", "Clash (in a battle)"], ["battleEnd", "End battle"]];
+  let got = null;
+  try {
+    got = await foundry.applications.api.DialogV2.prompt({ window: { title: "Add step" },
+      content: `<div class="form-group"><label>Action</label><select name="t">${acts.map(([v, t]) => `<option value="${v}">${t}</option>`).join("")}</select></div>
+        <div class="form-group"><label>Officer</label><select name="u">${[...known].map(([u, n]) => `<option value="${esc(u)}">${esc(n)}</option>`).join("")}</select></div>
+        <p class="hint">Clash and End battle need no officer. To add an officer entering, drag him onto the steps; record a battle.</p>`,
+      ok: { label: "Add", callback: (ev, btn) => ({ t: btn.form.elements.t.value, u: btn.form.elements.u.value }) }, rejectClose: false });
+  } catch { got = null; }
+  if (!got) return;
+  const step = ["clash", "battleEnd"].includes(got.t) ? { t: got.t } : got.u ? { t: got.t, uuid: got.u, name: known.get(got.u) } : null;
+  if (!step) return ui.notifications.warn("Add an officer to the scene first.");
+  draft.steps.push(step); draft.dirty = true; Builder.refresh();
 }
 export const toggleCutsceneMaker = (show) => Builder.toggle(show);
 export const cutsceneMakerOpen = () => Builder.el?.style.display === "block";
@@ -583,6 +744,16 @@ Hooks.once("init", () => {
   game.keybindings.register(SYSTEM_ID, "cutsceneMaker", {
     name: "Cutscene Maker", hint: "GM: open or close the Cutscene Maker panel.",
     editable: [{ key: "KeyU", modifiers: ["Shift"] }], restricted: true, onDown: () => { toggleCutsceneMaker(); return true; },
+  });
+  // only while the GM runs a cutscene; otherwise the keys do what they always do (Space pauses, arrows move the map)
+  const PRI = CONST.KEYBINDING_PRECEDENCE?.PRIORITY ?? 0;
+  game.keybindings.register(SYSTEM_ID, "cutsceneNext", {
+    name: "Cutscene: next step", hint: "GM: while a cutscene plays, do its next step.", precedence: PRI,
+    editable: [{ key: "Space" }, { key: "ArrowRight" }], restricted: true, onDown: () => { if (!run || !cutsceneActive()) return false; stepNext(); return true; },
+  });
+  game.keybindings.register(SYSTEM_ID, "cutsceneBack", {
+    name: "Cutscene: back a step", hint: "GM: while a cutscene plays, undo its last step.", precedence: PRI,
+    editable: [{ key: "ArrowLeft" }], restricted: true, onDown: () => { if (!run || !cutsceneActive()) return false; stepBack(); return true; },
   });
 });
 Hooks.once("ready", () => { render(); });
