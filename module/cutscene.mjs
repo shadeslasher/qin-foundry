@@ -231,7 +231,7 @@ function placeOfficer(el, L) {
   el.dataset.side = L.side ?? "";
 }
 
-/** Clash: three quick blows (the Duel clash sound has them at 0, 0.26 and 0.52 s); the fighters lunge, sparks fly in the middle. */
+/** Clash: three quick blows (the Duel clash sound has them at 0, 0.26 and 0.52 s); the fighters lunge in once and hold, sparks fly in the middle on each blow. */
 function clashFx(st, cast) {
   playMoment("Duel clash", { minGap: 0 });
   const b = st.battle, fighters = cast.filter(c => b.sides?.[c.key]).map(c => ({ c, el: shown.get(c.key), side: b.sides[c.key] })).filter(f => f.el);
@@ -241,14 +241,14 @@ function clashFx(st, cast) {
   const front = (s) => fighters.filter(f => f.side === s).map(f => f.el.getBoundingClientRect()).map(r => s === "L" ? r.right : r.left);
   const lx = Math.max(...front("L"), W * 0.36), rx = Math.min(...front("R"), W * 0.64);
   const cx = fighters.some(f => f.side === "L") && fighters.some(f => f.side === "R") ? (lx + rx) / 2 : W / 2, cy = H * 0.44;
+  // one lunge for the whole clash (David, 2026-11-15): in on the first blow, held through all three, back after the last
+  for (const f of fighters) {
+    const d = (f.side === "L" ? 1 : -1) * W * 0.04;
+    f.el.style.transition = "translate .09s ease-out"; f.el.style.translate = `${d}px 0`;
+  }
+  setTimeout(() => { for (const f of fighters) { f.el.style.transition = "translate .2s ease-in-out"; f.el.style.translate = ""; setTimeout(() => { f.el.style.transition = ""; }, 220); } }, 640);
   [0, 260, 520].forEach((at, n) => setTimeout(() => hit(n === 2), at));
   function hit(big) {
-    // lunge in and spring back
-    for (const f of fighters) {
-      const d = (f.side === "L" ? 1 : -1) * W * 0.04;
-      f.el.style.transition = "translate .09s ease-out"; f.el.style.translate = `${d}px 0`;
-      setTimeout(() => { f.el.style.transition = ""; f.el.style.translate = ""; }, 110);
-    }
     const s = big ? 1.35 : 1, id = "c" + foundry.utils.randomID(6), tilt = (Math.random() - 0.5) * 30;
     const sparks = [...Array(big ? 22 : 14)].map((_, i, a) => { const t = i / a.length * Math.PI * 2 + Math.random() * 0.3, r = 70 + Math.random() * 70;
       return `<line x1="${Math.cos(t) * 18}" y1="${Math.sin(t) * 18}" x2="${Math.cos(t) * r}" y2="${Math.sin(t) * r}" stroke="${i % 3 ? "#ffd27a" : "#fff"}" stroke-width="${i % 2 ? 3 : 2}" stroke-linecap="round"/>`; }).join("");
@@ -429,7 +429,7 @@ function renderControls(st) {
       <div class="two"><span class="btn" data-a="injure" title="He's struck: a sword-hit sound, he shakes and a gash opens across him (everyone sees it)">Injure</span>
       <span class="btn red" data-a="leave" title="This officer leaves the scene; the others space out again">Leave</span></div></div>`; }).join("")
     + (bt?.on
-      ? `<div class="mid"><div class="clashbtn" data-a="clash" title="The fighters clash: three quick blows, sparks in the middle"><span>⚔ CLASH</span></div>
+      ? `<div class="mid"><div class="clashbtn" data-a="clash" title="The fighters lunge together once: three quick blows, sparks in the middle"><span>⚔ CLASH</span></div>
          <div class="end" data-a="battleEnd" title="Everyone goes back to where they stood"><span>End battle</span></div></div>`
       : bt?.setup
       ? (() => { const nL = Object.values(sides).filter(v => v === "L").length, nR = Object.values(sides).filter(v => v === "R").length;
