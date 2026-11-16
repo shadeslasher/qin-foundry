@@ -126,7 +126,11 @@ export class DuelScenesConfig extends foundry.applications.api.ApplicationV2 {
 // hexagon on hex grids, a square on square grids). Outside it a dark overlay tile (an uploaded PNG with the arena cut
 // out) and, along its edge, movement-only walls (no sight, light or sound). Run again to change the radius: the old
 // overlay and walls (flag qin.duelArena) are replaced.
-export async function makeDuelArena(scene = canvas.scene, { radius = 6, darkness = 0.6 } = {}) {
+// `rows`: also keep only cells within that many rows of the middle (David, 2026-11-16: on the city wall the arena stops at
+// the wall's edges; Duel – City wall uses rows 3). Running it again without options keeps the scene's saved radius/rows.
+export async function makeDuelArena(scene = canvas.scene, opts = {}) {
+  const saved = scene?.getFlag?.(SYSTEM_ID, "duelArena") ?? {};
+  const { radius = saved.radius ?? 6, darkness = 0.6, rows = saved.rows ?? null } = opts;
   if (!game.user.isGM || !scene) return null;
   const g = scene.grid, d = scene.dimensions ?? { sceneX: 0, sceneY: 0, sceneWidth: scene.width, sceneHeight: scene.height };
   const mid = g.getOffset({ x: d.sceneX + d.sceneWidth / 2, y: d.sceneY + d.sceneHeight / 2 });
@@ -135,7 +139,7 @@ export async function makeDuelArena(scene = canvas.scene, { radius = 6, darkness
     return Math.max(Math.abs(o.i - mid.i), Math.abs(o.j - mid.j));
   };
   const cells = [];
-  for (let i = mid.i - radius - 1; i <= mid.i + radius + 1; i++) for (let j = mid.j - radius - 1; j <= mid.j + radius + 1; j++) if (dist({ i, j }) <= radius) cells.push({ i, j });
+  for (let i = mid.i - radius - 1; i <= mid.i + radius + 1; i++) for (let j = mid.j - radius - 1; j <= mid.j + radius + 1; j++) if (dist({ i, j }) <= radius && (rows == null || Math.abs(i - mid.i) <= rows)) cells.push({ i, j });
   const polys = cells.map(o => g.getVertices(o).map(p => ({ x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10 })));
   // boundary = cell edges that only one arena cell has
   const key = (a, b) => { const s = [`${a.x},${a.y}`, `${b.x},${b.y}`].sort(); return s.join("|"); };
@@ -163,6 +167,6 @@ export async function makeDuelArena(scene = canvas.scene, { radius = 6, darkness
   const centre = (game.release?.generation ?? 12) >= 14;   // v14 places a tile by its centre
   await scene.createEmbeddedDocuments("Tile", [{ texture: { src }, x: centre ? ox + W / 2 : ox, y: centre ? oy + H / 2 : oy, width: W, height: H, locked: true, sort: -1, flags: { [SYSTEM_ID]: { duelArena: true } } }]);
   await scene.createEmbeddedDocuments("Wall", walls);
-  await scene.setFlag(SYSTEM_ID, "duelArena", { radius });
+  await scene.setFlag(SYSTEM_ID, "duelArena", { radius, rows });
   return { cells: cells.length, walls: walls.length, src };
 }
