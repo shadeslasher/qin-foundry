@@ -157,6 +157,9 @@ function css() {
   #qin-cs-ctl .add.over, #qin-cs-build .drop.over { border-color: #e8c45a; background: rgba(201,168,92,.18); }
   #qin-cs-ctl .end { width: 96px; display: flex; align-items: center; justify-content: center; border: 1px solid #a8402f; border-radius: 4px; background: rgba(168,64,47,.25); font-weight: 700; color: #ffd9cf; cursor: pointer; }
   #qin-cs-ctl .end:hover { background: rgba(168,64,47,.5); }
+  #qin-cs-ctl .sidesbtn { width: 78px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 1px solid rgba(201,168,92,.6); border-radius: 4px; cursor: pointer; font-weight: 700; color: #fff4d6; }
+  #qin-cs-ctl .sidesbtn small { font-weight: 400; font-size: 11px; color: #b9b2a0; } #qin-cs-ctl .sidesbtn:hover { background: rgba(201,168,92,.2); }
+  #qin-cs-ctl .sidesbtn.on { background: #c9a85c; color: #1a1612; } #qin-cs-ctl .sidesbtn.on small { color: #3a2f1c; }
   .qin-cs-panel input, .qin-cs-panel select { width: 100%; height: 26px; box-sizing: border-box; background: rgba(0,0,0,.45); color: #ece6d6; border: 1px solid rgba(201,168,92,.4); border-radius: 3px; font-size: 13px; }
   .qin-cs-panel .hits { display: none; position: absolute; left: 0; right: 0; z-index: 3; background: #171513; border: 1px solid rgba(201,168,92,.6); border-radius: 3px; max-height: 260px; overflow: auto; text-align: left; }
   #qin-cs-ctl .hits { bottom: 100%; margin-bottom: 4px; left: -40px; right: -40px; }
@@ -224,6 +227,11 @@ const slot = (i, n) => `${((i + 1) / (n + 1)) * 100}%`;
  */
 function layout(st, cast, i, c) {
   const n = cast.length, b = st.battle;
+  if (!b?.on && st.sides) {   // Sides (David, 2026-11-16): half to each edge, the middle clear; they slide there (CSS left transition)
+    const half = Math.ceil(n / 2), left = i < half, k = left ? i : n - 1 - i;
+    const step = Math.min(0.1, 0.34 / Math.max(1, half - 1 || 1));
+    return { x: left ? 0.08 + step * k : 0.92 - step * k, anchor: 0.5, scale: 1, origin: "50% 50%", lunge: 0 };
+  }
   if (!b?.on) return { x: (i + 1) / (n + 1), anchor: 0.5, scale: 1, origin: "50% 50%", lunge: 0 };
   const side = b.sides?.[c.key];
   const fx = c.fx ?? 0.5, eye = c.eye ?? 0.15;
@@ -402,6 +410,7 @@ export function stepLabel(s) {
     case "clash": return "Clash";
     case "battleEnd": return "End battle";
     case "reveal": return `Reveal ${s.name}`;
+    case "sides": return s.on ? "Officers to the sides" : "Officers back to their places";
     default: return "?";
   }
 }
@@ -424,6 +433,7 @@ async function applyStep(s) {
     case "clash": return battleClash();
     case "battleEnd": return battleEnd();
     case "reveal": return k ? reveal(k) : missing();
+    case "sides": return patch(st => { st.sides = !!s.on; });
   }
 }
 /** The GM's run through a cutscene: its steps, where he is, the scene as it was before each step (for Back). */
@@ -566,6 +576,7 @@ function renderControls(st) {
            <div class="end" data-a="battleCancel" style="width:70px"><span>Cancel</span></div>`; })()
       : `<div class="add" title="Drag an officer here from the compendium or the Actors tab; they walk in from the right">${full ? `Scene is full (${MAX_CAST})` : `<span><i class="fa-solid fa-user-plus"></i> Drag an officer here</span><input placeholder="or search…"><div class="hits"></div>`}</div>
          <div class="battlebtn" data-a="battle" title="Set up a battle: pick who fights on each side"><span>⚔ Battle</span></div>
+         <div class="sidesbtn ${st.sides ? "on" : ""}" data-a="sides" title="Move everyone to the edges, to show what's in the middle of the screen (again: back to their places)"><span><i class="fa-solid fa-arrows-left-right-to-line"></i> Sides</span><small>${st.sides ? "on" : "off"}</small></div>
          <div class="end" data-a="end"><span><i class="fa-solid fa-stop"></i> End scene</span></div>`);
   for (const card of ctl.querySelectorAll(".card")) {
     const c = st.cast.find(x => x.key === card.dataset.k), who = { uuid: c?.uuid, name: c?.name };
@@ -581,6 +592,7 @@ function renderControls(st) {
   on("battleStart", () => { const sd = st.battle?.sides ?? {}; live({ t: "battle", sides: st.cast.filter(c => sd[c.key]).map(c => ({ uuid: c.uuid, name: c.name, side: sd[c.key] })) }); });
   const joinLive = (a) => { if ((state().cast?.length ?? 0) >= MAX_CAST) return ui.notifications.warn(`A scene holds up to ${MAX_CAST} officers. Have one leave first.`); live({ t: "enter", uuid: a.uuid, name: a.name }); };
   on("end", () => endCutscene());
+  on("sides", () => live({ t: "sides", on: !st.sides }));
   const add = ctl.querySelector(".add"), inp = add?.querySelector("input");
   if (!add) return;
   if (inp) { wireSearch(inp, add.querySelector(".hits"), joinLive); if (typing != null) { inp.value = typing; inp.focus(); } }
@@ -739,7 +751,7 @@ async function loadSaved(s) {
  *  New officers come in by dragging them onto the steps, a battle by recording it. */
 async function addStepDialog() {
   const known = new Map(); for (const c of draft.cast) known.set(c.uuid, c.name); for (const s of draft.steps) if (s.t === "enter") known.set(s.uuid, s.name);
-  const acts = [["display", "Display"], ["switch", "Switch to"], ["injure", "Injure"], ["leave", "Leaves"], ["reveal", "Reveal name"], ["clash", "Clash (in a battle)"], ["battleEnd", "End battle"]];
+  const acts = [["display", "Display"], ["switch", "Switch to"], ["injure", "Injure"], ["leave", "Leaves"], ["reveal", "Reveal name"], ["clash", "Clash (in a battle)"], ["battleEnd", "End battle"], ["sidesOn", "Officers to the sides"], ["sidesOff", "Officers back to their places"]];
   let got = null;
   try {
     got = await foundry.applications.api.DialogV2.prompt({ window: { title: "Add step" },
@@ -749,7 +761,7 @@ async function addStepDialog() {
       ok: { label: "Add", callback: (ev, btn) => ({ t: btn.form.elements.t.value, u: btn.form.elements.u.value }) }, rejectClose: false });
   } catch { got = null; }
   if (!got) return;
-  const step = ["clash", "battleEnd"].includes(got.t) ? { t: got.t } : got.u ? { t: got.t, uuid: got.u, name: known.get(got.u) } : null;
+  const step = got.t === "sidesOn" || got.t === "sidesOff" ? { t: "sides", on: got.t === "sidesOn" } : ["clash", "battleEnd"].includes(got.t) ? { t: got.t } : got.u ? { t: got.t, uuid: got.u, name: known.get(got.u) } : null;
   if (!step) return ui.notifications.warn("Add an officer to the scene first.");
   draft.steps.push(step); draft.dirty = true; Builder.refresh();
 }
