@@ -6,6 +6,7 @@ import { SYSTEM_ID } from "../config.mjs";
 import { getBattle } from "./adapter.mjs";
 import { FLAG as MAP_FLAG, decodeTiles } from "./battlemap.mjs";
 import { DUEL_GROUNDS, OLD_GROUND, duelGround, duelSceneFor } from "./duel-rules.mjs";
+import { duelZoom, tokenCentre } from "./duel-zoom.mjs";
 
 const SETTING = "battle";
 export const DUEL_SCENES = "duelScenes"; // { ground: sceneId }
@@ -62,6 +63,9 @@ export async function openDuelScene() {
       Object.assign(b.duels.pending, { duelSceneId: duel.id, duelCombatId: combat.id, duelTokenIds: toks.map(t => t.id) });
       await game.settings.set(SYSTEM_ID, SETTING, b);
     }
+    // the Fire Emblem rush-in: on the challenged officer, then the duel settles in between the two (David, 2026-11-15)
+    const mid = (() => { const a = tokenCentre(duel, toks[0]?.id), c = tokenCentre(duel, toks[1]?.id); return a && c ? { x: (a.x + c.x) / 2, y: (a.y + c.y) / 2 } : null; })();
+    try { await duelZoom({ from: tokenCentre(scene, p.to), to: mid, toScene: duel.id }); } catch (e) { console.warn("Qin | duel zoom", e); }
     await duel.activate();
   } catch (e) {
     console.error("Qin | duel scene", e);
@@ -75,7 +79,12 @@ export async function closeDuelScene(pending) {
   const battle = getBattle();
   try {
     const back = game.scenes.get(battle.sceneId);
-    if (back && !back.active) await back.activate();
+    if (back && !back.active) {
+      const duel = game.scenes.get(pending.duelSceneId), ids = pending.duelTokenIds ?? [];
+      const a = tokenCentre(duel, ids[0]), c = tokenCentre(duel, ids[1]);
+      try { await duelZoom({ from: a && c ? { x: (a.x + c.x) / 2, y: (a.y + c.y) / 2 } : null, to: tokenCentre(back, pending.to), toScene: back.id, dir: "out" }); } catch (e) { console.warn("Qin | duel zoom", e); }
+      await back.activate();
+    }
     const combat = game.combats.get(pending.duelCombatId);
     if (combat) await combat.delete();
     const duel = game.scenes.get(pending.duelSceneId);
