@@ -12,6 +12,27 @@ import { postEffectCard, resistBoxesHTML } from "../skill-effects.mjs";
 
 const esc = (s) => foundry.utils.escapeHTML ? foundry.utils.escapeHTML(String(s ?? "")) : String(s ?? "");
 
+/* Combination (Qin p.91/93, David 2026-11-15): a character who knows it for the weapon may use two different Techniques
+ * in one action; the ST rises by both Techniques' increases plus 2. */
+const isCombination = (i) => /combination/i.test(i?.name ?? "");
+function comboTechnique(actor, skill) {
+  return actor.items.find(i => i.type === "technique" && isCombination(i) && (i.system.skill === skill || i.system.skill === "any")) ?? null;
+}
+/** The Technique(s) chosen in an Attack / Block / Dodge window: { tech, tech2, techST, techLine }. */
+function pickTechniques(actor, fd, combo) {
+  let tech = fd.technique ? actor.items.get(fd.technique) : null;
+  let tech2 = combo && fd.technique2 ? actor.items.get(fd.technique2) : null;
+  if (!tech && tech2) { tech = tech2; tech2 = null; }
+  if (tech2 && tech2.id === tech?.id) { ui.notifications.warn("Combination can't use the same Technique twice: only one was used."); tech2 = null; }
+  const inc = (t) => t ? (Number(t.system.stIncrease) || 0) : 0;
+  const techST = inc(tech) + inc(tech2) + (tech2 ? 2 : 0);
+  const e = (t) => foundry.utils.escapeHTML(t.name);
+  const techLine = !tech ? "" : tech2
+    ? `<p><b>Technique:</b> Combination of ${e(tech)} (ST +${inc(tech)}) and ${e(tech2)} (ST +${inc(tech2)}), +2 for Combination: ST +${techST}</p>`
+    : `<p><b>Technique:</b> ${e(tech)} (ST +${inc(tech)})</p>`;
+  return { tech, tech2, techST, techLine };
+}
+
 export class QinActor extends foundry.documents.Actor {
   get isCharacter() { return this.type === "character"; }
   get isHenchman() { return this.type === "henchman"; }
@@ -340,8 +361,10 @@ export class QinActor extends foundry.documents.Actor {
     for (const b of tList) if (b.mode === "situational" && b.stat === "attackersPenalty") sitOpts.push({ b, owner: "target", checked: !!tTicked[b.key], text: `Target: ${target.name}, ${b.label}: attack −${b.value}`, condition: b.condition });
     sitOpts.forEach((s, i) => { s.i = i; });
     const queued = queuedFor(this, "attack").map((q, i) => ({ ...q, i }));
-    const techniques = this.items.filter(i => i.type === "technique" && i.system.roll === "attack" && (i.system.skill === weapon.system.skill || i.system.skill === "any"));
+    const combo = comboTechnique(this, weapon.system.skill);
+    const techniques = this.items.filter(i => i.type === "technique" && i.system.roll === "attack" && (i.system.skill === weapon.system.skill || i.system.skill === "any") && !isCombination(i));
     const content = await renderTemplate("templates/dialog/attack.hbs", {
+      combo: !!combo,
       weapon, target, targetPD: tPD?.total ?? target?.system?.passiveDefense ?? null,
       techniques, earth: sys.aspects.earth, isCharacter: this.isCharacter, isRanged: weapon.system.isRanged,
       distance: picked ? Math.round(picked.yards) : null, band: picked?.band ?? null, situation: picked?.band?.st ?? 0,
@@ -354,7 +377,7 @@ export class QinActor extends foundry.documents.Actor {
     if (active && !(await markActiveUsed(this, active))) return;
     const actionNote = await spendAttackAction(this);
     const sk = this.getSkill(weapon.system.skill);
-    const tech = fd.technique ? this.items.get(fd.technique) : null;
+    const { tech, tech2, techST, techLine } = pickTechniques(this, fd, combo);
     const inner = this.isCharacter ? Math.max(0, Math.min(Number(fd.inner) || 0, sys.aspects.earth)) : 0;
     if (inner) await this.spendChi(inner * 2, "inner strength");
     const { roll, dice } = await rollYinYang({ beginner: sk.value === 0 });
@@ -393,7 +416,7 @@ export class QinActor extends foundry.documents.Actor {
     const total = sumParts(parts);
     const basePD = fd.pd === "" || fd.pd == null ? null : Number(fd.pd);
     const situation = Number(fd.situation) || 0;
-    const st = basePD == null ? null : basePD + (tech ? tech.system.stIncrease : 0) + situation;
+    const st = basePD == null ? null : basePD + techST + situation;
     const hit = dice.critFail ? false : st == null ? true : total >= st;
     // Queued attack effects (Destructive Breath...) are used by the next attack that hits; their Chi is spent then
     const useQ = hit ? queued.filter(q => fd[`q_${q.i}`]) : [];
@@ -406,11 +429,12 @@ export class QinActor extends foundry.documents.Actor {
       const { update } = consumeUpdate(this, useQ.map(q => q.id));
       await this.update(update);
     }
-    const techPierce = tech && /direct hit|masterstroke/i.test(tech.name) ? 2 : 0;
-    const { targetAd, pierceParts, pierce } = attackerSideBonuses(list, { ticked: dialogTicked, activeList, activeName: active?.name ?? "", techniquePierce: techPierce, techniqueName: tech?.name ?? "" });
+    const pierceTech = [tech, tech2].find(t => t && /direct hit|masterstroke/i.test(t.name));
+    const techPierce = pierceTech ? 2 : 0;
+    const { targetAd, pierceParts, pierce } = attackerSideBonuses(list, { ticked: dialogTicked, activeList, activeName: active?.name ?? "", techniquePierce: techPierce, techniqueName: pierceTech?.name ?? "" });
     await this._afterDice(dice);
     const extra = (active ? `<p><span class="qin-src qin-src-unique">Unique</span> <b>${esc(active.name)}</b> used${active.system.chiCost ? ` (${active.system.chiCost} Chi)` : ""}</p>` : "")
-      + (tech ? `<p><b>Technique:</b> ${esc(tech.name)} (ST +${tech.system.stIncrease})</p>` : "")
+      + techLine
       + (situation && st != null ? `<p class="qin-muted">Situation ${situation > 0 ? "+" : ""}${situation} to the ST</p>` : "")
       + (target && !tPD ? `<p><b>Target:</b> ${esc(target.name)} (Passive Defense ${basePD ?? "?"})</p>` : "");
     const notes = targetAd.map(t => ({ kind: "unique", situational: !!t.situational, text: `${t.label}: the defender's Active Defense −${t.value}` }));
@@ -429,7 +453,7 @@ export class QinActor extends foundry.documents.Actor {
     }
     await this._postRoll({
       title: `${weapon.name} attack`, roll, dice, parts, total, st, success: st == null ? null : hit, extra, buttons,
-      stLabel: tech || situation ? "ST" : "Passive Defense", pdBox, situational, notes,
+      stLabel: tech || tech2 || situation ? "ST" : "Passive Defense", pdBox, situational, notes,
       damageBox: { total: damage, parts: dmg.parts, note: pierceParts.map(p => `armour −${p.value} (${p.technique ? "technique" : p.label})`).join(", ") },
       flags: { kind: "attack", attacker: this.uuid, target: target?.uuid ?? null, total, damage, pierce, pierceParts, targetAd, skill: weapon.system.skill, ranged: weapon.system.isRanged, hit,
         st, basePD, critFail: !!dice.critFail, fight: currentFight(), chiDefIncluded },
@@ -469,9 +493,11 @@ export class QinActor extends foundry.documents.Actor {
     const forDef = (b) => b.stat === "ad" || (!skPre.martial && appliesToSkill(b, skillKey));
     const sitOpts = list.filter(b => forDef(b) && b.mode === "situational").map((b, i) => ({ i, b, checked: !!ticked[b.key], text: `${b.label}: ${b.text}`, condition: b.condition }));
     const alwaysAD = list.filter(b => forDef(b) && b.mode !== "situational");
-    const techniques = this.items.filter(i => i.type === "technique" && i.system.roll === "defense" && (i.system.skill === skillKey || i.system.skill === "any"));
+    const combo = comboTechnique(this, skillKey);
+    const techniques = this.items.filter(i => i.type === "technique" && i.system.roll === "defense" && (i.system.skill === skillKey || i.system.skill === "any") && !isCombination(i));
     const combatant = activeCombatantFor(this);
     const content = await renderTemplate("templates/dialog/defense.hbs", {
+      combo: !!combo,
       label: type === "block" ? "Block" : "Dodge", skillLabel: `${skPre.label} (${SKILL_LEVELS[skPre.value]})`, attackTotal: attack.total,
       attacker: attack.attacker ? fromUuidSync(attack.attacker)?.name : null,
       techniques, isCharacter: this.isCharacter, earth: sys.aspects.earth,
@@ -486,7 +512,7 @@ export class QinActor extends foundry.documents.Actor {
     if (!act.ok) return;
     const inner = this.isCharacter ? Math.max(0, Math.min(Number(fd.inner) || 0, sys.aspects.earth)) : 0;
     if (inner) await this.spendChi(inner * 2, "inner strength");
-    const tech = fd.technique ? this.items.get(fd.technique) : null;
+    const { tech, techST, techLine } = pickTechniques(this, fd, combo);
     const strong = fd.strongBlock && shield >= 3 ? sys.aspects.wood : 0;
     // Strong Block 3 Chi, Chi Block 4 Chi: queued ones are taken off the queue, ticked ones are paid now
     const ids = [];
@@ -517,7 +543,7 @@ export class QinActor extends foundry.documents.Actor {
       ...this._penaltyParts(true),
     ].filter(Boolean);
     const total = sumParts(parts);
-    const st = attack.total + (tech ? tech.system.stIncrease : 0);
+    const st = attack.total + techST;
     const success = !dice.critFail && total >= st;
     await this._afterDice(dice);
     const defTok = attackerToken(this);
@@ -533,7 +559,7 @@ export class QinActor extends foundry.documents.Actor {
     await this._postRoll({
       title: type === "block" ? "Block" : "Dodge", roll, dice, parts, total, st, success, notes, situational,
       flags: { kind: "defense", defender: this.uuid, against: attack.msgId ?? null, success },
-      extra: (tech ? `<p><b>Technique:</b> ${esc(tech.name)} (ST +${tech.system.stIncrease})</p>` : "")
+      extra: techLine
         + (success ? "<p><b>Success: the blow is turned aside.</b></p>" : "<p><b>The attack lands.</b></p>")
         + (act.note ? `<p class="qin-muted">${esc(act.note)}</p>` : ""),
     });
