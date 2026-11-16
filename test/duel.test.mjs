@@ -80,7 +80,8 @@ test('duel ground: overlays first (a camp on plains is a camp), then terrain; sc
   assert.strictEqual(duelGround({ terrain: 'farmland' }), 'plains');
   assert.strictEqual(duelGround({ terrain: 'plains', overlays: ['camp'] }), 'camp');
   assert.strictEqual(duelGround({ terrain: 'rocky', overlays: ['trees'] }), 'forest');
-  assert.strictEqual(duelGround({ terrain: 'plains', overlays: ['hill'] }), 'hills');
+  assert.strictEqual(duelGround({ terrain: 'plains', overlays: ['hill'] }), 'plains');   // a hill is fought on the tile under it
+  assert.strictEqual(duelGround({ terrain: 'rocky', overlays: ['hill'] }), 'hills');
   assert.strictEqual(duelGround({ terrain: 'ford' }), 'water');
   assert.strictEqual(duelGround(null), 'default');
   assert.strictEqual(duelSceneFor({ plains: 'S1', default: 'S9' }, 'plains'), 'S1');

@@ -4,7 +4,7 @@
 export const DUEL_GROUNDS = [
   ["plains", "Plains and fields"],
   ["forest", "Forest"],
-  ["hills", "Hills and rocky ground"],
+  ["hills", "Rocky ground"],   // key kept for saved settings; a hill overlay no longer counts (David, 2026-11-15)
   ["water", "Riverbank, ford, marsh or bridge"],
   ["desert", "Sand"],
   ["town", "Town, city walls and gates"],
@@ -20,7 +20,7 @@ const BY_OVERLAY = [
   [["town-hall", "city-wall", "city-gate", "fortress-tower", "farmhouse", "ruins"], "town"],
   [["bridge", "dock", "boat"], "water"],
   [["trees"], "forest"],
-  [["hill"], "hills"],
+  // a hill is an overlay: the duel takes place on the tile under it (David, 2026-11-15)
 ];
 const BY_TERRAIN = {
   plains: "plains", steppe: "plains", scorched: "plains", farmland: "plains", "tall-grass": "plains",
