@@ -17,7 +17,7 @@ export function sceneGroups() {
   const groups = new Map();
   const folders = (game.folders?.filter(f => f.type === "Scene" && !f.folder) ?? []).sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0) || a.name.localeCompare(b.name));
   for (const f of folders) groups.set(f.id, { id: f.id, name: f.name, scenes: [] });
-  const other = { id: "", name: "Other", scenes: [] };
+  const other = { id: "_other", name: "Other", scenes: [] };
   for (const s of game.scenes ?? []) { const f = top(s.folder); (f && groups.get(f.id) || other).scenes.push(s); }
   const list = [...groups.values(), other].filter(g => g.scenes.length);
   for (const g of list) g.scenes.sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0) || a.name.localeCompare(b.name));
@@ -38,7 +38,13 @@ function css() {
   #qin-ss .chip { padding: 2px 9px; border: 1px solid rgba(201,168,92,.5); border-radius: 3px; cursor: pointer; font-size: 12px; color: #c9c2b0; }
   #qin-ss .chip:hover { background: rgba(201,168,92,.2); } #qin-ss .chip.on { background: #c9a85c; color: #1a1612; font-weight: 700; }
   #qin-ss .body { overflow: auto; min-height: 0; padding-right: 2px; }
-  #qin-ss .grp { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: #b9b2a0; margin: 10px 0 5px; }
+  #qin-ss .grp { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: #b9b2a0; margin: 6px 0 5px; padding: 5px 6px; border-radius: 5px; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 7px; }
+  #qin-ss .grp:hover { background: rgba(255,255,255,.06); color: #e8e2d2; }
+  #qin-ss .grp i { width: 10px; font-size: 10px; transition: transform .15s; }
+  #qin-ss .grp.shut i { transform: rotate(-90deg); }
+  #qin-ss .grp .n { margin-left: auto; letter-spacing: 0; text-transform: none; color: #8d877a; }
+  #qin-ss .foldall { margin-left: auto; font-size: 11px; color: #b9b2a0; cursor: pointer; white-space: nowrap; }
+  #qin-ss .foldall:hover { color: #e8e2d2; text-decoration: underline; }
   #qin-ss .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
   #qin-ss .card { border: 1px solid rgba(201,168,92,.3); border-radius: 4px; overflow: hidden; cursor: pointer; background: rgba(0,0,0,.25); }
   #qin-ss .card:hover { border-color: rgba(201,168,92,.8); } #qin-ss .card.sel { outline: 2px solid #e8c45a; outline-offset: -1px; }
@@ -123,10 +129,14 @@ const Switcher = {
         <div class="nm"><b>${esc(s.navName || s.name)}</b><small>${esc(sub) || "&nbsp;"}</small></div></div>`;
     };
     let body = "";
+    const folded = new Set(setting("sceneFolded") ?? []);
+    const shown = groups.filter(g => !this.grp || this.grp === g.name), allShut = shown.every(g => folded.has(g.id));
     for (const g of groups) {
       if (this.grp && this.grp !== g.name) continue;
       const list = g.scenes.filter(s => !q || s.name.toLowerCase().includes(q) || (s.navName ?? "").toLowerCase().includes(q));
-      if (list.length) body += `<div class="grp">${esc(g.name)}</div><div class="grid">${list.map(card).join("")}</div>`;
+      // folded groups stay folded unless a search is on (then every match shows)
+      const shut = !q && folded.has(g.id);
+      if (list.length) body += `<div class="grp ${shut ? "shut" : ""}" data-fold="${esc(g.id)}"><i class="fa-solid fa-chevron-down"></i>${esc(g.name)}<span class="n">${list.length}${list.some(x => x.active) ? " · active" : ""}</span></div>${shut ? "" : `<div class="grid">${list.map(card).join("")}</div>`}`;
     }
     if (!body) body = `<div class="none">${game.scenes.size ? "No scene matches." : "No scenes yet: make one in the Scenes tab."}</div>`;
     const s = game.scenes.get(this.sel);
@@ -140,7 +150,7 @@ const Switcher = {
     })() : `<div class="foot"><div class="t"><small>Pick a scene.</small></div></div>`;
     const focused = document.activeElement === el.querySelector(".tools input"), caret = el.querySelector(".tools input")?.selectionStart, top = el.querySelector(".body")?.scrollTop ?? 0;
     el.innerHTML = `<div class="hd"><i class="fa-solid fa-map"></i> Scenes<span class="x"><i class="fa-solid fa-xmark"></i></span></div>
-      <div class="tools"><input placeholder="Search scenes…" value="${esc(this.q)}"><span class="chip ${this.grp ? "" : "on"}" data-g="">All</span>${groups.map(g => `<span class="chip ${this.grp === g.name ? "on" : ""}" data-g="${esc(g.name)}">${esc(g.name)}</span>`).join("")}</div>
+      <div class="tools"><input placeholder="Search scenes…" value="${esc(this.q)}"><span class="chip ${this.grp ? "" : "on"}" data-g="">All</span>${groups.map(g => `<span class="chip ${this.grp === g.name ? "on" : ""}" data-g="${esc(g.name)}">${esc(g.name)}</span>`).join("")}<span class="foldall" title="Fold or open every group">${allShut ? "Open all" : "Fold all"}</span></div>
       <div class="body">${body}</div>${foot}`;
     el.querySelector(".body").scrollTop = top;
     // a scene imported from another world can point at a thumbnail that isn't here: try its background, else leave it blank
@@ -151,6 +161,9 @@ const Switcher = {
     inp.onkeydown = (e) => { if (e.key === "Escape") { e.stopPropagation(); this.toggle(false); } };
     if (focused) { inp.focus(); inp.setSelectionRange(caret, caret); }
     for (const c of el.querySelectorAll(".chip")) c.onclick = () => { this.grp = c.dataset.g; this.render(); };
+    const saveFold = async (set) => { await game.settings.set(SYSTEM_ID, "sceneFolded", [...set]); this.render(); };
+    for (const h of el.querySelectorAll(".grp[data-fold]")) h.onclick = () => { const id = h.dataset.fold; folded.has(id) ? folded.delete(id) : folded.add(id); saveFold(folded); };
+    el.querySelector(".foldall").onclick = () => { for (const g of shown) allShut ? folded.delete(g.id) : folded.add(g.id); saveFold(folded); };
     for (const c of el.querySelectorAll(".card")) {
       c.onclick = () => { this.sel = c.dataset.id; this.picking = false; this.render(); };
       c.ondblclick = () => { const sc = game.scenes.get(c.dataset.id); if (sc) sendTo(sc); };
@@ -191,6 +204,7 @@ Hooks.on("updateSetting", (doc) => {
 
 Hooks.once("init", () => {
   game.settings.register(SYSTEM_ID, "sceneFade", { scope: "world", config: false, type: Boolean, default: true });
+  game.settings.register(SYSTEM_ID, "sceneFolded", { scope: "client", config: false, type: Array, default: [] });
   game.settings.register(SYSTEM_ID, "sceneBattleBack", { scope: "world", config: false, type: Boolean, default: false });
   game.keybindings.register(SYSTEM_ID, "sceneSwitcher", {
     name: "Scene switcher", hint: "GM: open or close the Scenes window.",
