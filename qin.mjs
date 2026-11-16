@@ -70,7 +70,7 @@ registerSkillEffects();
 registerCombatPanel();
 import { registerPlacedTag } from "./module/placed-tag.mjs";
 import { registerGameYear } from "./module/game-year.mjs";
-import { DuelScenesConfig } from "./module/battle/duel-scene.mjs";
+import { DuelScenesConfig, makeDuelArena } from "./module/battle/duel-scene.mjs";
 import { loadSpecData, specCount } from "./module/battle/skill-data.mjs";
 import { loadFullArt } from "./module/full-art.mjs";
 import "./module/battle/camera-pull.mjs";   // GM: move everyone's camera to a tile
@@ -84,7 +84,7 @@ Hooks.once("init", () => {
   CONFIG.QIN = CFG;
   CONFIG.qinFactions ??= {};
   globalThis.qin = game.qin = { config: CFG, rules: QinRules, openBattle: () => BattlePanel.open(), battleRequest, registerFactions, factionList, openUnitInfo, openOfficerView, importBattleMap: () => importBattleMap(SYSTEM_ID),
-    registerMapRenderer, registerCutsceneBackgrounds, cutsceneStepping, openScenes: () => toggleSceneSwitcher(true), redrawMap: (scene = canvas.scene) => redrawScene(scene), paintMap: (scene = canvas.scene) => MapEditorApp.open(scene), refreshBattlePanel: () => BattlePanel.refresh(), newUnit: () => newUnitDialog(), unitEditor: () => UnitEditorApp.open(), registerSoundPack, playSound: (m) => playMoment(m, { minGap: 0 }), openSounds: () => SoundPanel.toggle(), openCombatPanel: (actor) => CombatPanel.open(actor),
+    registerMapRenderer, registerCutsceneBackgrounds, cutsceneStepping, openScenes: () => toggleSceneSwitcher(true), makeDuelArena, redrawMap: (scene = canvas.scene) => redrawScene(scene), paintMap: (scene = canvas.scene) => MapEditorApp.open(scene), refreshBattlePanel: () => BattlePanel.refresh(), newUnit: () => newUnitDialog(), unitEditor: () => UnitEditorApp.open(), registerSoundPack, playSound: (m) => playMoment(m, { minGap: 0 }), openSounds: () => SoundPanel.toggle(), openCombatPanel: (actor) => CombatPanel.open(actor),
     recorder: { record: Recorder.record }, testBench: { setup: TestBench.setup, reset: TestBench.reset, recordSkill: TestBench.recordSkill } };
 
   CONFIG.Actor.documentClass = QinActor;

@@ -108,3 +108,50 @@ export class DuelScenesConfig extends foundry.applications.api.ApplicationV2 {
     await game.settings.set(SYSTEM_ID, DUEL_SCENES, map);
   }
 }
+
+/* ------------------------------------------------------------------ duel arenas (David, 2026-11-15) */
+// "Instead of cropping the scene, make any of the hexes outside the range darkened and create an invisible wall that
+// doesn't allow movement outside of it." The arena is every cell within `radius` steps of the scene's middle cell (a big
+// hexagon on hex grids, a square on square grids). Outside it a dark overlay tile (an uploaded PNG with the arena cut
+// out) and, along its edge, movement-only walls (no sight, light or sound). Run again to change the radius: the old
+// overlay and walls (flag qin.duelArena) are replaced.
+export async function makeDuelArena(scene = canvas.scene, { radius = 6, darkness = 0.6 } = {}) {
+  if (!game.user.isGM || !scene) return null;
+  const g = scene.grid, d = scene.dimensions ?? { sceneX: 0, sceneY: 0, sceneWidth: scene.width, sceneHeight: scene.height };
+  const mid = g.getOffset({ x: d.sceneX + d.sceneWidth / 2, y: d.sceneY + d.sceneHeight / 2 });
+  const dist = (o) => {
+    if (g.isHexagonal && g.offsetToCube) { const a = g.offsetToCube(mid), b = g.offsetToCube(o); return Math.max(Math.abs(a.q - b.q), Math.abs(a.r - b.r), Math.abs(a.s - b.s)); }
+    return Math.max(Math.abs(o.i - mid.i), Math.abs(o.j - mid.j));
+  };
+  const cells = [];
+  for (let i = mid.i - radius - 1; i <= mid.i + radius + 1; i++) for (let j = mid.j - radius - 1; j <= mid.j + radius + 1; j++) if (dist({ i, j }) <= radius) cells.push({ i, j });
+  const polys = cells.map(o => g.getVertices(o).map(p => ({ x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10 })));
+  // boundary = cell edges that only one arena cell has
+  const key = (a, b) => { const s = [`${a.x},${a.y}`, `${b.x},${b.y}`].sort(); return s.join("|"); };
+  const edges = new Map();
+  for (const vs of polys) vs.forEach((a, k) => { const b = vs[(k + 1) % vs.length], kk = key(a, b); const e = edges.get(kk); if (e) e.n++; else edges.set(kk, { a, b, n: 1 }); });
+  const walls = [...edges.values()].filter(e => e.n === 1).map(e => ({
+    c: [e.a.x, e.a.y, e.b.x, e.b.y], move: CONST.WALL_MOVEMENT_TYPES.NORMAL, sight: CONST.WALL_SENSE_TYPES.NONE,
+    light: CONST.WALL_SENSE_TYPES.NONE, sound: CONST.WALL_SENSE_TYPES.NONE, flags: { [SYSTEM_ID]: { duelArena: true } } }));
+  // the overlay: the whole scene dark, the arena cells cut out
+  const W = scene.width, H = scene.height, ox = d.sceneX, oy = d.sceneY;
+  const c = Object.assign(document.createElement("canvas"), { width: W, height: H }), ctx = c.getContext("2d");
+  ctx.fillStyle = `rgba(0,0,0,${darkness})`; ctx.fillRect(0, 0, W, H);
+  ctx.globalCompositeOperation = "destination-out"; ctx.fillStyle = "#000";
+  for (const vs of polys) { ctx.beginPath(); vs.forEach((p, k) => (k ? ctx.lineTo(p.x - ox, p.y - oy) : ctx.moveTo(p.x - ox, p.y - oy))); ctx.closePath(); ctx.fill(); ctx.lineWidth = 1; ctx.stroke(); }
+  const blob = await new Promise(r => c.toBlob(r, "image/png"));
+  const FP = foundry.applications?.apps?.FilePicker?.implementation ?? globalThis.FilePicker, dir = `worlds/${game.world.id}/duel-arenas`;
+  try { await FP.createDirectory("data", dir); } catch { /* already there */ }
+  const file = new File([blob], `arena-${scene.id}-${Date.now()}.png`, { type: "image/png" });
+  const up = await FP.upload("data", dir, file, {}, { notify: false });
+  const src = up?.path ?? `${dir}/${file.name}`;
+  // replace the old arena
+  const oldT = scene.tiles.filter(t => t.getFlag(SYSTEM_ID, "duelArena")).map(t => t.id), oldW = scene.walls.filter(w => w.getFlag(SYSTEM_ID, "duelArena")).map(w => w.id);
+  if (oldT.length) await scene.deleteEmbeddedDocuments("Tile", oldT);
+  if (oldW.length) await scene.deleteEmbeddedDocuments("Wall", oldW);
+  const centre = (game.release?.generation ?? 12) >= 14;   // v14 places a tile by its centre
+  await scene.createEmbeddedDocuments("Tile", [{ texture: { src }, x: centre ? ox + W / 2 : ox, y: centre ? oy + H / 2 : oy, width: W, height: H, locked: true, sort: -1, flags: { [SYSTEM_ID]: { duelArena: true } } }]);
+  await scene.createEmbeddedDocuments("Wall", walls);
+  await scene.setFlag(SYSTEM_ID, "duelArena", { radius });
+  return { cells: cells.length, walls: walls.length, src };
+}
