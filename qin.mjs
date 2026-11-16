@@ -64,6 +64,7 @@ import { registerDock } from "./module/dock.mjs";
 import { registerSiegeStock } from "./module/siege-stock.mjs";
 import { registerBudget } from "./module/budget.mjs";
 import { toggleCutsceneMaker, cutsceneMakerOpen, registerCutsceneBackgrounds, cutsceneStepping } from "./module/cutscene.mjs";
+import { toggleSceneSwitcher, sceneSwitcherOpen } from "./module/scene-switcher.mjs";
 registerCombatState();
 registerSkillEffects();
 registerCombatPanel();
@@ -83,7 +84,7 @@ Hooks.once("init", () => {
   CONFIG.QIN = CFG;
   CONFIG.qinFactions ??= {};
   globalThis.qin = game.qin = { config: CFG, rules: QinRules, openBattle: () => BattlePanel.open(), battleRequest, registerFactions, factionList, openUnitInfo, openOfficerView, importBattleMap: () => importBattleMap(SYSTEM_ID),
-    registerMapRenderer, registerCutsceneBackgrounds, cutsceneStepping, redrawMap: (scene = canvas.scene) => redrawScene(scene), paintMap: (scene = canvas.scene) => MapEditorApp.open(scene), refreshBattlePanel: () => BattlePanel.refresh(), newUnit: () => newUnitDialog(), unitEditor: () => UnitEditorApp.open(), registerSoundPack, playSound: (m) => playMoment(m, { minGap: 0 }), openSounds: () => SoundPanel.toggle(), openCombatPanel: (actor) => CombatPanel.open(actor),
+    registerMapRenderer, registerCutsceneBackgrounds, cutsceneStepping, openScenes: () => toggleSceneSwitcher(true), redrawMap: (scene = canvas.scene) => redrawScene(scene), paintMap: (scene = canvas.scene) => MapEditorApp.open(scene), refreshBattlePanel: () => BattlePanel.refresh(), newUnit: () => newUnitDialog(), unitEditor: () => UnitEditorApp.open(), registerSoundPack, playSound: (m) => playMoment(m, { minGap: 0 }), openSounds: () => SoundPanel.toggle(), openCombatPanel: (actor) => CombatPanel.open(actor),
     recorder: { record: Recorder.record }, testBench: { setup: TestBench.setup, reset: TestBench.reset, recordSkill: TestBench.recordSkill } };
 
   CONFIG.Actor.documentClass = QinActor;
@@ -362,6 +363,7 @@ function addDockEntries() {
   d.add({ id: "newunit", section: "gm", gm: true, order: 10, label: "New unit", icon: NEW_UNIT_TOOL.icon, key: "qin.newUnit", onClick: () => newUnitDialog() });
   d.add({ id: "uniteditor", section: "gm", gm: true, order: 20, label: "Unit editor", icon: UNIT_EDITOR_TOOL.icon, onClick: () => UnitEditorApp.open(), active: () => UnitEditorApp.isOpen });
   d.add({ id: "cutscene", section: "gm", gm: true, order: 30, label: "Cutscenes", icon: "fa-solid fa-clapperboard", key: "qin.cutsceneMaker", onClick: () => toggleCutsceneMaker(), active: () => cutsceneMakerOpen() });
+  d.add({ id: "scenes", section: "gm", gm: true, order: 40, label: "Scenes", icon: "fa-solid fa-map", key: "qin.sceneSwitcher", onClick: () => toggleSceneSwitcher(), active: () => sceneSwitcherOpen() });
 }
 Hooks.once("ready", addDockEntries);
 
