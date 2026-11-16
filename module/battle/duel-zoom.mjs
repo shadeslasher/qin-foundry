@@ -87,13 +87,18 @@ async function settle(pt, from, to, ms) {
 function clearVeil() { clearTimeout(veilTimer); veil?.remove(); veil = null; }
 
 /** Every client: part 1 on the scene they're looking at, part 2 once `toScene` is on screen. dir: "in" | "out". */
-async function play({ from, to, toScene, dir = "in" }) {
-  waiting = { toScene, to, dir };
+async function play({ from, to, toScene, dir = "in", toScale = null }) {
+  waiting = { toScene, to, dir, toScale };
   const [a] = T[dir] ?? T.in;
-  await (dir === "out" ? rush(from, 1, 0.15, a) : rush(from, 1, 6, a));
+  await (dir === "out" ? rush(from, 1, 0.15, a) : rush(from, 1, 10, a));
   if (canvas.scene?.id === toScene && canvas.ready && waiting) { const w = waiting; waiting = null; setTimeout(() => part2(w), 150); }
 }
-const part2 = (w) => { const [, b] = T[w.dir] ?? T.in; return w.dir === "out" ? settle(w.to, 6, 1, b) : settle(w.to, 0.6, 1, b); };
+const part2 = (w) => {
+  const [, b] = T[w.dir] ?? T.in;
+  // centre the view on the point (the two duellists), closer in when asked, before the new scene is snapshotted
+  if (w.to && canvas.ready) { try { canvas.pan({ x: w.to.x, y: w.to.y, ...(w.toScale ? { scale: w.toScale } : {}) }); } catch { /* fine */ } }
+  return w.dir === "out" ? settle(w.to, 6, 1, b) : settle(w.to, 0.6, 1, b);
+};
 Hooks.on("canvasReady", () => {
   if (!waiting || canvas.scene?.id !== waiting.toScene) return;
   const w = waiting; waiting = null;
@@ -102,8 +107,8 @@ Hooks.on("canvasReady", () => {
 Hooks.once("ready", () => game.socket.on(SOCKET, (m) => { if (m?.action === "duelZoom") play(m).catch(e => console.warn("Qin | duel zoom", e)); }));
 
 /** GM: start the transition on every screen and wait until they're all white, then switch scenes. */
-export async function duelZoom({ from = null, to = null, toScene, dir = "in" }) {
-  const m = { action: "duelZoom", from, to, toScene, dir };
+export async function duelZoom({ from = null, to = null, toScene, dir = "in", toScale = null }) {
+  const m = { action: "duelZoom", from, to, toScene, dir, toScale };
   game.socket.emit(SOCKET, m);
   play(m).catch(e => console.warn("Qin | duel zoom", e));
   await new Promise(r => setTimeout(r, ZOOM_IN_MS + 50));
@@ -114,4 +119,4 @@ export const tokenCentre = (scene, id) => {
   const g = scene.grid.size; return { x: t.x + (t.width ?? 1) * g / 2, y: t.y + (t.height ?? 1) * g / 2 };
 };
 /** This screen only: the whole transition on the current scene (to try it out). */
-export async function previewDuelZoom(pt = null, dir = "in") { const [a, b] = T[dir]; await (dir === "out" ? rush(pt, 1, 0.15, a) : rush(pt, 1, 6, a)); await new Promise(r => setTimeout(r, 150)); await part2({ to: pt, dir }); }
+export async function previewDuelZoom(pt = null, dir = "in") { const [a, b] = T[dir]; await (dir === "out" ? rush(pt, 1, 0.15, a) : rush(pt, 1, 10, a)); await new Promise(r => setTimeout(r, 150)); await part2({ to: pt, dir }); }

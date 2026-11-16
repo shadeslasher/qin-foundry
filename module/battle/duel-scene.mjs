@@ -9,6 +9,8 @@ import { DUEL_GROUNDS, OLD_GROUND, duelGround, duelSceneFor } from "./duel-rules
 import { duelZoom, tokenCentre } from "./duel-zoom.mjs";
 
 const SETTING = "battle";
+/** How close everyone's view is on the duel scene once the transition ends (David: "should zoom in farther"). */
+const DUEL_VIEW_SCALE = 1.1;
 export const DUEL_SCENES = "duelScenes"; // { ground: sceneId }
 
 const esc = (s) => foundry.utils.escapeHTML?.(String(s ?? "")) ?? String(s ?? "");
@@ -31,7 +33,7 @@ function startSpots(scene) {
   const cx = d.sceneX + d.sceneWidth / 2, cy = d.sceneY + d.sceneHeight / 2;
   try {
     const o = g.getOffset({ x: cx, y: cy });
-    return [g.getTopLeftPoint({ i: o.i, j: o.j - 1 }), g.getTopLeftPoint({ i: o.i, j: o.j + 2 })];
+    return [g.getTopLeftPoint({ i: o.i, j: o.j - 2 }), g.getTopLeftPoint({ i: o.i, j: o.j + 2 })];   // two cells either side of the middle (David, 2026-11-15)
   } catch {
     const s = g.size ?? 100;
     return [{ x: cx - 2 * s, y: cy - s / 2 }, { x: cx + s, y: cy - s / 2 }];
@@ -65,7 +67,7 @@ export async function openDuelScene() {
     }
     // the Fire Emblem rush-in: on the challenged officer, then the duel settles in between the two (David, 2026-11-15)
     const mid = (() => { const a = tokenCentre(duel, toks[0]?.id), c = tokenCentre(duel, toks[1]?.id); return a && c ? { x: (a.x + c.x) / 2, y: (a.y + c.y) / 2 } : null; })();
-    try { await duelZoom({ from: tokenCentre(scene, p.to), to: mid, toScene: duel.id }); } catch (e) { console.warn("Qin | duel zoom", e); }
+    try { await duelZoom({ from: tokenCentre(scene, p.to), to: mid, toScene: duel.id, toScale: DUEL_VIEW_SCALE }); } catch (e) { console.warn("Qin | duel zoom", e); }
     await duel.activate();
   } catch (e) {
     console.error("Qin | duel scene", e);
