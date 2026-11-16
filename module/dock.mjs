@@ -17,6 +17,8 @@ const esc = (s) => foundry.utils.escapeHTML(String(s ?? ""));
 const safe = (fn, d) => { try { return fn ? fn() : d; } catch { return d; } };
 const collapsed = () => { try { return !!game.settings.get(SYSTEM_ID, "dockCollapsed"); } catch { return false; } };
 const shown = () => { try { return game.settings.get(SYSTEM_ID, "dockShown") !== false; } catch { return true; } };
+/** Where the GM or player dragged the dock (David, 2026-11-15: "allow us to move this panel around"); null = beside the scene controls. */
+const savedPos = () => { try { const p = game.settings.get(SYSTEM_ID, "dockPos"); return p && Number.isFinite(p.x) ? p : null; } catch { return null; } };
 
 /** "KeyP" → "P", "Digit3" → "3"; with modifiers ("Shift+P"). */
 export function keyLabel(binding) {
@@ -51,6 +53,8 @@ function render() {
   if (!el) {
     el = Object.assign(document.createElement("nav"), { id: "qin-dock" });
     el.addEventListener("click", onClick);
+    el.addEventListener("pointerdown", startDrag);
+    el.addEventListener("dblclick", (e) => { if (e.target.closest(".qd-h") && !e.target.closest("[data-a]")) game.settings.set(SYSTEM_ID, "dockPos", {}); });
     document.body.appendChild(el);
   }
   const rail = collapsed();
@@ -65,7 +69,7 @@ function render() {
       ${b ? `<b class="qd-b${safe(e.warn, false) ? " w" : ""}">${esc(b)}</b>` : ""}
       ${rail ? "" : e.switch ? `<span class="qd-s"></span>` : k ? `<kbd>${esc(k)}</kbd>` : ""}</a>`;
   };
-  el.innerHTML = `<div class="qd-h">${rail ? "" : `<span>Command</span>`}<a class="qd-c" data-a="fold" data-tooltip="${rail ? "Show names" : "Fold to icons"}" data-tooltip-direction="RIGHT"><i class="fa-solid fa-angles-${rail ? "right" : "left"}"></i></a></div>
+  el.innerHTML = `<div class="qd-h" data-tooltip="${rail ? "" : "Drag to move · double-click to put it back"}">${rail ? `<i class="fa-solid fa-grip qd-g"></i>` : `<span>Command</span>`}<a class="qd-c" data-a="fold" data-tooltip="${rail ? "Show names" : "Fold to icons"}" data-tooltip-direction="RIGHT"><i class="fa-solid fa-angles-${rail ? "right" : "left"}"></i></a></div>
     <div class="qd-body">${groups.map(([name, l], gi) => `${rail ? (gi ? `<div class="qd-sep"></div>` : "") : `<div class="qd-sec">${esc(name)}</div>`}${l.map(item).join("")}`).join("")}</div>`;
   place();
 }
@@ -73,7 +77,13 @@ function render() {
 /** Beside Foundry's scene controls, under the scene list (Foundry 13+ puts it in the same column),
  *  down to just above the hotbar (or the bottom of the screen). */
 function place() {
-  if (!el) return;
+  if (!el || dragging) return;
+  const p = savedPos();
+  if (p) {   // dragged somewhere: keep it on screen, as tall as fits below it
+    const w = el.offsetWidth || 196, x = Math.min(Math.max(0, p.x), window.innerWidth - w), y = Math.min(Math.max(0, p.y), window.innerHeight - 60);
+    el.style.left = `${x}px`; el.style.top = `${y}px`; el.style.maxHeight = `${Math.max(120, window.innerHeight - 10 - y)}px`;
+    return;
+  }
   const sc = document.getElementById("scene-controls") ?? document.getElementById("controls");
   const r = sc?.getBoundingClientRect();
   const left = r?.width ? Math.round(r.right + 8) : 60;
@@ -88,6 +98,20 @@ function place() {
     if (b?.height && b.left < left + w && b.right > left && b.top > top + 120) bottom = Math.min(bottom, b.top - 8);
   }
   el.style.left = `${left}px`; el.style.top = `${top}px`; el.style.maxHeight = `${Math.max(120, bottom - top)}px`;
+}
+
+let dragging = null;
+function startDrag(ev) {
+  const h = ev.target.closest(".qd-h");
+  if (!h || ev.button !== 0 || ev.target.closest("[data-a]")) return;
+  const r = el.getBoundingClientRect(), ox = ev.clientX - r.left, oy = ev.clientY - r.top;
+  dragging = { x: r.left, y: r.top };
+  el.classList.add("drag");
+  const mv = (m) => { dragging = { x: Math.round(m.clientX - ox), y: Math.round(m.clientY - oy) }; el.style.left = `${dragging.x}px`; el.style.top = `${dragging.y}px`; };
+  const up = () => { window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", up); el.classList.remove("drag");
+    const p = dragging; dragging = null; if (p && (Math.abs(p.x - r.left) > 2 || Math.abs(p.y - r.top) > 2)) game.settings.set(SYSTEM_ID, "dockPos", p); };
+  window.addEventListener("pointermove", mv); window.addEventListener("pointerup", up);
+  ev.preventDefault();
 }
 
 async function onClick(ev) {
@@ -112,11 +136,12 @@ export function registerDock() {
     scope: "client", config: true, type: Boolean, default: true, onChange: () => render(),
   });
   game.settings.register(SYSTEM_ID, "dockCollapsed", { scope: "client", config: false, type: Boolean, default: false, onChange: () => render() });
+  game.settings.register(SYSTEM_ID, "dockPos", { scope: "client", config: false, type: Object, default: {}, onChange: () => place() });
   game.qinDock = dockApi;
   Hooks.once("ready", () => {
     render();
     let last = "";
-    setInterval(() => { if (!el) return; const k = stateKey(); if (k !== last) { last = k; render(); } else place(); }, 700);
+    setInterval(() => { if (!el || dragging) return; const k = stateKey(); if (k !== last) { last = k; render(); } else place(); }, 700);
     window.addEventListener("resize", place);
     Hooks.callAll("qinDockReady", dockApi);
   });

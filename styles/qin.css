@@ -1501,6 +1501,9 @@ details.qin-unique-bonuses > summary small { font-weight: normal; font-size: cal
 #qin-dock.rail { width: 44px; }
 #qin-dock .qd-h { display: flex; align-items: center; gap: 6px; padding: 6px 8px 4px 10px; color: #f0c870; font-size: 14px; font-weight: 600; letter-spacing: 0.04em; }
 #qin-dock.rail .qd-h { justify-content: center; padding: 6px 0 4px; }
+#qin-dock .qd-h { cursor: move; user-select: none; } #qin-dock .qd-h .qd-c { cursor: pointer; }
+#qin-dock.rail .qd-h { flex-direction: column; gap: 2px; } #qin-dock .qd-g { font-size: 10px; color: #8f897b; }
+#qin-dock.drag { opacity: .9; box-shadow: 0 6px 20px rgba(0,0,0,.6); }
 #qin-dock .qd-c { margin-left: auto; color: #a89878; cursor: pointer; padding: 2px 4px; border-radius: 4px; }
 #qin-dock.rail .qd-c { margin: 0; }
 #qin-dock .qd-c:hover { color: #f0c870; background: rgba(212,166,74,0.12); }
