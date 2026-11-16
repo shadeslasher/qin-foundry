@@ -24,7 +24,7 @@ function skillLevel(actor, key) {
 /** { max, spent, skill } for a combatant (computed if not stored yet). */
 export function getActions(c) {
   const stored = c?.getFlag?.(SYSTEM_ID, "actions") ?? c?.flags?.[SYSTEM_ID]?.actions;
-  if (stored && Number.isFinite(stored.max)) return { max: stored.max, spent: stored.spent || 0, skill: stored.skill ?? null };
+  if (stored && Number.isFinite(stored.max)) return { max: stored.max, spent: stored.spent || 0, skill: stored.skill ?? null, paid: stored.paid ?? null };
   return freshActions(c);
 }
 function freshActions(c, skill) {
@@ -56,6 +56,21 @@ async function writeActions(c, actions) {
     try { return await c.update(update); } catch (e) { if (game.user.isGM) throw e; }
   }
   return askGM({ type: "set", combatId: c.parent.id, combatantId: c.id, actions });
+}
+
+/** Which turn of the fight this is ("round.exchange"): an attack pays for it, so ending that turn doesn't charge again. */
+export const turnKey = (combat) => `${combat?.round ?? 0}.${combat?.getFlag?.(SYSTEM_ID, "exchange") ?? 1}`;
+/** The attack uses an action (David, 2026-11-15: "the attack button doesn't use up one of your actions"). Marks the
+ *  current turn paid when he attacks on his own turn. Returns the note for the attack card. */
+export async function spendAttackAction(actor) {
+  const c = activeCombatantFor(actor);
+  if (!c) return "";
+  const a = getActions(c), left = Math.max(0, a.max - a.spent);
+  if (left <= 0) return "No actions left: none marked";
+  a.spent += 1;
+  if (c.parent?.combatant === c) a.paid = turnKey(c.parent);
+  await writeActions(c, a);
+  return `1 action used (${left - 1} left this round)`;
 }
 
 /** Spend (positive) or refund (negative) actions. */

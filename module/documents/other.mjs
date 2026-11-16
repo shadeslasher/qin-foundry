@@ -1,6 +1,6 @@
 import { rollYinYang, renderTemplate, Chat } from "../dice.mjs";
 import { tickedOf, queuedFor, consumeUpdate, rollBonuses } from "../combat-state.mjs";
-import { remainingActions, resetActionUpdates, maxExchanges, changeSpent, requestNextTurn } from "../combat-actions.mjs";
+import { remainingActions, resetActionUpdates, maxExchanges, changeSpent, requestNextTurn, getActions, turnKey } from "../combat-actions.mjs";
 
 export class QinItem extends foundry.documents.Item {
   /** Use the item from its owner's sheet. */
@@ -87,7 +87,8 @@ export class QinCombat extends foundry.documents.Combat {
   async nextTurn() {
     if (!game.user.isGM) { await requestNextTurn(this); return this; }
     const current = this.combatant;
-    if (current && remainingActions(current) > 0) await changeSpent(current, 1);
+    // the turn uses an action, unless he already paid for it by attacking this turn
+    if (current && remainingActions(current) > 0 && getActions(current).paid !== turnKey(this)) await changeSpent(current, 1);
     const turns = this.turns;
     for (let i = (this.turn ?? -1) + 1; i < turns.length; i++) {
       if (this._qinCanAct(turns[i])) return this.update({ turn: i }, { direction: 1 });

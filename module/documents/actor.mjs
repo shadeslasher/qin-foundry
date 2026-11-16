@@ -1,4 +1,4 @@
-import { activeCombatantFor, remainingActions, defenseActionFor } from "../combat-actions.mjs";
+import { activeCombatantFor, remainingActions, defenseActionFor, spendAttackAction } from "../combat-actions.mjs";
 import { pickAttackTarget, attackerToken, playAttackFx, showFloat, showDefense } from "../attack-fx.mjs";
 import { ASPECTS, SKILLS, SKILL_LEVELS } from "../config.mjs";
 import * as Q from "../rules/qin-rules.mjs";
@@ -352,6 +352,7 @@ export class QinActor extends foundry.documents.Actor {
     const fd = await formDialog({ title: `${this.name}: attack with ${weapon.name}${active ? ` (${active.name})` : ""}`, content, okLabel: "Attack" });
     if (!fd) return;
     if (active && !(await markActiveUsed(this, active))) return;
+    const actionNote = await spendAttackAction(this);
     const sk = this.getSkill(weapon.system.skill);
     const tech = fd.technique ? this.items.get(fd.technique) : null;
     const inner = this.isCharacter ? Math.max(0, Math.min(Number(fd.inner) || 0, sys.aspects.earth)) : 0;
@@ -413,6 +414,7 @@ export class QinActor extends foundry.documents.Actor {
       + (situation && st != null ? `<p class="qin-muted">Situation ${situation > 0 ? "+" : ""}${situation} to the ST</p>` : "")
       + (target && !tPD ? `<p><b>Target:</b> ${esc(target.name)} (Passive Defense ${basePD ?? "?"})</p>` : "");
     const notes = targetAd.map(t => ({ kind: "unique", situational: !!t.situational, text: `${t.label}: the defender's Active Defense −${t.value}` }));
+    if (actionNote) notes.push({ kind: "action", text: actionNote });
     const pdBox = target && tPD ? (basePD === tPD.total
       ? { title: `${target.name}'s Passive Defense ${tPD.total}`, parts: tPD.parts }
       : { title: `${target.name}'s Passive Defense ${tPD.total} (${basePD ?? "none"} entered by hand)`, parts: tPD.parts }) : null;
