@@ -362,6 +362,15 @@ function wallBlocksShot(s, a, d) {
   }
   return false;
 }
+/** Behind a mountain (David, 2026-11-16): a ranged attack can't hit a unit from directly across the mountain square next
+ *  to it, i.e. when the attacker is in the same row or column and the defender's neighbouring square toward the attacker
+ *  is a mountain. */
+function mountainShields(s, a, d) {
+  if (!s.map.tiles || (a.x !== d.x && a.y !== d.y)) return false;
+  const nx = d.x + Math.sign(a.x - d.x), ny = d.y + Math.sign(a.y - d.y);
+  if (nx === a.x && ny === a.y) return false;
+  return (s.map.tiles[nx + ',' + ny] || {}).terrain === 'mountain';
+}
 /** What siege equipment a unit carries: 'ladders' | 'engine' | null. */
 const carrying = (u) => (u && u.carry) || null;
 /** Drop a unit's equipment on its square (by choice, or when it falls). */
@@ -897,14 +906,14 @@ function hidesIn(s, u) {
 function rangeOk(s, attacker, defender) {
   const t = typeOf(s, attacker); const d = manhattan(attacker, defender);
   const asR = t.weapon !== 'ranged' ? Number(SK.flag(s, attacker, 'asRanged')) || 0 : 0; // a battlefield skill: a melee unit's attack at range
-  if (asR && d >= 1 && d <= asR) return true;
+  if (asR && d >= 1 && d <= asR) return !(d > 1 && mountainShields(s, attacker, defender));
   const tr = t.weapon === 'ranged' ? tileRules(s, attacker.x, attacker.y) : null;
   const bonus = t.weapon === 'ranged' ? rangeBonus(s, attacker) + (tr ? tr.range : 0) : 0;
   // Hybrid units may fight next to them in melee
   if (d === 1 && t.weapon === 'ranged' && hybridOf(attacker)) return meleeLevelOk(s, attacker, defender);
   if (!(d >= (t.rangeMin || 1) && d <= Math.max(1, (t.rangeMax || 1) + bonus))) return false;
   if (t.weapon !== 'ranged') return meleeLevelOk(s, attacker, defender); // walls: melee needs the same level or a ladder
-  return !wallBlocksShot(s, attacker, defender);
+  return !wallBlocksShot(s, attacker, defender) && !mountainShields(s, attacker, defender);
 }
 
 /**
@@ -2623,7 +2632,7 @@ const ACTIONS = {
     { const why = ac.noAttack ? 'This unit can only move this turn' : d ? SK.cantAttackReason(s, u, d) : null; if (why) return err(why); }
     if (!d || !alive(d) || !hostile(u, d)) return err('Pick an enemy unit');
     if (!visibleTo(s, d, alliance(u.side))) return err('You cannot see that unit');
-    if (!rangeOk(s, u, d)) return err('Target out of range');
+    if (!rangeOk(s, u, d)) return err(mountainShields(s, u, d) && typeOf(s, u).weapon === 'ranged' ? 'A mountain shields that unit from this side' : 'Target out of range');
     // attacking commits the move: apply any encirclement it caused first
     settle(s);
     if (!alive(d)) { log(s, d.name + ' gave up before the attack landed.'); if (alive(u)) finishActivation(s, u); return; }
@@ -3043,7 +3052,7 @@ function viewFor(s, viewer) {
 
 export { endRound as _endRound, imperialAura as _imperialAura, hidesIn as _hidesIn, officerWeaponLevel, casualtiesOf, evasionOf, evadeCasualties, disciplinedBonus, warDrumsBonus, hornReady, hornTargets, medLeft, medTargets, medHeal, checkpointMorale, checkpointsPassed, overwatchFire as _overwatchFire, surroundAfterTurn as _surroundAfterTurn,
   moveOptions, attackTargets, actionMenu, threatArea, extinguishTiles, waterNear, TACTIC_SIDES, tileRules, ladderTiles, climbTiles, insideCity, isWallTop, gateAt, gateHp, gateTargets, stairsAt,
-  newState, act, viewFor, prompt, reachable, duelTargets, movementOf, moraleState, visibleTo, rangeOk,
+  newState, act, viewFor, prompt, reachable, duelTargets, movementOf, moraleState, visibleTo, rangeOk, mountainShields,
   resolveAttack, buildRoll, skillCheck, ACTIVE_MIN_MORALE, LAST_STAND_MAX_MORALE, setRng, yinYang, typeOf, officerOf, unitById, SIDES, settle, advance,
   liveUnits, hostile, alliance, manhattan, unitAt, alive, trait as unitTrait, TAKE_BACK_KEYS, damageValue,
   log as _log, igniteTile as _ignite, inBounds as _inBounds, passable as _passable, endAfterAttack as _endAfterAttack, finishActivation as _finishActivation, endInterject as _endInterject, isRear as _isRear, isFront as _isFront, newRoundFlags,
