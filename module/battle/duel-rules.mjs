@@ -1,14 +1,16 @@
 // Pure helpers for officer duels (no Foundry needed: tested in test/duel.test.mjs).
 
 /** Kinds of ground a duel can be fought on, each with a GM-chosen person-scale scene (David, 2026-10-28; split up
- *  2026-11-15: marsh, bridge, town, city wall, gate, ford, riverbank and fort are each their own; a hill or a watchtower
- *  is fought on the tile under it). */
+ *  2026-11-15: marsh, bridge, town, city wall, gate, ford, fort, farmland, tall grass and scorched ground are each their
+ *  own; a hill, watchtower, dock or boat is fought on the tile under it, and there are no riverbank duels). */
 export const DUEL_GROUNDS = [
-  ["plains", "Plains and fields"],
+  ["plains", "Plains and steppe"],
+  ["farmland", "Farmland"],
+  ["tallgrass", "Tall grass"],
+  ["scorched", "Scorched ground"],
   ["forest", "Forest"],
   ["hills", "Rocky ground"],          // key kept for saved settings
   ["desert", "Sand"],
-  ["riverbank", "Riverbank (land beside a river or lake, or a dock)"],
   ["ford", "Ford"],
   ["marsh", "Marsh"],
   ["bridge", "Bridge"],
@@ -20,7 +22,7 @@ export const DUEL_GROUNDS = [
   ["default", "Anything else"],
 ];
 /** A split ground with no scene of its own uses the old combined ground's scene (worlds set up before the split). */
-export const OLD_GROUND = { riverbank: "water", ford: "water", marsh: "water", bridge: "water", wall: "town", gate: "town" };
+export const OLD_GROUND = { farmland: "plains", tallgrass: "plains", scorched: "plains", ford: "water", marsh: "water", bridge: "water", wall: "town", gate: "town" };
 
 // overlays decide first (a camp on plains is a camp), then the terrain
 const BY_OVERLAY = [
@@ -30,26 +32,19 @@ const BY_OVERLAY = [
   [["city-wall", "fortress-tower"], "wall"],
   [["town-hall", "farmhouse", "ruins"], "town"],
   [["bridge"], "bridge"],
-  [["dock", "boat"], "riverbank"],
   [["trees"], "forest"],
-  // a hill or a watchtower is fought on the tile under it
+  // a hill, watchtower, dock or boat is fought on the tile under it
 ];
 const BY_TERRAIN = {
-  plains: "plains", steppe: "plains", scorched: "plains", farmland: "plains", "tall-grass": "plains",
+  plains: "plains", steppe: "plains", scorched: "scorched", farmland: "farmland", "tall-grass": "tallgrass",
   forest: "forest", rocky: "hills", ford: "ford", marsh: "marsh", sand: "desert", paving: "town", city: "town", bridge: "bridge",
 };
-const WATER = new Set(["river", "lake", "ford"]);
-const BANK = new Set(["plains", "hills", "desert"]);   // open land beside water is a riverbank (forest, marsh… stay what they are)
-
-/** Which duel ground a battle map square is: { terrain, overlays } -> a DUEL_GROUNDS key. `around`: the 8 squares
- *  around it (any may be null), to tell a riverbank. */
-export function duelGround(tile, around = []) {
+/** Which duel ground a battle map square is: { terrain, overlays } -> a DUEL_GROUNDS key. */
+export function duelGround(tile) {
   if (!tile) return "default";
   const ov = tile.overlays ?? [];
   for (const [list, g] of BY_OVERLAY) if (ov.some(o => list.includes(o))) return g;
-  const g = BY_TERRAIN[tile.terrain] ?? "default";
-  if (BANK.has(g) && around.some(t => t && WATER.has(t.terrain))) return "riverbank";
-  return g;
+  return BY_TERRAIN[tile.terrain] ?? "default";
 }
 
 /** The scene for a ground: its own choice, else the "anything else" scene, else none. */

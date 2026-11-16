@@ -20,9 +20,7 @@ function tileUnder(scene, battle, unitId) {
   const flag = scene?.getFlag?.(SYSTEM_ID, MAP_FLAG);
   if (!pos || !flag) return null;
   try {
-    const all = decodeTiles(flag) ?? {}, t = all[pos.x + "," + pos.y]; if (!t) return null;
-    const around = []; for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) if (dx || dy) around.push(all[(pos.x + dx) + "," + (pos.y + dy)] ?? null);
-    return { tile: t, around };
+    return decodeTiles(flag)?.[pos.x + "," + pos.y] ?? null;
   } catch { return null; }
 }
 
@@ -45,7 +43,7 @@ export async function openDuelScene() {
   const battle = getBattle(), p = battle.duels?.pending;
   if (!p || p.stage !== "fighting" || p.duelSceneId) return;
   const scene = game.scenes.get(battle.sceneId);
-  const at = tileUnder(scene, battle, p.to), ground = duelGround(at?.tile ?? null, at?.around ?? []);
+  const ground = duelGround(tileUnder(scene, battle, p.to));
   const duel = game.scenes.get(duelSceneFor(sceneMap(), ground) ?? "");
   if (!duel) {
     ui.notifications.info(`No duel scene is set for ${(DUEL_GROUNDS.find(([k]) => k === ground) ?? [, ground])[1].toLowerCase()}: fight the duel here (Game Settings > Duel scenes).`);

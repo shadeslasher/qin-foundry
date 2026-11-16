@@ -77,7 +77,11 @@ test('a slain officer: his unit loses 50 and its officer, the victor gains 25', 
 test('duel ground: overlays first (a camp on plains is a camp), then terrain; scene falls back to "anything else"', async () => {
   const { duelGround, duelSceneFor } = await import('../module/battle/duel-rules.mjs');
   assert.strictEqual(duelGround({ terrain: 'plains' }), 'plains');
-  assert.strictEqual(duelGround({ terrain: 'farmland' }), 'plains');
+  assert.strictEqual(duelGround({ terrain: 'farmland' }), 'farmland');
+  assert.strictEqual(duelGround({ terrain: 'tall-grass' }), 'tallgrass');
+  assert.strictEqual(duelGround({ terrain: 'scorched' }), 'scorched');
+  assert.strictEqual(duelGround({ terrain: 'steppe' }), 'plains');
+  assert.strictEqual(duelSceneFor({ plains: 'P', default: 'D' }, 'farmland'), 'P');
   assert.strictEqual(duelGround({ terrain: 'plains', overlays: ['camp'] }), 'camp');
   assert.strictEqual(duelGround({ terrain: 'rocky', overlays: ['trees'] }), 'forest');
   assert.strictEqual(duelGround({ terrain: 'plains', overlays: ['hill'] }), 'plains');   // a hill is fought on the tile under it
@@ -90,8 +94,7 @@ test('duel ground: overlays first (a camp on plains is a camp), then terrain; sc
   assert.strictEqual(duelGround({ terrain: 'paving' }), 'town');
   assert.strictEqual(duelGround({ terrain: 'plains', overlays: ['small-fort'] }), 'fort');
   assert.strictEqual(duelGround({ terrain: 'forest', overlays: ['watchtower'] }), 'forest');   // fought on the tile under it
-  assert.strictEqual(duelGround({ terrain: 'plains' }, [null, { terrain: 'river' }]), 'riverbank');
-  assert.strictEqual(duelGround({ terrain: 'forest' }, [{ terrain: 'river' }]), 'forest');
+  assert.strictEqual(duelGround({ terrain: 'sand', overlays: ['dock'] }), 'desert');   // no riverbank duels: the tile under it
   assert.strictEqual(duelSceneFor({ water: 'W', default: 'D' }, 'marsh'), 'W');               // old combined scene still used
   assert.strictEqual(duelGround(null), 'default');
   assert.strictEqual(duelSceneFor({ plains: 'S1', default: 'S9' }, 'plains'), 'S1');
