@@ -5,7 +5,7 @@
 import { SYSTEM_ID } from "../config.mjs";
 import { getBattle } from "./adapter.mjs";
 import { FLAG as MAP_FLAG, decodeTiles } from "./battlemap.mjs";
-import { DUEL_GROUNDS, duelGround, duelSceneFor } from "./duel-rules.mjs";
+import { DUEL_GROUNDS, OLD_GROUND, duelGround, duelSceneFor } from "./duel-rules.mjs";
 
 const SETTING = "battle";
 export const DUEL_SCENES = "duelScenes"; // { ground: sceneId }
@@ -19,7 +19,11 @@ function tileUnder(scene, battle, unitId) {
   const pos = battle.meta?.[unitId]?.pos ?? (() => { const t = scene?.tokens.get(unitId); return t ? { x: Math.round(t.x / scene.grid.size), y: Math.round(t.y / scene.grid.size) } : null; })();
   const flag = scene?.getFlag?.(SYSTEM_ID, MAP_FLAG);
   if (!pos || !flag) return null;
-  try { return decodeTiles(flag)?.[pos.x + "," + pos.y] ?? null; } catch { return null; }
+  try {
+    const all = decodeTiles(flag) ?? {}, t = all[pos.x + "," + pos.y]; if (!t) return null;
+    const around = []; for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) if (dx || dy) around.push(all[(pos.x + dx) + "," + (pos.y + dy)] ?? null);
+    return { tile: t, around };
+  } catch { return null; }
 }
 
 /** Two spots near the middle of the duel scene, a couple of cells apart (hex or square grids). */
@@ -41,7 +45,7 @@ export async function openDuelScene() {
   const battle = getBattle(), p = battle.duels?.pending;
   if (!p || p.stage !== "fighting" || p.duelSceneId) return;
   const scene = game.scenes.get(battle.sceneId);
-  const ground = duelGround(tileUnder(scene, battle, p.to));
+  const at = tileUnder(scene, battle, p.to), ground = duelGround(at?.tile ?? null, at?.around ?? []);
   const duel = game.scenes.get(duelSceneFor(sceneMap(), ground) ?? "");
   if (!duel) {
     ui.notifications.info(`No duel scene is set for ${(DUEL_GROUNDS.find(([k]) => k === ground) ?? [, ground])[1].toLowerCase()}: fight the duel here (Game Settings > Duel scenes).`);
@@ -95,7 +99,7 @@ export class DuelScenesConfig extends foundry.applications.api.ApplicationV2 {
     const opts = (sel) => `<option value="">(none)</option>` + game.scenes.contents.slice().sort((a, b) => a.name.localeCompare(b.name))
       .map(s => `<option value="${s.id}" ${s.id === sel ? "selected" : ""}>${esc(s.name)}</option>`).join("");
     return `<p class="qin-muted">When a duel is accepted, everyone goes to the scene chosen for the ground the challenged officer stands on, and the two officers are placed there with a combat encounter. "Anything else" covers grounds without their own scene; with nothing chosen, the duel is fought on the battle map.</p>
-      ${DUEL_GROUNDS.map(([k, label]) => `<div class="form-group"><label>${esc(label)}</label><select name="${k}">${opts(map[k])}</select></div>`).join("")}
+      ${DUEL_GROUNDS.map(([k, label]) => `<div class="form-group"><label>${esc(label)}</label><select name="${k}">${opts(map[k] ?? map[OLD_GROUND[k]])}</select></div>`).join("")}
       <footer class="form-footer"><button type="submit"><i class="fa-solid fa-floppy-disk"></i> Save</button></footer>`;
   }
   _replaceHTML(result, content) { content.innerHTML = result; }
