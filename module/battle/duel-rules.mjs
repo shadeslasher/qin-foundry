@@ -14,6 +14,7 @@ export const DUEL_GROUNDS = [
   ["ford", "Ford"],
   ["marsh", "Marsh"],
   ["bridge", "Bridge"],
+  ["street", "City street (road through city or paving)"],   // David, 2026-11-16
   ["town", "Town (streets, buildings, ruins)"],
   ["wall", "City wall"],
   ["gate", "City gate"],
@@ -22,7 +23,7 @@ export const DUEL_GROUNDS = [
   ["default", "Anything else"],
 ];
 /** A split ground with no scene of its own uses the old combined ground's scene (worlds set up before the split). */
-export const OLD_GROUND = { farmland: "plains", tallgrass: "plains", scorched: "plains", ford: "water", marsh: "water", bridge: "water", wall: "town", gate: "town" };
+export const OLD_GROUND = { street: "town", farmland: "plains", tallgrass: "plains", scorched: "plains", ford: "water", marsh: "water", bridge: "water", wall: "town", gate: "town" };
 
 // overlays decide first (a camp on plains is a camp), then the terrain
 const BY_OVERLAY = [
@@ -43,7 +44,12 @@ const BY_TERRAIN = {
 export function duelGround(tile) {
   if (!tile) return "default";
   const ov = tile.overlays ?? [];
-  for (const [list, g] of BY_OVERLAY) if (ov.some(o => list.includes(o))) return g;
+  for (const [list, g] of BY_OVERLAY) {
+    // a road on a city or paving square is a city street (before town hall / farmhouse / ruins, after walls and gates)
+    if (g === "town" && ov.includes("road") && (tile.terrain === "city" || tile.terrain === "paving")) return "street";
+    if (ov.some(o => list.includes(o))) return g;
+  }
+  if (ov.includes("road") && (tile.terrain === "city" || tile.terrain === "paving")) return "street";
   return BY_TERRAIN[tile.terrain] ?? "default";
 }
 
