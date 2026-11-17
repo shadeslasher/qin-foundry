@@ -99,7 +99,9 @@ test('duel ground: overlays first (a camp on plains is a camp), then terrain; sc
   assert.strictEqual(duelSceneFor({ town: 'T' }, 'street'), 'T');   // no street scene yet: the town one
   assert.strictEqual(duelGround({ terrain: 'plains', overlays: ['small-fort'] }), 'fort');
   assert.strictEqual(duelGround({ terrain: 'forest', overlays: ['watchtower'] }), 'forest');   // fought on the tile under it
-  assert.strictEqual(duelGround({ terrain: 'sand', overlays: ['dock'] }), 'desert');   // no riverbank duels: the tile under it
+  assert.strictEqual(duelGround({ terrain: 'sand', overlays: ['dock'] }), 'dock');   // docks have their own ground (2026-11-16)
+  assert.strictEqual(duelGround({ terrain: 'river', overlays: ['dock'] }), 'dock');
+  assert.strictEqual(duelGround({ terrain: 'river', overlays: ['boat'] }), 'default');   // a boat: the tile under it
   assert.strictEqual(duelSceneFor({ water: 'W', default: 'D' }, 'marsh'), 'W');               // old combined scene still used
   assert.strictEqual(duelGround(null), 'default');
   assert.strictEqual(duelSceneFor({ plains: 'S1', default: 'S9' }, 'plains'), 'S1');
