@@ -112,14 +112,14 @@ test('Sunder and Poison stick to a beaten defender and do not stack; Shield Brea
 });
 
 test('Terror: +2 morale loss; Terror+: double; Fragile loser loses 5 more', () => {
-  // diff 11 (9+2 vs 0): the loser loses 10, plus the morale its casualties cost
+  // diff 11 (9+2 vs 0): the loser loses 5 (half, rounded down), plus the morale its casualties cost
   const cm = (r) => r.casualtyMorale.defender;
   let { D, r } = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], traits({ terror: 1 }));
-  assert.strictEqual(D.morale, 50 - 12 - cm(r));
+  assert.strictEqual(D.morale, 50 - 7 - cm(r));
   ({ D, r } = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], traits({ terror: 2 })));
-  assert.strictEqual(D.morale, Math.max(0, 50 - 20 - cm(r)));
+  assert.strictEqual(D.morale, Math.max(0, 50 - 10 - cm(r)));
   ({ D, r } = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], (a, d) => { d.traitTiers = { fragile: 1 }; }));
-  assert.strictEqual(D.morale, 50 - 15 - cm(r));
+  assert.strictEqual(D.morale, 50 - 10 - cm(r));
 });
 
 test('Reload: after attacking it must take the Reload action (allowed after moving, ends the turn) before attacking again', () => {

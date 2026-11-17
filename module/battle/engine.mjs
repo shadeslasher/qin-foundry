@@ -1341,7 +1341,7 @@ function resolveAttack(s, attacker, defender, opts) {
   let moraleLoss = 0, mult = 1, loser = null;
   if (winner && !(winner === 'defender' && !canCounter)) {
     loser = winner === 'attacker' ? defender : attacker;
-    const base = Math.max(0, diff - 1); // the loser of the roll loses the difference - 1
+    const base = Math.floor(Math.max(0, diff) / 2); // the loser of the roll loses half the difference, rounded down (David, 2026-11-17; was the difference - 1)
     moraleLoss = base;
     if (winner === 'attacker') {
       mult = 1; // charges and rear attacks don't multiply morale loss
