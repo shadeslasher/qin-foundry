@@ -116,7 +116,7 @@ test('Lu Bu: an enemy his attack breaks surrenders when his turn ends — anothe
     { on: 'turnEnd', do: [{ contest: { side: 'enemies', range: 1 }, lose: [{ morale: -5, who: { target: true } }] }] },
     { on: 'enemyFalls', range: 99, if: { myTurn: true }, limit: 'turn', do: [{ extraTurn: { self: true } }] }] } });
   const { s, u, ids } = setup([{ side: 'player', x: 5, y: 5, officerId: 'l' }, { side: 'enemy', x: 6, y: 5 }, { side: 'enemy', x: 10, y: 10 }], [lb]);
-  u(1).morale = 4; // the half-loss rule (2026-11-17) takes less per attack
+  u(1).morale = 12;
   R.setRng(() => 0.9);
   s.turn.activation = { unitId: ids[0], step: 'move', started: true, tilesMoved: 0, from: { x: 5, y: 5 } };
   must(R.act(s, HOST, { type: 'attack', unitId: ids[0], targetId: ids[1] }));

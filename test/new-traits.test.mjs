@@ -142,8 +142,8 @@ test('Trample: a winning charge against infantry costs the defender 5 more moral
   must(R.act(s, P1, { type: 'attack', unitId: c, targetId: d }));
   const r = s.log.filter(e => e.detail && e.detail.type === 'attack').pop().detail.result;
   assert.ok(r.charge && r.winner === 'attacker');
-  // base loss = half the difference (rounded down), +5 Trample
-  assert.strictEqual(r.moraleLoss, Math.floor(r.diff / 2) + 5);
+  // base loss = diff - 1, +5 Trample
+  assert.strictEqual(r.moraleLoss, r.diff - 1 + 5);
   assert.strictEqual(D.morale, Math.max(0, 50 - r.moraleLoss - r.casualtyMorale.defender));
 });
 
@@ -151,11 +151,11 @@ test('Cowardly: rear attacks cause double morale loss; Disciplined no longer hal
   // rear: the defender faces away (north), the attacker comes from the south
   let { r } = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], (a, d) => { d.traitTiers = { cowardly: 1 }; }, [], (a, d) => { d.facing = { dx: 0, dy: -1 }; });
   assert.ok(r.rear);
-  assert.strictEqual(r.moraleLoss, (Math.floor(r.diff / 2)) * 2);
+  assert.strictEqual(r.moraleLoss, (r.diff - 1) * 2);
   ({ r } = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], (a, d) => { d.traitTiers = { cowardly: 1 }; }));
-  assert.strictEqual(r.moraleLoss, Math.floor(r.diff / 2), 'not from the front');
+  assert.strictEqual(r.moraleLoss, r.diff - 1, 'not from the front');
   ({ r } = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], (a, d) => { d.traitTiers = { disciplined: 1, fragile: 1 }; }));
-  assert.strictEqual(r.moraleLoss, Math.floor(r.diff / 2) + 5, 'Fragile +5, no halving');
+  assert.strictEqual(r.moraleLoss, r.diff - 1 + 5, 'Fragile +5, no halving');
 });
 
 test('Fanatic: never surrenders at 0 morale, fights on (Demoralized) until destroyed', () => {

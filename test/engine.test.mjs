@@ -33,7 +33,7 @@ test('melee: winner deals damage + difference, loser deals base; casualties minu
   const A = R.unitById(s, a), D = R.unitById(s, d);
   assert.strictEqual(D.men, 100 - (6 + 7 - 3));   // 90
   assert.strictEqual(A.men, 100 - (6 - 3));       // 97
-  assert.strictEqual(D.morale, 50 - Math.floor(7 / 2), 'loser loses half the difference, rounded down; 10 casualties pass no checkpoint (80%)');
+  assert.strictEqual(D.morale, 50 - (7 - 1), 'loser loses diff - 1; 10 casualties pass no checkpoint (80%)');
   assert.strictEqual(A.morale, 50, '3 casualties pass no checkpoint');
 });
 
@@ -119,7 +119,7 @@ test('cavalry charge: 2 tiles is a charge with no bonus of its own (2026-11-10),
   assert.ok(!r.attackRoll.parts.some(([l]) => /Cavalry charge/.test(l)), 'no bonus for the tiles moved');
   assert.ok(!r.defendRoll.parts.some(([l]) => /charg/i.test(l)), 'no defender penalty');
   assert.strictEqual(r.diff, 8);
-  assert.strictEqual(R.unitById(s, d).morale, Math.max(0, 50 - Math.floor(8 / 2) - r.casualtyMorale.defender), 'neither the rear attack nor the charge multiplies morale loss');
+  assert.strictEqual(R.unitById(s, d).morale, Math.max(0, 50 - (8 - 1) - r.casualtyMorale.defender), 'neither the rear attack nor the charge multiplies morale loss');
   assert.strictEqual(r.damageToAttacker, 0, 'a charged unit strikes back only with Anti-Cavalry, and never from the rear');
 });
 
