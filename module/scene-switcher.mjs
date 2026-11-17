@@ -36,8 +36,14 @@ export function thumbSize(w, h, tw = 300, th = 188) {   // cover-crop of the sou
   const s = Math.max(tw / w, th / h), sw = tw / s, sh = th / s;
   return { sx: (w - sw) / 2, sy: (h - sh) / 2, sw, sh, tw, th };
 }
+/** The picture to make a thumbnail from: the background, else a level's (v14 maps keep it there), else the biggest tile. */
+function bgOf(scene) {
+  const lv = [scene.initialLevel, ...(scene.levels?.contents ?? [])];
+  const tile = [...(scene.tiles ?? [])].filter(t => t.texture?.src).sort((a, b) => b.width * b.height - a.width * a.height)[0];
+  return scene.background?.src || lv.find(l => l?.background?.src)?.background.src || tile?.texture.src || null;
+}
 function makeThumb(scene, img) {
-  const bg = scene.background?.src;
+  const bg = bgOf(scene);
   if (!bg || making.has(scene.id)) return;
   making.add(scene.id);
   queue = queue.then(async () => {
@@ -58,7 +64,7 @@ function makeThumb(scene, img) {
       } catch (e) { console.warn("qin | scene switcher: couldn't save a thumbnail for", scene.name, e); }
       thumbSrc.set(scene.id, src);
       for (const i of document.querySelectorAll(`#qin-ss .card[data-id="${scene.id}"] .th img`)) i.src = src;
-    } catch { thumbSrc.set(scene.id, ""); }
+    } catch { thumbSrc.set(scene.id, ""); }   // no picture at all: the card stays blank (and isn't tried again this session)
   });
 }
 function thumbImg(scene) {
@@ -66,12 +72,17 @@ function thumbImg(scene) {
   const src = known ?? (scene.thumb ? route(scene.thumb) : "");
   const img = document.createElement("img");
   img.loading = "lazy"; img.decoding = "async"; img.alt = "";
+  // a file that fails to load never shows the browser's broken-image icon: a just-uploaded thumbnail gets one retry,
+  // a dead one (another world's path) is made afresh from the map
+  let retried = false;
+  img.onload = () => { if (img.getAttribute("src")) thumbSrc.set(scene.id, img.getAttribute("src")); };
+  img.onerror = () => {
+    const bad = img.getAttribute("src"); img.removeAttribute("src");
+    if (!retried && bad && thumbSrc.get(scene.id) === bad) { retried = true; setTimeout(() => { img.src = bad; }, 1500); return; }
+    thumbSrc.delete(scene.id); makeThumb(scene, img);   // at most once per scene per session (`making`)
+  };
   if (src) img.src = src;
   else if (known === undefined) makeThumb(scene, img);
-  if (known === undefined && src) {
-    img.onload = () => thumbSrc.set(scene.id, src);
-    img.onerror = () => { img.removeAttribute("src"); makeThumb(scene, img); };
-  }
   return img;
 }
 
