@@ -2,8 +2,8 @@
 
 /** Kinds of ground a duel can be fought on, each with a GM-chosen person-scale scene (David, 2026-10-28; split up
  *  2026-11-15: marsh, bridge, town, city wall, gate, ford, fort, farmland, tall grass and scorched ground are each their
- *  own; a hill, watchtower or boat is fought on the tile under it, and there are no riverbank duels; 2026-11-16: a dock
- *  has its own ground, David: "use this for docks"). */
+ *  own; a hill or watchtower is fought on the tile under it, and there are no riverbank duels; 2026-11-16: a dock and a
+ *  boat each have their own ground, David: "use this for docks", then a ship's deck for boats). */
 export const DUEL_GROUNDS = [
   ["plains", "Plains and steppe"],
   ["farmland", "Farmland"],
@@ -22,6 +22,7 @@ export const DUEL_GROUNDS = [
   ["camp", "Camp"],
   ["fort", "Fort"],
   ["dock", "Dock"],
+  ["boat", "Boat (ship's deck)"],
   ["default", "Anything else"],
 ];
 /** A split ground with no scene of its own uses the old combined ground's scene (worlds set up before the split). */
@@ -36,8 +37,9 @@ const BY_OVERLAY = [
   [["town-hall", "farmhouse", "ruins"], "town"],
   [["bridge"], "bridge"],
   [["dock"], "dock"],
+  [["boat"], "boat"],
   [["trees"], "forest"],
-  // a hill, watchtower or boat is fought on the tile under it
+  // a hill or watchtower is fought on the tile under it
 ];
 const BY_TERRAIN = {
   plains: "plains", steppe: "plains", scorched: "scorched", farmland: "farmland", "tall-grass": "tallgrass",
