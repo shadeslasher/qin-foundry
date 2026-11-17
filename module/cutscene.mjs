@@ -160,6 +160,11 @@ function css() {
   #qin-cs-ctl .sidesbtn { width: 78px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 1px solid rgba(201,168,92,.6); border-radius: 4px; cursor: pointer; font-weight: 700; color: #fff4d6; }
   #qin-cs-ctl .sidesbtn small { font-weight: 400; font-size: 11px; color: #b9b2a0; } #qin-cs-ctl .sidesbtn:hover { background: rgba(201,168,92,.2); }
   #qin-cs-ctl .sidesbtn.on { background: #c9a85c; color: #1a1612; } #qin-cs-ctl .sidesbtn.on small { color: #3a2f1c; }
+  #qin-cs-ctl .bgctl { width: 84px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border: 1px solid rgba(201,168,92,.6); border-radius: 4px; cursor: pointer; }
+  #qin-cs-ctl .bgctl:hover { background: rgba(201,168,92,.2); }
+  #qin-cs-ctl .bgctl i { width: 64px; height: 36px; border-radius: 3px; background: center/cover #222; border: 1px solid rgba(201,168,92,.4); }
+  #qin-cs-ctl .bgctl i.none { background: repeating-linear-gradient(45deg, #2b2a27 0 6px, #232220 6px 12px); }
+  #qin-cs-ctl .bgctl small { font-size: 11px; color: #e8d9b0; max-width: 78px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .qin-cs-panel input, .qin-cs-panel select { width: 100%; height: 26px; box-sizing: border-box; background: rgba(0,0,0,.45); color: #ece6d6; border: 1px solid rgba(201,168,92,.4); border-radius: 3px; font-size: 13px; }
   .qin-cs-panel .hits { display: none; position: absolute; left: 0; right: 0; z-index: 3; background: #171513; border: 1px solid rgba(201,168,92,.6); border-radius: 3px; max-height: 260px; overflow: auto; text-align: left; }
   #qin-cs-ctl .hits { bottom: 100%; margin-bottom: 4px; left: -40px; right: -40px; }
@@ -311,8 +316,17 @@ function render() {
     document.body.appendChild(root);
     void root.offsetWidth; setTimeout(() => root?.classList.add("in"), 30);    // not rAF: a hidden or background tab may never fire it
   }
-  const bg = BACKGROUNDS.find(b => b.key === st.bg), bgEl = root.querySelector(".bg");
-  bgEl.classList.toggle("on", !!bg); bgEl.style.backgroundImage = bg ? `url('${route(bg.src)}')` : "";
+  const bg = BACKGROUNDS.find(b => b.key === st.bg), bgEl = root.querySelector(".bg"), url = bg ? `url('${route(bg.src)}')` : "";
+  if (url !== (bgEl.dataset.url ?? "")) {                                       // background changed (or first draw)
+    const was = bgEl.dataset.url ?? ""; bgEl.dataset.url = url;
+    root.querySelectorAll(".bg.over").forEach(o => o.remove());
+    if (url && was && !fresh) {                                                // one picture to another: the new one fades in on top
+      const over = Object.assign(document.createElement("div"), { className: "bg over" }); over.style.backgroundImage = url;
+      bgEl.after(over); void over.offsetWidth; setTimeout(() => over.classList.add("on"), 30);
+      setTimeout(() => { if (bgEl.dataset.url === url) bgEl.style.backgroundImage = url; over.remove(); }, 800);
+    } else if (url) { bgEl.style.backgroundImage = url; bgEl.classList.add("on"); }
+    else bgEl.classList.remove("on");                                         // to Empty: fade out (the picture stays until it's invisible)
+  }
   const cast = st.cast ?? [], n = cast.length;
   const lit = litOf(st);
   for (const [key, el] of shown) if (!cast.some(c => c.key === key)) {          // left the scene
@@ -411,6 +425,7 @@ export function stepLabel(s) {
     case "battleEnd": return "End battle";
     case "reveal": return `Reveal ${s.name}`;
     case "sides": return s.on ? "Officers to the sides" : "Officers back to their places";
+    case "bg": return `Background: ${s.name || "Empty"}`;
     default: return "?";
   }
 }
@@ -434,6 +449,7 @@ async function applyStep(s) {
     case "battleEnd": return battleEnd();
     case "reveal": return k ? reveal(k) : missing();
     case "sides": return patch(st => { st.sides = !!s.on; });
+    case "bg": return patch(st => { st.bg = s.key || null; });
   }
 }
 /** The GM's run through a cutscene: its steps, where he is, the scene as it was before each step (for Back). */
@@ -577,6 +593,7 @@ function renderControls(st) {
       : `<div class="add" title="Drag an officer here from the compendium or the Actors tab; they walk in from the right">${full ? `Scene is full (${MAX_CAST})` : `<span><i class="fa-solid fa-user-plus"></i> Drag an officer here</span><input placeholder="or search…"><div class="hits"></div>`}</div>
          <div class="battlebtn" data-a="battle" title="Set up a battle: pick who fights on each side"><span>⚔ Battle</span></div>
          <div class="sidesbtn ${st.sides ? "on" : ""}" data-a="sides" title="Move everyone to the edges, to show what's in the middle of the screen (again: back to their places)"><span><i class="fa-solid fa-arrows-left-right-to-line"></i> Sides</span><small>${st.sides ? "on" : "off"}</small></div>
+         ${(() => { const b = BACKGROUNDS.find(x => x.key === st.bg); return `<div class="bgctl" data-a="bg" title="Change the background; it fades over for everyone (${esc(b?.name ?? "Empty")} now)"><i class="${b ? "" : "none"}" style="${b ? `background-image:url('${esc(route(b.thumb ?? b.src))}')` : ""}"></i><small>${esc(b?.name ?? "Background")}</small></div>`; })()}
          <div class="end" data-a="end"><span><i class="fa-solid fa-stop"></i> End scene</span></div>`);
   for (const card of ctl.querySelectorAll(".card")) {
     const c = st.cast.find(x => x.key === card.dataset.k), who = { uuid: c?.uuid, name: c?.name };
@@ -593,6 +610,7 @@ function renderControls(st) {
   const joinLive = (a) => { if ((state().cast?.length ?? 0) >= MAX_CAST) return ui.notifications.warn(`A scene holds up to ${MAX_CAST} officers. Have one leave first.`); live({ t: "enter", uuid: a.uuid, name: a.name }); };
   on("end", () => endCutscene());
   on("sides", () => live({ t: "sides", on: !st.sides }));
+  on("bg", () => BgPicker.open(st.bg ?? "", (key) => { if ((key || null) === (state().bg || null)) return; live({ t: "bg", key: key || null, name: BACKGROUNDS.find(b => b.key === key)?.name ?? "Empty" }); }));
   const add = ctl.querySelector(".add"), inp = add?.querySelector("input");
   if (!add) return;
   if (inp) { wireSearch(inp, add.querySelector(".hits"), joinLive); if (typing != null) { inp.value = typing; inp.focus(); } }
@@ -751,17 +769,18 @@ async function loadSaved(s) {
  *  New officers come in by dragging them onto the steps, a battle by recording it. */
 async function addStepDialog() {
   const known = new Map(); for (const c of draft.cast) known.set(c.uuid, c.name); for (const s of draft.steps) if (s.t === "enter") known.set(s.uuid, s.name);
-  const acts = [["display", "Display"], ["switch", "Switch to"], ["injure", "Injure"], ["leave", "Leaves"], ["reveal", "Reveal name"], ["clash", "Clash (in a battle)"], ["battleEnd", "End battle"], ["sidesOn", "Officers to the sides"], ["sidesOff", "Officers back to their places"]];
+  const acts = [["display", "Display"], ["switch", "Switch to"], ["injure", "Injure"], ["leave", "Leaves"], ["reveal", "Reveal name"], ["clash", "Clash (in a battle)"], ["battleEnd", "End battle"], ["sidesOn", "Officers to the sides"], ["sidesOff", "Officers back to their places"], ["bg", "Change background"]];
   let got = null;
   try {
     got = await foundry.applications.api.DialogV2.prompt({ window: { title: "Add step" },
       content: `<div class="form-group"><label>Action</label><select name="t">${acts.map(([v, t]) => `<option value="${v}">${t}</option>`).join("")}</select></div>
         <div class="form-group"><label>Officer</label><select name="u">${[...known].map(([u, n]) => `<option value="${esc(u)}">${esc(n)}</option>`).join("")}</select></div>
-        <p class="hint">Clash and End battle need no officer. To add an officer entering, drag him onto the steps; record a battle.</p>`,
-      ok: { label: "Add", callback: (ev, btn) => ({ t: btn.form.elements.t.value, u: btn.form.elements.u.value }) }, rejectClose: false });
+        <div class="form-group"><label>Background</label><select name="b"><option value="">Empty</option>${BACKGROUNDS.map(b => `<option value="${esc(b.key)}">${esc(b.group ? `${b.group}: ${b.name}` : b.name)}</option>`).join("")}</select></div>
+        <p class="hint">Background is only for Change background. Clash and End battle need no officer. To add an officer entering, drag him onto the steps; record a battle.</p>`,
+      ok: { label: "Add", callback: (ev, btn) => ({ t: btn.form.elements.t.value, u: btn.form.elements.u.value, b: btn.form.elements.b.value }) }, rejectClose: false });
   } catch { got = null; }
   if (!got) return;
-  const step = got.t === "sidesOn" || got.t === "sidesOff" ? { t: "sides", on: got.t === "sidesOn" } : ["clash", "battleEnd"].includes(got.t) ? { t: got.t } : got.u ? { t: got.t, uuid: got.u, name: known.get(got.u) } : null;
+  const step = got.t === "bg" ? { t: "bg", key: got.b || null, name: BACKGROUNDS.find(b => b.key === got.b)?.name ?? "Empty" } : got.t === "sidesOn" || got.t === "sidesOff" ? { t: "sides", on: got.t === "sidesOn" } : ["clash", "battleEnd"].includes(got.t) ? { t: got.t } : got.u ? { t: got.t, uuid: got.u, name: known.get(got.u) } : null;
   if (!step) return ui.notifications.warn("Add an officer to the scene first.");
   draft.steps.push(step); draft.dirty = true; Builder.refresh();
 }
