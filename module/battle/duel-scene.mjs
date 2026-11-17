@@ -27,9 +27,13 @@ function tileUnder(scene, battle, unitId) {
   } catch { return null; }
 }
 
-/** Two spots near the middle of the duel scene, a couple of cells apart (hex or square grids). */
+/** Two spots near the middle of the duel scene, a couple of cells apart (hex or square grids): [challenger, challenged].
+ *  A scene can name its own in flag qin.duelArena.starts = { from: {i, j}, to: {i, j} } (David, 2026-11-16: on the
+ *  gate the officer holding the gate starts right in front of it). */
 function startSpots(scene) {
   const g = scene.grid, d = scene.dimensions ?? { sceneX: 0, sceneY: 0, sceneWidth: scene.width, sceneHeight: scene.height };
+  const st = scene.getFlag?.(SYSTEM_ID, "duelArena")?.starts;
+  if (st?.from && st?.to) { try { return [g.getTopLeftPoint(st.from), g.getTopLeftPoint(st.to)]; } catch { /* fall through */ } }
   const cx = d.sceneX + d.sceneWidth / 2, cy = d.sceneY + d.sceneHeight / 2;
   try {
     const o = g.getOffset({ x: cx, y: cy });
@@ -128,9 +132,12 @@ export class DuelScenesConfig extends foundry.applications.api.ApplicationV2 {
 // overlay and walls (flag qin.duelArena) are replaced.
 // `rows`: also keep only cells within that many rows of the middle (David, 2026-11-16: on the city wall the arena stops at
 // the wall's edges; Duel – City wall uses rows 3). Running it again without options keeps the scene's saved radius/rows.
+// `blocked`: [[i, j], ...] cells left out of the arena (darkened and walled off) — obstacles such as the camp's tents
+// (David, 2026-11-16: "Make the tent tiles impassable"). `starts`: { from: {i, j}, to: {i, j} } (see startSpots).
 export async function makeDuelArena(scene = canvas.scene, opts = {}) {
   const saved = scene?.getFlag?.(SYSTEM_ID, "duelArena") ?? {};
-  const { radius = saved.radius ?? 6, darkness = 0.6, rows = saved.rows ?? null } = opts;
+  const { radius = saved.radius ?? 6, darkness = 0.6, rows = saved.rows ?? null, blocked = saved.blocked ?? [], starts = saved.starts ?? null } = opts;
+  const out = new Set((blocked ?? []).map(([i, j]) => `${i},${j}`));
   if (!game.user.isGM || !scene) return null;
   const g = scene.grid, d = scene.dimensions ?? { sceneX: 0, sceneY: 0, sceneWidth: scene.width, sceneHeight: scene.height };
   const mid = g.getOffset({ x: d.sceneX + d.sceneWidth / 2, y: d.sceneY + d.sceneHeight / 2 });
@@ -139,7 +146,7 @@ export async function makeDuelArena(scene = canvas.scene, opts = {}) {
     return Math.max(Math.abs(o.i - mid.i), Math.abs(o.j - mid.j));
   };
   const cells = [];
-  for (let i = mid.i - radius - 1; i <= mid.i + radius + 1; i++) for (let j = mid.j - radius - 1; j <= mid.j + radius + 1; j++) if (dist({ i, j }) <= radius && (rows == null || Math.abs(i - mid.i) <= rows)) cells.push({ i, j });
+  for (let i = mid.i - radius - 1; i <= mid.i + radius + 1; i++) for (let j = mid.j - radius - 1; j <= mid.j + radius + 1; j++) if (dist({ i, j }) <= radius && (rows == null || Math.abs(i - mid.i) <= rows) && !out.has(`${i},${j}`)) cells.push({ i, j });
   const polys = cells.map(o => g.getVertices(o).map(p => ({ x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10 })));
   // boundary = cell edges that only one arena cell has
   const key = (a, b) => { const s = [`${a.x},${a.y}`, `${b.x},${b.y}`].sort(); return s.join("|"); };
@@ -167,6 +174,6 @@ export async function makeDuelArena(scene = canvas.scene, opts = {}) {
   const centre = (game.release?.generation ?? 12) >= 14;   // v14 places a tile by its centre
   await scene.createEmbeddedDocuments("Tile", [{ texture: { src }, x: centre ? ox + W / 2 : ox, y: centre ? oy + H / 2 : oy, width: W, height: H, locked: true, sort: -1, flags: { [SYSTEM_ID]: { duelArena: true } } }]);
   await scene.createEmbeddedDocuments("Wall", walls);
-  await scene.setFlag(SYSTEM_ID, "duelArena", { radius, rows });
+  await scene.setFlag(SYSTEM_ID, "duelArena", { radius, rows, blocked, starts });
   return { cells: cells.length, walls: walls.length, src };
 }
