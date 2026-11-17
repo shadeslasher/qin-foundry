@@ -24,6 +24,57 @@ export function sceneGroups() {
   return list;
 }
 
+/* ------------------------------------------------------------------ thumbnails
+   (2026-11-16, "extremely laggy"): 146 of 175 scenes were imported map packs whose thumbnails point at another world's
+   folder (404), so every card fell back to the full-size battlemap and the browser decoded dozens of 4–8k images on
+   every redraw. Now a missing or broken thumbnail is made once from the background (a small webp drawn in a canvas),
+   uploaded beside Foundry's own scene thumbnails and saved on the scene; until it's ready the card shows a blank. */
+const thumbSrc = new Map();      // scene id → a src that is known to load (or "" for none)
+const making = new Set();
+let queue = Promise.resolve();
+export function thumbSize(w, h, tw = 300, th = 188) {   // cover-crop of the source (pure; exported for tests)
+  const s = Math.max(tw / w, th / h), sw = tw / s, sh = th / s;
+  return { sx: (w - sw) / 2, sy: (h - sh) / 2, sw, sh, tw, th };
+}
+function makeThumb(scene, img) {
+  const bg = scene.background?.src;
+  if (!bg || making.has(scene.id)) return;
+  making.add(scene.id);
+  queue = queue.then(async () => {
+    try {
+      const im = new Image(); im.decoding = "async"; im.src = route(bg);
+      await im.decode();
+      const c = thumbSize(im.naturalWidth, im.naturalHeight), cv = document.createElement("canvas");
+      cv.width = c.tw; cv.height = c.th; cv.getContext("2d").drawImage(im, c.sx, c.sy, c.sw, c.sh, 0, 0, c.tw, c.th);
+      const blob = await new Promise(res => cv.toBlob(res, "image/webp", 0.8));
+      let src = URL.createObjectURL(blob);
+      try {
+        const dir = `worlds/${game.world.id}/assets/scenes`, name = `thumb-qin-${scene.id}.webp`;
+        const FP = foundry.applications?.apps?.FilePicker?.implementation ?? FilePicker;
+        const up = await FP.upload("data", dir, new File([blob], name, { type: "image/webp" }), {}, { notify: false });
+        const path = up?.path ?? `${dir}/${name}`;
+        await scene.update({ thumb: path }, { qinThumb: true });
+        src = route(path);
+      } catch (e) { console.warn("qin | scene switcher: couldn't save a thumbnail for", scene.name, e); }
+      thumbSrc.set(scene.id, src);
+      for (const i of document.querySelectorAll(`#qin-ss .card[data-id="${scene.id}"] .th img`)) i.src = src;
+    } catch { thumbSrc.set(scene.id, ""); }
+  });
+}
+function thumbImg(scene) {
+  const known = thumbSrc.get(scene.id);
+  const src = known ?? (scene.thumb ? route(scene.thumb) : "");
+  const img = document.createElement("img");
+  img.loading = "lazy"; img.decoding = "async"; img.alt = "";
+  if (src) img.src = src;
+  else if (known === undefined) makeThumb(scene, img);
+  if (known === undefined && src) {
+    img.onload = () => thumbSrc.set(scene.id, src);
+    img.onerror = () => { img.removeAttribute("src"); makeThumb(scene, img); };
+  }
+  return img;
+}
+
 function css() {
   if (document.getElementById("qin-ss-css")) return;
   const s = document.createElement("style"); s.id = "qin-ss-css";
@@ -51,6 +102,7 @@ function css() {
   #qin-ss .card.act { border-color: #6fae5a; }
   #qin-ss .th { height: 74px; background: #2a2723; position: relative; overflow: hidden; }
   #qin-ss .th img { width: 100%; height: 100%; object-fit: cover; display: block; border: 0; }
+  #qin-ss .th img:not([src]) { visibility: hidden; }
   #qin-ss .th .tag { position: absolute; top: 4px; left: 4px; font-size: 10.5px; padding: 1px 6px; border-radius: 3px; background: rgba(0,0,0,.7); color: #ece6d6; }
   #qin-ss .th .tag.g { background: #3d6b30; color: #eaffdf; } #qin-ss .th .tag.r { background: #8a2f22; color: #ffe2da; }
   #qin-ss .th .who { position: absolute; bottom: 4px; right: 4px; display: flex; gap: 2px; }
@@ -98,6 +150,7 @@ function worldMap() {
 }
 
 /* ------------------------------------------------------------------ the window */
+const cards = new Map();   // scene id → { node, thumb, info, name }
 const Switcher = {
   el: null, sel: null, q: "", grp: "", picking: false, moved: false,
   toggle(show) {
@@ -123,10 +176,21 @@ const Switcher = {
       const units = s.tokens.filter(t => t.actor?.type === "unit").length;
       const fight = battle?.active && battle.sceneId === s.id;
       const sub = fight ? "Battle running" : units ? `${units} unit${units === 1 ? "" : "s"} placed` : who.length ? `${who.length} player${who.length === 1 ? "" : "s"} here` : s.active ? "Active scene" : "";
-      return `<div class="card ${this.sel === s.id ? "sel" : ""} ${s.active ? "act" : ""}" data-id="${s.id}" title="${esc(s.name)} — double-click to take everyone there">
-        <div class="th">${(s.thumb || s.background?.src) ? `<img loading="lazy" src="${esc(route(s.thumb || s.background.src))}" data-bg="${esc(s.thumb && s.background?.src ? route(s.background.src) : "")}" alt="">` : ""}${s.active ? `<span class="tag g">Active</span>` : fight ? `<span class="tag r">Battle</span>` : ""}
-        <span class="who">${who.map(u => `<i style="background:${esc(u.color?.css ?? u.color ?? "#888")}" title="${esc(u.name)}"></i>`).join("")}</span></div>
-        <div class="nm"><b>${esc(s.navName || s.name)}</b><small>${esc(sub) || "&nbsp;"}</small></div></div>`;
+      // the card's thumbnail is a cached node (built once per scene) so a redraw never reloads or re-decodes images
+      const info = `${s.active ? `<span class="tag g">Active</span>` : fight ? `<span class="tag r">Battle</span>` : ""}<span class="who">${who.map(u => `<i style="background:${esc(u.color?.css ?? u.color ?? "#888")}" title="${esc(u.name)}"></i>`).join("")}</span>`;
+      const name = `<b>${esc(s.navName || s.name)}</b><small>${esc(sub) || "&nbsp;"}</small>`;
+      let c = cards.get(s.id);
+      if (!c || c.thumb !== s.thumb) {
+        const node = document.createElement("div");
+        node.className = "card"; node.dataset.id = s.id; node.title = `${s.name} — double-click to take everyone there`;
+        node.innerHTML = `<div class="th"><span class="inf"></span></div><div class="nm"></div>`;
+        node.querySelector(".th").prepend(thumbImg(s));
+        c = { node, thumb: s.thumb, info: null, name: null }; cards.set(s.id, c);
+      }
+      if (c.info !== info) { c.node.querySelector(".inf").innerHTML = info; c.info = info; }
+      if (c.name !== name) { c.node.querySelector(".nm").innerHTML = name; c.name = name; }
+      c.node.classList.toggle("sel", this.sel === s.id); c.node.classList.toggle("act", !!s.active);
+      return `<i data-slot="${s.id}"></i>`;
     };
     let body = "";
     const folded = new Set(setting("sceneFolded") ?? []);
@@ -152,12 +216,11 @@ const Switcher = {
     el.innerHTML = `<div class="hd"><i class="fa-solid fa-map"></i> Scenes<span class="x"><i class="fa-solid fa-xmark"></i></span></div>
       <div class="tools"><input placeholder="Search scenes…" value="${esc(this.q)}"><span class="chip ${this.grp ? "" : "on"}" data-g="">All</span>${groups.map(g => `<span class="chip ${this.grp === g.name ? "on" : ""}" data-g="${esc(g.name)}">${esc(g.name)}</span>`).join("")}<span class="foldall" title="Fold or open every group">${allShut ? "Open all" : "Fold all"}</span></div>
       <div class="body">${body}</div>${foot}`;
+    for (const slot of el.querySelectorAll("[data-slot]")) slot.replaceWith(cards.get(slot.dataset.slot).node);
     el.querySelector(".body").scrollTop = top;
-    // a scene imported from another world can point at a thumbnail that isn't here: try its background, else leave it blank
-    for (const im of el.querySelectorAll(".th img")) im.onerror = () => { const bg = im.dataset.bg; if (bg) { im.dataset.bg = ""; im.src = bg; } else im.remove(); };
     el.querySelector(".x").onclick = () => this.toggle(false);
     const inp = el.querySelector(".tools input");
-    inp.oninput = () => { this.q = inp.value; this.render(); };
+    inp.oninput = () => { this.q = inp.value; clearTimeout(this.qT); this.qT = setTimeout(() => this.render(), 120); };
     inp.onkeydown = (e) => { if (e.key === "Escape") { e.stopPropagation(); this.toggle(false); } };
     if (focused) { inp.focus(); inp.setSelectionRange(caret, caret); }
     for (const c of el.querySelectorAll(".chip")) c.onclick = () => { this.grp = c.dataset.g; this.render(); };
@@ -190,6 +253,7 @@ export const sceneSwitcherOpen = () => Switcher.open();
 let refreshT = null;
 const soon = () => { clearTimeout(refreshT); refreshT = setTimeout(() => Switcher.refresh(), 100); };
 for (const h of ["createScene", "updateScene", "deleteScene", "createFolder", "updateFolder", "deleteFolder", "createToken", "deleteToken", "updateUser", "userConnected", "canvasReady"]) Hooks.on(h, soon);
+Hooks.on("deleteScene", (s) => { cards.delete(s.id); thumbSrc.delete(s.id); });
 
 let wasFighting = null;
 Hooks.on("updateSetting", (doc) => {
