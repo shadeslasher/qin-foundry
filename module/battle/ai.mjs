@@ -1269,9 +1269,27 @@ function skillOption(s, unitId, opts, P) {
   return best && best.score > best0 + 0.05 * worth(s, u) ? { type: 'useSkill', unitId, picks: best.picks } : null;
 }
 const buffCount = (s) => s.units.reduce((n, x) => n + ((x.fx && x.fx.buffs) || []).filter(b => b.until.kind !== 'round' || b.until.round > s.turn.round).length, 0);
+/** Ride paths worth trying (Ride Them Down): straight lines, and L-shaped runs through each enemy in reach that carry on
+ *  to the first empty square past it; the ones over the most enemies first. */
+function ridePathOptions(s, u, max) {
+  const out = [], seen = new Set();
+  const tryPath = (p) => { while (p.length && E.unitAt(s, ...p[p.length - 1])) p = p.slice(0, -1); if (p.length && !SK.checkRidePath(s, u, p, max) && !seen.has(String(p))) { seen.add(String(p)); out.push(p); } };
+  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) tryPath(Array.from({ length: max }, (_, i) => [u.x + dx * (i + 1), u.y + dy * (i + 1)]));
+  for (const e of E.liveUnits(s).filter(o => E.hostile(o, u) && E.manhattan(o, u) <= max)) for (const xFirst of [true, false]) {
+    const p = []; let x = u.x, y = u.y;
+    const go = (tx, ty) => { while ((x !== tx || y !== ty) && p.length < max) { if (xFirst ? x !== tx : y === ty) x += Math.sign(tx - x); else y += Math.sign(ty - y); p.push([x, y]); } };
+    go(e.x, e.y);
+    const dx = Math.sign(e.x - u.x) || 0, dy = dx ? 0 : Math.sign(e.y - u.y);
+    while (p.length < max && E.unitAt(s, x, y)) { x += dx; y += dy; p.push([x, y]); }
+    tryPath(p);
+  }
+  const foesOn = (p) => p.filter(([x, y]) => { const o = E.unitAt(s, x, y); return o && E.hostile(o, u); }).length;
+  return out.sort((a, b) => foesOn(b) - foesOn(a));
+}
 /** A few likely choices for an active's picks: enemies near and weak, allies hurt or in the fight, squares by enemies. */
 function pickCombos(s, u, picks, k) {
   if (!picks.length) return [{}];
+  if (picks.length === 1 && picks[0].side === 'path') return ridePathOptions(s, u, SK.pathMax(s, u, picks[0])).slice(0, k + 3).map(p => ({ [picks[0].id]: p }));
   const foes = E.liveUnits(s).filter(e => E.hostile(e, u));
   const near = (p) => Math.min(99, ...foes.map(e => E.manhattan(e, p)));
   const rank = (pk, earlier = {}) => {

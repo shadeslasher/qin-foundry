@@ -126,7 +126,7 @@ function drawSquare(g, x, y, color, alpha, line = 0.9) {
   g.lineStyle(2, color, line).beginFill(color, alpha).drawRect(x * size + 2, y * size + 2, size - 4, size - 4).endFill();
 }
 
-function startPicking(onTile) {
+function startPicking(onTile, onMove = null) {
   const view = canvas.app.view;
   const down = (ev) => {
     if (ev.target !== view) return;
@@ -136,12 +136,16 @@ function startPicking(onTile) {
     const p = toWorld(ev.clientX, ev.clientY), size = gridSize();
     onTile(Math.floor(p.x / size), Math.floor(p.y / size));
   };
-  const key = (ev) => { if (ev.key === "Escape") { ev.stopPropagation(); ev.preventDefault(); cancelMode(); } };
+  const key = (ev) => {
+    if (ev.key === "Escape") { ev.stopPropagation(); ev.preventDefault(); cancelMode(); }
+    else if (ev.key === "Enter" && mode === "skillPath") { ev.stopPropagation(); ev.preventDefault(); confirmPath(); }
+  };
   const block = (ev) => { ev.preventDefault(); ev.stopPropagation(); };
   let over = null; // the square under the cursor: a tick each time it moves to another one
   const move = (ev) => {
     const p = toWorld(ev.clientX, ev.clientY), size = gridSize(), k = `${Math.floor(p.x / size)},${Math.floor(p.y / size)}`;
     if (over !== null && k !== over) playMoment("Cursor move", { minGap: 40 });
+    if (k !== over && onMove) onMove(Math.floor(p.x / size), Math.floor(p.y / size));
     over = k;
   };
   view.addEventListener("pointermove", move);
@@ -156,7 +160,7 @@ function cancelMode() {
   if (mode === "reposition" && current) return send({ type: "reposition", unitId: current.u.id });
   if (mode === "second" && current) return send({ type: "secondAttack", unitId: current.u.id });
   if (mode === "skillChoice") return send({ type: "skillChoose", skip: true });
-  skillPick = null;
+  skillPick = null; pathDraw = null;
   mode = null;
   clearSquares();
   renderMenu();
@@ -283,6 +287,7 @@ function enterSkillPick() {
   const list = officer?.battle?.active?.pick ?? [];
   if (!skillPick) skillPick = { picks: list, i: 0, chosen: {} };
   const pk = skillPick.picks[skillPick.i];
+  if (pk?.side === "path") return enterPathDraw(pk);
   if (!pk) { const picks = skillPick.chosen; skillPick = null; mode = null; clearSquares(); return send({ type: "useSkill", unitId: u.id, picks }); }
   const cands = SK.pickCandidates(s, u, pk, skillPick.chosen); // later picks may depend on earlier ones
   const chosen = (skillPick.chosen[pk.id] ||= []);
@@ -307,6 +312,79 @@ function enterSkillPick() {
     if (chosen.length >= Math.min(pk.count || 1, cands.length)) skillPick.i++;
     enterSkillPick();
   });
+}
+/**
+ * Draw a ride path (Ride Them Down, David 2026-11-17): an arrow grows from the unit square by square as the cursor moves,
+ * up to its movement, never over a square it already crossed (moving back onto the path shortens it to there).
+ * Confirm (or Enter) rides it; right-click or Escape cancels, and nothing is paid until it is confirmed.
+ */
+let pathDraw = null; // { pk, max, path: [[x, y]...] }
+function enterPathDraw(pk) {
+  const { s, u } = current;
+  pathDraw = { pk, max: SK.pathMax(s, u, pk), path: [] };
+  mode = "skillPath";
+  clearSquares();
+  overlay = new PIXI.Graphics(); overlay.eventMode = "none"; layer().addChild(overlay);
+  drawPath(); renderMenu();
+  startPicking(() => {}, (x, y) => growPath(x, y));
+}
+function pathOk(x, y) {
+  const { s, u } = current, pd = pathDraw;
+  if (pd.path.length >= pd.max) return false;
+  if ((x === u.x && y === u.y) || pd.path.some(([px, py]) => px === x && py === y)) return false;
+  const [lx, ly] = pd.path.length ? pd.path[pd.path.length - 1] : [u.x, u.y];
+  return Math.abs(x - lx) + Math.abs(y - ly) === 1 && E._passable(s, x, y, u);
+}
+function growPath(x, y) {
+  if (mode !== "skillPath" || !pathDraw) return;
+  const { u } = current, pd = pathDraw;
+  // back onto the path (or the unit): it shortens to there
+  if (x === u.x && y === u.y) { if (pd.path.length) { pd.path = []; drawPath(); renderMenu(); } return; }
+  const at = pd.path.findIndex(([px, py]) => px === x && py === y);
+  if (at >= 0) { if (at < pd.path.length - 1) { pd.path = pd.path.slice(0, at + 1); drawPath(); renderMenu(); } return; }
+  // forward, a square at a time toward the cursor (a fast mouse may skip squares)
+  let grew = false;
+  for (let n = 0; n < 12; n++) {
+    const [lx, ly] = pd.path.length ? pd.path[pd.path.length - 1] : [u.x, u.y];
+    if (lx === x && ly === y) break;
+    const dx = Math.sign(x - lx), dy = Math.sign(y - ly);
+    const tries = Math.abs(x - lx) >= Math.abs(y - ly) ? [[lx + dx, ly], [lx, ly + dy]] : [[lx, ly + dy], [lx + dx, ly]];
+    const step = tries.find(([tx, ty]) => (tx !== lx || ty !== ly) && pathOk(tx, ty));
+    if (!step) break;
+    pd.path.push(step); grew = true;
+  }
+  if (grew) { drawPath(); renderMenu(); }
+}
+function drawPath() {
+  if (!overlay || overlay.destroyed || !pathDraw) return;
+  const { s, u } = current, size = gridSize(), g = overlay, pd = pathDraw;
+  g.clear();
+  const c = ([x, y]) => [x * size + size / 2, y * size + size / 2];
+  for (const [x, y] of pd.path) { const o = E.unitAt(s, x, y); if (o && E.hostile(o, u)) drawSquare(g, x, y, 0xd63c3c, 0.35, 1); }
+  if (pd.path.length) {
+    const [ex, ey] = pd.path[pd.path.length - 1], free = !E.unitAt(s, ex, ey);
+    drawSquare(g, ex, ey, free ? 0x3fbf5f : 0xd63c3c, free ? 0.3 : 0.15, 1);
+    const pts = [[u.x, u.y], ...pd.path].map(c);
+    for (const [w, col, a] of [[size * 0.16, 0x1a1a1a, 0.55], [size * 0.09, 0xffffff, 0.95]]) {
+      g.lineStyle({ width: w, color: col, alpha: a, cap: "round", join: "round" }).moveTo(...pts[0]);
+      for (const p of pts.slice(1, -1)) g.lineTo(...p);
+      const [ax, ay] = pts[pts.length - 2], [bx, by] = pts[pts.length - 1], ang = Math.atan2(by - ay, bx - ax);
+      g.lineTo(bx - Math.cos(ang) * size * 0.22, by - Math.sin(ang) * size * 0.22);
+    }
+    const [ax, ay] = pts[pts.length - 2], [bx, by] = pts[pts.length - 1], ang = Math.atan2(by - ay, bx - ax), h = size * 0.3;
+    const tri = [bx + Math.cos(ang) * h * 0.4, by + Math.sin(ang) * h * 0.4, bx - Math.cos(ang - 0.6) * h, by - Math.sin(ang - 0.6) * h, bx - Math.cos(ang + 0.6) * h, by - Math.sin(ang + 0.6) * h];
+    g.lineStyle(size * 0.03, 0x1a1a1a, 0.6).beginFill(0xffffff, 0.95).drawPolygon(tri).endFill();
+  }
+}
+function confirmPath() {
+  if (mode !== "skillPath" || !pathDraw) return;
+  const { s, u } = current, pd = pathDraw;
+  const bad = SK.checkRidePath(s, u, pd.path, pd.max);
+  if (bad) return pickWarn(bad + ".");
+  const picks = { ...(skillPick?.chosen ?? {}), [pd.pk.id]: pd.path };
+  playMoment("Select / confirm");
+  skillPick = null; pathDraw = null; mode = null; clearSquares();
+  return send({ type: "useSkill", unitId: u.id, picks });
 }
 const pickWord = (pk) => `${pk.upTo ? "up to " : ""}${pk.count || 1} ${pk.side === "tile" ? "square" : pk.side === "allies" ? "allied unit" : "enemy unit"}${(pk.count || 1) > 1 ? "s" : ""}${pk.range === "any" ? "" : ` within ${pk.range}`}`;
 
@@ -493,6 +571,11 @@ function renderMenu(sub = null) {
     `<button type="button" data-fe="${act}" ${enabled && !busy ? "" : "disabled"} ${tip ? `data-tooltip="${esc(tip)}"` : ""} ${extra}>${label}</button>`;
   let html = `<div class="qin-fe-title">${esc(u.name)}</div>`;
   if (mode === "second") html += `<div class="qin-fe-hint">Dual Weapons: strike another enemy marked in red (Attack −2), or skip.</div>` + b("skipSecond", "Skip", true);
+  else if (mode === "skillPath" && pathDraw) {
+    const n = pathDraw.path.length, ok = n && !SK.checkRidePath(current.s, current.u, pathDraw.path, pathDraw.max);
+    html += `<div class="qin-fe-hint">${esc(officer?.skill?.name ?? "Skill")}: move the cursor to draw the path (${n}/${pathDraw.max} squares; it must end on an empty square). Right-click to cancel.</div>`;
+    html += b("pathConfirm", "Confirm", !!ok) + b("cancel", "Cancel", true);
+  }
   else if (mode === "skillPick" && skillPick) {
     const pk = skillPick.picks[skillPick.i];
     html += `<div class="qin-fe-hint">${esc(officer?.skill?.name ?? "Skill")}: choose ${esc(pickWord(pk))} (${skillPick.i + 1}/${skillPick.picks.length}).</div>`;
@@ -603,6 +686,7 @@ function onMenuClick(ev) {
     case "extinguish": return enterExtinguish();
     case "skipSecond": return send({ type: "secondAttack", unitId: id });
     case "skipChoice": return send({ type: "skillChoose", skip: true });
+    case "pathConfirm": return confirmPath();
     case "pickDone": if (skillPick) { skillPick.i++; return enterSkillPick(); } return;
     case "back": return renderMenu();
     case "hold": return send({ type: "holdPosition", unitId: id });
@@ -662,7 +746,7 @@ export function refreshBattleUI() {
   if (ac.step === "second") { if (mode !== "second") enterSecond(); return; }
   if (SK.pendingChoice(s)) { enterSkillChoice(); return; }
   if (mode === "skillChoice") { mode = null; clearSquares(); }
-  if (mode === "skillPick") return;
+  if (mode === "skillPick" || mode === "skillPath") return;
   if (!mode) renderMenu();
 }
 

@@ -710,6 +710,7 @@ function step(s, st, ctx, rest) {
     if (a && b && a.id !== b.id) { const p = { x: a.x, y: a.y }; a.x = b.x; a.y = b.y; b.x = p.x; b.y = p.y; say(s, label + ': ' + nm(a) + ' and ' + nm(b) + ' swap places.', { type: 'swap', unit: a.id }); }
     return;
   }
+  if (st.ride) { ridePath(s, src, (ctx.picks && ctx.picks[st.ride.pick]) || [], ctx.name || null); return; }
   if (st.climb) { // onto a wall square next to it, with no ladder
     const tiles = (ctx.picks && ctx.picks[st.climb.pick]) || [];
     for (const [x, y] of tiles) if (!E.unitAt(s, x, y) && E.manhattan({ x, y }, src) === 1) { const from = { x: src.x, y: src.y }; src.x = x; src.y = y; say(s, label + ': ' + nm(src) + ' climbs onto the wall.', { type: 'climb', unit: src.id }); onMoved(s, src, from); break; }
@@ -1102,6 +1103,7 @@ function readPicks(s, u, a) {
   const picks = {};
   for (const pk of act.pick || []) {
     const chosen = (a.picks && a.picks[pk.id]) || [];
+    if (pk.side === 'path') { const e = checkRidePath(s, u, chosen, pathMax(s, u, pk)); if (e) return e; picks[pk.id] = chosen; continue; }
     const max = pk.count || 1;
     if (chosen.length > max) return 'Pick at most ' + max;
     const ok = pickCandidates(s, u, pk, picks);
@@ -1143,6 +1145,7 @@ export function activeBlocked(s, u) {
 }
 /** What a pick may choose: unit ids, or [x, y] squares for tiles. */
 export function pickCandidates(s, u, pk, earlier = {}) {
+  if (pk.side === 'path') return [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => [u.x + dx, u.y + dy]).filter(([x, y]) => E._passable(s, x, y, u));
   const inRange = (p) => pk.range === 'any' || E.manhattan(u, p) <= pk.range;
   const fctx = { src: u, self: u, picks: earlier };
   if (pk.side === 'tile') {
@@ -1165,6 +1168,49 @@ export function pickCandidates(s, u, pk, earlier = {}) {
     if (pk.side === 'enemies' && !E.visibleTo(s, o, E.alliance(u.side))) return false;
     return inRange(o) && matches(s, pk.filter, o, fctx);
   }).map(o => o.id);
+}
+
+/** A ride path (Ride Them Down, David 2026-11-17): how many squares it may run (range "move" = the unit's movement). */
+export function pathMax(s, u, pk) { return pk.range === 'move' ? E._movementOf(s, u) : Number(pk.range) || 0; }
+/** Is this a path the unit can ride? [[x, y]...], the squares after its own, each next to the one before (no diagonals),
+ *  never the same square twice (its own included), only over passable ground, at most max long, ending on an empty
+ *  square. Units in between (enemy or allied) are ridden over. Returns an error, or null. */
+export function checkRidePath(s, u, path, max) {
+  const ac = s.turn && s.turn.activation;
+  if (ac && ac.unitId === u.id && ac.movedThisActivation) return 'Use it before the unit moves';
+  if (!Array.isArray(path) || !path.length) return 'Draw the path first';
+  if (path.length > max) return 'The path is longer than its movement (' + max + ')';
+  const seen = new Set([u.x + ',' + u.y]); let px = u.x, py = u.y;
+  for (const c of path) {
+    if (!Array.isArray(c) || c.length !== 2) return 'Bad path';
+    const [x, y] = c.map(Number), k = x + ',' + y;
+    if (Math.abs(x - px) + Math.abs(y - py) !== 1) return 'Each step must be to the next square';
+    if (seen.has(k)) return "The path can't cross itself";
+    if (!E._passable(s, x, y, u)) return "The path can't go there";
+    seen.add(k); px = x; py = y;
+  }
+  const [ex, ey] = path[path.length - 1];
+  if (E.unitAt(s, ex, ey)) return 'The path must end on an empty square';
+  return null;
+}
+/** Ride a drawn path: every enemy unit on it takes the unit's damage (armor penetration applies), the unit ends on the
+ *  last square, and its turn ends. Logs { type: 'rideThrough' } with the whole path for the animation. */
+function ridePath(s, u, path, skill) {
+  const from = { x: u.x, y: u.y }, full = [[u.x, u.y], ...path.map(c => c.map(Number))];
+  const dmg = Number(typeOf(s, u).damage) || 0, pen = Number(typeOf(s, u).armorPen) || 0, hits = [];
+  full.forEach(([x, y], i) => {
+    const e = i && E.unitAt(s, x, y); if (!e || !E.alive(e) || !E.hostile(e, u)) return;
+    const c = Math.min(e.men, E.casualtiesOf(dmg, Number(typeOf(s, e).armor) || 0, pen, 0, 0)); e.men -= c;
+    hits.push([e.id, c, i]);
+    say(s, nm(u) + ' rides through ' + nm(e) + ': ' + c + ' casualties.', { type: 'skillCasualties', unit: e.id, casualties: c });
+  });
+  const [ex, ey] = full[full.length - 1]; u.x = ex; u.y = ey;
+  if (u.round) u.round.moved = true;
+  const ac = s.turn && s.turn.activation;
+  if (ac && ac.unitId === u.id) { ac.started = true; ac.movedThisActivation = true; ac.tilesMoved = path.length; }
+  say(s, nm(u) + ' rides them down (' + path.length + ' squares).', { type: 'rideThrough', unit: u.id, skill, path: full, hits });
+  onMoved(s, u, from);
+  if (ac && ac.unitId === u.id && E.alive(u)) E._finishActivation(s, u);
 }
 
 /** The reach of a unit's officer's battlefield passive over other units (an aura): { range, whole } or null when it

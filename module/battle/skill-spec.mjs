@@ -64,7 +64,7 @@ const STEP_KEYS = ['morale', 'health', 'buff', 'move', 'attack', 'contest', 'sta
   'extraTurn', 'reinforce', 'swap', 'selfStatus', 'if', 'onKill', 'onWin', 'onLose', 'manual', 'hide', 'fireArea',
   // v3
   'casualties', 'turnOrder', 'setTerrain', 'openGate', 'repair', 'leave', 'convert', 'spawn', 'grantTrait', 'removeTrait', 'stealTrait',
-  'stepTrait', 'cancelTactic', 'cooldown', 'overwatchOn', 'custom', 'counter', 'forceToward', 'forceAttack', 'moveInto', 'splitMorale', 'blast', 'overwatchShot', 'cleanse', 'swapUnits', 'climb',
+  'stepTrait', 'cancelTactic', 'cooldown', 'overwatchOn', 'custom', 'counter', 'forceToward', 'forceAttack', 'moveInto', 'splitMorale', 'blast', 'overwatchShot', 'cleanse', 'swapUnits', 'climb', 'ride',
   // 2026-11-09
   'revealPick'];
 
@@ -201,6 +201,7 @@ export function validateSpec(spec, kind) {
       case 'cleanse': who(p + '.cleanse', st.cleanse, true); break;
       case 'swapUnits': who(p + '.swapUnits', st.swapUnits, true); who(p + '.with', st.with, true); break;
       case 'climb': if (!st.climb || !picks.has(st.climb.pick)) bad(p + '.climb', '{"pick": id of a tile pick}'); break;
+      case 'ride': if (!st.ride || !picks.has(st.ride.pick)) bad(p + '.ride', '{"pick": id of a path pick}'); break;
       case 'overwatchShot': who(p + '.overwatchShot', st.overwatchShot, true); break;
       case 'fire': if (!st.fire || !picks.has(st.fire.pick)) bad(p + '.fire', '{"pick": id of a tile pick}'); break;
       case 'resetCooldown': case 'swap': case 'extraTurn': who(p + '.' + k, st[k], true); break;
@@ -228,8 +229,8 @@ export function validateSpec(spec, kind) {
   (spec.pick || []).forEach((pk, i) => {
     const p = 'pick[' + i + ']';
     if (!pk || typeof pk.id !== 'string') bad(p + '.id', 'needs an id');
-    if (!['allies', 'enemies', 'tile'].includes(pk && pk.side)) bad(p + '.side', 'allies|enemies|tile');
-    if (!(isNum(pk && pk.range) || (pk && pk.range === 'any'))) bad(p + '.range', 'number or "any"');
+    if (!['allies', 'enemies', 'tile', 'path'].includes(pk && pk.side)) bad(p + '.side', 'allies|enemies|tile|path');
+    if (!(isNum(pk && pk.range) || (pk && pk.range === 'any') || (pk && pk.side === 'path' && pk.range === 'move'))) bad(p + '.range', 'number or "any" (a path: or "move")');
     if (!isNum(pk && pk.count)) bad(p + '.count', 'number');
     for (const k of Object.keys(pk || {})) if (!['id', 'side', 'range', 'count', 'upTo', 'self', 'filter'].includes(k)) bad(p + '.' + k, 'unknown PICK key');
     filter(p + '.filter', pk && pk.filter);

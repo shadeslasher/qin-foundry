@@ -3050,7 +3050,7 @@ function viewFor(s, viewer) {
   return v;
 }
 
-export { endRound as _endRound, imperialAura as _imperialAura, hidesIn as _hidesIn, officerWeaponLevel, casualtiesOf, evasionOf, evadeCasualties, disciplinedBonus, warDrumsBonus, hornReady, hornTargets, medLeft, medTargets, medHeal, checkpointMorale, checkpointsPassed, overwatchFire as _overwatchFire, surroundAfterTurn as _surroundAfterTurn,
+export { movementOf as _movementOf, endRound as _endRound, imperialAura as _imperialAura, hidesIn as _hidesIn, officerWeaponLevel, casualtiesOf, evasionOf, evadeCasualties, disciplinedBonus, warDrumsBonus, hornReady, hornTargets, medLeft, medTargets, medHeal, checkpointMorale, checkpointsPassed, overwatchFire as _overwatchFire, surroundAfterTurn as _surroundAfterTurn,
   moveOptions, attackTargets, actionMenu, threatArea, extinguishTiles, waterNear, TACTIC_SIDES, tileRules, ladderTiles, climbTiles, insideCity, isWallTop, gateAt, gateHp, gateTargets, stairsAt,
   newState, act, viewFor, prompt, reachable, duelTargets, movementOf, moraleState, visibleTo, rangeOk, mountainShields,
   resolveAttack, buildRoll, skillCheck, ACTIVE_MIN_MORALE, LAST_STAND_MAX_MORALE, setRng, yinYang, typeOf, officerOf, unitById, SIDES, settle, advance,
