@@ -304,7 +304,7 @@ async function skillRequests(s, scene) {
   if (touched) await game.settings.set(SYSTEM_ID, SETTING, b2);
 }
 
-async function writeBack(battle, s, scene) {
+async function writeBack(battle, s, scene, rides = null) {
   const size = scene?.grid.size ?? 100;
   const tokenUpdates = [];
   const actorUpdates = [];
@@ -358,7 +358,13 @@ async function writeBack(battle, s, scene) {
   await Promise.all(actorUpdates);
   if (scene && tokenUpdates.length) {
     writing = true;
-    try { await scene.updateEmbeddedDocuments("Token", tokenUpdates, { qinBattle: true }); }
+    // a unit that rode through the enemy (Ride Them Down) jumps to its end square with no slide and no move sound:
+    // its ride animation carries it there along the path (every client holds it on the start square until then)
+    const ridden = tokenUpdates.filter(t => rides?.[t._id] && ("x" in t || "y" in t)), rest = tokenUpdates.filter(t => !ridden.includes(t));
+    try {
+      for (const t of ridden) await scene.updateEmbeddedDocuments("Token", [t], { qinBattle: true, animate: false, qinRide: { from: rides[t._id] } });
+      if (rest.length) await scene.updateEmbeddedDocuments("Token", rest, { qinBattle: true });
+    }
     finally { writing = false; }
   }
   battle.turn = s.turn;
@@ -687,7 +693,8 @@ async function runActionNow(userId, action) {
     if (acting.length) broadcastFreeze(scene.id, acting);
     broadcastAnimHold(scene.id); // the action menu waits until this action's animations have played
   }
-  await writeBack(battle, s, scene);
+  const rides = Object.fromEntries(s.log.slice(logLen).filter(e => e.detail?.type === "rideThrough" && e.detail.path?.length > 1).map(e => [e.detail.unit, e.detail.path[0]]));
+  await writeBack(battle, s, scene, rides);
   if (s.skillRequests?.length) await skillRequests(s, scene).catch(e => console.warn("Qin | battlefield skill requests", e));
   await postLog(s.log.slice(logLen), s);
   // officer duels: an accepted duel moves to its close-up scene; a finished or cancelled one comes back

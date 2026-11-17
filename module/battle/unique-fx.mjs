@@ -1396,9 +1396,30 @@ function drawWhiteHorseman(g, u, cyc, bow) {
   }
 }
 
+/** Units riding through the enemy are held on their start square (where the ride begins) until their ride animation
+ *  carries them along the path: token id -> { cx, cy } (centre, canvas px) or, while riding, the point it has reached. */
+const rideHold = new Map();
+export function holdRide(id, from) {
+  const G = canvas.grid?.size ?? 100;
+  rideHold.set(id, { cx: from[0] * G + G / 2, cy: from[1] * G + G / 2, since: Date.now() });
+  canvas.tokens?.get(id)?.renderFlags?.set({ refreshPosition: true });
+}
+/** refreshToken hook: draw a held unit where its ride has it, not on its new square. */
+export function applyRideHold(token) {
+  const h = rideHold.get(token?.id); if (!h) return;
+  if (Date.now() - h.since > 20000) { rideHold.delete(token.id); return; } // its ride never played here
+  placeAt(token, h.cx, h.cy);
+}
+function placeAt(token, cx, cy) {
+  if (!token || token.destroyed) return;
+  token.position.set(cx - token.w / 2, cy - token.h / 2);
+  if (token.mesh && !token.mesh.destroyed) token.mesh.position.set(cx, cy);
+}
+
 /** Ride Them Down: the path he rode lights up white, then the White Horse Followers — nine horsemen in a wedge, spears
  *  and bows, seen from above — gallop along it in a cloud of dust. Each enemy unit they pass over flashes white, shakes and
- *  shows its casualties as they reach it; then the herd fades out at the end of the path, where his unit stands. */
+ *  shows its casualties as the lead horses crash into it (with a hit sound); his unit rides along the path in the
+ *  middle of the herd, which fades out as he reaches his square (David, 2026-11-17: no gallop sound). */
 function whiteHorseCharge(token, path, hits, tokOf, float) {
   const G = canvas.grid?.size ?? Math.min(token.w, token.h), k = G / 64, u = k * 0.85, B = Blur();
   const pts = path.map(([x, y]) => ({ x: x * G + G / 2, y: y * G + G / 2 }));
@@ -1422,14 +1443,14 @@ function whiteHorseCharge(token, path, hits, tokOf, float) {
   const marks = hits.map(([id, cas, idx]) => ({ id, cas, s: idx >= 0 ? sAt(idx) : L / 2, t: -1, tok: tokOf(id) }))
     .map(m => ({ ...m, x0: m.tok?.mesh?.position.x, p0: m.tok?.position.x }));
   const PRE = 0.6, SPEED = 3.9 * G, RUN = (L + 2.8 * G) / SPEED, END = PRE + RUN + 0.6;
-  let dust = [], nextHoof = 0;
+  let dust = [];
+  const hold = rideHold.get(token.id) ?? { cx: pts[0].x, cy: pts[0].y, since: Date.now() }; rideHold.set(token.id, hold);
   return run((dt, t) => {
     // the path glows white, drawn out from the start, then fades once the herd has passed
     const prog = Math.min(1, t / PRE), pa = 0.6 * (1 - sm((t - PRE - RUN) / 0.6));
     trail.clear();
     if (pa > 0.01) { for (let s = 0; s < prog * L; s += 18 * k) { const a = at(s), b = at(Math.min(s + 10 * k, prog * L)); trail.lineStyle(4 * k, 0xffffff, pa).moveTo(a.x, a.y).lineTo(b.x, b.y); } }
     const head = t < PRE ? 0 : (t - PRE) * SPEED;
-    if (t >= PRE && t < PRE + RUN && t >= nextHoof) { playMoment("Cavalry moves", { minGap: 0 }); nextHoof = t + 0.5; }
     for (const h of herd) {
       const s = head - h.off;
       if (s < 0 || t < PRE) { h.c.alpha = 0; continue; }
@@ -1440,12 +1461,14 @@ function whiteHorseCharge(token, path, hits, tokOf, float) {
       h.ph += dt * 15; drawWhiteHorseman(h.g, u, h.ph, h.bow);
       if (s < L && Math.random() < 0.3) dust.push({ x: p.x + nx * h.lane - Math.cos(p.ang) * 18 * k, y: p.y + ny * h.lane - Math.sin(p.ang) * 18 * k, t, r: rnd(3, 6) * k });
     }
+    // his unit rides in the middle of the wedge (the lead horses 110 px ahead at a 64 px square)
+    { const p = at(Math.max(0, Math.min(L, head - 110 * k))); hold.cx = p.x; hold.cy = p.y; hold.since = Date.now(); placeAt(token, p.x, p.y); }
     dust = dust.filter(d => t - d.t < 0.9);
     dustG.clear(); for (const d of dust) { const q = t - d.t; dustG.beginFill(0xd2c3a0, 0.35 * (1 - q / 0.9)).drawCircle(d.x, d.y, d.r * (1 + q * 1.5)).endFill(); }
     // each trampled unit: white flash, a shake, its casualties, as the herd's head reaches it
     flashG.clear();
     for (const m of marks) {
-      if (m.t < 0 && head - 40 * k > m.s) { m.t = t; float?.(m.id, "unitDamage", `−${m.cas}`); playMoment("Melee hit", { minGap: 0 }); }
+      if (m.t < 0 && head + 26 * u >= m.s - G * 0.42) { m.t = t; float?.(m.id, "unitDamage", `−${m.cas}`); playMoment("Melee hit", { minGap: 0 }); }
       if (m.t < 0) continue;
       const q = t - m.t, c = m.tok && !m.tok.destroyed ? m.tok.center : null;
       if (c && q < 0.3) flashG.beginFill(0xffffff, 0.7 * (1 - q / 0.3)).drawCircle(c.x, c.y, (24 + q * 50) * k).endFill();
@@ -1453,6 +1476,8 @@ function whiteHorseCharge(token, path, hits, tokOf, float) {
     }
     if (t < END) return true;
     for (const m of marks) if (m.tok && !m.tok.destroyed && m.x0 !== undefined) { m.tok.mesh.position.x = m.x0; m.tok.position.x = m.p0; try { m.tok.renderFlags?.set({ refreshPosition: true }); } catch { /* fine */ } }
+    rideHold.delete(token.id);
+    if (!token.destroyed) { placeAt(token, token.document.x + token.w / 2, token.document.y + token.h / 2); try { token.renderFlags?.set({ refreshPosition: true }); } catch { /* fine */ } }
     root.destroy({ children: true });
     return false;
   });

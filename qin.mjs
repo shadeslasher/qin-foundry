@@ -36,6 +36,7 @@ import { registerRevealPick } from "./module/battle/reveal-pick.mjs";
 import { registerFireFx, drawFires } from "./module/battle/fire-fx.mjs";
 import { HotkeyGuide } from "./module/hotkeys.mjs";
 import { registerSounds, registerSoundPack, onBattleSetting, primeBattleSounds, primeTokenPositions, onUnitTokenMoved, SoundPanel, playMoment } from "./module/sound.mjs";
+import { holdRide, applyRideHold } from "./module/battle/unique-fx.mjs";
 import { registerNameLabels, toggleNameLabels, nameLabelsOn } from "./module/battle/name-labels.mjs";
 import { registerEquipment } from "./module/equipment.mjs";
 import { registerTurnBanner, renderTurnBanner } from "./module/battle/turn-banner.mjs";
@@ -331,7 +332,11 @@ Hooks.on("renderCombatTracker", onRenderCombatTracker);
 const rerenderCharacterSheets = () => { for (const a of game.actors ?? []) if (a.type === "character" && a.sheet?.rendered) a.sheet.render(); };
 Hooks.on("updateCombat", (c, change) => { if ("round" in change || "started" in change) rerenderCharacterSheets(); });
 Hooks.on("deleteCombat", rerenderCharacterSheets);
-Hooks.on("updateToken", (doc, change) => { try { onUnitTokenMoved(doc, change, getBattle()); } catch (e) { console.warn("Qin | move sound", e); } });
+Hooks.on("updateToken", (doc, change, options) => {
+  try { onUnitTokenMoved(doc, change, getBattle(), options); } catch (e) { console.warn("Qin | move sound", e); }
+  if (options?.qinRide?.from && doc.parent?.id === canvas?.scene?.id) holdRide(doc.id, options.qinRide.from); // stays on its start square until its ride plays
+});
+Hooks.on("refreshToken", (token) => applyRideHold(token));
 Hooks.on("updateToken", (doc, change, options) => {
   onTokenMoved(doc, change, options);
   // Wipe the hover movement trail after each move unless the GM wants it

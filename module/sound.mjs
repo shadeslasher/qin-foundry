@@ -180,10 +180,11 @@ export function primeTokenPositions(scene) {
 }
 let moving = new Map(); // token id -> timers of the move sound still to play
 /** A unit token sliding to a new square during a battle: footsteps or hooves for each square, for whoever can see it. */
-export function onUnitTokenMoved(doc, change, battle) {
+export function onUnitTokenMoved(doc, change, battle, options = {}) {
   if (!("x" in change || "y" in change)) return;
   const from = lastPos.get(doc.id);
   lastPos.set(doc.id, { x: doc.x, y: doc.y });
+  if (options?.qinRide) return; // a ride through the enemy: its animation plays the crashes instead (David, 2026-11-17)
   if (doc.actor?.type !== "unit") return;
   if (!battle?.active || battle.sceneId !== doc.parent?.id || canvas?.scene?.id !== doc.parent?.id) return;
   if (["setup", "tactics"].includes(battle.turn?.phase ?? "setup")) return; // no unit sounds while deploying (David, 2026-10-30)
