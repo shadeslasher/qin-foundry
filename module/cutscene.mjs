@@ -102,7 +102,9 @@ function css() {
   #qin-cutscene .bar { position: absolute; left: 0; right: 0; height: 25vh; background: #000; z-index: 5; transition: transform .7s cubic-bezier(.3,.7,.3,1); }
   #qin-cutscene .bar.t { top: 0; transform: translateY(-101%); } #qin-cutscene .bar.b { bottom: 0; transform: translateY(101%); }
   #qin-cutscene.in .bar { transform: none; }
-  #qin-cutscene .bg { position: absolute; left: 0; right: 0; top: 25vh; height: 50vh; background-size: cover; background-position: center; opacity: 0; transition: opacity .7s; z-index: 1; }
+  #qin-cutscene.in.full .bar.t { transform: translateY(-101%); } #qin-cutscene.in.full .bar.b { transform: translateY(101%); }   /* full screen: no black bars (David, 2026-11-17) */
+  #qin-cutscene.full .bg { top: 0; height: 100vh; }
+  #qin-cutscene .bg { position: absolute; left: 0; right: 0; top: 25vh; height: 50vh; background-size: cover; background-position: center; opacity: 0; transition: opacity .7s, top .7s cubic-bezier(.3,.7,.3,1), height .7s cubic-bezier(.3,.7,.3,1); z-index: 1; }
   #qin-cutscene.in .bg.on { opacity: 1; }
   #qin-cutscene .of { position: absolute; top: 26.5vh; height: 95.5vh; z-index: 3; transform: translateX(-50%); opacity: 0;
     transition: left .7s cubic-bezier(.3,.7,.3,1), transform .7s cubic-bezier(.3,.7,.3,1), opacity .6s, filter .35s; filter: brightness(.38) saturate(.6); pointer-events: none; }
@@ -316,6 +318,7 @@ function render() {
     document.body.appendChild(root);
     void root.offsetWidth; setTimeout(() => root?.classList.add("in"), 30);    // not rAF: a hidden or background tab may never fire it
   }
+  root.classList.toggle("full", !!st.full);
   const bg = BACKGROUNDS.find(b => b.key === st.bg), bgEl = root.querySelector(".bg"), url = bg ? `url('${route(bg.src)}')` : "";
   if (url !== (bgEl.dataset.url ?? "")) {                                       // background changed (or first draw)
     const was = bgEl.dataset.url ?? ""; bgEl.dataset.url = url;
@@ -426,6 +429,7 @@ export function stepLabel(s) {
     case "reveal": return `Reveal ${s.name}`;
     case "sides": return s.on ? "Officers to the sides" : "Officers back to their places";
     case "bg": return `Background: ${s.name || "Empty"}`;
+    case "full": return s.on ? "Full screen (no black bars)" : "Black bars back";
     default: return "?";
   }
 }
@@ -450,6 +454,7 @@ async function applyStep(s) {
     case "reveal": return k ? reveal(k) : missing();
     case "sides": return patch(st => { st.sides = !!s.on; });
     case "bg": return patch(st => { st.bg = s.key || null; });
+    case "full": return patch(st => { st.full = !!s.on; });
   }
 }
 /** The GM's run through a cutscene: its steps, where he is, the scene as it was before each step (for Back). */
@@ -593,6 +598,7 @@ function renderControls(st) {
       : `<div class="add" title="Drag an officer here from the compendium or the Actors tab; they walk in from the right">${full ? `Scene is full (${MAX_CAST})` : `<span><i class="fa-solid fa-user-plus"></i> Drag an officer here</span><input placeholder="or search…"><div class="hits"></div>`}</div>
          <div class="battlebtn" data-a="battle" title="Set up a battle: pick who fights on each side"><span>⚔ Battle</span></div>
          <div class="sidesbtn ${st.sides ? "on" : ""}" data-a="sides" title="Move everyone to the edges, to show what's in the middle of the screen (again: back to their places)"><span><i class="fa-solid fa-arrows-left-right-to-line"></i> Sides</span><small>${st.sides ? "on" : "off"}</small></div>
+         <div class="sidesbtn ${st.full ? "on" : ""}" data-a="full" title="Full screen: the black bars slide away and the background fills the screen (again: the bars come back)"><span><i class="fa-solid fa-expand"></i> Full</span><small>${st.full ? "on" : "off"}</small></div>
          ${(() => { const b = BACKGROUNDS.find(x => x.key === st.bg); return `<div class="bgctl" data-a="bg" title="Change the background; it fades over for everyone (${esc(b?.name ?? "Empty")} now)"><i class="${b ? "" : "none"}" style="${b ? `background-image:url('${esc(route(b.thumb ?? b.src))}')` : ""}"></i><small>${esc(b?.name ?? "Background")}</small></div>`; })()}
          <div class="end" data-a="end"><span><i class="fa-solid fa-stop"></i> End scene</span></div>`);
   for (const card of ctl.querySelectorAll(".card")) {
@@ -610,6 +616,7 @@ function renderControls(st) {
   const joinLive = (a) => { if ((state().cast?.length ?? 0) >= MAX_CAST) return ui.notifications.warn(`A scene holds up to ${MAX_CAST} officers. Have one leave first.`); live({ t: "enter", uuid: a.uuid, name: a.name }); };
   on("end", () => endCutscene());
   on("sides", () => live({ t: "sides", on: !st.sides }));
+  on("full", () => live({ t: "full", on: !st.full }));
   on("bg", () => BgPicker.open(st.bg ?? "", (key) => { if ((key || null) === (state().bg || null)) return; live({ t: "bg", key: key || null, name: BACKGROUNDS.find(b => b.key === key)?.name ?? "Empty" }); }));
   const add = ctl.querySelector(".add"), inp = add?.querySelector("input");
   if (!add) return;
@@ -769,18 +776,18 @@ async function loadSaved(s) {
  *  New officers come in by dragging them onto the steps, a battle by recording it. */
 async function addStepDialog() {
   const known = new Map(); for (const c of draft.cast) known.set(c.uuid, c.name); for (const s of draft.steps) if (s.t === "enter") known.set(s.uuid, s.name);
-  const acts = [["display", "Display"], ["switch", "Switch to"], ["injure", "Injure"], ["leave", "Leaves"], ["reveal", "Reveal name"], ["clash", "Clash (in a battle)"], ["battleEnd", "End battle"], ["sidesOn", "Officers to the sides"], ["sidesOff", "Officers back to their places"], ["bg", "Change background"]];
+  const acts = [["display", "Display"], ["switch", "Switch to"], ["injure", "Injure"], ["leave", "Leaves"], ["reveal", "Reveal name"], ["clash", "Clash (in a battle)"], ["battleEnd", "End battle"], ["sidesOn", "Officers to the sides"], ["sidesOff", "Officers back to their places"], ["bg", "Change background"], ["fullOn", "Full screen (no black bars)"], ["fullOff", "Black bars back"]];
   let got = null;
   try {
     got = await foundry.applications.api.DialogV2.prompt({ window: { title: "Add step" },
       content: `<div class="form-group"><label>Action</label><select name="t">${acts.map(([v, t]) => `<option value="${v}">${t}</option>`).join("")}</select></div>
         <div class="form-group"><label>Officer</label><select name="u">${[...known].map(([u, n]) => `<option value="${esc(u)}">${esc(n)}</option>`).join("")}</select></div>
         <div class="form-group"><label>Background</label><select name="b"><option value="">Empty</option>${BACKGROUNDS.map(b => `<option value="${esc(b.key)}">${esc(b.group ? `${b.group}: ${b.name}` : b.name)}</option>`).join("")}</select></div>
-        <p class="hint">Background is only for Change background. Clash and End battle need no officer. To add an officer entering, drag him onto the steps; record a battle.</p>`,
+        <p class="hint">Background is only for Change background. Clash, End battle, Sides and Full screen need no officer. To add an officer entering, drag him onto the steps; record a battle.</p>`,
       ok: { label: "Add", callback: (ev, btn) => ({ t: btn.form.elements.t.value, u: btn.form.elements.u.value, b: btn.form.elements.b.value }) }, rejectClose: false });
   } catch { got = null; }
   if (!got) return;
-  const step = got.t === "bg" ? { t: "bg", key: got.b || null, name: BACKGROUNDS.find(b => b.key === got.b)?.name ?? "Empty" } : got.t === "sidesOn" || got.t === "sidesOff" ? { t: "sides", on: got.t === "sidesOn" } : ["clash", "battleEnd"].includes(got.t) ? { t: got.t } : got.u ? { t: got.t, uuid: got.u, name: known.get(got.u) } : null;
+  const step = got.t === "fullOn" || got.t === "fullOff" ? { t: "full", on: got.t === "fullOn" } : got.t === "bg" ? { t: "bg", key: got.b || null, name: BACKGROUNDS.find(b => b.key === got.b)?.name ?? "Empty" } : got.t === "sidesOn" || got.t === "sidesOff" ? { t: "sides", on: got.t === "sidesOn" } : ["clash", "battleEnd"].includes(got.t) ? { t: got.t } : got.u ? { t: got.t, uuid: got.u, name: known.get(got.u) } : null;
   if (!step) return ui.notifications.warn("Add an officer to the scene first.");
   draft.steps.push(step); draft.dirty = true; Builder.refresh();
 }
