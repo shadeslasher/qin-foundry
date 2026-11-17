@@ -224,7 +224,7 @@ export function whoIncludes(s, who, src, u, ctx = {}) {
   if (who.from && u.id === center.id) return false;
   if (u.id === src.id && !who.from) return who.side === 'allies' && who.self === true && matches(s, who.filter, u, { ...ctx, src });
   if ((who.side === 'allies') !== ally(u, src)) return false;
-  const d = E.manhattan(center, u);
+  const d = who.square ? Math.max(Math.abs(center.x - u.x), Math.abs(center.y - u.y)) : E.manhattan(center, u); // square: counts diagonals as 1 (3x3 around the centre at range 1)
   if (who.all !== true) { if (who.exact != null ? d !== who.exact : d > (who.range ?? 0)) return false; }
   return matches(s, who.filter, u, { ...ctx, src });
 }
@@ -882,7 +882,7 @@ function step(s, st, ctx, rest) {
     const centers = st.from && st.from.pick ? ((ctx.picks || {})[st.from.pick] || []).map(c => Array.isArray(c) ? { x: c[0], y: c[1] } : E.unitById(s, c)).filter(Boolean)
       : [st.from ? fromPoint(s, st.from, ctx) : src].filter(Boolean);
     for (const c of centers) for (let dx = -st.fireArea; dx <= st.fireArea; dx++) for (let dy = -st.fireArea; dy <= st.fireArea; dy++)
-      if (Math.abs(dx) + Math.abs(dy) <= st.fireArea && E._inBounds(s, c.x + dx, c.y + dy)) E._ignite(s, c.x + dx, c.y + dy, label);
+      if ((st.square ? Math.max(Math.abs(dx), Math.abs(dy)) : Math.abs(dx) + Math.abs(dy)) <= st.fireArea && E._inBounds(s, c.x + dx, c.y + dy)) E._ignite(s, c.x + dx, c.y + dy, label); // square: a full (2r+1)x(2r+1) block (David, 2026-11-17)
     return;
   }
   if (st.attack) {

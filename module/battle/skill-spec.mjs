@@ -110,7 +110,8 @@ export function validateSpec(spec, kind) {
     if (w.target === true) { if (!inStep) bad(p, '"target" only inside steps/triggers/attacks'); return; }
     if (!['allies', 'enemies'].includes(w.side)) return bad(p, 'needs self, side (allies|enemies), pick or target');
     if (!(isNum(w.range) || isNum(w.exact) || w.all === true)) bad(p, 'needs range, exact or all');
-    for (const k of keys) if (!['side', 'range', 'exact', 'all', 'self', 'filter', 'from'].includes(k)) bad(p + '.' + k, 'unknown WHO key');
+    for (const k of keys) if (!['side', 'range', 'exact', 'all', 'self', 'filter', 'from', 'square'].includes(k)) bad(p + '.' + k, 'unknown WHO key');
+    if (w.square !== undefined && w.square !== true) bad(p + '.square', 'true or left out');
     if (w.from !== undefined && !(w.from && (w.from.target === true || picks.has(w.from.pick)))) bad(p + '.from', '{"pick": id} or {"target": true}');
     filter(p + '.filter', w.filter);
   };
@@ -151,7 +152,7 @@ export function validateSpec(spec, kind) {
     const k = main[0];
     const allowed = { morale: ['who', 'upToResting'], health: ['who'], buff: ['who', 'for'], move: ['who', 'mode', 'toward'], attack: ['who', 'moveFirst', 'extraMove'],
       contest: ['aspect', 'lose', 'win'], status: ['who', 'for', 'from'], push: ['who', 'thenAdvance', 'ifBlocked'], reveal: [], fire: [], resetCooldown: [], extraTurn: ['moveOnly'],
-      reinforce: ['near', 'filter', 'onTerrain', 'arriveBuff'], swap: [], selfStatus: ['for'], if: ['who', 'then', 'else', 'each'], onKill: [], onWin: [], onLose: [], manual: [], hide: [], fireArea: ['from'],
+      reinforce: ['near', 'filter', 'onTerrain', 'arriveBuff'], swap: [], selfStatus: ['for'], if: ['who', 'then', 'else', 'each'], onKill: [], onWin: [], onLose: [], manual: [], hide: [], fireArea: ['from', 'square'],
       casualties: ['who', 'ignoreArmor'], turnOrder: ['who'], setTerrain: ['tiles', 'for'], openGate: ['for', 'oneSide'], repair: ['range'], leave: [], convert: [], spawn: [],
       grantTrait: ['who', 'tier', 'for'], removeTrait: ['who', 'for'], stealTrait: ['who', 'for'], stepTrait: ['who', 'for'], cancelTactic: [], cooldown: ['who'],
       overwatchOn: [], custom: ['args'], counter: ['add', 'set', 'max', 'who'], forceToward: ['who'], forceAttack: ['at'], moveInto: [], splitMorale: ['who', 'max'],
@@ -207,7 +208,7 @@ export function validateSpec(spec, kind) {
       case 'onKill': case 'onWin': case 'onLose': steps(p + '.' + k, st[k]); break;
       case 'manual': if (typeof st.manual !== 'string') bad(p + '.manual', 'text'); break;
       case 'hide': who(p + '.hide', st.hide, true); break;
-      case 'fireArea': if (!isNum(st.fireArea)) bad(p + '.fireArea', 'number (range)'); if (st.from !== undefined && !(st.from && (st.from.target === true || picks.has(st.from.pick)))) bad(p + '.from', '{"pick": id} or {"target": true}'); break;
+      case 'fireArea': if (!isNum(st.fireArea)) bad(p + '.fireArea', 'number (range)'); if (st.square !== undefined && st.square !== true) bad(p + '.square', 'true or left out'); if (st.from !== undefined && !(st.from && (st.from.target === true || picks.has(st.from.pick)))) bad(p + '.from', '{"pick": id} or {"target": true}'); break;
     }
   };
   (spec.mods || []).forEach((m, i) => mod('mods[' + i + ']', m, false));
