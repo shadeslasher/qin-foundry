@@ -7,7 +7,7 @@ import { SYSTEM_ID } from "./config.mjs";
 import { playStepSounds, attackSounds, playMoment } from "./sound.mjs";
 import { drawUnitBars, freezeUnits } from "./unit-bars.mjs";
 import { playActivation } from "./battle/activation-fx.mjs";
-import { playSweep, playUniqueAttack, playUniqueContest, playAnotherTurn } from "./battle/unique-fx.mjs";
+import { playSweep, playUniqueAttack, playUniqueContest, playAnotherTurn, playUniqueRide } from "./battle/unique-fx.mjs";
 
 const SOCKET = `system.${SYSTEM_ID}`;
 
@@ -1120,6 +1120,11 @@ async function playBattleAnimNow({ sceneId, steps }) {
         }
       } else if (st.kind === "terror") {
         await playUniqueContest(st.skill ?? "Terror of the Battlefield", tok(st.unit), st.results ?? [], tok, (id, style, text) => { const t = tok(id); if (t) floatLocal(t.center, style, text); });
+      } else if (st.kind === "ride") {
+        const float = (id, style, text) => { const t = tok(id); if (t) floatLocal(t.center, style, text); };
+        const done = playUniqueRide(st.skill, tok(st.unit), st.path ?? [], st.hits ?? [], tok, float);
+        if (done) await done;
+        else { for (const [id, cas] of st.hits ?? []) float(id, "unitDamage", `\u2212${cas}`); await wait(500); }
       } else if (st.kind === "anotherTurn") {
         await playAnotherTurn(tok(st.unit));
       } else if (st.kind === "floats") {

@@ -412,6 +412,7 @@ async function postLog(entries, s) {
     // XP and killing-blow morale for an attack are already on its card
     if ((d?.type === "xp" || d?.type === "moraleGain") && attackIds.has(d.unit) && /XP|killing blow|enemy surrendered/.test(e.text)) continue;
     if (/ ends its turn\.$/.test(e.text)) continue;
+    if (d?.type === "rideThrough") continue; // its hits are already listed; the line only carries the path for the animation
     parts.push(`<p class="qin-bc-note ${d?.type === "warning" ? "qin-warn" : ""}">${e.text}</p>`);
   }
   if (!parts.length) return;
@@ -455,6 +456,12 @@ function animateChanges(scene, before, s, entries, actionType = null) {
         const ids = [...new Set(Object.values(e.detail.picks).flat())].filter(id => E.unitById(s, id));
         if (ids.length) steps.push({ kind: "terror", unit: e.detail.unit, skill: e.detail.skill, results: ids.map(id => [id, true]), closed: true });
       }
+      continue;
+    }
+    // a ride through the enemy (Gongsun Zan's Ride Them Down): the path and who it trampled, played as one step
+    if (e.detail?.type === "rideThrough") {
+      for (const [id, cas] of e.detail.hits ?? []) add(id, "men", cas);
+      steps.push({ kind: "ride", unit: e.detail.unit, skill: e.detail.skill, path: e.detail.path ?? [], hits: e.detail.hits ?? [] });
       continue;
     }
     // a tactic plays where it fired: before the attack that set it off

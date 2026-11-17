@@ -1356,3 +1356,111 @@ export function playUniqueActivation(st, token, release = null) {
   if (fn && token && !token.destroyed) return fn(token);
   return null;
 }
+
+/* ------------------------------------------------------------ Gongsun Zan: Ride Them Down (David, 2026-11-17) */
+
+/** A white horseman seen from above, facing +x, drawn in u units (the mockup's pixels at a 64 px square × 0.85).
+ *  cyc = gallop phase (radians): the four short legs swing in turn (left hind, right hind, left fore, right fore),
+ *  hooves tucking in as they lift; the body itself never stretches (David, 2026-11-17). bow: a mounted archer. */
+const WH_LEGS = [[-9, -5, 0], [-9, 5, 0.1], [7, -4.5, 0.38], [7, 4.5, 0.48]];
+function drawWhiteHorseman(g, u, cyc, bow) {
+  const gal = Math.sin(cyc), P = (x, y) => [x * u, y * u];
+  g.clear();
+  for (const [lx, ly, o] of WH_LEGS) {
+    const p = ((cyc / (Math.PI * 2) + o) % 1 + 1) % 1, a = p * Math.PI * 2, swing = -Math.cos(a) * 4.5, lift = Math.max(0, Math.sin(a));
+    const hx = lx + 2 * Math.sign(lx) + swing, hy = ly * (1.35 - lift * 0.25);
+    g.lineStyle({ width: 2.2 * u, color: 0xd9d2c2, cap: "round" }).moveTo(...P(lx, ly * 0.8)).lineTo(...P(hx, hy));
+    g.lineStyle(0).beginFill(lift > 0.3 ? 0x8a7a62 : 0x4a3e30).drawCircle(...P(hx, hy), 1.1 * u).endFill();
+  }
+  // tail, swinging with the stride
+  g.lineStyle(0).beginFill(0xe9e4d8).moveTo(...P(-15, 0)).quadraticCurveTo(...P(-26, -3 + gal * 3), ...P(-31, 1 + gal * 2))
+    .quadraticCurveTo(...P(-25, 2 + gal), ...P(-15, 2.5)).closePath().endFill();
+  // body: rump, barrel, shoulders, neck and head
+  g.lineStyle(0.9 * u, 0xbcb3a1, 1).beginFill(0xf6f3ec).moveTo(...P(-16, 0))
+    .bezierCurveTo(...P(-16, -7.5), ...P(-6, -7), ...P(0, -6)).bezierCurveTo(...P(6, -6), ...P(10, -5), ...P(12, -3.2))
+    .bezierCurveTo(...P(15, -2.6), ...P(18, -2.4), ...P(21, -2.1)).bezierCurveTo(...P(24, -2), ...P(26, -1), ...P(26.5, 0))
+    .bezierCurveTo(...P(26, 1), ...P(24, 2), ...P(21, 2.1)).bezierCurveTo(...P(18, 2.4), ...P(15, 2.6), ...P(12, 3.2))
+    .bezierCurveTo(...P(10, 5), ...P(6, 6), ...P(0, 6)).bezierCurveTo(...P(-6, 7), ...P(-16, 7.5), ...P(-16, 0)).closePath().endFill();
+  g.lineStyle(0).beginFill(0xe4ddcd).drawEllipse(...P(-9, 0), 5.5 * u, 4.5 * u).endFill();
+  g.lineStyle(1.6 * u, 0xd0c7b4, 1).moveTo(...P(11, 0)).quadraticCurveTo(...P(16, gal * 0.8), ...P(22, 0));            // mane
+  g.lineStyle(0).beginFill(0xf6f3ec).drawCircle(...P(23.5, -2.3), 1.3 * u).drawCircle(...P(23.5, 2.3), 1.3 * u).endFill(); // ears
+  // rider: saddle cloth, shoulders, white-plumed helmet
+  g.beginFill(0x6b5a40).drawEllipse(...P(1, 0), 4.2 * u, 5.8 * u).endFill();
+  g.lineStyle(0.7 * u, 0xa99e88, 1).beginFill(0xf0ece2).drawEllipse(...P(1, 0), 3.3 * u, 6.4 * u).endFill();
+  g.lineStyle(0).beginFill(0xd8d2c4).drawCircle(...P(1.6, 0), 2.7 * u).endFill().beginFill(0xfffdf8).drawCircle(...P(1.6, 0), 1.1 * u).endFill();
+  if (bow) g.lineStyle(1.2 * u, 0x5a4630, 1).arc(...P(4, -6), 5 * u, -1.9, 0.3);
+  else {
+    g.lineStyle(1.3 * u, 0x6b5a40, 1).moveTo(...P(-6, 5.5)).lineTo(...P(26, 7.5));
+    g.lineStyle(0).beginFill(0xc9ced6).drawPolygon([...P(26, 6.8), ...P(31, 7.9), ...P(26, 8.4)]).endFill();
+    g.beginFill(0xfffdf8).drawPolygon([...P(22, 7.2), ...P(18, 10.5 + gal), ...P(16, 7)]).endFill();         // pennant
+  }
+}
+
+/** Ride Them Down: the path he rode lights up white, then the White Horse Followers — nine horsemen in a wedge, spears
+ *  and bows, seen from above — gallop along it in a cloud of dust. Each enemy unit they pass over flashes white, shakes and
+ *  shows its casualties as they reach it; then the herd fades out at the end of the path, where his unit stands. */
+function whiteHorseCharge(token, path, hits, tokOf, float) {
+  const G = canvas.grid?.size ?? Math.min(token.w, token.h), k = G / 64, u = k * 0.85, B = Blur();
+  const pts = path.map(([x, y]) => ({ x: x * G + G / 2, y: y * G + G / 2 }));
+  if (pts.length < 2) return Promise.resolve();
+  const segs = []; let L = 0;
+  for (let i = 1; i < pts.length; i++) { const d = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y); segs.push(d); L += d; }
+  const sAt = (i) => segs.slice(0, i).reduce((a, b) => a + b, 0);
+  const at = (s) => { s = Math.max(0, Math.min(L, s)); let i = 0; while (i < segs.length - 1 && s > segs[i]) { s -= segs[i]; i++; }
+    const a = pts[i], b = pts[i + 1], f = segs[i] ? s / segs[i] : 0; return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f, ang: Math.atan2(b.y - a.y, b.x - a.x) }; };
+  const root = new PIXI.Container(); overLayer().addChild(root);
+  const trail = new PIXI.Graphics(); root.addChild(trail);
+  const WEDGE = [[0, 0], [-22, -13], [-22, 13], [-44, -26], [-44, 0], [-44, 26], [-66, -13], [-66, 13], [-88, 0]];
+  const herd = WEDGE.map(([o, l], i) => {
+    const c = new PIXI.Container(); root.addChild(c);
+    const shadow = new PIXI.Graphics().beginFill(0x000000, 0.28).drawEllipse(-1 * u, 4 * u, 20 * u, 7.5 * u).endFill(); if (B) shadow.filters = [new B(3)];
+    const g = new PIXI.Graphics(); c.addChild(shadow, g); c.alpha = 0;
+    return { c, g, off: (-o + rnd(0, 6)) * k, lane: (l * 0.8 + rnd(-2, 2)) * k, ph: rnd(0, 6), bow: i % 3 === 1 };
+  });
+  const dustG = new PIXI.Graphics(); if (B) dustG.filters = [new B(2)]; root.addChild(dustG);
+  const flashG = new PIXI.Graphics(); root.addChild(flashG);
+  const marks = hits.map(([id, cas, idx]) => ({ id, cas, s: idx >= 0 ? sAt(idx) : L / 2, t: -1, tok: tokOf(id) }))
+    .map(m => ({ ...m, x0: m.tok?.mesh?.position.x, p0: m.tok?.position.x }));
+  const PRE = 0.6, SPEED = 3.9 * G, RUN = (L + 2.8 * G) / SPEED, END = PRE + RUN + 0.6;
+  let dust = [], nextHoof = 0;
+  return run((dt, t) => {
+    // the path glows white, drawn out from the start, then fades once the herd has passed
+    const prog = Math.min(1, t / PRE), pa = 0.6 * (1 - sm((t - PRE - RUN) / 0.6));
+    trail.clear();
+    if (pa > 0.01) { for (let s = 0; s < prog * L; s += 18 * k) { const a = at(s), b = at(Math.min(s + 10 * k, prog * L)); trail.lineStyle(4 * k, 0xffffff, pa).moveTo(a.x, a.y).lineTo(b.x, b.y); } }
+    const head = t < PRE ? 0 : (t - PRE) * SPEED;
+    if (t >= PRE && t < PRE + RUN && t >= nextHoof) { playMoment("Cavalry moves", { minGap: 0 }); nextHoof = t + 0.5; }
+    for (const h of herd) {
+      const s = head - h.off;
+      if (s < 0 || t < PRE) { h.c.alpha = 0; continue; }
+      const fade = s > L ? Math.max(0, 1 - (s - L) / (50 * k)) : Math.min(1, s / (30 * k));
+      h.c.alpha = fade; if (fade <= 0) continue;
+      const p = at(Math.min(s, L)), nx = -Math.sin(p.ang), ny = Math.cos(p.ang);
+      h.c.position.set(p.x + nx * h.lane, p.y + ny * h.lane); h.c.rotation = p.ang;
+      h.ph += dt * 15; drawWhiteHorseman(h.g, u, h.ph, h.bow);
+      if (s < L && Math.random() < 0.3) dust.push({ x: p.x + nx * h.lane - Math.cos(p.ang) * 18 * k, y: p.y + ny * h.lane - Math.sin(p.ang) * 18 * k, t, r: rnd(3, 6) * k });
+    }
+    dust = dust.filter(d => t - d.t < 0.9);
+    dustG.clear(); for (const d of dust) { const q = t - d.t; dustG.beginFill(0xd2c3a0, 0.35 * (1 - q / 0.9)).drawCircle(d.x, d.y, d.r * (1 + q * 1.5)).endFill(); }
+    // each trampled unit: white flash, a shake, its casualties, as the herd's head reaches it
+    flashG.clear();
+    for (const m of marks) {
+      if (m.t < 0 && head - 40 * k > m.s) { m.t = t; float?.(m.id, "unitDamage", `−${m.cas}`); playMoment("Melee hit", { minGap: 0 }); }
+      if (m.t < 0) continue;
+      const q = t - m.t, c = m.tok && !m.tok.destroyed ? m.tok.center : null;
+      if (c && q < 0.3) flashG.beginFill(0xffffff, 0.7 * (1 - q / 0.3)).drawCircle(c.x, c.y, (24 + q * 50) * k).endFill();
+      if (m.tok && !m.tok.destroyed && m.x0 !== undefined) { const sh = q < 0.6 ? (Math.random() - 0.5) * 7 * k * (1 - q / 0.6) : 0; m.tok.mesh.position.x = m.x0 + sh; m.tok.position.x = m.p0 + sh; }
+    }
+    if (t < END) return true;
+    for (const m of marks) if (m.tok && !m.tok.destroyed && m.x0 !== undefined) { m.tok.mesh.position.x = m.x0; m.tok.position.x = m.p0; try { m.tok.renderFlags?.set({ refreshPosition: true }); } catch { /* fine */ } }
+    root.destroy({ children: true });
+    return false;
+  });
+}
+
+/** A ride through the enemy, by the skill that gave it (null when the skill has no animation of its own). */
+const ON_RIDE = { "Ride Them Down": whiteHorseCharge };
+export function playUniqueRide(skill, token, path, hits, tokOf, float) {
+  const fn = ON_RIDE[skill];
+  return fn && token && !token.destroyed ? fn(token, path, hits, tokOf, float) : null;
+}

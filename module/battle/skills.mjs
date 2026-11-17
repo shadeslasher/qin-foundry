@@ -1350,29 +1350,33 @@ export function beforeAttack(s, attacker, defender, opts = {}) {
   }
   return null;
 }
-/** Ride through: the enemy units its move passed over each take its damage (the path that passes the most of them). */
+/** Ride through: the enemy units its move passed over each take its damage (the path that passes the most of them).
+ *  Logs the path it took and who it hit ({ type: 'rideThrough' }) for the animation (Gongsun Zan's white horses, 0.192.0). */
 export function rideThrough(s, u, from) {
   if (!flag(s, u, 'rideThrough') || !from) return;
   const foes = new Map(live(s).filter(o => E.hostile(o, u)).map(o => [o.x + ',' + o.y, o]));
   // shortest paths from `from` to u's square over passable ground; among them, the one over the most enemies
   const key = (x, y) => x + ',' + y, goal = key(u.x, u.y);
-  let best = null; const q = [[from.x, from.y, [], 0]], seen = new Map([[key(from.x, from.y), 0]]);
+  let best = null, bestPath = null; const q = [[from.x, from.y, [], 0, [[from.x, from.y]]]], seen = new Map([[key(from.x, from.y), 0]]);
   const limit = E.manhattan(from, u) + 4;
   while (q.length) {
-    const [x, y, passed, n] = q.shift();
-    if (key(x, y) === goal) { if (!best || passed.length > best.length) best = passed; continue; }
+    const [x, y, passed, n, path] = q.shift();
+    if (key(x, y) === goal) { if (!best || passed.length > best.length) { best = passed; bestPath = path; } continue; }
     if (n >= limit) continue;
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const nx = x + dx, ny = y + dy, k = key(nx, ny);
       if (!E._inBounds(s, nx, ny) || !E._passable(s, nx, ny, u)) continue;
       const p2 = foes.has(k) && !passed.includes(foes.get(k)) ? [...passed, foes.get(k)] : passed;
       if ((seen.get(k + ':' + p2.length) ?? 99) <= n + 1) continue;
-      seen.set(k + ':' + p2.length, n + 1); q.push([nx, ny, p2, n + 1]);
+      seen.set(k + ':' + p2.length, n + 1); q.push([nx, ny, p2, n + 1, [...path, [nx, ny]]]);
     }
   }
-  const dmg = Number(typeOf(s, u).damage) || 0, pen = Number(typeOf(s, u).armorPen) || 0;
+  const dmg = Number(typeOf(s, u).damage) || 0, pen = Number(typeOf(s, u).armorPen) || 0, hits = [];
   for (const e of best || []) { const c = Math.min(e.men, E.casualtiesOf(dmg, Number(typeOf(s, e).armor) || 0, pen, 0, 0)); e.men -= c;
+    hits.push([e.id, c, (bestPath || []).findIndex(([px, py]) => px === e.x && py === e.y)]);
     say(s, nm(u) + ' rides through ' + nm(e) + ': ' + c + ' casualties.', { type: 'skillCasualties', unit: e.id, casualties: c }); }
+  const skill = (u.fx?.buffs ?? []).find(b => (b.flags ?? []).some(f => f.flag === 'rideThrough'))?.name ?? null;
+  say(s, nm(u) + ' rides them down.', { type: 'rideThrough', unit: u.id, skill, path: bestPath || [[from.x, from.y], [u.x, u.y]], hits });
 }
 /** Extra tactics a side may place (a passive with the extraTactic flag on one of its units). */
 export function extraTactics(s, side) {
