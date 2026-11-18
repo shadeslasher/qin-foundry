@@ -79,6 +79,7 @@ import "./module/battle/camera-pull.mjs";   // GM: move everyone's camera to a t
 import "./module/cutscene.mjs";             // GM: Cutscene Maker
 import * as Recorder from "./module/dev/recorder.mjs";   // GM: animation recorder
 import * as TestBench from "./module/dev/test-bench.mjs"; // GM: animation test bench
+import * as Recovery from "./module/recovery.mjs";       // unit recovery between battles (called by the map module)
 registerCompendiumSync();
 registerPlacedTag();
 Hooks.once("init", () => {
@@ -87,6 +88,7 @@ Hooks.once("init", () => {
   CONFIG.qinFactions ??= {};
   globalThis.qin = game.qin = { config: CFG, rules: QinRules, openBattle: () => BattlePanel.open(), battleRequest, registerFactions, factionList, openUnitInfo, openOfficerView, importBattleMap: () => importBattleMap(SYSTEM_ID),
     registerMapRenderer, registerCutsceneBackgrounds, cutsceneStepping, openScenes: () => toggleSceneSwitcher(true), makeDuelArena, previewDuelZoom, redrawMap: (scene = canvas.scene) => redrawScene(scene), paintMap: (scene = canvas.scene) => MapEditorApp.open(scene), refreshBattlePanel: () => BattlePanel.refresh(), newUnit: () => newUnitDialog(), unitEditor: () => UnitEditorApp.open(), registerSoundPack, playSound: (m) => playMoment(m, { minGap: 0 }), openSounds: () => SoundPanel.toggle(), openCombatPanel: (actor) => CombatPanel.open(actor),
+    recovery: { rate: Recovery.recoveryRate, preview: Recovery.recoverDays, update: Recovery.recoveryUpdate, recoverActors: Recovery.recoverActors },
     recorder: { record: Recorder.record }, testBench: { setup: TestBench.setup, reset: TestBench.reset, recordSkill: TestBench.recordSkill } };
 
   CONFIG.Actor.documentClass = QinActor;
