@@ -265,7 +265,9 @@ function layout(st, cast, i, c) {
   const fx = c.fx ?? 0.5, eye = c.eye ?? 0.15;
   if (side === "L" || side === "R") {
     const team = cast.filter(o => b.sides[o.key] === side), j = team.indexOf(c);
-    const x = side === "L" ? 0.36 - 0.1 * j : 0.64 + 0.1 * j;
+    // nobody on the other side (David, 2026-11-18: a battle with one officer): this side stands in the middle
+    const alone = !cast.some(o => b.sides[o.key] && b.sides[o.key] !== side);
+    const x = alone ? 0.5 + (side === "L" ? -1 : 1) * 0.1 * (j - (team.length - 1) / 2) : side === "L" ? 0.36 - 0.1 * j : 0.64 + 0.1 * j;
     return { x, anchor: fx, scale: 1.08, origin: `${fx * 100}% ${eye * 100}%`, side };
   }
   const spect = cast.filter(o => !b.sides?.[o.key]), j = spect.indexOf(c), half = Math.ceil(spect.length / 2);
@@ -445,7 +447,7 @@ export function stepLabel(s) {
     case "display": return `Display ${s.name}`;
     case "switch": return `Switch to ${s.name}`;
     case "injure": return `Injure ${s.name}`;
-    case "battle": { const side = (v) => (s.sides ?? []).filter(f => f.side === v).map(f => f.name).join(", ") || "?"; return `Battle: ${side("L")} vs ${side("R")}`; }
+    case "battle": { const side = (v) => (s.sides ?? []).filter(f => f.side === v).map(f => f.name).join(", "); const l = side("L"), r = side("R"); return l && r ? `Battle: ${l} vs ${r}` : `Battle: ${l || r} (alone)`; }
     case "clash": return "Clash";
     case "battleEnd": return "End battle";
     case "reveal": return `Reveal ${s.name}`;
@@ -615,7 +617,7 @@ function renderControls(st) {
          <div class="end" data-a="battleEnd" title="Everyone goes back to where they stood"><span>End battle</span></div></div>`
       : bt?.setup
       ? (() => { const nL = Object.values(sides).filter(v => v === "L").length, nR = Object.values(sides).filter(v => v === "R").length;
-          return `<div class="battlebtn go ${nL && nR ? "" : "off"}" data-a="battleStart" title="The chosen officers face off in the middle; the others stand aside"><span>⚔ Start battle</span><small>${nL || "?"} vs ${nR || "?"}</small></div>
+          return `<div class="battlebtn go ${nL + nR ? "" : "off"}" data-a="battleStart" title="The chosen officers face off in the middle (one officer alone is fine); the others stand aside"><span>⚔ Start battle</span><small>${nL} vs ${nR}</small></div>
            <div class="end" data-a="battleCancel" style="width:70px"><span>Cancel</span></div>`; })()
       : `<div class="add" title="Drag an officer here from the compendium or the Actors tab; they walk in from the right">${full ? `Scene is full (${MAX_CAST})` : `<span><i class="fa-solid fa-user-plus"></i> Drag an officer here</span><input placeholder="or search…"><div class="hits"></div>`}</div>
          <div class="battlebtn" data-a="battle" title="Set up a battle: pick who fights on each side"><span>⚔ Battle</span></div>
