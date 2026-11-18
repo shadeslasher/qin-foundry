@@ -337,6 +337,7 @@ Hooks.on("deleteCombat", rerenderCharacterSheets);
 Hooks.on("updateToken", (doc, change, options) => {
   try { onUnitTokenMoved(doc, change, getBattle(), options); } catch (e) { console.warn("Qin | move sound", e); }
   if (options?.qinRide?.from && doc.parent?.id === canvas?.scene?.id) holdRide(doc.id, options.qinRide.from); // stays on its start square until its ride plays
+  if (options?.qinWalk?.from && doc.parent?.id === canvas?.scene?.id) holdRide(doc.id, options.qinWalk.from); // stays on its start square until its walk plays
 });
 Hooks.on("refreshToken", (token) => applyRideHold(token));
 Hooks.on("updateToken", (doc, change, options) => {

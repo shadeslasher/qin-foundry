@@ -7,7 +7,7 @@ import { SYSTEM_ID } from "./config.mjs";
 import { playStepSounds, attackSounds, playMoment } from "./sound.mjs";
 import { drawUnitBars, freezeUnits } from "./unit-bars.mjs";
 import { playActivation } from "./battle/activation-fx.mjs";
-import { playSweep, playUniqueAttack, playUniqueContest, playAnotherTurn, playUniqueRide } from "./battle/unique-fx.mjs";
+import { playSweep, playUniqueAttack, playUniqueContest, playAnotherTurn, playUniqueRide, playUniqueZap, playWalk } from "./battle/unique-fx.mjs";
 
 const SOCKET = `system.${SYSTEM_ID}`;
 
@@ -1125,6 +1125,14 @@ async function playBattleAnimNow({ sceneId, steps }) {
         const done = playUniqueRide(st.skill, tok(st.unit), st.path ?? [], st.hits ?? [], tok, float);
         if (done) await done;
         else { for (const [id, cas] of st.hits ?? []) float(id, "unitDamage", `\u2212${cas}`); await wait(500); }
+      } else if (st.kind === "walk") { // a unit walks its path square by square, halting where a skill hits it (David, 2026-11-18)
+        const at = (t) => t?.mesh && !t.mesh.destroyed ? { x: t.mesh.position.x, y: t.mesh.position.y } : t?.center;
+        const float = (id, style, text) => { const t = tok(id); if (t) floatLocal(at(t), style, text); };
+        await playWalk(tok(st.unit), st.path ?? [], st.stops ?? [], tok, float, !!st.cavalry);
+      } else if (st.kind === "zap") { // a skill's damage with its own animation (Dian Wei's thrown halberds)
+        const float = (id, style, text) => { const t = tok(id); if (t) floatLocal(t.center, style, text); };
+        const done = playUniqueZap(st.skill, tok(st.src), tok(st.unit), st.cas, float);
+        if (done) await done; else { float(st.unit, "unitDamage", `\u2212${st.cas}`); await wait(500); }
       } else if (st.kind === "anotherTurn") {
         await playAnotherTurn(tok(st.unit));
       } else if (st.kind === "floats") {

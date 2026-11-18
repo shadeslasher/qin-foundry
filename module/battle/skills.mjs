@@ -542,6 +542,12 @@ export function onMoved(s, u, from) {
   rideThrough(s, u, from);
   for (const X of live(s)) if (X.id !== u.id) event(s, ally(X, u) ? 'allyMoves' : 'enemyMoves', X, { target: u, from });
 }
+/** Engine hook: a unit walked this path (squares after its start, in order). Enemies whose skills watch the ground
+ *  it crossed react once to the move (David, 2026-11-18: Dian Wei's The Gate Holds). */
+export function onPath(s, u, path) {
+  if (!path || !path.length) return;
+  for (const X of live(s)) if (X.id !== u.id && E.hostile(X, u)) event(s, 'enemyPasses', X, { target: u, path });
+}
 /** Engine hook: a duel ended. outcome: 'won' | 'lost' | 'refused' | 'slew' | 'fell' for each side. */
 export function onDuel(s, u, outcome, other) {
   if (!u || !E.alive(u)) { /* an officerless unit still hears about it */ }
@@ -595,17 +601,27 @@ export function event(s, on, X, ctx = {}) {
   const round = (s.turn && s.turn.round) || 0;
   for (const L of lists) L.trig.forEach((t, i) => {
     if (t.on !== on) return;
-    if (ctx.target && on in RANGED_EVENTS && E.manhattan(X, ctx.target) > (t.range ?? RANGED_EVENTS[on])) return;
+    let passIdx;
+    if (on === 'enemyPasses') { // the first square of its path within range (start excluded)
+      passIdx = (ctx.path || []).findIndex(p => E.manhattan(X, p) <= (t.range ?? 1));
+      if (passIdx < 0) return;
+    } else if (ctx.target && on in RANGED_EVENTS && E.manhattan(X, ctx.target) > (t.range ?? RANGED_EVENTS[on])) return;
     const tc = { src: X, self: X, target: ctx.target, picks: L.picks, fallKind: ctx.fallKind, by: ctx.by, attackSide: ctx.attackSide, kindOverride: ctx.ranged };
     if (t.if && !matches(s, t.if, X, tc)) return;
     if (t.targetIf && !(ctx.target && matches(s, t.targetIf, ctx.target, tc))) return;
-    if (t.limit) {
+    if (t.limit === 'targetTurn') { // once per unit it hits, per that unit's turn; triggers with the same group share it
+      if (!ctx.target) return;
+      const used = (fxOf(X).skUsed ||= {}), key = L.key + ':' + (t.group ?? i) + ':' + ctx.target.id;
+      const stamp = 'T' + round + ':' + (fxOf(ctx.target).acts || 0);
+      if (used[key] === stamp) return;
+      used[key] = stamp;
+    } else if (t.limit) {
       const used = (fxOf(X).skUsed ||= {}), key = L.key + ':' + i;
       const stamp = t.limit === 'battle' ? 'b' : t.limit === 'round' ? 'r' + round : 't' + round + ':' + (fxOf(X).acts || 0);
       if (used[key] === stamp) return;
       used[key] = stamp;
     }
-    runSteps(s, t.do || [], { src: X, target: ctx.target, picks: L.picks, name: L.name, auto: true });
+    runSteps(s, t.do || [], { src: X, target: ctx.target, picks: L.picks, name: L.name, auto: true, passIdx });
   });
 }
 
@@ -779,7 +795,8 @@ function step(s, st, ctx, rest) {
     for (const u of units(st.who)) {
       const armor = st.ignoreArmor ? 0 : Math.max(0, Number(typeOf(s, u).armor) || 0);
       const c = Math.min(u.men, Math.max(0, st.casualties - armor)); if (!c) continue;
-      u.men -= c; say(s, label + ': ' + nm(u) + ' takes ' + c + ' casualties' + (st.ignoreArmor ? ' (armor doesn\'t help)' : '') + '.', { type: 'skillCasualties', unit: u.id, casualties: c });
+      u.men -= c; say(s, label + ': ' + nm(u) + ' takes ' + c + ' casualties' + (st.ignoreArmor ? ' (armor doesn\'t help)' : '') + '.',
+        { type: 'skillCasualties', unit: u.id, casualties: c, src: src.id, skill: ctx.name || null, ...(ctx.passIdx !== undefined ? { at: ctx.passIdx } : {}) });
     }
     return;
   }

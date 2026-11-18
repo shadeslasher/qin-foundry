@@ -174,6 +174,22 @@ function onCatapultSquare(token) {
   if (!c || c.flag !== flag) { c = { flag, tiles: decodeTiles(flag) }; mapTiles.set(scene.id, c); }
   return (c.tiles?.[k]?.overlays ?? []).includes("catapult");
 }
+/** Skills that watch the ground around the unit while they last, by buff name -> reach in tiles (David, 2026-11-18). */
+const ZONE_BUFFS = { "The Gate Holds": 2 };
+function zoneOf(token) {
+  const buffs = battleRecord(token)?.meta?.[token.id]?.fx?.buffs ?? [];
+  for (const b of buffs) if (ZONE_BUFFS[b.name]) return ZONE_BUFFS[b.name];
+  return 0;
+}
+/** The watched tiles: a faint red wash with an orange edge on each square within reach (its own square left out). */
+function drawZone(w, h, T, r) {
+  const g = new PIXI.Graphics();
+  for (let dx = -r; dx <= r; dx++) for (let dy = -r; dy <= r; dy++) {
+    const d = Math.abs(dx) + Math.abs(dy); if (!d || d > r) continue;
+    g.lineStyle(Math.max(1, T * 0.015), 0xff8c3c, 0.35).beginFill(0x961e14, 0.12).drawRect(dx * w + 3, dy * h + 3, w - 6, h - 6).endFill();
+  }
+  return g;
+}
 /** A white catapult drawn over a unit on a catapult square, filling the square (David, 2026-11-17). */
 function drawCatapultMark(w, h, T) {
   const g = new PIXI.Graphics(), k = T * 0.8 / 100, P = (x, y) => [w / 2 + x * k, h / 2 + (y + 8) * k];
@@ -938,7 +954,8 @@ export async function drawUnitBars(token) {
   if (locks?.move && !bootTex) await bootTexture().then(t => { bootTex = t; });
   const lasting = lastingLook(eff);
   const onCat = onCatapultSquare(token);
-  const key = JSON.stringify([onCat, ready, locks, lasting, eff ? [eff.nb, eff.nd, eff.pb, eff.pd] : null, men, max, morale, w, h, s.side, acted, active, holding, watching, st, mine, n, art, off, fac?.img ?? null, facing, battleRecord(token)?.meta?.[token.id]?.carry ?? null, !!battleRecord(token)?.meta?.[token.id]?.fx?.shocked, s.traits]); // traits: equipment icons (ladders, engine)
+  const zoneR = zoneOf(token);
+  const key = JSON.stringify([zoneR, onCat, ready, locks, lasting, eff ? [eff.nb, eff.nd, eff.pb, eff.pd] : null, men, max, morale, w, h, s.side, acted, active, holding, watching, st, mine, n, art, off, fac?.img ?? null, facing, battleRecord(token)?.meta?.[token.id]?.carry ?? null, !!battleRecord(token)?.meta?.[token.id]?.fx?.shocked, s.traits]); // traits: equipment icons (ladders, engine)
   if (pendingBurst.has(token.id)) { const kinds = pendingBurst.get(token.id); pendingBurst.delete(token.id); playBurst(token, kinds, w, h, T, T * L.pad); }
   let c = token[KEY];
   // (a ready mark that was hidden for an activation, e.g. one undone or replayed, is drawn again: David, 2026-11-09)
@@ -965,6 +982,7 @@ export async function drawUnitBars(token) {
   let fall = token.qinFall;                       // soldiers still falling survive the redraw
   if (fall && !fall.destroyed && fall.parent === c) c.removeChild(fall);
   for (const ch of c.removeChildren()) ch.destroy({ children: true });
+  if (zoneR) c.addChild(drawZone(w, h, T, zoneR)); // the ground a skill watches (under the stand)
   const stand = new PIXI.Container();
   c.addChild(stand);
 

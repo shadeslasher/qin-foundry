@@ -304,7 +304,7 @@ async function skillRequests(s, scene) {
   if (touched) await game.settings.set(SYSTEM_ID, SETTING, b2);
 }
 
-async function writeBack(battle, s, scene, rides = null) {
+async function writeBack(battle, s, scene, rides = null, walks = null) {
   const size = scene?.grid.size ?? 100;
   const tokenUpdates = [];
   const actorUpdates = [];
@@ -360,9 +360,12 @@ async function writeBack(battle, s, scene, rides = null) {
     writing = true;
     // a unit that rode through the enemy (Ride Them Down) jumps to its end square with no slide and no move sound:
     // its ride animation carries it there along the path (every client holds it on the start square until then)
-    const ridden = tokenUpdates.filter(t => rides?.[t._id] && ("x" in t || "y" in t)), rest = tokenUpdates.filter(t => !ridden.includes(t));
+    const ridden = tokenUpdates.filter(t => rides?.[t._id] && ("x" in t || "y" in t));
+    const walked = tokenUpdates.filter(t => !ridden.includes(t) && walks?.[t._id] && ("x" in t || "y" in t)); // walk animation carries them (David, 2026-11-18)
+    const rest = tokenUpdates.filter(t => !ridden.includes(t) && !walked.includes(t));
     try {
       for (const t of ridden) await scene.updateEmbeddedDocuments("Token", [t], { qinBattle: true, animate: false, qinRide: { from: rides[t._id] } });
+      for (const t of walked) await scene.updateEmbeddedDocuments("Token", [t], { qinBattle: true, animate: false, qinWalk: { from: walks[t._id] } });
       if (rest.length) await scene.updateEmbeddedDocuments("Token", rest, { qinBattle: true });
     }
     finally { writing = false; }
@@ -419,6 +422,7 @@ async function postLog(entries, s) {
     if ((d?.type === "xp" || d?.type === "moraleGain") && attackIds.has(d.unit) && /XP|killing blow|enemy surrendered/.test(e.text)) continue;
     if (/ ends its turn\.$/.test(e.text)) continue;
     if (d?.type === "rideThrough") continue; // its hits are already listed; the line only carries the path for the animation
+    if (d?.type === "walk") continue; // only carries the path the token walks
     parts.push(`<p class="qin-bc-note ${d?.type === "warning" ? "qin-warn" : ""}">${e.text}</p>`);
   }
   if (!parts.length) return;
@@ -428,7 +432,7 @@ async function postLog(entries, s) {
 /** Skills with their own animations (David, 2026-11-09; played by battle/unique-fx.mjs): attacks made while the active's
  *  buff is on, contested rolls a passive makes everyone around it take (the end-of-turn terror), and its extra turns. */
 export const UNIQUE_ATTACK = ["None Can Stand Before Him"], UNIQUE_CONTEST = ["Terror of the Battlefield", "Stone Sentinel Maze", "Terror of Changban"], UNIQUE_EXTRA = ["Terror of the Battlefield"],
-  UNIQUE_PICKED = ["The Wolf Bares His Fangs"];
+  UNIQUE_PICKED = ["The Wolf Bares His Fangs"], UNIQUE_ZAP = ["The Gate Holds"]; // ZAP: its damage to one unit has its own animation (unique-fx ON_ZAP)
 function uniqueAttackOf(s, id) {
   const u = E.unitById(s, id);
   return (u?.fx?.buffs ?? []).map(b => b.name).find(n => UNIQUE_ATTACK.includes(n)) ?? null;
@@ -469,6 +473,17 @@ function animateChanges(scene, before, s, entries, actionType = null) {
       for (const [id, cas] of e.detail.hits ?? []) add(id, "men", cas);
       steps.push({ kind: "ride", unit: e.detail.unit, skill: e.detail.skill, path: e.detail.path ?? [], hits: e.detail.hits ?? [] });
       continue;
+    }
+    // a unit walking its path (it goes round other units); a skill hitting it on the way halts it there (David, 2026-11-18)
+    if (e.detail?.type === "walk") {
+      const u = E.unitById(s, e.detail.unit);
+      steps.push({ kind: "walk", unit: e.detail.unit, path: e.detail.path ?? [], stops: [], cavalry: !!u && E.typeOf(s, u)?.category === "cavalry" });
+      continue;
+    }
+    if (e.detail?.type === "skillCasualties" && e.detail.skill && (e.detail.at !== undefined || UNIQUE_ZAP.includes(e.detail.skill))) {
+      const w = e.detail.at !== undefined ? [...steps].reverse().find(x => x.kind === "walk" && x.unit === e.detail.unit) : null;
+      if (w) { w.stops.push({ at: e.detail.at + 1, skill: e.detail.skill, src: e.detail.src, cas: e.detail.casualties }); add(e.detail.unit, "men", e.detail.casualties); continue; }
+      if (UNIQUE_ZAP.includes(e.detail.skill)) { steps.push({ kind: "zap", skill: e.detail.skill, src: e.detail.src, unit: e.detail.unit, cas: e.detail.casualties }); add(e.detail.unit, "men", e.detail.casualties); continue; }
     }
     // a tactic plays where it fired: before the attack that set it off
     if (e.detail?.type === "tactic") { steps.push({ kind: "tactic", tactic: e.detail.tactic }); continue; }
@@ -731,6 +746,8 @@ async function runActionNow(userId, action) {
     broadcastAnimHold(scene.id); // the action menu waits until this action's animations have played
   }
   const rides = Object.fromEntries(s.log.slice(logLen).filter(e => e.detail?.type === "rideThrough" && e.detail.path?.length > 1).map(e => [e.detail.unit, e.detail.path[0]]));
+  // units that walked a path (click-to-move, the AI) are held on their start square until their walk plays
+  const walks = Object.fromEntries(s.log.slice(logLen).filter(e => e.detail?.type === "walk" && e.detail.path?.length > 1).map(e => [e.detail.unit, e.detail.path[0]]));
   // a finished duel: everyone goes back to the battle first (the zoom out), and only then do the morale changes land
   // on the units, in the chat and as floating numbers (David, 2026-11-17: they showed before the animation)
   let duelClosed = false;
@@ -739,7 +756,7 @@ async function runActionNow(userId, action) {
     await new Promise(r => setTimeout(r, 1200));                  // everyone's battle map has loaded again
     duelClosed = true;
   }
-  await writeBack(battle, s, scene, rides);
+  await writeBack(battle, s, scene, rides, walks);
   if (s.skillRequests?.length) await skillRequests(s, scene).catch(e => console.warn("Qin | battlefield skill requests", e));
   await postLog(s.log.slice(logLen), s);
   // officer duels: an accepted duel moves to its close-up scene; a finished or cancelled one comes back

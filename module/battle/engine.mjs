@@ -636,7 +636,8 @@ function reachable(s, u, budget) {
   const better = (a, b) => !b || a[0] < b[0] || (a[0] === b[0] && (a[3] < b[3] || (a[3] === b[3] && (a[1] < b[1] || (a[1] === b[1] && a[2] > b[2])))));
   bestAt.set(start, [0, 0, 0, 0]); steps.set(start, 0);
   const rd0 = 0; // starting on a road doesn't count: the move must enter a road square (David, 2026-11-05)
-  const q = [[u.x, u.y, 0, 0, 0, 0, rd0]]; // x, y, squares walked, max surcharge, rough, burning squares passed through, road used
+  const nodes = [[u.x, u.y, -1]], node = new Map(); // squares walked, for the path each best square was reached by
+  const q = [[u.x, u.y, 0, 0, 0, 0, rd0, 0]]; // x, y, squares walked, max surcharge, rough, burning squares passed through, road used, path node
   seen.set(start + ',0,0,0,' + rd0, 0);
   const costOf = (e) => e[2] + e[3] - (e[6] ? ROAD_BONUS : 0);
   // officers' battlefield skills (David, 2026-11-05)
@@ -649,7 +650,7 @@ function reachable(s, u, budget) {
   while (q.length) {
     let bi = 0;
     for (let i = 1; i < q.length; i++) if (costOf(q[i]) < costOf(q[bi])) bi = i;
-    const [x, y, n, m, rf, fc, rd] = q.splice(bi, 1)[0];
+    const [x, y, n, m, rf, fc, rd, ni] = q.splice(bi, 1)[0];
     if (seen.get(key(x, y) + ',' + m + ',' + rf + ',' + fc + ',' + rd) < n) continue;
     if (mustStop(x, y)) continue; // next to a unit that pins enemies, or on ground it must stop on: no further
     for (const [dx, dy] of ORTHO) {
@@ -665,17 +666,19 @@ function reachable(s, u, budget) {
       if (seen.has(sk) && seen.get(sk) <= nn) continue;
       const o = unitAt(s, nx, ny);
       if (o && (trait(o, 'heavy') || !stealthFriends(alliance(o.side), alliance(u.side))) && !(through && hostile(o, u))) continue;
-      seen.set(sk, nn); q.push([nx, ny, nn, nm, nr, fcThrough, nrd]);
+      seen.set(sk, nn); nodes.push([nx, ny, ni]); const nni = nodes.length - 1; q.push([nx, ny, nn, nm, nr, fcThrough, nrd, nni]);
       if (o) continue; // pass through friends, never stop on them
       const cand = [cost, nr, nn, fcThrough];
       if (better(cand, bestAt.get(k))) {
-        bestAt.set(k, cand); out.set(k, cand[0]); steps.set(k, nn);
+        bestAt.set(k, cand); out.set(k, cand[0]); steps.set(k, nn); node.set(k, nni);
         if (nr) rough.add(k); else rough.delete(k);
         if (fcThrough) fire.set(k, fcThrough); else fire.delete(k);
       }
     }
   }
   out.steps = steps; out.rough = rough; out.fire = fire;
+  // the squares walked to reach a square, start excluded, end included (David, 2026-11-18: tokens follow it)
+  out.path = (k) => { const path = []; for (let i = node.get(k); i > 0; i = nodes[i][2]) path.unshift({ x: nodes[i][0], y: nodes[i][1] }); return node.has(k) ? path : null; };
   return out;
 }
 
@@ -744,7 +747,7 @@ function moveOptions(s, u) {
     }
   }
   // rough: blue squares whose path crosses or ends on rough ground (no charge); fire: morale the path's fires cost
-  return { blue, red, climb, rough, fire, noAttack };
+  return { blue, red, climb, rough, fire, noAttack, path: reach.path };
 }
 
 const FIRE_CROSS_MORALE = 5; // morale for each burning square a unit walks through (David, 2026-11-04)
@@ -2567,10 +2570,12 @@ const ACTIONS = {
     const r = activeUnit(s, actor, a.unitId); if (r.error) return r;
     const { u, act: ac } = r;
     const k = a.x + ',' + a.y;
-    const { blue, red, climb, rough, fire, noAttack } = moveOptions(s, u);
+    const { blue, red, climb, rough, fire, noAttack, path: pathTo } = moveOptions(s, u);
     const forced = !blue.has(k) && red.has(k);
     if (!blue.has(k) && !forced) return err("Can't move there");
     const from = { x: u.x, y: u.y };
+    // the squares it walks (the cheapest path, as the move tiles were worked out): tokens follow it (David, 2026-11-18)
+    const walk = climb && climb.has(k) ? null : ((pathTo && pathTo(k)) || null);
     const prevFacing = u.facing ? { ...u.facing } : null, prevHidden = !!u.hidden, prevStarted = !!ac.started, prevCarry = carrying(u);
     // Backs Turned: enemies it leaves behind may strike it as it goes
     const struck = backsTurned(s, u, { x: a.x, y: a.y });
@@ -2578,8 +2583,11 @@ const ACTIONS = {
     if (forced) fireTactics(s, 'forcedMarch', u);
     u.x = a.x; u.y = a.y; u.round.moved = true;
     ac.started = true; ac.movedThisActivation = true; ac.step = 'act';
+    if (walk && walk.length) log(s, '', { type: 'walk', unit: u.id, path: [[from.x, from.y], ...walk.map(p => [p.x, p.y])], quiet: true });
     revealAround(s, u);
     if (heroOfficer(s, u)) fireTactics(s, 'heroMove', u);
+    SK.onPath(s, u, walk);
+    if (!alive(u) || u.men <= 0) { settle(s); if (alive(u)) finishActivation(s, u); return; }
     if (forced) {
       const { cost, dist, fire: burnt } = red.get(k);
       ac.forcedMarched = true;
@@ -3072,6 +3080,7 @@ function doMove(s, actor, a, forced) {
   u.x = a.x; u.y = a.y; u.round.moved = true;
   ac.started = true; ac.movedThisActivation = true;
   revealAround(s, u);
+  SK.onPath(s, u, path ? path.path(pk) : [{ x: a.x, y: a.y }]);
   if (!forced) { ac.tilesMoved = tiles; ac.roughPath = roughPath; }
   if (forced) {
     ac.forcedMarched = true;

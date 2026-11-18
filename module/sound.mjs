@@ -185,6 +185,7 @@ export function onUnitTokenMoved(doc, change, battle, options = {}) {
   const from = lastPos.get(doc.id);
   lastPos.set(doc.id, { x: doc.x, y: doc.y });
   if (options?.qinRide) return; // a ride through the enemy: its animation plays the crashes instead (David, 2026-11-17)
+  if (options?.qinWalk) return; // walking its path: the walk plays a footstep for each square (David, 2026-11-18)
   if (doc.actor?.type !== "unit") return;
   if (!battle?.active || battle.sceneId !== doc.parent?.id || canvas?.scene?.id !== doc.parent?.id) return;
   if (["setup", "tactics"].includes(battle.turn?.phase ?? "setup")) return; // no unit sounds while deploying (David, 2026-10-30)

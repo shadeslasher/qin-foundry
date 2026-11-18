@@ -298,7 +298,7 @@ export class BattlePanel extends api.HandlebarsApplicationMixin(api.Application 
       round: t.round, roundLabel: ["setup", "tactics"].includes(t.phase) ? "Deployment" : null, phase: PHASE_NAME[t.phase], prompt,
       deployList: deployListState(), held, controls, order, units,
       siegeCard: game.user.isGM && t.phase === "tactics" ? { on: !!battle.siegeDeploy } : null, // David, 2026-11-13
-      log: (s.log || []).slice(-12).reverse().map(e => e.text), recentClosed: recentClosed(),
+      log: (s.log || []).filter(e => !e.detail?.quiet).slice(-12).reverse().map(e => e.text), recentClosed: recentClosed(),
       wrongScene: canvas.scene?.id !== battle.sceneId, battleScene: scene?.name,
       showSkip: game.user.isGM && !["setup", "start", "tactics", "over"].includes(p.kind),
       gmFireOn: !!gmFire,

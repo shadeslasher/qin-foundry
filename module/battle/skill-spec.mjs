@@ -29,7 +29,9 @@ export const EVENTS = ['battleStart', 'roundStart', 'turnStart', 'turnEnd', 'win
   'allyFalls', 'enemyEndsAdjacent', 'alliesTurnStart', 'firstBelowHalfMorale',
   'enemyTurnStart', 'roundEnd', 'enemyFalls', 'attacked', 'allyWins',
   // v3
-  'enemyMoves', 'allyMoves', 'allyTurnEnd', 'enemyTurnEnd', 'duelWin', 'duelLose', 'duelRefused', 'allyDuelWin'];
+  'enemyMoves', 'allyMoves', 'allyTurnEnd', 'enemyTurnEnd', 'duelWin', 'duelLose', 'duelRefused', 'allyDuelWin',
+  // 2026-11-18: an enemy unit's move passes within range (any square of its path, start excluded; once per move) (Dian Wei)
+  'enemyPasses'];
 export const STATUSES = ['cantMove', 'cantAttack', 'cantMoveOrAttack', 'skipTurn', 'moveOrAttack', 'noSkills', 'stripDefenses',
   'halfMove', 'cantAttackSource', 'maxMove1',
   // v3
@@ -216,10 +218,10 @@ export function validateSpec(spec, kind) {
   (spec.flags || []).forEach((f, i) => flag('flags[' + i + ']', f, false));
   function trigger(p, t) {
     if (!EVENTS.includes(t && t.on)) bad(p + '.on', 'unknown event "' + (t && t.on) + '"');
-    for (const k of Object.keys(t || {})) if (!['on', 'if', 'do', 'limit', 'range', 'targetIf'].includes(k)) bad(p + '.' + k, 'unknown TRIGGER key');
+    for (const k of Object.keys(t || {})) if (!['on', 'if', 'do', 'limit', 'range', 'targetIf', 'group'].includes(k)) bad(p + '.' + k, 'unknown TRIGGER key');
     if (t && t.targetIf) filter(p + '.targetIf', t.targetIf, COND_KEYS);
     if (t && t.range !== undefined && !isNum(t.range)) bad(p + '.range', 'number');
-    if (t && t.limit !== undefined && !['battle', 'round', 'turn'].includes(t.limit)) bad(p + '.limit', 'battle|round|turn');
+    if (t && t.limit !== undefined && !['battle', 'round', 'turn', 'targetTurn'].includes(t.limit)) bad(p + '.limit', 'battle|round|turn|targetTurn');
     filter(p + '.if', t && t.if, COND_KEYS);
     steps(p + '.do', (t && t.do) || []);
   }

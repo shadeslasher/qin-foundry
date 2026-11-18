@@ -1319,6 +1319,7 @@ const ON_ACTIVATE = {
   "None Can Stand Before Him": (token) => Promise.all([warAura(token), fireEruption(token)]),
   "Stone Sentinel Maze": (token) => eightTrigrams(token),
   "The Wolf Bares His Fangs": (token) => wolfPack(token),
+  "The Gate Holds": (token) => gateHolds(token),
 };
 /** Animations that release the units the active touched themselves, as their effect reaches them. */
 const ON_ACTIVATE_SPREAD = {
@@ -1488,4 +1489,157 @@ const ON_RIDE = { "Ride Them Down": whiteHorseCharge };
 export function playUniqueRide(skill, token, path, hits, tokOf, float) {
   const fn = ON_RIDE[skill];
   return fn && token && !token.destroyed ? fn(token, path, hits, tokOf, float) : null;
+}
+
+
+/* ------------------------------------------------------------ Dian Wei: The Gate Holds (David, 2026-11-18) */
+
+/** One of his heavy iron halberds (ji), pointing +x: dark iron shaft, a spear point and one crescent blade. */
+function ironJiTexture(G) {
+  const key = "ironji" + Math.round(G);
+  if (bladeTex.has(key)) return bladeTex.get(key);
+  const S = 2, u = G * S / 140, L = Math.round(300 * u), H = Math.round(90 * u);
+  const cv = document.createElement("canvas"); cv.width = L; cv.height = H; const g = cv.getContext("2d");
+  const cy = H * 0.5, X = (x) => x * u, Y = (y) => cy + y * u;
+  const poly = (pts) => { g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(X(x), Y(y)) : g.moveTo(X(x), Y(y)))); g.closePath(); };
+  const iron = (y0, y1) => { const v = g.createLinearGradient(0, Y(y0), 0, Y(y1)); v.addColorStop(0, "#5d646a"); v.addColorStop(0.5, "#c9cfd3"); v.addColorStop(1, "#40464b"); return v; };
+  g.fillStyle = iron(-4, 4); g.fillRect(X(0), Y(-4), X(206) - X(0), 8 * u);                       // the iron shaft
+  g.fillStyle = "#2c2f33"; for (const x of [10, 70, 130]) g.fillRect(X(x), Y(-5), 5 * u, 10 * u);    // bands
+  g.fillStyle = "#6b2a1e"; g.fillRect(X(150), Y(-4.6), 40 * u, 9.2 * u);                           // the grip wrap
+  poly([[200, -7], [210, -7], [210, 7], [200, 7]]); g.fillStyle = "#2c2f33"; g.fill();
+  g.beginPath(); g.moveTo(X(212), Y(-4)); g.bezierCurveTo(X(206), Y(-24), X(222), Y(-46), X(246), Y(-42));   // the crescent
+  g.bezierCurveTo(X(232), Y(-34), X(224), Y(-22), X(230), Y(-8)); g.closePath(); g.fillStyle = iron(-42, -4); g.fill();
+  g.strokeStyle = "#2a2e31"; g.lineWidth = 1.2 * u; g.stroke();
+  const tip = [[210, -5], [240, -7], [272, -5], [300, 0], [272, 5], [240, 7], [210, 5]];
+  g.fillStyle = iron(-7, 7); poly(tip); g.fill(); g.strokeStyle = "#2a2e31"; poly(tip); g.stroke();
+  g.strokeStyle = "rgba(255,255,255,.55)"; g.lineWidth = 1 * u; g.beginPath(); g.moveTo(X(214), Y(-1)); g.lineTo(X(292), Y(-0.5)); g.stroke();
+  const tex = { tex: PIXI.Texture.from(cv), S, len: 300 * G / 140 };
+  bladeTex.set(key, tex);
+  return tex;
+}
+/** A small throwing ji, hand-sized, drawn centred on (0,0) in a Graphics (it spins as it flies). */
+function drawThrowingJi(g, k) {
+  g.clear();
+  g.beginFill(0x3b2a1a).drawRect(-9 * k, -1.3 * k, 15 * k, 2.6 * k).endFill();
+  g.beginFill(0xd5dade).lineStyle(0.8 * k, 0x44494e).drawPolygon([6 * k, -2.2 * k, 14 * k, 0, 6 * k, 2.2 * k]).endFill();
+  g.beginFill(0xc3c9ce).lineStyle(0.8 * k, 0x44494e).drawPolygon([4 * k, -1.3 * k, 3 * k, -7 * k, 9 * k, -9 * k, 7 * k, -4 * k, 6.5 * k, -1.3 * k]).endFill();
+}
+/** The tiles within 2 of a square (Manhattan, its own square left out). */
+const gateTiles = (x, y, r = 2) => { const out = []; for (let dx = -r; dx <= r; dx++) for (let dy = -r; dy <= r; dy++) { const d = Math.abs(dx) + Math.abs(dy); if (d && d <= r) out.push([x + dx, y + dy]); } return out; };
+
+/** Activation: the view darkens a little, his two iron halberds drop from above and slam down crossed on his unit;
+ *  the ground shakes, a ring of dust blows out, and the ground within 2 tiles flushes red (the zone stays marked
+ *  faintly on his stand while the skill lasts). */
+function gateHolds(token) {
+  const G = canvas.grid?.size ?? Math.min(token.w, token.h), k = G / 100, B = Blur();
+  const cx = token.center.x, cy = token.center.y, gx = Math.round(token.document.x / G), gy = Math.round(token.document.y / G);
+  const ground = groundLayer(), root = new PIXI.Container(); overLayer().addChild(root);
+  const zone = new PIXI.Graphics(); ground.addChild(zone);
+  const dust = new PIXI.Graphics(); if (B) dust.filters = [new B(3)]; root.addChild(dust);
+  const T = ironJiTexture(G);
+  const blades = [-1, 1].map(sd => {
+    const sp = new PIXI.Sprite(T.tex); sp.anchor.set(1, 0.5); sp.scale.set(1.25 / T.S);
+    sp.rotation = Math.PI / 2 + sd * 0.42; sp.alpha = 0; root.addChild(sp); return { sp, sd };
+  });
+  const DROP = 0.38, LAND = 0.2 + DROP;
+  let hit = false, puffs = [];
+  return run((dt, t) => {
+    for (const b of blades) {
+      const q = Math.min(1, Math.max(0, (t - 0.2) / DROP)), e = q * q;
+      b.sp.alpha = t < 1.7 ? Math.min(1, t * 5) : Math.max(0, 1 - (t - 1.7) / 0.5);
+      b.sp.position.set(cx + b.sd * 12 * k + Math.cos(b.sp.rotation) * 0, cy + 0.28 * G - (1 - e) * 5 * G);
+    }
+    if (!hit && t >= LAND) {
+      hit = true; playMoment("Melee hit", { minGap: 0 }); playMoment("Sweep hit", { minGap: 0 });
+      for (let i = 0; i < 26; i++) { const a = (i / 26) * Math.PI * 2; puffs.push({ a, v: rnd(1.6, 2.6) * G, r: rnd(8, 16) * k }); }
+    }
+    shakeScreen(hit ? Math.max(0, 1 - (t - LAND) / 0.55) * 0.9 : 0, t);
+    dust.clear();
+    if (hit) { const q = t - LAND;
+      if (q < 1.1) { dust.lineStyle(10 * k * (1 - q / 1.1) + 1, 0xe6d2ad, 0.8 * (1 - q / 1.1)).drawEllipse(cx, cy + 0.2 * G, q * 2.4 * G, q * 1.5 * G); dust.lineStyle(0); }
+      for (const p of puffs) { const d = Math.min(q, 0.9) * p.v, a = Math.max(0, 0.55 * (1 - q / 1.2));
+        if (a > 0) dust.beginFill(0xbfa780, a).drawCircle(cx + Math.cos(p.a) * d, cy + 0.2 * G + Math.sin(p.a) * d * 0.6, p.r * (1 + q)).endFill(); }
+    }
+    // the ground he holds flushes red, then settles to the faint mark his stand keeps
+    const za = hit ? Math.min(1, (t - LAND) / 0.4) * (t < 1.6 ? 1 : Math.max(0, 1 - (t - 1.6) / 0.7)) : 0;
+    zone.clear();
+    if (za > 0) for (const [x, y] of gateTiles(gx, gy)) zone.beginFill(0x961e14, 0.32 * za).lineStyle(2 * k, 0xff8c3c, 0.6 * za).drawRect(x * G + 2, y * G + 2, G - 4, G - 4).endFill();
+    if (t < 2.4) return true;
+    shakeScreen(0, t); root.destroy({ children: true }); ground.destroy({ children: true });
+    return false;
+  });
+}
+
+/** A barrage of hand-sized throwing ji from his unit at one enemy unit: seven, one after another, each on its own
+ *  curve, spinning; each sparks where it lands; the casualties show as the last one strikes. at() gives the target's
+ *  centre each frame (it may be paused mid-walk). */
+function halberdBarrage(src, at, cas, float) {
+  const G = canvas.grid?.size ?? Math.min(src.w, src.h), k = G / 64;
+  const root = new PIXI.Container(); topLayer().addChild(root);
+  const sparks = new PIXI.Graphics(); root.addChild(sparks);
+  const N = 7, GAP = 0.11, FLY = 0.42;
+  const s0 = { x: src.center.x, y: src.center.y - 0.1 * G };
+  const ji = Array.from({ length: N }, (_, i) => { const g = new PIXI.Graphics(); drawThrowingJi(g, k); g.alpha = 0; root.addChild(g);
+    return { g, i, bend: (i % 2 ? -1 : 1) * (0.35 + i * 0.07) * G, jit: [((i % 3) - 1) * 0.14 * G, (i % 2 ? -0.1 : 0.1) * G], hitT: -1 }; });
+  let shown = false;
+  return run((dt, t) => {
+    const T = at() ?? s0;
+    sparks.clear();
+    for (const j of ji) {
+      const q = (t - j.i * GAP) / FLY;
+      if (q < 0) continue;
+      if (q === q && q < 1 && j.hitT < 0) {
+        if (j.g.alpha === 0) playMoment("Bow shot", { minGap: 0.05 });
+        const tx = T.x + j.jit[0], ty = T.y + j.jit[1], dx = tx - s0.x, dy = ty - s0.y, L = Math.hypot(dx, dy) || 1;
+        const mx = (s0.x + tx) / 2 - dy / L * j.bend, my = (s0.y + ty) / 2 + dx / L * j.bend - 0.3 * G;
+        const x = (1 - q) ** 2 * s0.x + 2 * (1 - q) * q * mx + q * q * tx, y = (1 - q) ** 2 * s0.y + 2 * (1 - q) * q * my + q * q * ty;
+        j.g.alpha = 1; j.g.position.set(x, y); j.g.rotation = t * 26 + j.i;
+      } else if (j.hitT < 0) {
+        j.hitT = t; j.g.alpha = 0; playMoment("Arrow hit", { minGap: 0 });
+        if (j.i === N - 1 && !shown) { shown = true; float?.("unitDamage", `−${cas}`); playMoment("Melee hit", { minGap: 0 }); }
+      }
+      if (j.hitT >= 0) { const h = t - j.hitT; if (h < 0.25) for (let n = 0; n < 6; n++) { const a = n + j.i, tx = T.x + j.jit[0], ty = T.y + j.jit[1];
+        sparks.lineStyle(2 * k, 0xffdc78, 1 - h / 0.25).moveTo(tx, ty).lineTo(tx + Math.cos(a) * h * 1.4 * G, ty + Math.sin(a) * h * 1.4 * G); } }
+    }
+    if (t < (N - 1) * GAP + FLY + 0.35) return true;
+    root.destroy({ children: true });
+    return false;
+  });
+}
+
+/** Damage a skill does to one unit with its own animation (from src to target), by the skill's name. */
+const ON_ZAP = { "The Gate Holds": halberdBarrage };
+export function hasUniqueZap(skill) { return !!ON_ZAP[skill]; }
+export function playUniqueZap(skill, src, target, cas, float) {
+  const fn = ON_ZAP[skill];
+  if (!fn || !src || src.destroyed || !target || target.destroyed) return null;
+  return fn(src, () => (target.destroyed ? null : { x: target.mesh?.position.x ?? target.center.x, y: target.mesh?.position.y ?? target.center.y }), cas, (style, text) => float?.(target.id, style, text));
+}
+
+/* ------------------------------------------------------------ walking along the path (David, 2026-11-18) */
+
+/** A unit walks its move square by square along the path the engine found (so it goes round enemy units instead of
+ *  sliding through them), with a footstep for each square. stops: [{ at: index in path, skill, src, cas }] — it halts
+ *  there while the skill hits it (Dian Wei's thrown halberds), then walks on. Held on its start square until now. */
+export async function playWalk(token, path, stops = [], tokOf, float, cavalry = false) {
+  if (!token || token.destroyed || !path || path.length < 2) return;
+  const G = canvas.grid?.size ?? Math.min(token.w, token.h);
+  const pts = path.map(([x, y]) => ({ x: x * G + G / 2, y: y * G + G / 2 }));
+  const hold = rideHold.get(token.id) ?? { cx: pts[0].x, cy: pts[0].y, since: Date.now() }; rideHold.set(token.id, hold);
+  let speed = 5; try { speed = Number(CONFIG.Token?.movement?.defaultSpeed) || 5; } catch { /* default */ }
+  const step = cavalry ? "Cavalry moves" : "Infantry moves";
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i], dur = 1 / speed;
+    if (i === 1 || i % (cavalry ? 2 : 1) === 0) playMoment(step, { minGap: 0 });
+    await run((dt, t) => { const f = Math.min(1, t / dur), x = a.x + (b.x - a.x) * f, y = a.y + (b.y - a.y) * f;
+      hold.cx = x; hold.cy = y; hold.since = Date.now(); placeAt(token, x, y); return f < 1; });
+    for (const st of stops.filter(q => q.at === i)) {
+      const src = tokOf?.(st.src);
+      const done = playUniqueZap(st.skill, src, token, st.cas, float);
+      if (done) await done; else { float?.(token.id, "unitDamage", `−${st.cas}`); await new Promise(r => setTimeout(r, atSpeed(500))); }
+      hold.since = Date.now();
+    }
+  }
+  rideHold.delete(token.id);
+  if (!token.destroyed) { placeAt(token, token.document.x + token.w / 2, token.document.y + token.h / 2); try { token.renderFlags?.set({ refreshPosition: true }); } catch { /* fine */ } }
 }
