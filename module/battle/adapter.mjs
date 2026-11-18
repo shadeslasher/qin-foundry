@@ -694,12 +694,20 @@ async function runActionNow(userId, action) {
     broadcastAnimHold(scene.id); // the action menu waits until this action's animations have played
   }
   const rides = Object.fromEntries(s.log.slice(logLen).filter(e => e.detail?.type === "rideThrough" && e.detail.path?.length > 1).map(e => [e.detail.unit, e.detail.path[0]]));
+  // a finished duel: everyone goes back to the battle first (the zoom out), and only then do the morale changes land
+  // on the units, in the chat and as floating numbers (David, 2026-11-17: they showed before the animation)
+  let duelClosed = false;
+  if (res.ok && (action.type === "duelResult" || action.type === "duelCancel") && prevDuel?.duelSceneId) {
+    await (await import("./duel-scene.mjs")).closeDuelScene(prevDuel);
+    await new Promise(r => setTimeout(r, 1200));                  // everyone's battle map has loaded again
+    duelClosed = true;
+  }
   await writeBack(battle, s, scene, rides);
   if (s.skillRequests?.length) await skillRequests(s, scene).catch(e => console.warn("Qin | battlefield skill requests", e));
   await postLog(s.log.slice(logLen), s);
   // officer duels: an accepted duel moves to its close-up scene; a finished or cancelled one comes back
   if (res.ok && action.type === "duelAnswer" && s.duels?.pending?.stage === "fighting") (await import("./duel-scene.mjs")).openDuelScene();
-  if (res.ok && (action.type === "duelResult" || action.type === "duelCancel") && prevDuel?.duelSceneId) await (await import("./duel-scene.mjs")).closeDuelScene(prevDuel);
+  if (res.ok && !duelClosed && (action.type === "duelResult" || action.type === "duelCancel") && prevDuel?.duelSceneId) await (await import("./duel-scene.mjs")).closeDuelScene(prevDuel);
   if (res.ok) {
     const shown = animateChanges(scene, before, s, s.log.slice(logLen), action.type);
     // Units destroyed or surrendered this action: remove their tokens once the skull/flag and fade have played.
