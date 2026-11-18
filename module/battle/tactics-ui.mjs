@@ -292,7 +292,7 @@ function remainingLabel(p, round) {
 
 export function drawTacticOverlays() {
   if (overlayTick) { canvas?.app?.ticker?.remove(overlayTick); overlayTick = null; }
-  if (overlay && !overlay.destroyed) overlay.destroy({ children: true });
+  if (overlay && !overlay.destroyed) { if (overlay.qinLabels && !overlay.qinLabels.destroyed) overlay.qinLabels.destroy({ children: true }); overlay.destroy({ children: true }); }
   overlay = null;
   if (!canvas?.ready) return;
   const b = getBattle();
@@ -303,6 +303,8 @@ export function drawTacticOverlays() {
   if (!shown.length) return;
   const c = new PIXI.Container(); c.eventMode = "none";
   const g = new PIXI.Graphics(); c.addChild(g);
+  // names and countdown badges go above the unit stands (David, 2026-11-17: they were hidden behind units); the areas stay under
+  const lc = new PIXI.Container(); lc.eventMode = "none"; Object.assign(lc, { zIndex: 1040, sort: 1040 }); c.qinLabels = lc;
   const Txt = foundry.canvas?.containers?.PreciseText ?? PIXI.Text;
   const live = []; // active areas: a slowly breathing glow and a few motes drifting up
   for (const p of shown) {
@@ -315,7 +317,7 @@ export function drawTacticOverlays() {
       live.push({ glow, motes, col, X, Y, W, seeds: Array.from({ length: n }, (_, i) => ({ x: rnd(i, 1), s: 0.35 + rnd(i, 2) * 0.5, o: rnd(i, 3), r: 1.5 + rnd(i, 4) * 2.5 })) });
       // name, then the countdown badge beside it
       const t = new Txt(name, new PIXI.TextStyle({ fontFamily: "Signika, sans-serif", fontSize: Math.round(size * 0.2), fontWeight: "bold", fill: hex, stroke: "#000000", strokeThickness: 4, lineJoin: "round" }));
-      t.position.set(X + 6, Y + 4); c.addChild(t);
+      t.position.set(X + 6, Y + 4); lc.addChild(t);
       const label = remainingLabel(p, round);
       if (label) {
         const bt = new Txt(`⌛ ${label}`, new PIXI.TextStyle({ fontFamily: "Signika, sans-serif", fontSize: Math.round(size * 0.16), fontWeight: "bold", fill: "#ffffff" }));
@@ -323,7 +325,7 @@ export function drawTacticOverlays() {
         const pill = new PIXI.Graphics().lineStyle(Math.max(1, size * 0.015), col, 1).beginFill(0x111111, 0.78)
           .drawRoundedRect(bx, by, bt.width + 2 * padX, bt.height + 2 * padY, (bt.height + 2 * padY) / 2).endFill();
         bt.position.set(bx + padX, by + padY);
-        c.addChild(pill, bt);
+        lc.addChild(pill, bt);
       }
     } else {
       // waiting to fire: a faint filled box, so it reads on the map without hiding it
@@ -331,11 +333,12 @@ export function drawTacticOverlays() {
       const reach = tacticDef(p.key)?.reach;
       if (reach) { g.lineStyle(2, col, 0.6); dashedRect(g, (p.x - reach) * size, (p.y - reach) * size, (2 * reach + 1) * size, (2 * reach + 1) * size); }
       const t = new Txt(name, new PIXI.TextStyle({ fontFamily: "Signika, sans-serif", fontSize: Math.round(size * 0.2), fontWeight: "bold", fill: hex, stroke: "#000000", strokeThickness: 4, lineJoin: "round" }));
-      t.alpha = 0.75; t.position.set(X + 6, Y + 4); c.addChild(t);
+      t.alpha = 0.75; t.position.set(X + 6, Y + 4); lc.addChild(t);
     }
   }
   const layer = canvas.interface ?? canvas.stage;
   layer.addChildAt?.(c, 0) ?? layer.addChild(c);
+  layer.addChild(lc); layer.sortableChildren = true; layer.sortDirty = true;
   overlay = c;
   if (live.length && canvas.app?.ticker) {
     const t0 = performance.now();
