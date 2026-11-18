@@ -75,3 +75,23 @@ test('walk paths go round enemy units', () => {
   assert.ok(!p.some(([x, y]) => x === 6 && y === 5), 'never on the enemy square');
   for (let i = 1; i < p.length; i++) assert.strictEqual(Math.abs(p[i][0] - p[i - 1][0]) + Math.abs(p[i][1] - p[i - 1][1]), 1, 'one square at a time');
 });
+
+test('Fight or Be Butchered: the end-of-turn morale loss names its skill (for the whip animation)', () => {
+  const FB = { do: [{ buff: { mods: [{ stat: 'attack', value: 4 }], flags: [{ flag: 'noSurrender' }], triggers: [{ on: 'turnEnd', do: [{ morale: -5, who: { self: true } }] }] }, who: { side: 'allies', range: 5 }, for: { rounds: 2 } }] };
+  const dz = { id: 'dz', name: 'Dong Zhuo', command: 3, fire: 2, skills: {}, passive: { effects: {} }, skill: { name: 'Fight or Be Butchered', text: 'x', moraleCost: 0, recharge: 0 },
+    battle: { active: FB, activeName: 'Fight or Be Butchered' } };
+  const s = R.newState(); s.players.p1 = { name: 'A' };
+  s.map.cols = 12; s.map.rows = 12; s.map.tiles = {};
+  for (let x = 0; x < 12; x++) for (let y = 0; y < 12; y++) s.map.tiles[x + ',' + y] = { terrain: 'plains' };
+  s.library.unitTypes.push(inf); s.library.officers.push(dz);
+  const a = must(R.act(s, HOST, { type: 'addUnit', typeId: 'inf', owner: 'p1', side: 'player', x: 2, y: 2, officerId: 'dz', morale: 80 })).unitId;
+  const b = must(R.act(s, HOST, { type: 'addUnit', typeId: 'inf', owner: 'p1', side: 'player', x: 4, y: 2, morale: 80 })).unitId;
+  must(R.act(s, HOST, { type: 'startBattle' })); R.setRng(() => 0.3); must(R.act(s, HOST, { type: 'startRound' }));
+  s.turn.activation = { unitId: a, step: 'move', started: false, tilesMoved: 0, from: { x: 2, y: 2 } };
+  must(R.act(s, HOST, { type: 'useSkill', unitId: a }));
+  const n0 = s.log.length;
+  SK.onActivationEnd(s, R.unitById(s, b));
+  const e = s.log.slice(n0).find(x => x.detail?.type === 'skillMorale');
+  assert.strictEqual(e.detail.skill, 'Fight or Be Butchered');
+  assert.strictEqual(e.detail.lost, 5);
+});

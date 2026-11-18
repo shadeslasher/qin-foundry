@@ -658,7 +658,7 @@ function step(s, st, ctx, rest) {
   if (st.morale !== undefined) {
     for (const u of units(st.who)) {
       if (st.morale > 0) { const b = u.morale; u.morale = Math.min(st.upToResting ? Math.max(b, restingOf(u)) : 100, (u.morale ?? 50) + st.morale); if (u.morale !== b) say(s, label + ': ' + nm(u) + ' regains ' + (u.morale - b) + ' morale.', { type: 'skillMorale', unit: u.id }); }
-      else { const l = loseMorale(s, u, -st.morale, src); say(s, label + ': ' + nm(u) + ' loses ' + l + ' morale.', { type: 'skillMorale', unit: u.id }); }
+      else { const l = loseMorale(s, u, -st.morale, src); say(s, label + ': ' + nm(u) + ' loses ' + l + ' morale.', { type: 'skillMorale', unit: u.id, skill: ctx.name || null, lost: l }); }
     }
     return;
   }

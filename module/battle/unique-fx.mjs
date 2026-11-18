@@ -1328,6 +1328,8 @@ const ON_ACTIVATE_SPREAD = {
   "Restore the Han": (token, touched, release) => peachGarden(token, touched, release, 4), // its old name (cards not yet updated)
   "Roar That Breaks Bridges": (token, touched, release) => roarOfChangban(token, 5, touched, release),
   "Terror of Changban": (token, touched, release) => roarOfChangban(token, 5, touched, release), // its old name (cards not yet updated)
+  "Fight or Be Butchered": (token, touched, release) => tyrantsWhip(token, touched, release),
+  "Iron Rule": (token, touched, release) => tyrantsWhip(token, touched, release), // its old name (cards not yet updated)
   // the units it holds are released by the stones (playSentinels), not at the end of the banner
   "Stone Sentinel Maze": (token) => eightTrigrams(token),
 };
@@ -1678,4 +1680,104 @@ export async function playWalk(token, path, stops = [], tokOf, float, cavalry = 
   }
   rideHold.delete(token.id);
   if (!token.destroyed) { placeAt(token, token.document.x + token.w / 2, token.document.y + token.h / 2); try { token.renderFlags?.set({ refreshPosition: true }); } catch { /* fine */ } }
+}
+
+
+/* ------------------------------------------------------------ Dong Zhuo: Fight or Be Butchered (David, 2026-11-18) */
+
+/** A leather whip from (sx,sy) toward (tx,ty), drawn out to fraction p of its length, rippling; returns the tip. */
+function drawLash(g, sx, sy, tx, ty, p, t, w0, k) {
+  const dx = tx - sx, dy = ty - sy, L = Math.hypot(dx, dy) || 1, nx = -dy / L, ny = dx / L, N = 26, pts = [];
+  for (let i = 0; i <= N; i++) { const f = i / N * p, amp = (1 - f) * (18 * k + L * 0.06) * Math.sin(f * 9 - t * 30) * (p < 1 ? 1 : 0.35);
+    pts.push([sx + dx * f + nx * amp, sy + dy * f + ny * amp - Math.sin(f * Math.PI) * L * 0.18]); }
+  for (let i = 1; i < pts.length; i++) { const q = i / pts.length; g.lineStyle(w0 * (1 - q * 0.8), i < 4 ? 0x2a1508 : 0x4a2a14, 1).moveTo(...pts[i - 1]).lineTo(...pts[i]); }
+  return pts[pts.length - 1];
+}
+function whipCrack(g, x, y, a, s) {
+  for (let n = 0; n < 8; n++) { const an = n * Math.PI / 4 + 0.3; g.lineStyle(2.5 * s, 0xfff0c8, a).moveTo(x + Math.cos(an) * 6 * s, y + Math.sin(an) * 6 * s).lineTo(x + Math.cos(an) * (10 + 22 * (1 - a)) * s, y + Math.sin(an) * (10 + 22 * (1 - a)) * s); }
+  g.lineStyle(0).beginFill(0xfffae6, a).drawCircle(x, y, (7 * a + 2) * s).endFill();
+}
+/** Activation (mockup, David 2026-11-18): the view darkens to blood red with the 5-tile reach outlined; his whip
+ *  lashes out from his unit to each ally it drives, one after another, each with a crack. The ally flinches, flashes
+ *  red and lurches forward, away from him, as "Attack +4" shows (its buff is released then). */
+function tyrantsWhip(token, touched = [], release = () => {}, reach = 5) {
+  const G = canvas.grid?.size ?? Math.min(token.w, token.h), k = G / 68, c = token.center;
+  const gx = Math.round(token.document.x / G), gy = Math.round(token.document.y / G);
+  const view = canvas.dimensions?.rect ?? { x: 0, y: 0, width: 1e5, height: 1e5 };
+  const root = new PIXI.Container(); topLayer().addChild(root);
+  const dim = new PIXI.Graphics(), lash = new PIXI.Graphics(), flashG = new PIXI.Graphics(); root.addChild(dim, flashG, lash);
+  const hits = touched.map(id => canvas.tokens?.get(id)).filter(u => u && !u.destroyed && u.id !== token.id)
+    .sort((a, b) => Math.hypot(a.center.x - c.x, a.center.y - c.y) - Math.hypot(b.center.x - c.x, b.center.y - c.y))
+    .map((u, i) => ({ u, at: 0.6 + i * 0.23, done: false, mesh0: null }));
+  const OUT = 0.22, BACK = 0.25, END = (hits.length ? hits[hits.length - 1].at : 0.6) + 1.6;
+  return run((dt, t) => {
+    const da = t < 0.4 ? t / 0.4 : t < END - 0.7 ? 1 : Math.max(0, (END - t) / 0.7);
+    dim.clear();
+    if (da > 0) {
+      dim.beginFill(0x3c0000, 0.38 * da).drawRect(view.x, view.y, view.width, view.height).endFill();
+      for (let dx = -reach; dx <= reach; dx++) for (let dy = -reach; dy <= reach; dy++) { const d = Math.abs(dx) + Math.abs(dy); if (d && d <= reach) dim.lineStyle(1.5 * k, 0xff5032, 0.28 * da).drawRect((gx + dx) * G + 2, (gy + dy) * G + 2, G - 4, G - 4); }
+      dim.lineStyle(0);
+    }
+    lash.clear(); flashG.clear();
+    for (const h of hits) {
+      const q = t - h.at; if (q < 0) continue;
+      const u = h.u; if (u.destroyed) continue;
+      const sx = c.x + 8 * k, sy = c.y - 14 * k, tx = u.center.x, ty = u.center.y - 6 * k;
+      if (q < OUT + BACK) { const p = q < OUT ? Math.min(1, q / OUT) : 1 - (q - OUT) / BACK;
+        const tip = drawLash(lash, sx, sy, tx, ty, Math.max(0.02, p), t, 5 * k, k);
+        if (q >= OUT && q < OUT + 0.18) whipCrack(lash, tip[0], tip[1], 1 - (q - OUT) / 0.18, k); }
+      if (q >= OUT) {
+        const hq = q - OUT;
+        if (!h.done) { h.done = true; release([u.id]); playMoment("Melee hit", { minGap: 0 }); floatLocal({ x: u.center.x, y: u.center.y - G * 0.5 }, "xp", "Attack +4"); shakeScreen(0.25, t); }
+        const ux = (u.center.x - c.x), uy = (u.center.y - c.y), L = Math.hypot(ux, uy) || 1;
+        const fl = (hq < 0.12 ? -(hq / 0.12) * 5 : hq < 0.35 ? -5 + (hq - 0.12) / 0.23 * 19 : hq < 0.7 ? 14 * (1 - (hq - 0.35) / 0.35) : 0) * k;
+        if (u.mesh && !u.mesh.destroyed) { h.mesh0 ??= { x: u.document.x + u.w / 2, y: u.document.y + u.h / 2 }; placeAt(u, h.mesh0.x + ux / L * fl, h.mesh0.y + uy / L * fl); }
+        const fa = Math.max(0, 1 - hq / 0.9);
+        if (fa > 0) flashG.beginFill(0xff281e, 0.45 * fa).drawCircle(u.center.x, u.center.y, G * 0.42).endFill().lineStyle(4 * k, 0xff5a3c, fa).drawCircle(u.center.x, u.center.y, G * 0.42 + 6 * k * (1 - fa)).lineStyle(0);
+      }
+    }
+    if (t < 0.3) shakeScreen(0, t);
+    if (t < END) return true;
+    for (const h of hits) { if (!h.done) release([h.u.id]); if (!h.u.destroyed) { placeAt(h.u, h.u.document.x + h.u.w / 2, h.u.document.y + h.u.h / 2); try { h.u.renderFlags?.set({ refreshPosition: true }); } catch { /* fine */ } } }
+    shakeScreen(0, t); root.destroy({ children: true });
+    return false;
+  });
+}
+/** End of an ally's turn under it, as it loses its morale (mockup B, David 2026-11-18): a leather whip curls up beside
+ *  the unit and slashes down across it, leaving a red welt that fades; the unit flinches and the loss shows. */
+function phantomWhip(token, amount, float) {
+  const G = canvas.grid?.size ?? Math.min(token.w, token.h), k = G / 68;
+  const root = new PIXI.Container(); topLayer().addChild(root);
+  const g = new PIXI.Graphics(); root.addChild(g);
+  let hit = false, base = null;
+  return run((dt, t) => {
+    const X = token.center.x, Y = token.center.y; g.clear();
+    if (t < 0.42) {
+      const appear = Math.min(1, t / 0.18), raise = t < 0.25 ? t / 0.25 : 1, ang = -1.9 + raise * 0.5, hx = X + 34 * k, hy = Y - 34 * k;
+      const cs = t < 0.25 ? 1 : 1 - (t - 0.25) / 0.17;
+      g.lineStyle(5 * k, 0x2a1508, 0.9 * appear).moveTo(hx, hy).lineTo(hx + 8 * k, hy + 8 * k);
+      let px = hx, py = hy;
+      for (let i = 1; i <= 18; i++) { const f = i / 18, r = (8 + f * 40 * (1 - cs * 0.4)) * k, a = ang - f * (2.6 * cs + 0.5);
+        const nx = hx + Math.cos(a) * r * (1 + 0.2 * f), ny = hy + Math.sin(a) * r;
+        g.lineStyle(4 * k * (1 - f * 0.75), i < 3 ? 0x2a1508 : 0x4a2a14, 0.9 * appear).moveTo(px, py).lineTo(nx, ny); px = nx; py = ny; }
+    }
+    if (t >= 0.25 && t < 0.42) { const p = (t - 0.25) / 0.17; g.lineStyle(3.5 * k, 0x4a2a14).moveTo(X + 30 * k, Y - 30 * k).quadraticCurveTo(X + 4 * k, Y - 8 * k, X + (30 - 60 * p) * k, Y + (-30 + 60 * p) * k); }
+    if (t >= 0.42) {
+      const h = t - 0.42;
+      if (!hit) { hit = true; playMoment("Melee hit", { minGap: 0 }); float?.("moraleDown", `−${amount} morale`); base = { x: token.document.x + token.w / 2, y: token.document.y + token.h / 2 }; }
+      if (token.mesh && !token.mesh.destroyed && base) placeAt(token, base.x + (h < 0.15 ? (Math.random() - 0.5) * 6 * k : 0), base.y + (h < 0.15 ? 3 * k : 0));
+      const wa = Math.max(0, 1 - h / 0.9);
+      if (wa > 0) { g.lineStyle(6 * k * (1 - h * 0.5), 0xbe140f, wa).moveTo(X + 24 * k, Y - 24 * k).quadraticCurveTo(X + 2 * k, Y - 6 * k, X - 24 * k, Y + 24 * k);
+        g.lineStyle(1.5 * k, 0xffc8aa, wa * 0.9).moveTo(X + 24 * k, Y - 24 * k).quadraticCurveTo(X + 2 * k, Y - 6 * k, X - 24 * k, Y + 24 * k); }
+      if (h < 0.18) whipCrack(g, X, Y, 1 - h / 0.18, 0.7 * k);
+      if (h > 1) { if (!token.destroyed && base) { placeAt(token, base.x, base.y); try { token.renderFlags?.set({ refreshPosition: true }); } catch { /* fine */ } } root.destroy({ children: true }); return false; }
+    }
+    return true;
+  });
+}
+/** A skill's effect on a unit by itself (its own morale loss), by the skill's name. */
+const ON_SELF = { "Fight or Be Butchered": phantomWhip, "Iron Rule": phantomWhip };
+export function playUniqueSelf(skill, token, amount, float) {
+  const fn = ON_SELF[skill];
+  return fn && token && !token.destroyed ? fn(token, amount, float) : null;
 }
