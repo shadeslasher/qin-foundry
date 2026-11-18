@@ -1319,7 +1319,7 @@ const ON_ACTIVATE = {
   "None Can Stand Before Him": (token) => Promise.all([warAura(token), fireEruption(token)]),
   "Stone Sentinel Maze": (token) => eightTrigrams(token),
   "The Wolf Bares His Fangs": (token) => wolfPack(token),
-  "The Gate Holds": (token) => gateHolds(token),
+  "Eighty Jin of Iron": (token) => gateHolds(token),
 };
 /** Animations that release the units the active touched themselves, as their effect reaches them. */
 const ON_ACTIVATE_SPREAD = {
@@ -1492,114 +1492,148 @@ export function playUniqueRide(skill, token, path, hits, tokOf, float) {
 }
 
 
-/* ------------------------------------------------------------ Dian Wei: The Gate Holds (David, 2026-11-18) */
+/* ------------------------------------------------------------ Dian Wei: Eighty Jin of Iron (David, 2026-11-18) */
 
-/** One of his heavy iron halberds (ji), pointing +x: dark iron shaft, a spear point and one crescent blade. */
-function ironJiTexture(G) {
-  const key = "ironji" + Math.round(G);
-  if (bladeTex.has(key)) return bladeTex.get(key);
-  const S = 2, u = G * S / 140, L = Math.round(300 * u), H = Math.round(90 * u);
-  const cv = document.createElement("canvas"); cv.width = L; cv.height = H; const g = cv.getContext("2d");
-  const cy = H * 0.5, X = (x) => x * u, Y = (y) => cy + y * u;
-  const poly = (pts) => { g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(X(x), Y(y)) : g.moveTo(X(x), Y(y)))); g.closePath(); };
-  const iron = (y0, y1) => { const v = g.createLinearGradient(0, Y(y0), 0, Y(y1)); v.addColorStop(0, "#5d646a"); v.addColorStop(0.5, "#c9cfd3"); v.addColorStop(1, "#40464b"); return v; };
-  g.fillStyle = iron(-4, 4); g.fillRect(X(0), Y(-4), X(206) - X(0), 8 * u);                       // the iron shaft
-  g.fillStyle = "#2c2f33"; for (const x of [10, 70, 130]) g.fillRect(X(x), Y(-5), 5 * u, 10 * u);    // bands
-  g.fillStyle = "#6b2a1e"; g.fillRect(X(150), Y(-4.6), 40 * u, 9.2 * u);                           // the grip wrap
-  poly([[200, -7], [210, -7], [210, 7], [200, 7]]); g.fillStyle = "#2c2f33"; g.fill();
-  g.beginPath(); g.moveTo(X(212), Y(-4)); g.bezierCurveTo(X(206), Y(-24), X(222), Y(-46), X(246), Y(-42));   // the crescent
-  g.bezierCurveTo(X(232), Y(-34), X(224), Y(-22), X(230), Y(-8)); g.closePath(); g.fillStyle = iron(-42, -4); g.fill();
-  g.strokeStyle = "#2a2e31"; g.lineWidth = 1.2 * u; g.stroke();
-  const tip = [[210, -5], [240, -7], [272, -5], [300, 0], [272, 5], [240, 7], [210, 5]];
-  g.fillStyle = iron(-7, 7); poly(tip); g.fill(); g.strokeStyle = "#2a2e31"; poly(tip); g.stroke();
-  g.strokeStyle = "rgba(255,255,255,.55)"; g.lineWidth = 1 * u; g.beginPath(); g.moveTo(X(214), Y(-1)); g.lineTo(X(292), Y(-0.5)); g.stroke();
-  const tex = { tex: PIXI.Texture.from(cv), S, len: 300 * G / 140 };
-  bladeTex.set(key, tex);
-  return tex;
+/** One of his heavy iron halberds (ji), drawn upright with the point at the bottom (mockup v4, David 2026-11-18):
+ *  dark banded shaft with an iron butt cap, red grip, red tassel, leaf-shaped spear point and a crescent blade.
+ *  60 x 330 units; the point is at (30, 328). */
+function ironJiCanvas() {
+  if (bladeTex.has("ironji")) return bladeTex.get("ironji");
+  const S = 3, c = document.createElement("canvas"); c.width = 60 * S; c.height = 336 * S;
+  const q = c.getContext("2d"); q.scale(S, S); q.translate(0, 6); const X = 30;
+  const sh = q.createLinearGradient(X - 5, 0, X + 5, 0); sh.addColorStop(0, "#2a1a10"); sh.addColorStop(0.45, "#6a4528"); sh.addColorStop(1, "#24160c");
+  q.fillStyle = sh; q.fillRect(X - 4.5, 8, 9, 250);
+  q.fillStyle = "#3a3f44"; q.fillRect(X - 6, 0, 12, 14); q.beginPath(); q.moveTo(X - 6, 0); q.lineTo(X, -6); q.lineTo(X + 6, 0); q.fill();
+  for (const y of [60, 120, 180]) q.fillRect(X - 5.5, y, 11, 6);
+  q.fillStyle = "#7a1f1a"; q.fillRect(X - 5, 200, 10, 40);
+  q.fillStyle = "#a31f1c";
+  for (let i = 0; i < 9; i++) { q.beginPath(); q.moveTo(X - 3, 252); q.quadraticCurveTo(X - 14 + i * 3, 262, X - 12 + i * 3, 282 + (i % 3) * 5); q.lineTo(X - 10 + i * 3, 282 + (i % 3) * 5); q.quadraticCurveTo(X - 10 + i * 3, 262, X + 3, 252); q.fill(); }
+  q.fillStyle = "#2b2f33"; q.fillRect(X - 7, 250, 14, 8);
+  const st = q.createLinearGradient(X - 10, 0, X + 10, 0); st.addColorStop(0, "#6f777d"); st.addColorStop(0.5, "#eef1f3"); st.addColorStop(1, "#5b6268");
+  q.fillStyle = st; q.beginPath(); q.moveTo(X - 6, 258); q.quadraticCurveTo(X - 9, 285, X - 4, 305); q.lineTo(X, 328); q.lineTo(X + 4, 305); q.quadraticCurveTo(X + 9, 285, X + 6, 258); q.closePath(); q.fill();
+  q.strokeStyle = "#30363b"; q.lineWidth = 1.2; q.stroke();
+  q.strokeStyle = "rgba(60,66,70,.7)"; q.beginPath(); q.moveTo(X, 262); q.lineTo(X, 322); q.stroke();
+  const cr = q.createLinearGradient(X, 0, X + 30, 0); cr.addColorStop(0, "#c8ced2"); cr.addColorStop(1, "#59616a"); q.fillStyle = cr;
+  q.beginPath(); q.moveTo(X + 5, 262); q.bezierCurveTo(X + 18, 258, X + 30, 268, X + 28, 290); q.bezierCurveTo(X + 24, 282, X + 18, 280, X + 5, 284); q.closePath(); q.fill(); q.strokeStyle = "#30363b"; q.stroke();
+  q.strokeStyle = "rgba(255,255,255,.8)"; q.beginPath(); q.moveTo(X + 10, 261); q.bezierCurveTo(X + 22, 262, X + 29, 272, X + 28, 288); q.stroke();
+  const tex = PIXI.Texture.from(c); bladeTex.set("ironji", tex); return tex;
 }
-/** A small throwing ji, hand-sized, drawn centred on (0,0) in a Graphics (it spins as it flies). */
-function drawThrowingJi(g, k) {
-  g.clear();
-  g.beginFill(0x3b2a1a).drawRect(-9 * k, -1.3 * k, 15 * k, 2.6 * k).endFill();
-  g.beginFill(0xd5dade).lineStyle(0.8 * k, 0x44494e).drawPolygon([6 * k, -2.2 * k, 14 * k, 0, 6 * k, 2.2 * k]).endFill();
-  g.beginFill(0xc3c9ce).lineStyle(0.8 * k, 0x44494e).drawPolygon([4 * k, -1.3 * k, 3 * k, -7 * k, 9 * k, -9 * k, 7 * k, -4 * k, 6.5 * k, -1.3 * k]).endFill();
+/** A deer-horn knife (lujiao dao, David 2026-11-18): two crossing crescent blades, red grip on the lower one between
+ *  the two silver guards. Drawn in a Graphics centred on (0,0), s = half its width. */
+const LJ_A = [[-0.92, 0.62], [0, -0.75], [0.95, -0.62]], LJ_B = [[-0.9, -0.6], [0, 0.6], [0.92, 0.55]];
+const qb = (P, t) => [(1 - t) * (1 - t) * P[0][0] + 2 * (1 - t) * t * P[1][0] + t * t * P[2][0], (1 - t) * (1 - t) * P[0][1] + 2 * (1 - t) * t * P[1][1] + t * t * P[2][1]];
+function ljBlade(g, s, P, col) {
+  const L = [], R = [];
+  for (let i = 0; i <= 24; i++) {
+    const t = i / 24, a = qb(P, t), b = qb(P, Math.min(1, t + 0.01)), b0 = qb(P, Math.max(0, t - 0.01));
+    const dx = b[0] - b0[0], dy = b[1] - b0[1], l = Math.hypot(dx, dy) || 1, nx = -dy / l, ny = dx / l, h = 0.16 * Math.pow(Math.sin(Math.PI * t), 0.8);
+    L.push(a[0] + nx * h, a[1] + ny * h); R.unshift(a[0] - nx * h * 0.35, a[1] - ny * h * 0.35);
+  }
+  const pts = []; for (let i = 0; i < L.length; i += 2) pts.push(L[i] * s, L[i + 1] * s);
+  for (let i = 0; i < R.length; i += 2) pts.push(R[i] * s, R[i + 1] * s);
+  g.lineStyle(Math.max(1, s * 0.03), 0x1e2124).beginFill(col).drawPolygon(pts).endFill();
+}
+function drawLujiao(g, s) {
+  g.clear(); ljBlade(g, s, LJ_A, 0x4a4f53); ljBlade(g, s, LJ_B, 0x5a6064);
+  g.lineStyle(s * 0.13, 0xb3202a); { const p = qb(LJ_B, 0.3); g.moveTo(p[0] * s, p[1] * s); }
+  for (let i = 1; i <= 20; i++) { const p = qb(LJ_B, 0.3 + 0.4 * i / 20); g.lineTo(p[0] * s, p[1] * s); }
+  g.lineStyle(0);
+  for (const t of [0.3, 0.7]) { const p = qb(LJ_B, t); g.beginFill(0xd9dde0).drawEllipse(p[0] * s, p[1] * s, s * 0.07, s * 0.1).endFill(); }
 }
 /** The tiles within 2 of a square (Manhattan, its own square left out). */
 const gateTiles = (x, y, r = 2) => { const out = []; for (let dx = -r; dx <= r; dx++) for (let dy = -r; dy <= r; dy++) { const d = Math.abs(dx) + Math.abs(dy); if (d && d <= r) out.push([x + dx, y + dy]); } return out; };
 
-/** Activation: the view darkens a little, his two iron halberds drop from above and slam down crossed on his unit;
- *  the ground shakes, a ring of dust blows out, and the ground within 2 tiles flushes red (the zone stays marked
- *  faintly on his stand while the skill lasts). */
+/** Activation (mockup v4, David 2026-11-18): the view darkens; his two iron halberds fall from above, their shadows
+ *  growing, and stab point-first into the ground either side of his unit, leaning in so they cross in an X in front of
+ *  it. The ground cracks from both points, chunks of earth fly, dust rolls out with a ring, the view shakes, and the
+ *  ground within 2 tiles flushes red. The halberds stand a moment, then fade (his stand keeps the zone marked). */
 function gateHolds(token) {
-  const G = canvas.grid?.size ?? Math.min(token.w, token.h), k = G / 100, B = Blur();
+  const G = canvas.grid?.size ?? Math.min(token.w, token.h), k = G / 80;
   const cx = token.center.x, cy = token.center.y, gx = Math.round(token.document.x / G), gy = Math.round(token.document.y / G);
-  const ground = groundLayer(), root = new PIXI.Container(); overLayer().addChild(root);
-  const zone = new PIXI.Graphics(); ground.addChild(zone);
-  const dust = new PIXI.Graphics(); if (B) dust.filters = [new B(3)]; root.addChild(dust);
-  const T = ironJiTexture(G);
-  const blades = [-1, 1].map(sd => {
-    const sp = new PIXI.Sprite(T.tex); sp.anchor.set(1, 0.5); sp.scale.set(1.25 / T.S);
-    sp.rotation = Math.PI / 2 + sd * 0.42; sp.alpha = 0; root.addChild(sp); return { sp, sd };
-  });
-  const DROP = 0.38, LAND = 0.2 + DROP;
-  let hit = false, puffs = [];
+  const ground = groundLayer(), zone = new PIXI.Graphics(); ground.addChild(zone);
+  const root = new PIXI.Container(); topLayer().addChild(root);
+  const dimG = new PIXI.Graphics(), under = new PIXI.Graphics(), dust = new PIXI.Graphics(); root.addChild(dimG, under);
+  const imp = [[cx - 30 * k, cy + 30 * k], [cx + 30 * k, cy + 30 * k]];
+  const tex = ironJiCanvas(), S = 0.62 * k;
+  const jis = imp.map(([ix, iy], i) => { const sd = i ? 1 : -1, sp = new PIXI.Sprite(tex); sp.anchor.set(0.5, 334 / 336); sp.scale.set(S / 3); sp.rotation = -sd * 0.62; root.addChild(sp); return { sp, ix, iy }; });
+  const streak = new PIXI.Graphics(); root.addChild(streak, dust);
+  const crack = (x, y, seed) => Array.from({ length: 6 }, (_, i) => { let a = seed + i * 1.05 + rnd(-0.3, 0.3), px = x, py = y; const pts = [[x, y]];
+    for (let n = 4 + Math.floor(rnd(0, 3)); n > 0; n--) { a += rnd(-0.5, 0.5); const l = rnd(7, 14) * k; px += Math.cos(a) * l; py += Math.sin(a) * l * 0.6; pts.push([px, py]); } return pts; });
+  const cracks = imp.flatMap(([x, y], i) => crack(x, y, i * 0.5));
+  const bits = imp.flatMap(([x, y]) => Array.from({ length: 10 }, () => ({ x, y, vx: rnd(-90, 90) * k, vy: rnd(-160, -60) * k, r: rnd(2, 4) * k })));
+  const puffs = imp.flatMap(([x, y]) => Array.from({ length: 12 }, (_, i) => ({ x, y, a: i / 12 * Math.PI * 2, v: rnd(50, 90) * k, r: rnd(8, 14) * k })));
+  const FALL = 0.42, LAND = 0.2 + FALL, view = canvas.dimensions?.rect ?? { x: 0, y: 0, width: 1e5, height: 1e5 };
+  let hit = false;
   return run((dt, t) => {
-    for (const b of blades) {
-      const q = Math.min(1, Math.max(0, (t - 0.2) / DROP)), e = q * q;
-      b.sp.alpha = t < 1.7 ? Math.min(1, t * 5) : Math.max(0, 1 - (t - 1.7) / 0.5);
-      b.sp.position.set(cx + b.sd * 12 * k + Math.cos(b.sp.rotation) * 0, cy + 0.28 * G - (1 - e) * 5 * G);
+    const q = Math.min(1, Math.max(0, (t - 0.2) / FALL)), ez = q * q, landed = t >= LAND, h = t - LAND;
+    const dimA = t < 0.3 ? t / 0.3 * 0.35 : t < 2.4 ? 0.35 * (1 - (t - 0.3) / 2.1) : 0;
+    dimG.clear(); if (dimA > 0) dimG.beginFill(0x000000, dimA).drawRect(view.x, view.y, view.width, view.height).endFill();
+    if (landed && !hit) { hit = true; playMoment("Melee hit", { minGap: 0 }); playMoment("Sweep hit", { minGap: 0 }); }
+    shakeScreen(hit ? Math.max(0, 1 - h / 0.6) : 0, t);
+    under.clear(); streak.clear(); dust.clear();
+    if (landed) {
+      const grow = Math.min(1, h / 0.15);
+      under.lineStyle(2 * k, 0x1e140a, 0.85);
+      for (const pts of cracks) { const n = Math.max(2, Math.ceil(pts.length * grow)); under.moveTo(...pts[0]); for (const p of pts.slice(1, n)) under.lineTo(...p); }
+      under.lineStyle(0);
+      for (const [x, y] of imp) under.beginFill(0x281c0f, 0.8).drawEllipse(x, y, 9 * k, 4 * k).endFill();
+    } else for (const [x, y] of imp) { const sa = 0.15 + 0.45 * ez, sr = (10 + 8 * (1 - ez)) * k; under.beginFill(0x000000, sa).drawEllipse(x, y, sr * 1.6, sr * 0.5).endFill(); }
+    const fade = t > 2.2 ? Math.max(0, 1 - (t - 2.2) / 0.5) : 1;
+    for (const j of jis) {
+      const drop = (1 - ez) * 4.5 * G;
+      j.sp.alpha = q > 0 ? fade : 0; j.sp.position.set(j.ix, j.iy - drop + (landed ? 6 * k : 0));
+      if (!landed && q > 0) { // speed lines above the falling halberd
+        const ux = Math.sin(j.sp.rotation), uy = -Math.cos(j.sp.rotation);
+        for (const o of [-6, 0, 6]) { const bx = j.sp.x + ux * 200 * k + Math.cos(j.sp.rotation) * o * k, by = j.sp.y + uy * 200 * k + Math.sin(j.sp.rotation) * o * k;
+          streak.lineStyle(1.5 * k, 0xffffff, 0.35).moveTo(bx, by).lineTo(bx + ux * 120 * k * (1 - ez), by + uy * 120 * k * (1 - ez)); }
+      }
+      if (landed && fade > 0) dust.beginFill(0x6b5a3e, fade).drawEllipse(j.ix, j.iy + 4 * k, 8 * k, 3.5 * k).endFill(); // earth heaped round the point
     }
-    if (!hit && t >= LAND) {
-      hit = true; playMoment("Melee hit", { minGap: 0 }); playMoment("Sweep hit", { minGap: 0 });
-      for (let i = 0; i < 26; i++) { const a = (i / 26) * Math.PI * 2; puffs.push({ a, v: rnd(1.6, 2.6) * G, r: rnd(8, 16) * k }); }
+    if (landed && h < 1.4) {
+      for (const p of puffs) { const d = Math.min(h, 0.9) * p.v, r = p.r * (1 + h * 1.5); dust.beginFill(0xc4b08a, 0.55 * (1 - h / 1.4)).drawEllipse(p.x + Math.cos(p.a) * d, p.y + Math.sin(p.a) * d * 0.5, r, r * 0.7).endFill(); }
+      for (const b of bits) { const bx = b.x + b.vx * h, by = b.y + b.vy * h + 300 * k * h * h; if (by < b.y + 8 * k) dust.beginFill(0x4b3b26).drawRect(bx, by, b.r, b.r).endFill(); }
+      if (h < 0.9) dust.lineStyle(7 * k * (1 - h / 0.9) + 1, 0xebd7af, 0.8 * (1 - h / 0.9)).drawEllipse(cx, cy + 30 * k, h * 230 * k, h * 110 * k).lineStyle(0);
     }
-    shakeScreen(hit ? Math.max(0, 1 - (t - LAND) / 0.55) * 0.9 : 0, t);
-    dust.clear();
-    if (hit) { const q = t - LAND;
-      if (q < 1.1) { dust.lineStyle(10 * k * (1 - q / 1.1) + 1, 0xe6d2ad, 0.8 * (1 - q / 1.1)).drawEllipse(cx, cy + 0.2 * G, q * 2.4 * G, q * 1.5 * G); dust.lineStyle(0); }
-      for (const p of puffs) { const d = Math.min(q, 0.9) * p.v, a = Math.max(0, 0.55 * (1 - q / 1.2));
-        if (a > 0) dust.beginFill(0xbfa780, a).drawCircle(cx + Math.cos(p.a) * d, cy + 0.2 * G + Math.sin(p.a) * d * 0.6, p.r * (1 + q)).endFill(); }
-    }
-    // the ground he holds flushes red, then settles to the faint mark his stand keeps
-    const za = hit ? Math.min(1, (t - LAND) / 0.4) * (t < 1.6 ? 1 : Math.max(0, 1 - (t - 1.6) / 0.7)) : 0;
+    const za = landed ? Math.min(1, h / 0.4) * (t < 2.6 ? 1 : Math.max(0, 1 - (t - 2.6) / 0.6)) : 0;
     zone.clear();
-    if (za > 0) for (const [x, y] of gateTiles(gx, gy)) zone.beginFill(0x961e14, 0.32 * za).lineStyle(2 * k, 0xff8c3c, 0.6 * za).drawRect(x * G + 2, y * G + 2, G - 4, G - 4).endFill();
-    if (t < 2.4) return true;
+    if (za > 0) for (const [x, y] of gateTiles(gx, gy)) zone.beginFill(0x961e14, 0.22 * za).lineStyle(2 * k, 0xff8c3c, 0.6 * za).drawRect(x * G + 3, y * G + 3, G - 6, G - 6).endFill();
+    if (t < 3.3) return true;
     shakeScreen(0, t); root.destroy({ children: true }); ground.destroy({ children: true });
     return false;
   });
 }
 
-/** A barrage of hand-sized throwing ji from his unit at one enemy unit: seven, one after another, each on its own
- *  curve, spinning; each sparks where it lands; the casualties show as the last one strikes. at() gives the target's
+/** Seven deer-horn knives thrown from his unit at one enemy unit, one after another, each on its own curve and
+ *  spinning; each sparks where it lands; the casualties show as the last one strikes. at() gives the target's
  *  centre each frame (it may be paused mid-walk). */
 function halberdBarrage(src, at, cas, float) {
-  const G = canvas.grid?.size ?? Math.min(src.w, src.h), k = G / 64;
+  const G = canvas.grid?.size ?? Math.min(src.w, src.h), k = G / 80;
   const root = new PIXI.Container(); topLayer().addChild(root);
   const sparks = new PIXI.Graphics(); root.addChild(sparks);
-  const N = 7, GAP = 0.11, FLY = 0.42;
-  const s0 = { x: src.center.x, y: src.center.y - 0.1 * G };
-  const ji = Array.from({ length: N }, (_, i) => { const g = new PIXI.Graphics(); drawThrowingJi(g, k); g.alpha = 0; root.addChild(g);
-    return { g, i, bend: (i % 2 ? -1 : 1) * (0.35 + i * 0.07) * G, jit: [((i % 3) - 1) * 0.14 * G, (i % 2 ? -0.1 : 0.1) * G], hitT: -1 }; });
+  const N = 7, GAP = 0.11, FLY = 0.45;
+  const s0 = { x: src.center.x, y: src.center.y - 10 * k };
+  const knives = Array.from({ length: N }, (_, i) => { const g = new PIXI.Graphics(); drawLujiao(g, 13 * k); g.alpha = 0; root.addChild(g);
+    return { g, i, bend: (i % 2 ? -1 : 1) * (28 + i * 6) * k, jit: [((i % 3) - 1) * 14 * k, (i % 2 ? -10 : 10) * k], hitT: -1 }; });
   let shown = false;
   return run((dt, t) => {
     const T = at() ?? s0;
     sparks.clear();
-    for (const j of ji) {
+    for (const j of knives) {
       const q = (t - j.i * GAP) / FLY;
       if (q < 0) continue;
-      if (q === q && q < 1 && j.hitT < 0) {
+      const tx = T.x + j.jit[0], ty = T.y + j.jit[1];
+      if (q < 1 && j.hitT < 0) {
         if (j.g.alpha === 0) playMoment("Bow shot", { minGap: 0.05 });
-        const tx = T.x + j.jit[0], ty = T.y + j.jit[1], dx = tx - s0.x, dy = ty - s0.y, L = Math.hypot(dx, dy) || 1;
-        const mx = (s0.x + tx) / 2 - dy / L * j.bend, my = (s0.y + ty) / 2 + dx / L * j.bend - 0.3 * G;
-        const x = (1 - q) ** 2 * s0.x + 2 * (1 - q) * q * mx + q * q * tx, y = (1 - q) ** 2 * s0.y + 2 * (1 - q) * q * my + q * q * ty;
-        j.g.alpha = 1; j.g.position.set(x, y); j.g.rotation = t * 26 + j.i;
+        const dx = tx - s0.x, dy = ty - s0.y, L = Math.hypot(dx, dy) || 1;
+        const mx = (s0.x + tx) / 2 - dy / L * j.bend, my = (s0.y + ty) / 2 + dx / L * j.bend - 22 * k;
+        j.g.alpha = 1; j.g.position.set((1 - q) ** 2 * s0.x + 2 * (1 - q) * q * mx + q * q * tx, (1 - q) ** 2 * s0.y + 2 * (1 - q) * q * my + q * q * ty);
+        j.g.rotation = t * 22 + j.i;
       } else if (j.hitT < 0) {
         j.hitT = t; j.g.alpha = 0; playMoment("Arrow hit", { minGap: 0 });
         if (j.i === N - 1 && !shown) { shown = true; float?.("unitDamage", `−${cas}`); playMoment("Melee hit", { minGap: 0 }); }
       }
-      if (j.hitT >= 0) { const h = t - j.hitT; if (h < 0.25) for (let n = 0; n < 6; n++) { const a = n + j.i, tx = T.x + j.jit[0], ty = T.y + j.jit[1];
-        sparks.lineStyle(2 * k, 0xffdc78, 1 - h / 0.25).moveTo(tx, ty).lineTo(tx + Math.cos(a) * h * 1.4 * G, ty + Math.sin(a) * h * 1.4 * G); } }
+      if (j.hitT >= 0) { const h = t - j.hitT; if (h < 0.25) for (let n = 0; n < 6; n++) { const a = n + j.i;
+        sparks.lineStyle(1.5 * k, 0xffdc78, 1 - h / 0.25).moveTo(tx, ty).lineTo(tx + Math.cos(a) * h * 90 * k, ty + Math.sin(a) * h * 90 * k); } }
     }
     if (t < (N - 1) * GAP + FLY + 0.35) return true;
     root.destroy({ children: true });
@@ -1608,7 +1642,7 @@ function halberdBarrage(src, at, cas, float) {
 }
 
 /** Damage a skill does to one unit with its own animation (from src to target), by the skill's name. */
-const ON_ZAP = { "The Gate Holds": halberdBarrage };
+const ON_ZAP = { "Eighty Jin of Iron": halberdBarrage };
 export function hasUniqueZap(skill) { return !!ON_ZAP[skill]; }
 export function playUniqueZap(skill, src, target, cas, float) {
   const fn = ON_ZAP[skill];

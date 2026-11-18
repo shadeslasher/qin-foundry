@@ -543,7 +543,7 @@ export function onMoved(s, u, from) {
   for (const X of live(s)) if (X.id !== u.id) event(s, ally(X, u) ? 'allyMoves' : 'enemyMoves', X, { target: u, from });
 }
 /** Engine hook: a unit walked this path (squares after its start, in order). Enemies whose skills watch the ground
- *  it crossed react once to the move (David, 2026-11-18: Dian Wei's The Gate Holds). */
+ *  it crossed react once to the move (David, 2026-11-18: Dian Wei's Eighty Jin of Iron). */
 export function onPath(s, u, path) {
   if (!path || !path.length) return;
   for (const X of live(s)) if (X.id !== u.id && E.hostile(X, u)) event(s, 'enemyPasses', X, { target: u, path });

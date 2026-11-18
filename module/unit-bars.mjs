@@ -175,7 +175,7 @@ function onCatapultSquare(token) {
   return (c.tiles?.[k]?.overlays ?? []).includes("catapult");
 }
 /** Skills that watch the ground around the unit while they last, by buff name -> reach in tiles (David, 2026-11-18). */
-const ZONE_BUFFS = { "The Gate Holds": 2 };
+const ZONE_BUFFS = { "Eighty Jin of Iron": 2 };
 function zoneOf(token) {
   const buffs = battleRecord(token)?.meta?.[token.id]?.fx?.buffs ?? [];
   for (const b of buffs) if (ZONE_BUFFS[b.name]) return ZONE_BUFFS[b.name];

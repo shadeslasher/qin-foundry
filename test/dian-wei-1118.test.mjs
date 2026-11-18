@@ -1,4 +1,4 @@
-// Dian Wei's The Gate Holds / Personal Guard (David, 2026-11-18)
+// Dian Wei's Eighty Jin of Iron / Unbroken Bulwark (David, 2026-11-18)
 import test from 'node:test';
 import assert from 'node:assert';
 import * as R from '../module/battle/engine.mjs';
@@ -12,8 +12,8 @@ const HIT = { casualties: 4, who: { target: true }, ignoreArmor: true };
 const GATE = { oncePerBattle: true, require: { healthBelow: 'half' }, do: [{ buff: { flags: [{ flag: 'noSurrender' }, { flag: 'casualtyHalf' }],
   triggers: [{ on: 'enemyPasses', range: 2, limit: 'targetTurn', group: 'gate', do: [HIT] }, { on: 'enemyTurnEnd', range: 2, limit: 'targetTurn', group: 'gate', do: [HIT] }] }, who: { self: true }, for: { rounds: 3 } }] };
 const GUARD = { mods: [{ stat: 'meleeDef', value: 8, who: { side: 'allies', range: 1 } }], flags: [{ flag: 'noRearAgainst', who: { side: 'allies', range: 1 } }, { flag: 'ignoreStrength' }] };
-const officer = { id: 'dw', name: 'Dian Wei', command: 2, fire: 2, skills: {}, passive: { effects: {} }, skill: { name: 'The Gate Holds', text: 'x', moraleCost: 0, recharge: 0 },
-  battle: { active: GATE, activeName: 'The Gate Holds', passive: GUARD, passiveName: 'Personal Guard' } };
+const officer = { id: 'dw', name: 'Dian Wei', command: 2, fire: 2, skills: {}, passive: { effects: {} }, skill: { name: 'Eighty Jin of Iron', text: 'x', moraleCost: 0, recharge: 0 },
+  battle: { active: GATE, activeName: 'Eighty Jin of Iron', passive: GUARD, passiveName: 'Unbroken Bulwark' } };
 function setup(units) {
   const s = R.newState(); s.players.p1 = { name: 'A' };
   s.map.cols = 12; s.map.rows = 12; s.map.tiles = {};
@@ -30,7 +30,7 @@ test('specs validate', () => {
   assert.deepStrictEqual(validateSpec(GUARD, 'passive'), []);
 });
 
-test('The Gate Holds: enemies ending their turn within 2 tiles take 4 armor-piercing casualties; farther ones don\'t', () => {
+test('Eighty Jin of Iron: enemies ending their turn within 2 tiles take 4 armor-piercing casualties; farther ones don\'t', () => {
   const { s, u, ids } = setup([{ side: 'player', x: 5, y: 5, officerId: 'dw' }, { side: 'enemy', x: 7, y: 5 }, { side: 'enemy', x: 9, y: 5 }]);
   u(0).men = Math.floor((u(0).maxMen || 100) / 2) - 1;
   s.turn.activation = { unitId: ids[0], step: 'move', started: false, tilesMoved: 0, from: { x: 5, y: 5 } };
@@ -41,13 +41,13 @@ test('The Gate Holds: enemies ending their turn within 2 tiles take 4 armor-pier
   assert.strictEqual(u(2).men, m2, '4 tiles away');
 });
 
-test('Personal Guard: his unit ignores the low-health penalties', () => {
+test('Unbroken Bulwark: his unit ignores the low-health penalties', () => {
   const { s, u } = setup([{ side: 'player', x: 5, y: 5, officerId: 'dw' }, { side: 'enemy', x: 6, y: 5 }]);
   u(0).men = 15;
   assert.ok(SK.flag(s, u(0), 'ignoreStrength'));
 });
 
-test('The Gate Holds: a unit walking through the zone is hit once, where it enters, and not again when it ends its turn there', () => {
+test('Eighty Jin of Iron: a unit walking through the zone is hit once, where it enters, and not again when it ends its turn there', () => {
   const { s, u, ids } = setup([{ side: 'player', x: 5, y: 5, officerId: 'dw' }, { side: 'enemy', x: 6, y: 2 }]);
   u(0).men = 40;
   s.turn.activation = { unitId: ids[0], step: 'move', started: false, tilesMoved: 0, from: { x: 5, y: 5 } };
@@ -60,7 +60,7 @@ test('The Gate Holds: a unit walking through the zone is hit once, where it ente
   const walk = s.log.slice(n0).find(e => e.detail?.type === 'walk'), hit = s.log.slice(n0).find(e => e.detail?.type === 'skillCasualties');
   assert.deepStrictEqual(walk.detail.path, [[6, 2], [6, 3], [6, 4], [6, 5]]);
   assert.strictEqual(hit.detail.at, 1, 'it stops on (6,4), the first square within 2');
-  assert.strictEqual(hit.detail.skill, 'The Gate Holds');
+  assert.strictEqual(hit.detail.skill, 'Eighty Jin of Iron');
   SK.onActivationEnd(s, u(1));
   assert.strictEqual(u(1).men, m - 4, 'not hit again at the end of the same turn');
 });
