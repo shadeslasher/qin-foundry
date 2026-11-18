@@ -161,6 +161,34 @@ function terrainUnder(token) {
   return tileRules({ map: { tiles: c.tiles, cols: flag.cols, rows: flag.rows } }, x, y);
 }
 
+/** Is the token on a working catapult square (drawn on the map, or placed for this battle; not burnt)? */
+function onCatapultSquare(token) {
+  const scene = token.document?.parent, flag = scene?.flags?.qin?.[MAP_FLAG], battle = battleRecord(token);
+  const size = scene?.grid?.size ?? 100;
+  const x = Math.round((token.document?.x ?? token.x) / size), y = Math.round((token.document?.y ?? token.y) / size), k = x + "," + y;
+  if (battle?.siege?.burnt?.[k]) return false;
+  const placed = battle?.tileOverrides?.[k]?.tile;
+  if (placed) return (placed.overlays ?? []).includes("catapult");
+  if (!flag) return false;
+  let c = mapTiles.get(scene.id);
+  if (!c || c.flag !== flag) { c = { flag, tiles: decodeTiles(flag) }; mapTiles.set(scene.id, c); }
+  return (c.tiles?.[k]?.overlays ?? []).includes("catapult");
+}
+/** A white catapult drawn over a unit on a catapult square, filling the square (David, 2026-11-17). */
+function drawCatapultMark(w, h, T) {
+  const g = new PIXI.Graphics(), k = T * 0.8 / 100, P = (x, y) => [w / 2 + x * k, h / 2 + (y + 8) * k];
+  const lines = [[[-44, 22], [44, 22]], [[-30, 22], [-6, -18], [18, 22]], [[-6, -18], [36, -44]], [[-6, -18], [-26, -6]]];
+  for (const [wd, col, a] of [[11, 0x111111, 0.75], [5, 0xffffff, 1]]) for (const l of lines) {
+    g.lineStyle({ width: wd * k, color: col, alpha: a, cap: "round", join: "round" }).moveTo(...P(...l[0]));
+    for (const q of l.slice(1)) g.lineTo(...P(...q));
+  }
+  g.lineStyle(3 * k, 0x111111, 0.75).beginFill(0xffffff).drawPolygon([...P(30, -52), ...P(40, -55), ...P(46, -46), ...P(42, -38), ...P(32, -40)]).endFill(); // the bucket
+  g.beginFill(0xffffff).drawRect(...P(-36, -12), 16 * k, 16 * k).endFill();                                                         // the counterweight
+  g.beginFill(0xffffff).drawCircle(...P(-30, 26), 10 * k).drawCircle(...P(30, 26), 10 * k).endFill();                              // wheels
+  g.alpha = 0.92;
+  return g;
+}
+
 export function unitStatus(token) {
   const actor = token.actor, s = actor.system, battle = battleRecord(token);
   const meta = battle?.meta?.[token.id] ?? {};
@@ -909,7 +937,8 @@ export async function drawUnitBars(token) {
   const locks = lockStatus(token); // can't move / can't attack
   if (locks?.move && !bootTex) await bootTexture().then(t => { bootTex = t; });
   const lasting = lastingLook(eff);
-  const key = JSON.stringify([ready, locks, lasting, eff ? [eff.nb, eff.nd, eff.pb, eff.pd] : null, men, max, morale, w, h, s.side, acted, active, holding, watching, st, mine, n, art, off, fac?.img ?? null, facing, battleRecord(token)?.meta?.[token.id]?.carry ?? null, !!battleRecord(token)?.meta?.[token.id]?.fx?.shocked, s.traits]); // traits: equipment icons (ladders, engine)
+  const onCat = onCatapultSquare(token);
+  const key = JSON.stringify([onCat, ready, locks, lasting, eff ? [eff.nb, eff.nd, eff.pb, eff.pd] : null, men, max, morale, w, h, s.side, acted, active, holding, watching, st, mine, n, art, off, fac?.img ?? null, facing, battleRecord(token)?.meta?.[token.id]?.carry ?? null, !!battleRecord(token)?.meta?.[token.id]?.fx?.shocked, s.traits]); // traits: equipment icons (ladders, engine)
   if (pendingBurst.has(token.id)) { const kinds = pendingBurst.get(token.id); pendingBurst.delete(token.id); playBurst(token, kinds, w, h, T, T * L.pad); }
   let c = token[KEY];
   // (a ready mark that was hidden for an activation, e.g. one undone or replayed, is drawn again: David, 2026-11-09)
@@ -979,6 +1008,7 @@ export async function drawUnitBars(token) {
     if (token.hover) animateFlag(token, 1, 0);
   } else c.qinFlag = null;
 
+  if (onCat) stand.addChild(drawCatapultMark(w, h, T)); // over the soldiers, under the bars
   // health / morale bars along the bottom, inside the tile
   const bh = Math.max(5, Math.round(T * L.bar)), tabW = Math.max(4, Math.round(bh * 0.45));
   const barX = pad + tabW + 1, barW = w - barX - pad, top = h - pad - 2 * (bh + 1) + 1;
