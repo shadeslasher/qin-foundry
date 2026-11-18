@@ -937,7 +937,7 @@ export function lightWave(token, ms, rOf) {
   });
 }
 
-/* ------------------------------------------------------------ Zhang Fei: Terror of Changban (David, 2026-11-11) */
+/* ------------------------------------------------------------ Zhang Fei: Roar That Breaks Bridges (was Terror of Changban; David, 2026-11-11, renamed 2026-11-18) */
 
 /** His roar: he draws breath (shrinks, a red glow gathers), then swells as the screen shakes; the squares in reach
  *  (5 across + down) flash red and three round shockwaves roll out to the edge of that reach, with sound-wave arcs
@@ -1326,7 +1326,8 @@ const ON_ACTIVATE_SPREAD = {
   "The Hero Commands": (token, touched, release) => heroCommands(token, touched, release, 4),
   "Until the Day of Death Comes": (token, touched, release) => peachGarden(token, touched, release, 4),
   "Restore the Han": (token, touched, release) => peachGarden(token, touched, release, 4), // its old name (cards not yet updated)
-  "Terror of Changban": (token, touched, release) => roarOfChangban(token, 5, touched, release),
+  "Roar That Breaks Bridges": (token, touched, release) => roarOfChangban(token, 5, touched, release),
+  "Terror of Changban": (token, touched, release) => roarOfChangban(token, 5, touched, release), // its old name (cards not yet updated)
   // the units it holds are released by the stones (playSentinels), not at the end of the banner
   "Stone Sentinel Maze": (token) => eightTrigrams(token),
 };
@@ -1337,6 +1338,7 @@ const ON_CONTEST = {
   "Terror of the Battlefield": (token, results, tokOf, float) => playTerror(token, results, tokOf, float),
   // the stones rise once the trigrams have turned a while (they start as the banner's dark lifts, about 0.25 s before this)
   "Stone Sentinel Maze": (token, results, tokOf, float) => new Promise(r => setTimeout(r, atSpeed(STONES_AFTER * 1000 - 250))).then(() => playSentinels(results, tokOf, float)),
+  "Roar That Breaks Bridges": (token, results, tokOf, float) => playRooted(token, results, tokOf, float, 5, false),
   "Terror of Changban": (token, results, tokOf, float) => playRooted(token, results, tokOf, float, 5, false),
   // the hunt starts as the howl dies away
   "The Wolf Bares His Fangs": (token, results, tokOf, float) => new Promise(r => setTimeout(r, atSpeed(3200)))
