@@ -176,20 +176,31 @@ async function suggest() {
   const k = turnKey(p.s, p.action), who = k?.startsWith("side:") ? `The ${k.slice(5)} side's tactics` : k ? `${unitName(p.s, k)}'s turn` : "Next move";
   // the whole turn it would play (David, 2026-11-17: "First: X acts" didn't show where it goes or whom it hits):
   // played out on a copy of the battle, so the card lists every step and the map shows the move and the target
-  const steps = lookAhead(p.s, p.action, cfg);
-  const shown = steps.filter(a => !(a.type === "decide" && a.choice !== "hold") && a.type !== "begin" && a.type !== "endTurn");
-  showCard(who, (shown.length ? shown : steps).map(a => describeAction(p.s, a)).join(" → "));
-  drawMarks(p.s, steps);
+  // shown at once with its first step; the rest is worked out in the background, a step at a time (each AI step can
+  // take a few hundred ms on a big field: done all at once it froze the screen; David, 2026-11-17 "a little laggy")
+  const token = ++lookToken;
+  const render = (steps, more) => {
+    const shown = steps.filter(a => !(a.type === "decide" && a.choice !== "hold") && a.type !== "begin" && a.type !== "endTurn");
+    showCard(who, (shown.length ? shown : steps).map(a => describeAction(p.s, a)).join(" → ") + (more ? " …" : ""));
+    drawMarks(p.s, steps);
+  };
+  render([p.action], true);
+  lookAhead(p.s, p.action, cfg, () => token === lookToken && suggestion === p).then(steps => { if (token === lookToken && suggestion === p) render(steps, false); });
 }
 /** The actions the AI would play this turn, starting with `first`, found by playing them on a copy of the battle. */
-function lookAhead(s0, first, cfg) {
+let lookToken = 0;
+async function lookAhead(s0, first, cfg, still = () => true) {
   const out = [first], key = turnKey(s0, first);
   if (!key || key.startsWith("side:")) return out;
   try {
     const g = foundry.utils.deepClone(s0), host = { id: game.user.id, host: true };
     let a = first;
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 8; i++) {
+      // enough to show: it has attacked (the move comes before), or it ends its turn
+      if (/attack/i.test(a.type) || a.type === "endTurn" || a.type === "holdPosition" || a.type === "overwatch") break;
       const r = E.act(g, host, a); if (r && r.ok === false) break;
+      await new Promise(res => setTimeout(res, 0));           // let the screen draw between steps
+      if (!still()) return out;
       a = aiStep(g, { enemy: cfg.enemy, ally: cfg.ally });
       if (!a || turnKey(g, a) !== key) break;
       out.push(a);
