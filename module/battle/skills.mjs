@@ -243,6 +243,11 @@ export function resolveWho(s, who, src, ctx = {}) {
 // ---------------------------------------------------------------- what reaches a unit
 /** Every passive mod/flag and buff entry that reaches unit u: [{ entry, src, name, buff }]. kind: 'mods' | 'flags'. */
 function reaching(s, u, kind) {
+  const out = reachingAll(s, u, kind);
+  // a catapult shot (engine: s.catapultShot) gets no help from skills; enemies' effects on the unit still count
+  return s && s.catapultShot === u.id ? out.filter(r => r.src && r.src.id !== u.id && E.hostile(r.src, u)) : out;
+}
+function reachingAll(s, u, kind) {
   const out = [];
   for (const X of live(s)) {
     const sp = specsOf(s, X);

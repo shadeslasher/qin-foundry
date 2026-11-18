@@ -1040,7 +1040,8 @@ function buildRoll(s, unit, role, ctx) {
     }
   }
   const parts = [['Yin/Yang (' + dice.yin + ' vs ' + dice.yang + diceNote + ')', dice.value]];
-  parts.push(['Command', o ? o.command : 0]); // the officer's Command at full value (Fire and weapon skill don't add to the roll)
+  const catShot = role === 'attacker' && !!ctx.catapult; // a catapult shot: no Command, weapon skill or skill bonuses
+  parts.push(catShot && o ? ['Command (not on a catapult shot)', 0] : ['Command', o ? o.command : 0]); // the officer's Command at full value (Fire and weapon skill don't add to the roll)
   parts.push(['Unit Value', t.unitValue || 0]);
 
   if (role === 'attacker') {
@@ -1048,10 +1049,10 @@ function buildRoll(s, unit, role, ctx) {
     else parts.push(['Attacker bonus', 2]);
     // Officer leading with his own weapon (David, 2026-10-28; above Apprentice since 2026-11-03): Attack +1 per level of the unit's weapon skill above Apprentice (1):
     // Competent +1, Expert +2, Master +3, Legendary +4, Godlike +5. Two-weapon units use his higher skill. Only on the unit's own attacks.
-    if (o) { const lv = officerWeaponLevel(o, t); if (lv > 1) parts.push(["Officer's weapon (" + (lv === officerWeaponLevel(o, { skill: t.skill }) ? t.skill : t.skill2) + ' ' + lv + ')', lv - 1]); }
+    if (o && !catShot) { const lv = officerWeaponLevel(o, t); if (lv > 1) parts.push(["Officer's weapon (" + (lv === officerWeaponLevel(o, { skill: t.skill }) ? t.skill : t.skill2) + ' ' + lv + ')', lv - 1]); }
     // a charge's bonus comes only from Fierce Charge (David, 2026-11-10: no more +1 per tile moved)
     if (ctx.charge && ctx.fierceBonus) parts.push([FIERCE_NAMES[Math.min(4, ctx.fierce)], ctx.fierceBonus]);
-    if (ctx.charge && p.chargeAttackBonus) parts.push(['Officer passive: charge', p.chargeAttackBonus]);
+    if (ctx.charge && p.chargeAttackBonus && !catShot) parts.push(['Officer passive: charge', p.chargeAttackBonus]);
     if (saddleOf(s, unit)) parts.push(['Saddle', 1]);
     // Charging Strike +2/+4/+6 after moving 2+ tiles; Charging Strike EX +8 after moving 1+ tile (David, 2026-10-29)
     if (!ctx.ranged && trait(unit, 'charging strike') && ctx.tilesMoved >= (trait(unit, 'charging strike') >= 4 ? 1 : 2)) parts.push(['Charging Strike (moved ' + ctx.tilesMoved + (ctx.tilesMoved === 1 ? ' tile)' : ' tiles)'), tierVal(trait(unit, 'charging strike'), [2, 4, 6, 8])]);
@@ -1213,7 +1214,25 @@ function damageValue(s, u, ranged = false) {
 }
 
 // Resolve an attack. Returns a result object (also logged). Mutates state.
+/** A catapult shot (David, 2026-11-17): a ranged unit on a catapult square attacking past the range it would have without
+ *  the catapult. Its officer's Command and weapon skill, and battlefield-skill bonuses (passives, actives, allies' auras),
+ *  don't count for it; penalties enemies put on it still do. */
+function catapultShot(s, attacker, defender) {
+  if (!onCatapult(s, attacker)) return false;
+  const t = typeOf(s, attacker) || {}, tr = tileRules(s, attacker.x, attacker.y);
+  const without = (t.rangeMax || 1) + rangeBonus(s, attacker) + (tr ? tr.range - (data.MAP_OVERLAYS.catapult.range || 0) : 0);
+  return manhattan(attacker, defender) > Math.max(1, without);
+}
 function resolveAttack(s, attacker, defender, opts) {
+  const cat = catapultShot(s, attacker, defender), was = s.catapultShot;
+  if (cat) s.catapultShot = attacker.id;
+  try {
+    const r = resolveAttackNow(s, attacker, defender, opts);
+    if (cat && r) r.catapult = true;
+    return r;
+  } finally { if (was === undefined) delete s.catapultShot; else s.catapultShot = was; }
+}
+function resolveAttackNow(s, attacker, defender, opts) {
   { // officers' battlefield skills: an attack may be lost to a challenge, or drawn onto another unit
     const at0 = typeOf(s, attacker) || {};
     const bh = SK.beforeAttack(s, attacker, defender, { ranged: at0.weapon === 'ranged' && manhattan(attacker, defender) > 1, forced: !!opts.forced, overwatch: !!opts.overwatch });
@@ -1245,7 +1264,7 @@ function resolveAttack(s, attacker, defender, opts) {
   else { const ig = SK.flag(s, attacker, 'ignoreTraits', { role: 'attacker', ranged: at.weapon === 'ranged' }); if (Array.isArray(ig) && ig.length) fx(defender).traitsOff = ig; } // or only these
   const ambush = !!opts.ambush;
   const free = !!opts.free; // a tactic's free attack: no strike back, doesn't use the unit's action
-  const ctx = { attacker, defender, ranged, charge, chargeBonus, chargeBase, fierceBonus, tilesMoved, fierce, rear, ambush, hybridMelee, second: !!opts.second, phoenixWon: !!opts.phoenixWon, overwatch: !!opts.overwatch };
+  const ctx = { catapult: s.catapultShot === attacker.id, attacker, defender, ranged, charge, chargeBonus, chargeBase, fierceBonus, tilesMoved, fierce, rear, ambush, hybridMelee, second: !!opts.second, phoenixWon: !!opts.phoenixWon, overwatch: !!opts.overwatch };
   const skc = (u) => ({ role: u === attacker ? 'attacker' : 'defender', ranged, charge, overwatch: !!opts.overwatch, tilesMoved, other: u === attacker ? defender : attacker, ambush: u === attacker && ambush, attackerUnit: attacker }); // for battlefield skills
   // Tactics this attack sets off (they count for this attack already)
   let allOut = [];

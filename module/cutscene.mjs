@@ -66,9 +66,20 @@ let index = null;
 async function officerIndex() {
   if (index) return index;
   const out = [];
-  for (const a of game.actors) if (a.type !== "unit") out.push({ uuid: a.uuid, name: a.name, img: a.img, world: true });
+  // one entry per officer (David, 2026-11-17: Gongsun Zan showed three times): the compendium's, plus a world copy only
+  // when it looks different (its own art); the animation bench's imported copies are left out
+  const comp = new Map();
   const pack = game.packs.get(CHAR_PACK);
-  if (pack) for (const e of await pack.getIndex({ fields: ["type", "img"] })) if (e.type === "character") out.push({ uuid: e.uuid ?? `Compendium.${CHAR_PACK}.Actor.${e._id}`, name: e.name, img: e.img });
+  if (pack) for (const e of await pack.getIndex({ fields: ["type", "img"] })) if (e.type === "character") {
+    const uuid = e.uuid ?? `Compendium.${CHAR_PACK}.Actor.${e._id}`; comp.set(uuid, e.img); out.push({ uuid, name: e.name, img: e.img }); }
+  const seen = new Set();
+  for (const a of game.actors) {
+    if (a.type === "unit" || a.getFlag?.(SYSTEM_ID, "benchSource")) continue;
+    const src = a._stats?.compendiumSource ?? a.flags?.core?.sourceId ?? null;
+    if (src && comp.has(src) && comp.get(src) === a.img) continue;            // a plain copy of a compendium officer
+    const k = (src ?? a.name) + "|" + a.img; if (seen.has(k)) continue; seen.add(k);
+    out.push({ uuid: a.uuid, name: a.name, img: a.img, world: true });
+  }
   return (index = out.sort((a, b) => a.name.localeCompare(b.name)));
 }
 Hooks.on("createActor", () => { index = null; }); Hooks.on("deleteActor", () => { index = null; });
@@ -388,7 +399,6 @@ window.addEventListener("keydown", (e) => {
 export async function playCutscene(cast, bg = null) {
   if (!game.user.isGM) return;
   const list = (cast ?? []).slice(0, MAX_CAST).map(c => ({ ...c, key: foundry.utils.randomID(8) }));
-  if (!list.length) return ui.notifications.warn("Add at least one officer to the scene first.");
   await setState({ active: true, id: foundry.utils.randomID(8), bg: bg || null, cast: list, lit: [] });
 }
 export async function endCutscene() { if (game.user.isGM) await setState({ active: false }); }
@@ -673,7 +683,6 @@ const Builder = {
       row.querySelector('[data-a="del"]').onclick = () => { draft.steps.splice(i, 1); draft.dirty = true; this.refresh(); };
     }
     el.querySelector('[data-a="record"]').onclick = async () => {
-      if (!draft.cast.length) return ui.notifications.warn("Add at least one officer to the scene first.");
       if (draft.steps.length) {
         const ok = await foundry.applications.api.DialogV2.confirm({ window: { title: "Record" }, content: `<p>Recording replaces the ${draft.steps.length} steps. To keep the start, play the cutscene, go to a step and press "Record from here" instead.</p>`, rejectClose: false }).catch(() => false);
         if (!ok) return;
@@ -701,7 +710,6 @@ const Builder = {
     };
     el.querySelector('[data-a="save"]').onclick = () => { const s = saved().find(x => x.id === draft.sel); if (s) store(s.id, s.name); };
     el.querySelector('[data-a="saveas"]').onclick = async () => {
-      if (!draft.cast.length) return ui.notifications.warn("Add at least one officer first.");
       let name = null;
       try { name = await foundry.applications.api.DialogV2.prompt({ window: { title: "Save scene" }, content: `<input name="n" type="text" placeholder="Scene name" autofocus style="width:100%">`, ok: { label: "Save", callback: (ev, btn) => btn.form.elements.n.value.trim() }, rejectClose: false }); } catch { name = null; }
       if (name) store(foundry.utils.randomID(8), name);
