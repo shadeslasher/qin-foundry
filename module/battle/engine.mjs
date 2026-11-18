@@ -237,6 +237,30 @@ function igniteTile(s, x, y, why) {
   return true;
 }
 const ALL8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+/** Can spreading fire reach this square? Not open plains (David, 2026-11-17): only if something on it burns (trees,
+ *  buildings, camps...). Plains can still be set alight on purpose. */
+function spreadsTo(s, x, y) {
+  const tile = s.map.tiles && s.map.tiles[x + ',' + y]; if (!tile) return false;
+  if (tile.terrain !== 'plains') return true;
+  return (tile.overlays || []).some(o => burnPart(o, 'overlay')?.flammable);
+}
+/** Burn objectives (David, 2026-11-17): flammable objective squares next to this unit that its side has to burn. */
+function burnObjectiveTiles(s, u) {
+  if (alliance(u.side) !== 'player') return [];
+  const out = [];
+  for (const c of (s.objectives && s.objectives.victory) || []) {
+    if (c.type !== 'burn' || c.x == null || c.y == null) continue;
+    if (manhattan(u, { x: c.x, y: c.y }) !== 1 || !burnInfo(s, c.x, c.y) || s.siege?.fires?.[c.x + ',' + c.y]) continue;
+    out.push([c.x, c.y]);
+  }
+  return out;
+}
+/** The squares this unit can set alight now: next to it under a Set Aflame tactic, or a burn objective next to it. */
+function setFireTiles(s, u) {
+  const out = pendingTactic(s, u, 'setFire') ? [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => [u.x + dx, u.y + dy]).filter(([x, y]) => burnInfo(s, x, y) && !s.siege?.fires?.[x + ',' + y]) : [];
+  for (const t of burnObjectiveTiles(s, u)) if (!out.some(([x, y]) => x === t[0] && y === t[1])) out.push(t);
+  return out;
+}
 /** Fire reaching a square: it catches once its fire resistance is worn away, else loses one point of it. */
 function scorchTile(s, x, y, why) {
   const k = x + ',' + y, sg = siegeState(s); sg.scorch = sg.scorch || {};
@@ -253,7 +277,7 @@ function burnRound(s) {
   const burning = Object.keys(sg.fires);
   for (const k of burning) {
     const [x, y] = k.split(',').map(Number);
-    const near = ALL8.map(([dx, dy]) => [x + dx, y + dy]).filter(([nx, ny]) => inBounds(s, nx, ny) && burnInfo(s, nx, ny) && !sg.fires[nx + ',' + ny]);
+    const near = ALL8.map(([dx, dy]) => [x + dx, y + dy]).filter(([nx, ny]) => inBounds(s, nx, ny) && burnInfo(s, nx, ny) && spreadsTo(s, nx, ny) && !sg.fires[nx + ',' + ny]);
     if (!near.length) continue;
     const [nx, ny] = near[Math.floor(rng() * near.length) % near.length];
     scorchTile(s, nx, ny, 'The fire spreads');
@@ -794,7 +818,7 @@ function actionMenu(s, u) {
     openGate: canStillAct && gatesNear(s, u).some(g => g.state === 'locked' && gateKeyHolder(s, u, g)),
     closeGate: canStillAct && gatesNear(s, u).some(g => g.state === 'open' && gateKeyHolder(s, u, g) && !g.squares.some(([x, y]) => unitAt(s, x, y))),
     attackGate: canStillAct && gateTargets(s, u).length > 0,
-    setFire: canStillAct && pendingTactic(s, u, 'setFire'),
+    setFire: canStillAct && (pendingTactic(s, u, 'setFire') || burnObjectiveTiles(s, u).length > 0),
     extinguish: canStillAct && extinguishTiles(s, u).length > 0,
     hold: canStillAct,
     duel: canStillAct && duelTargets(s, u).length > 0,
@@ -2831,8 +2855,13 @@ const ACTIONS = {
     if (u.round.attacked || ac.forcedMarched) return err('Setting a fire replaces the attack');
     if (Math.abs(a.x - u.x) + Math.abs(a.y - u.y) !== 1) return err('Pick a tile next to the unit');
     if (!burnInfo(s, a.x, a.y) || s.siege?.fires?.[a.x + ',' + a.y]) return err("That tile can't catch fire");
-    if (!fireTactics(s, 'setFire', u).length) return err('No Set Aflame tactic covers this unit');
-    igniteTile(s, a.x, a.y, u.name + ' (Set Aflame)');
+    // a burn objective next to it needs no tactic; otherwise Set Aflame must cover the unit
+    const objective = burnObjectiveTiles(s, u).some(([x, y]) => x === a.x && y === a.y);
+    if (objective && !pendingTactic(s, u, 'setFire')) igniteTile(s, a.x, a.y, u.name + ' (burn objective)');
+    else {
+      if (!fireTactics(s, 'setFire', u).length) return err('No Set Aflame tactic covers this unit');
+      igniteTile(s, a.x, a.y, u.name + ' (Set Aflame)');
+    }
     u.round.attacked = true;
     finishActivation(s, u);
   },
@@ -3072,7 +3101,7 @@ function viewFor(s, viewer) {
   return v;
 }
 
-export { movementOf as _movementOf, endRound as _endRound, imperialAura as _imperialAura, hidesIn as _hidesIn, officerWeaponLevel, casualtiesOf, evasionOf, evadeCasualties, disciplinedBonus, warDrumsBonus, hornReady, hornTargets, medLeft, medTargets, medHeal, checkpointMorale, checkpointsPassed, overwatchFire as _overwatchFire, surroundAfterTurn as _surroundAfterTurn,
+export { setFireTiles, movementOf as _movementOf, endRound as _endRound, imperialAura as _imperialAura, hidesIn as _hidesIn, officerWeaponLevel, casualtiesOf, evasionOf, evadeCasualties, disciplinedBonus, warDrumsBonus, hornReady, hornTargets, medLeft, medTargets, medHeal, checkpointMorale, checkpointsPassed, overwatchFire as _overwatchFire, surroundAfterTurn as _surroundAfterTurn,
   moveOptions, attackTargets, actionMenu, threatArea, extinguishTiles, waterNear, TACTIC_SIDES, tileRules, ladderTiles, climbTiles, insideCity, isWallTop, gateAt, gateHp, gateTargets, stairsAt,
   newState, act, viewFor, prompt, reachable, duelTargets, movementOf, moraleState, visibleTo, rangeOk, mountainShields,
   resolveAttack, buildRoll, skillCheck, ACTIVE_MIN_MORALE, LAST_STAND_MAX_MORALE, setRng, yinYang, typeOf, officerOf, unitById, SIDES, settle, advance,

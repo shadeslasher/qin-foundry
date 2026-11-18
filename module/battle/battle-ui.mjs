@@ -462,8 +462,8 @@ function enterExtinguish() {
 
 /** Set Aflame: orange tiles around the unit; click one to set it alight. */
 function enterSetFire() {
-  const { u } = current;
-  const tiles = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => [u.x + dx, u.y + dy]);
+  const { s, u } = current;
+  const tiles = E.setFireTiles(s, u);   // Set Aflame: flammable squares next to it; a burn objective next to it (David, 2026-11-17)
   mode = "fire";
   clearSquares();
   overlay = new PIXI.Graphics();
@@ -472,7 +472,7 @@ function enterSetFire() {
   for (const [x, y] of tiles) drawSquare(overlay, x, y, 0xff7a1a, 0.35, 1);
   renderMenu();
   startPicking((x, y) => {
-    if (!tiles.some(([tx, ty]) => tx === x && ty === y)) return pickWarn("Click one of the orange tiles next to the unit.");
+    if (!tiles.some(([tx, ty]) => tx === x && ty === y)) return pickWarn("Click one of the orange squares next to the unit.");
     send({ type: "setFire", unitId: current.u.id, x, y });
   });
 }
