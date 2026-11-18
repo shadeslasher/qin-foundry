@@ -108,3 +108,15 @@ test('duel ground: overlays first (a camp on plains is a camp), then terrain; sc
   assert.strictEqual(duelSceneFor({ plains: 'S1', default: 'S9' }, 'forest'), 'S9');
   assert.strictEqual(duelSceneFor({}, 'forest'), null);
 });
+
+test('duel: Commanders and Strategists neither challenge nor get challenged (David, 2026-11-17)', () => {
+  for (const [who, type] of [['oa', 'Commander'], ['oa', 'Strategist'], ['ob', 'Commander'], ['ob', 'strategist']]) {
+    const { s, a } = setup();
+    s.library.officers.find(o => o.id === who).ctype = type;
+    assert.deepStrictEqual(R.duelTargets(s, a), [], who + ' ' + type);
+    assert.ok(!R.actionMenu(s, a).duel);
+  }
+  const { s, a } = setup();
+  s.library.officers.find(o => o.id === 'oa').ctype = 'Vanguard';
+  assert.strictEqual(R.duelTargets(s, a).length, 1, 'other types still duel');
+});

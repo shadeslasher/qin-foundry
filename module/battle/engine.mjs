@@ -763,10 +763,13 @@ function outriderTiles(s, u) {
 const DUEL_REFUSE_MORALE = 15, DUEL_LOSE_MORALE = 25, DUEL_WIN_MORALE = 15, DUEL_DEATH_MORALE = 50, DUEL_KILL_MORALE = 25;
 
 /** Enemy officer units this unit's officer can challenge now. */
+/** Commanders and Strategists don't fight duels: they can't challenge or be challenged (David, 2026-11-17). */
+const NO_DUEL_TYPES = /^(commander|strategist)$/i;
+function noDuels(s, u) { const o = officerOf(s, u); return !!o && NO_DUEL_TYPES.test(String(o.ctype || '').trim()); }
 function duelTargets(s, u) {
-  if (!hasOfficer(u)) return [];
+  if (!hasOfficer(u) || noDuels(s, u)) return [];
   const D = duels(s);
-  return liveUnits(s).filter(d => hostile(u, d) && hasOfficer(d) && manhattan(u, d) === 1 && visibleTo(s, d, alliance(u.side)) && !D.refused.includes(d.id));
+  return liveUnits(s).filter(d => hostile(u, d) && hasOfficer(d) && !noDuels(s, d) && manhattan(u, d) === 1 && visibleTo(s, d, alliance(u.side)) && !D.refused.includes(d.id));
 }
 
 function actionMenu(s, u) {
