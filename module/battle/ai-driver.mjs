@@ -5,6 +5,7 @@
 import { SYSTEM_ID } from "../config.mjs";
 import { getBattle, buildState, runAction } from "./adapter.mjs";
 import { aiStep, sideLevel } from "./ai.mjs";
+import * as E from "./engine.mjs";
 import { atSpeed } from "./battle-speed.mjs";
 
 const KEY = "battleAI";
@@ -173,8 +174,28 @@ async function suggest() {
   // a few steps need no decision of the GM's (the "act" prompt, skill choices with nothing to pick): still asked, as a move
   suggestion = p;
   const k = turnKey(p.s, p.action), who = k?.startsWith("side:") ? `The ${k.slice(5)} side's tactics` : k ? `${unitName(p.s, k)}'s turn` : "Next move";
-  showCard(who, `First: ${describeAction(p.s, p.action)}`);
-  drawMarks(p.s, p.action);
+  // the whole turn it would play (David, 2026-11-17: "First: X acts" didn't show where it goes or whom it hits):
+  // played out on a copy of the battle, so the card lists every step and the map shows the move and the target
+  const steps = lookAhead(p.s, p.action, cfg);
+  const shown = steps.filter(a => !(a.type === "decide" && a.choice !== "hold") && a.type !== "begin" && a.type !== "endTurn");
+  showCard(who, (shown.length ? shown : steps).map(a => describeAction(p.s, a)).join(" → "));
+  drawMarks(p.s, steps);
+}
+/** The actions the AI would play this turn, starting with `first`, found by playing them on a copy of the battle. */
+function lookAhead(s0, first, cfg) {
+  const out = [first], key = turnKey(s0, first);
+  if (!key || key.startsWith("side:")) return out;
+  try {
+    const g = foundry.utils.deepClone(s0), host = { id: game.user.id, host: true };
+    let a = first;
+    for (let i = 0; i < 12; i++) {
+      const r = E.act(g, host, a); if (r && r.ok === false) break;
+      a = aiStep(g, { enemy: cfg.enemy, ally: cfg.ally });
+      if (!a || turnKey(g, a) !== key) break;
+      out.push(a);
+    }
+  } catch (e) { console.warn("Qin | battle AI look-ahead", e); }
+  return out;
 }
 /** Whose turn an action belongs to: a unit, or a side (tactics phase). */
 const turnKey = (s, a) => a.unitId ?? (s.turn?.activation?.unitId) ?? (a.side ? `side:${a.side}` : null);
@@ -212,31 +233,42 @@ function showCard(title, text) {
   card.querySelector(".sub").textContent = text;
 }
 /** Mark the unit, and where it goes or whom it hits. */
-function drawMarks(s, a) {
+function drawMarks(s, list) {
   if (gfx && !gfx.destroyed) { canvas.app?.ticker?.remove(gfx.qinTick); gfx.destroy(); }
   gfx = null;
   if (!canvas?.ready) return;
+  list = Array.isArray(list) ? list : [list];
   const size = canvas.grid.size, at = (x, y) => ({ x: (x + 0.5) * size, y: (y + 0.5) * size });
-  const u = s.units.find(v => v.id === a.unitId), t = a.targetId ? s.units.find(v => v.id === a.targetId) : null;
-  const from = u ? at(u.x, u.y) : null;
-  const to = t ? at(t.x, t.y) : a.x != null && a.y != null ? at(a.x, a.y) : null;
+  const uid = list.find(a => a.unitId)?.unitId, u = s.units.find(v => v.id === uid);
+  // where it moves (the last square it moves to) and whom it attacks (the first target)
+  const mv = [...list].reverse().find(a => (a.type === "moveTo" || a.type === "reposition") && a.x != null && a.y != null);
+  const hit = list.find(a => a.targetId && /attack/i.test(a.type)) ?? list.find(a => a.targetId);
+  const t = hit ? s.units.find(v => v.id === hit.targetId) : null;
+  const from = u ? at(u.x, u.y) : null, step = mv ? at(mv.x, mv.y) : null;
+  const to = t ? at(t.x, t.y) : step;
   if (!from && !to) return;
   const g = new PIXI.Graphics(); g.eventMode = "none";
   (canvas.controls ?? canvas.interface).addChild(g);
-  const red = !!t, col = red ? 0xff5040 : 0x4da3ff;
+  const BLUE = 0x4da3ff, RED = 0xff5040;
+  // blue: the square it moves to; red: the unit it attacks (from where it will stand)
+  const legs = [];
+  if (from && step) legs.push([from, step, BLUE]);
+  if (t) legs.push([step ?? from, at(t.x, t.y), RED]);
+  else if (!step && to && from) legs.push([from, to, BLUE]);
+  const box = (p, c, a) => g.lineStyle(5, c, a).drawRect(p.x - size / 2 + 3, p.y - size / 2 + 3, size - 6, size - 6);
   let k = 0;
   g.qinTick = () => {
-    k += (canvas.app.ticker.deltaMS || 16) / 1000; const p = 0.5 + 0.5 * Math.sin(k * 5);
+    k += (canvas.app.ticker.deltaMS || 16) / 1000; const p = 0.5 + 0.5 * Math.sin(k * 5), al = 0.6 + 0.4 * p;
     g.clear();
-    if (from) g.lineStyle(5, 0xffd34d, 0.6 + 0.4 * p).drawRect(from.x - size / 2 + 3, from.y - size / 2 + 3, size - 6, size - 6);
-    if (to) {
-      g.lineStyle(5, col, 0.6 + 0.4 * p).drawRect(to.x - size / 2 + 3, to.y - size / 2 + 3, size - 6, size - 6);
-      if (from) {
-        const dx = to.x - from.x, dy = to.y - from.y, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L, e = size * 0.42;
-        const ax = from.x + ux * e, ay = from.y + uy * e, bx = to.x - ux * e, by = to.y - uy * e;
-        g.lineStyle(6, col, 0.9).moveTo(ax, ay).lineTo(bx, by);
-        g.beginFill(col, 0.95).lineStyle(0).drawPolygon([bx, by, bx - ux * 22 - uy * 13, by - uy * 22 + ux * 13, bx - ux * 22 + uy * 13, by - uy * 22 - ux * 13]).endFill();
-      }
+    if (from) box(from, 0xffd34d, al);
+    for (const [a, b, col] of legs) {
+      if (!a || !b) continue;
+      box(b, col, al);
+      const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy); if (!L) continue;
+      const ux = dx / L, uy = dy / L, e = size * 0.42;
+      const ax = a.x + ux * e, ay = a.y + uy * e, bx = b.x - ux * e, by = b.y - uy * e;
+      g.lineStyle(6, col, 0.9).moveTo(ax, ay).lineTo(bx, by);
+      g.beginFill(col, 0.95).lineStyle(0).drawPolygon([bx, by, bx - ux * 22 - uy * 13, by - uy * 22 + ux * 13, bx - ux * 22 + uy * 13, by - uy * 22 - ux * 13]).endFill();
     }
   };
   canvas.app.ticker.add(g.qinTick);
