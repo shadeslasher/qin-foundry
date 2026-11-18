@@ -670,9 +670,15 @@ export class UnitSheet extends tabMixin(api.HandlebarsApplicationMixin(ActorShee
         ...(() => { const b = officerWeaponSkill(officer, system); return { skill: b.value, skillLabel: SKILLS[b.key]?.label, weaponBonus: Math.max(0, (Number(b.value) || 0) - 1) }; })(),
       } : null,
       // characters that can be picked as officer: any for the GM, a player's own characters for them
-      officerChoices: this.isEditable ? (game.actors?.contents ?? []).filter(a => a.type === "character" && (game.user.isGM || a.isOwner))
-        .sort((a, b) => a.name.localeCompare(b.name)).map(a => { const e = officerEligibility(a, system, this.document.id);
-          return { uuid: a.uuid, name: a.name, selected: a.uuid === system.officer, disabled: !e.ok && a.uuid !== system.officer, reason: e.reason }; }) : [],
+      officerChoices: this.isEditable ? (() => {
+        const list = (game.actors?.contents ?? []).filter(a => a.type === "character" && (game.user.isGM || a.isOwner))
+          .sort((a, b) => a.name.localeCompare(b.name)).map(a => { const e = officerEligibility(a, system, this.document.id);
+            return { uuid: a.uuid, name: a.name, selected: a.uuid === system.officer, disabled: !e.ok && a.uuid !== system.officer, reason: e.reason }; });
+        // its current officer is always in the list (one this user can't pick, or a compendium officer), so the box never
+        // reads "No officer" while it has one (David, 2026-11-18)
+        if (system.officer && !list.some(c => c.selected)) list.unshift({ uuid: system.officer, name: officer?.name ?? "Officer (not found)", selected: true, disabled: false, reason: "" });
+        return list;
+      })() : [],
       officerProblem: officer ? (officerEligibility(officer, system, this.document.id).ok ? "" : officerEligibility(officer, system, this.document.id).reason) : "",
       menPct: Math.min(100, Math.round(100 * system.men.value / (system.men.max || 100))),
       healthColor: hex(healthColor(system.men.value / (system.men.max || 100))), moraleColor: hex(moraleColor(system.morale ?? 0)),

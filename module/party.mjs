@@ -163,7 +163,11 @@ export class PartyPanel extends foundry.applications.api.ApplicationV2 {
       const chars = (game.actors?.contents ?? []).filter(c => c.type === "character" && (c.testUserPermission(g.user, "OWNER") || isPartyOfficer(c)));
       const opts = chars.sort((x, y) => x.name.localeCompare(y.name)).map(c => { const e = officerEligibility(c, s, a.id), sel = c.uuid === s.officer;
         return `<option value="${esc(c.uuid)}" ${sel ? "selected" : ""} ${!e.ok && !sel ? "disabled" : ""}>${esc(c.name)}${e.ok ? "" : ` (${esc(e.reason)})`}</option>`; }).join("");
-      return `<label class="qin-party-off" data-drop-unit="${a.id}"><i class="fa-solid fa-user-shield" data-tooltip="Officer: pick one, or drag a party officer here"></i><select data-officer-for="${a.id}" ${a.isOwner ? "" : "disabled"}><option value="">No officer</option>${opts}</select></label>`;
+      // the unit's own officer is always listed, even one this player can't pick (an NPC, a compendium officer): else the
+      // box read "No officer" and looked as if he had been taken off (David, 2026-11-18)
+      const curOff = s.officer && !chars.some(c => c.uuid === s.officer) ? (() => { let o = null; try { o = fromUuidSync(s.officer); } catch { o = null; }
+        return `<option value="${esc(s.officer)}" selected>${esc(o?.name ?? "Officer (not found)")}</option>`; })() : "";
+      return `<label class="qin-party-off" data-drop-unit="${a.id}"><i class="fa-solid fa-user-shield" data-tooltip="Officer: pick one, or drag a party officer here"></i><select data-officer-for="${a.id}" ${a.isOwner ? "" : "disabled"}><option value="">No officer</option>${curOff}${opts}</select></label>`;
     };
     // ---- the Units tab (David, 2026-11-13: wider, a roster with one row per unit, and a detail pane for the chosen unit)
     const tierTag = (s) => `<span class="qin-party-tag tier t${Math.min(5, s.tier)}">T${s.tier}</span>`;
