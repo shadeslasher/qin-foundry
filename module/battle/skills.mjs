@@ -653,7 +653,7 @@ function step(s, st, ctx, rest) {
   if (st.buff) {
     for (const u of units(st.who)) addBuff(s, u, src, ctx.name || 'skill', st.buff, st.for, ctx);
     const who = units(st.who).map(nm).join(', ');
-    if (who) say(s, label + ': ' + who + ' — ' + describeBuff(st.buff) + ' (' + describeDur(st.for) + ').', { type: 'skillBuff', unit: src.id });
+    if (who) say(s, label + ': ' + who + ' — ' + describeBuff(st.buff, src) + ' (' + describeDur(st.for) + ').', { type: 'skillBuff', unit: src.id });
     return;
   }
   if (st.status || st.selfStatus) {
@@ -726,7 +726,7 @@ function step(s, st, ctx, rest) {
     // with who: add that much for each unit it names (Zhao Yun, 2026-11-12: +1 for each ally within 6 at 25 morale or less)
     const add = (st.add ?? 1) * (st.who ? units(st.who).length : 1);
     c[st.counter] = st.set !== undefined ? st.set : Math.min(st.max ?? 99, before + add);
-    if (c[st.counter] !== before) say(s, label + ': ' + c[st.counter] + (st.max ? '/' + st.max : '') + '.', { type: 'skillCounter', unit: src.id });
+    if (c[st.counter] !== before) say(s, label + ': count ' + c[st.counter] + (st.max ? '/' + st.max : '') + '.', { type: 'skillCounter', unit: src.id });
     return;
   }
   if (st.forceToward) { // it moves at once as far as it can toward a point (the picked tile or unit, the target, his unit)
@@ -1281,9 +1281,11 @@ const STAT_TEXT = { attack: 'Attack', command: 'Command', commandAtk: 'Command w
   surroundLossLess: 'morale lost when surrounded', fireLossLess: 'morale lost to fire', fireCasualties: '% casualties from fire', contestAtk: 'on its skills\' contested rolls',
   contestNext: 'on its next contested roll', skillCost: 'morale cost of its battlefield active', skillMinUp: 'morale its battlefield active needs', moveAway: 'movement away from the enemy', moveNoAttack: 'movement if it doesn\'t attack' };
 const sgn = (n) => (n >= 0 ? '+' : '−') + Math.abs(n);
-export function describeBuff(b) {
+export function describeBuff(b, src = null) {
   const parts = [];
-  for (const m of b.mods || []) parts.push(STAT_TEXT[m.stat] + ' ' + (['moraleLossLess', 'checkpointLess', 'skillLossLess', 'anyLossLess', 'forcedMarchCost'].includes(m.stat) ? '−' + m.value : m.stat === 'regenCap' ? 'up to ' + m.value : sgn(m.value)));
+  // a mod counted "per" something shows its total now (David, 2026-11-17: Dawn Breaks the Dark read +2 while giving +4)
+  for (const m of b.mods || []) { const v = m.per && src ? (Number(m.value) || 0) * perOf(src, m) : m.value;
+    parts.push(STAT_TEXT[m.stat] + ' ' + (['moraleLossLess', 'checkpointLess', 'skillLossLess', 'anyLossLess', 'forcedMarchCost'].includes(m.stat) ? '−' + v : m.stat === 'regenCap' ? 'up to ' + v : sgn(v)) + (m.per && !src ? ' per ' + m.per : '')); }
   for (const f of b.flags || []) { const [fn, arg] = String(f.flag).split(':'); parts.push(fn === 'sweep' ? arg + ' damage to every other enemy around it when it attacks (ignores armor and evasion)' : fn === 'cantBeSurrounded' ? "can't be surrounded" : fn === 'sweepMorale' ? 'enemies its sweep hits lose ' + arg + ' morale' : fn === 'bestOfTwoAttack' ? 'its attacks roll twice and keep the higher' : fn === 'worstOfTwoAgainst' ? 'attacks on it roll twice and keep the lower' : String(f.flag).replace(/([A-Z])/g, ' $1').toLowerCase()); }
   if (b.status) parts.push(STATUS_TEXT[b.status]);
   return parts.join(', ');
@@ -1294,7 +1296,7 @@ export function describeDur(d) {
 }
 /** The buffs on a unit, for display: [{ name, text, from }]. */
 export function buffsOf(s, u) {
-  return (fxOf(u).buffs || []).map(b => ({ name: b.name, text: describeBuff(b), from: E.unitById(s, b.src)?.name || '' }));
+  return (fxOf(u).buffs || []).map(b => ({ name: b.name, text: describeBuff(b, E.unitById(s, b.src) || u), from: E.unitById(s, b.src)?.name || '' }));
 }
 
 // ---------------------------------------------------------------- active effects (David, 2026-11-09)
@@ -1349,9 +1351,9 @@ export function untilText(s, u, b) {
 export function effectsOf(s, u) {
   const out = [], f = fxOf(u);
   for (const b of f.buffs || []) {
-    const text = describeBuff(b) || (b.triggers ? 'a lasting effect' : '');
-    if (!text) continue;
     const src = E.unitById(s, b.src), o = src && E.officerOf(s, src);
+    const text = describeBuff(b, src || u) || (b.triggers ? 'a lasting effect' : '');
+    if (!text) continue;
     out.push({ key: 'b:' + b.id, kind: buffKind(s, u, b), power: effectPower(b), name: b.name, text, from: o ? o.name : (src && src.id !== u.id ? src.name : ''), until: untilText(s, u, b), aura: false, self: b.src === u.id });
   }
   const T = (key, name, text, from, until, power) => out.push({ key, kind: 'debuff', power, name, text, from, until, aura: false });
@@ -1368,7 +1370,7 @@ export function effectsOf(s, u) {
     const mods = (p.mods || []).filter(e => whoIncludes(s, e.who, X, u)), flags = (p.flags || []).filter(e => whoIncludes(s, e.who, X, u));
     if (!mods.length && !flags.length) continue;
     const b = { src: X.id, mods, flags };
-    const text = describeBuff(b); if (!text) continue;
+    const text = describeBuff(b, X); if (!text) continue;
     out.push({ key: 'a:' + X.id, kind: buffKind(s, u, b), power: effectPower(b), name: sp.passiveName || 'passive', text, from: (sp.officer && sp.officer.name) || X.name, until: 'while in range', aura: true });
   }
   return out;
