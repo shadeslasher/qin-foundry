@@ -65,7 +65,9 @@ Hooks.once("init", () => {
     hint: "GM: then click a tile on the battlefield. Every player's view pans there.",
     editable: [{ key: "KeyC", modifiers: ["Shift"] }],
     restricted: true,
-    onDown: () => { toggleCameraPick(); return true; },
+    // before Foundry's own keys, so Shift+C doesn't also open the chat (David, 2026-11-17)
+    precedence: CONST.KEYBINDING_PRECEDENCE.PRIORITY,
+    onDown: (ctx) => { if (!canvas?.ready) return false; ctx?.event?.preventDefault?.(); ctx?.event?.stopPropagation?.(); toggleCameraPick(); return true; },
   });
 });
 Hooks.once("ready", () => {
