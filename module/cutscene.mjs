@@ -125,7 +125,17 @@ function css() {
   #qin-cutscene .of.half { top: auto; bottom: 25vh; height: 33vh; }      /* head-to-waist art standing on the lower bar, about two thirds of an adult */
   #qin-cutscene .of.here { opacity: 1; }
   #qin-cutscene .of.lit { filter: drop-shadow(0 0 18px rgba(255,236,170,.55)); z-index: 4; }
-  #qin-cutscene .of.gone { opacity: 0; }
+  /* leaving (David, 2026-11-17): a slower fade while sliding toward the nearer edge of the screen, darkening */
+  #qin-cutscene .of.gone { opacity: 0; transform: translateX(calc(-50% + var(--qin-exit, 0px))); filter: brightness(.2) saturate(.6);
+    transition: opacity 1.6s cubic-bezier(.4,0,.6,1), transform 1.6s cubic-bezier(.4,0,.6,1), filter 1.6s; }
+  /* roll cards made during a cutscene show on screen too (David, 2026-11-17) */
+  #qin-cutscene .rolls { position: absolute; right: 18px; top: calc(25vh + 10px); width: 320px; max-height: calc(50vh - 20px); z-index: 8; display: flex; flex-direction: column; gap: 8px; overflow: hidden; }
+  #qin-cutscene.gm .rolls { pointer-events: none; }
+  #qin-cutscene .rolls .qin-cs-roll { background: rgba(20,18,16,.94); border: 1px solid #c9a85c; border-radius: 6px; padding: 4px; color: #ece6d6; box-shadow: 0 6px 20px rgba(0,0,0,.6);
+    animation: qinCsRollIn .35s ease-out; transition: opacity .6s; list-style: none; }
+  #qin-cutscene .rolls .qin-cs-roll.out { opacity: 0; }
+  #qin-cutscene .rolls .qin-cs-roll .chat-message { margin: 0; }
+  @keyframes qinCsRollIn { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: none; } }
   /* Injure (David, 2026-11-11): a blade streak, a gash on the chest, a red flash and a shake */
   #qin-cutscene .hurt { position: absolute; width: 0; height: 0; overflow: visible; pointer-events: none; z-index: 4; }
   #qin-cutscene .hurt svg { position: absolute; overflow: visible; transform: translate(-50%, -50%); }
@@ -344,7 +354,9 @@ function render() {
   const cast = st.cast ?? [], n = cast.length;
   const lit = litOf(st);
   for (const [key, el] of shown) if (!cast.some(c => c.key === key)) {          // left the scene
-    shown.delete(key); el.classList.remove("here", "lit"); el.classList.add("gone"); setTimeout(() => el.remove(), 700);
+    shown.delete(key); el.classList.remove("here", "lit");
+    { const r = el.getBoundingClientRect(), mid = r.left + r.width / 2; el.style.setProperty("--qin-exit", `${(mid < window.innerWidth / 2 ? -1 : 1) * Math.round(window.innerWidth * 0.12)}px`); } // toward the nearer edge
+    el.classList.add("gone"); setTimeout(() => el.remove(), 1700);
     const nm = names.get(key); names.delete(key); if (nm) { nm.classList.remove("on"); setTimeout(() => nm.remove(), 400); }
   }
   cast.forEach((c, i) => {
@@ -822,3 +834,22 @@ Hooks.once("init", () => {
   });
 });
 Hooks.once("ready", () => { render(); });
+
+/* ------------------------------------------------------------------ roll cards on screen during a cutscene (David, 2026-11-17) */
+// A chat message with dice made while a cutscene plays is shown on the cutscene too (to whoever may see it), for 10 s;
+// at most three at once. The chat log has it as always.
+Hooks.on("createChatMessage", async (m) => {
+  if (!root || !state()?.active || !m?.rolls?.length || m.visible === false) return;
+  let el = null;
+  try { el = await m.renderHTML?.(); } catch (e) { el = null; }
+  if (!el) { el = document.createElement("div"); el.innerHTML = m.content ?? ""; }
+  if (!root) return;
+  let box = root.querySelector(".rolls");
+  if (!box) { box = Object.assign(document.createElement("div"), { className: "rolls" }); root.appendChild(box); }
+  const card = Object.assign(document.createElement("div"), { className: "qin-cs-roll" });
+  card.appendChild(el); box.appendChild(card);
+  while (box.children.length > 3) box.firstElementChild.remove();
+  const bye = () => { card.classList.add("out"); setTimeout(() => card.remove(), 650); };
+  card.addEventListener("click", (e) => { if (!e.target.closest("a, button, details, summary, .dice-roll")) bye(); });
+  setTimeout(bye, 10000);
+});
