@@ -345,6 +345,9 @@ class QinActorSheetBase extends tabMixin(api.HandlebarsApplicationMixin(ActorShe
       taoLibrary: await QinActorSheetBase.#library(actor, "taos", "tao"),
       techniqueLibrary: await QinActorSheetBase.#library(actor, "techniques", "technique"),
       gameYear: currentYear(),
+      // officers' biographies are for the GM only (David, 2026-11-17); a player still sees their own character's
+      showBio: game.user.isGM || (this.actor.isOwner && !this.actor.getFlag?.("qin", "officerOf") && !this.actor.getFlag?.("qin", "codexOf")
+        && !String(this.actor._stats?.compendiumSource ?? this.actor.flags?.core?.sourceId ?? "").startsWith("Compendium.qin-3k-characters")),
       offices: officesForViewer(system.offices, currentYear(), game.user.isGM),
     });
     if (system.bol?.levels) {

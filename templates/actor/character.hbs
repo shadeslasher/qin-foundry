@@ -227,8 +227,8 @@
       {{/if}}
       <h3>Defining deeds</h3>
       <textarea name="system.deeds" rows="5">{{system.deeds}}</textarea>
-      <h3>Biography</h3>
-      <textarea name="system.biography" rows="10">{{system.biography}}</textarea>
+      {{#if showBio}}<h3>Biography</h3>
+      <textarea name="system.biography" rows="10">{{system.biography}}</textarea>{{/if}}
       <h3>Notes</h3>
       <textarea name="system.notes" rows="5">{{system.notes}}</textarea>
     </section>
