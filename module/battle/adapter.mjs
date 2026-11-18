@@ -592,11 +592,46 @@ export function runAction(userId, action) {
   return job;
 }
 
+/**
+ * Undo (David, 2026-11-18): the GM's client keeps the battle as it was before each of the last actions (the battle record
+ * and every unit's position, men, morale, status and effects). "undoAction" puts the latest one back: units return to
+ * where they stood, losses come back, and whose turn it is goes back too. Kept in memory only (a reload clears it);
+ * starting, resetting or ending a battle clears it. Chat lines already posted stay, with a note that it was undone.
+ */
+const undoStack = [];
+const UNDO_MAX = 15;
+const UNDO_SKIP = new Set(["startBattle", "endBattle", "resetBattle", "undoAction"]);
+export const undoInfo = () => { const u = undoStack.at(-1); return u ? { n: undoStack.length, label: u.label } : null; };
+function undoLabel(s, action) {
+  const nm = (id) => s.units.find(u => u.id === id)?.name ?? "a unit";
+  const t = action.type;
+  if (t === "moveTo" || t === "move" || t === "forcedMarch") return nm(action.unitId) + "'s move";
+  if (/attack/i.test(t)) return nm(action.unitId) + "'s attack" + (action.targetId ? " on " + nm(action.targetId) : "");
+  if (t === "useSkill") return nm(action.unitId) + "'s battlefield active";
+  if (t === "endTurn") return nm(action.unitId) + " ending its turn";
+  return (action.unitId ? nm(action.unitId) + ": " : "") + t.replace(/([A-Z])/g, " $1").toLowerCase();
+}
+async function undoLast() {
+  const u = undoStack.pop();
+  if (!u) return { ok: false, error: "Nothing to undo" };
+  const scene = game.scenes.get(u.battle.sceneId);
+  if (!scene) return { ok: false, error: "The battle scene is gone" };
+  await writeBack(foundry.utils.deepClone(u.battle), foundry.utils.deepClone(u.s), scene);
+  await Chat().create({ content: `<div class="qin-chat qin-battle-log"><b>Undone</b> (GM): ${foundry.utils.escapeHTML?.(u.label) ?? u.label}. The battle is back as it was before it.</div>`, speaker: { alias: "Battle" } });
+  globalThis.Hooks?.callAll?.("qinBattleUndo", undoInfo());
+  return { ok: true };
+}
+
 async function runActionNow(userId, action) {
   if (!game.user.isGM) return { ok: false, error: "Only the GM's client can run battle actions" };
   const user = game.users.get(userId);
   const actor = { id: user?.isGM ? "host" : userId, host: !!user?.isGM };
   let battle = getBattle();
+  if (action.type === "undoAction") {
+    if (!actor.host) return { ok: false, error: "Only the GM can undo" };
+    return undoLast();
+  }
+  if (["startBattle", "endBattle", "resetBattle"].includes(action.type)) undoStack.length = 0;
 
   if (action.type === "startBattle") {
     if (!actor.host) return { ok: false, error: "Only the GM can start a battle" };
@@ -676,7 +711,9 @@ async function runActionNow(userId, action) {
   const before = Object.fromEntries(s.units.map(u => [u.id, { men: u.men, morale: u.morale, xp: u.xp || 0, status: u.status, buffs: (u.fx?.buffs ?? []).map(b => b.name) }]));
   E.setRng(() => CONFIG.Dice.randomUniform());
   const prevDuel = foundry.utils.deepClone(battle.duels?.pending ?? null);
+  const snap = UNDO_SKIP.has(action.type) || !scene ? null : { battle: foundry.utils.deepClone(battle), s: foundry.utils.deepClone(s), label: undoLabel(s, action) };
   const res = E.act(s, actor, action.type === "startBattle" ? { type: "startBattle" } : action);
+  if (res.ok && snap) { undoStack.push(snap); if (undoStack.length > UNDO_MAX) undoStack.shift(); globalThis.Hooks?.callAll?.("qinBattleUndo", undoInfo()); }
   if (!res.ok && action.type === "startBattle") return res;
   if (res.ok && action.type === "duelAnswer" && s.duels?.pending?.stage === "fighting") {
     const p = s.duels.pending, A = duelOfficer(scene, p.from), B = duelOfficer(scene, p.to);

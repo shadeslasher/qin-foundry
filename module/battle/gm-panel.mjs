@@ -3,7 +3,7 @@
 // Defeat / Stalemate) went back into the Battle panel (David, 2026-11-01).
 import { SYSTEM_ID, systemPath } from "../config.mjs";
 import * as E from "./engine.mjs";
-import { getBattle, buildState } from "./adapter.mjs";
+import { getBattle, buildState, undoInfo } from "./adapter.mjs";
 import { scaledPosition } from "../sheets/sheets.mjs";
 import { battleRequest, setHiddenSelected, confirmEndBattle, toggleGmFire, gmFireActive, setGmRefresh } from "./battle.mjs";
 import { TacticsApp } from "./tactics-ui.mjs";
@@ -116,6 +116,12 @@ export class GmPanel extends api.HandlebarsApplicationMixin(api.Application ?? a
       aiPause: async () => { await setAI({ paused: !aiSettings().paused }); GmPanel.refresh(); },
       endBattle: () => confirmEndBattle(),
       pullCamera: () => toggleCameraPick(),
+      undo: async () => {
+        const u = undoInfo(); if (!u) return;
+        const ok = await foundry.applications.api.DialogV2.confirm({ window: { title: "Undo" }, content: `<p>Undo <b>${foundry.utils.escapeHTML?.(u.label) ?? u.label}</b>?</p><p>The units and the turn go back to how they were before it.</p>`, rejectClose: false }).catch(() => false);
+        if (ok) await battleRequest({ type: "undoAction" });
+        GmPanel.refresh();
+      },
       do: async (ev, el) => {
         const d = el.dataset;
         if (d.type === "openTactics") return TacticsApp.open();
@@ -145,7 +151,7 @@ export class GmPanel extends api.HandlebarsApplicationMixin(api.Application ?? a
 
   async _prepareContext() {
     const battle = getBattle();
-    const ctx = { isGM: game.user.isGM, active: battle.active, gmFireOn: gmFireActive(), cameraPick: cameraPicking() };
+    const ctx = { isGM: game.user.isGM, active: battle.active, gmFireOn: gmFireActive(), cameraPick: cameraPicking(), undo: undoInfo() };
     const ai = aiSettings(), lv = aiLevels();
     ctx.ai = { enemy: ai.enemy, ally: ai.ally, paused: ai.paused, step: ai.step, enemyLv: lv.enemy, allyLv: lv.ally, any: ai.enemy || ai.ally };
     const sel = selectedUnits();
@@ -170,6 +176,7 @@ export class GmPanel extends api.HandlebarsApplicationMixin(api.Application ?? a
 
 setGmRefresh(() => GmPanel.refresh());
 setCameraPickListener(() => GmPanel.refresh());
+Hooks.on("qinBattleUndo", () => GmPanel.refresh());
 // the selection list follows the tokens the GM picks
 const refreshSoon = foundry.utils.debounce ? foundry.utils.debounce(() => GmPanel.refresh(), 60) : () => GmPanel.refresh();
 Hooks.on("controlToken", () => { if (GmPanel.instance?.rendered) refreshSoon(); });

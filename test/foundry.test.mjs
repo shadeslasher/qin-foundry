@@ -86,10 +86,20 @@ test("battle adapter: a full officer turn through Foundry tokens", async () => {
   // XP: casualties dealt x (enemy tier / own tier) — same tier here
   assert.strictEqual(ally.system.xp.value, 100 - foe.system.men.value, "XP equals casualties dealt at equal tier");
   void (100 - ally.system.men.value); // casualties suffered no longer cost XP
-  const allyXpBefore = ally.system.xp.value;
+  let allyXpBefore = ally.system.xp.value;
   assert.ok(M.chat.length > chatBefore && /qin-battle-card/.test(M.chat.at(-1).content), "attack card posted to chat");
   b = A.getBattle();
   assert.strictEqual(b.turn.phase, "officerless", "turn handed on after the attack");
+
+  // Undo (David, 2026-11-18): the GM puts the attack back; the enemy's losses return and it's Wen Ping's turn again
+  r = await A.runAction("alice", { type: "undoAction" });
+  assert.ok(!r.ok, "only the GM undoes");
+  r = await A.runAction("gm", { type: "undoAction" });
+  assert.ok(r.ok, r.error);
+  assert.strictEqual(foe.system.men.value, 100, "the enemy's casualties came back");
+  assert.strictEqual(A.getBattle().turn.activation?.unitId, "tokA", "Wen Ping's unit is acting again");
+  assert.ok(/Undone/.test(M.chat.at(-1).content));
+  assert.strictEqual(ally.system.xp.value, 0, "the XP from the undone attack is gone too"); allyXpBefore = 0;
 
   // A token moved outside its turn is simply recorded
   tE.x = 4 * 100;

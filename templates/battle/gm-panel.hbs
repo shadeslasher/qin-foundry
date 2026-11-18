@@ -8,6 +8,10 @@
     <div class="qin-btns"><button type="button" data-action="aiStep" class="{{#if ai.step}}active{{/if}}" title="On: the AI shows its next move and plays it when you click Play turn (G). Off: it plays by itself."><i class="fa-solid fa-{{#if ai.step}}toggle-on{{else}}toggle-off{{/if}}"></i> Suggest moves (G plays)</button></div>
     {{#if ai.any}}<div class="qin-btns"><button type="button" data-action="aiPause" title="Stop or restart the AI">{{#if ai.paused}}<i class="fa-solid fa-play"></i> Resume AI{{else}}<i class="fa-solid fa-pause"></i> Pause AI{{/if}}</button></div>{{/if}}
   </div>
+  {{#if active}}<div class="qin-card qin-gm-undo"><h4>Undo</h4>
+    <div class="qin-btns"><button type="button" data-action="undo" {{#unless undo}}disabled{{/unless}} title="Put the battle back as it was before the last action (moves, attacks, skills, turns). Up to 15 steps back; a reload clears the list.">
+      <i class="fa-solid fa-rotate-left"></i> {{#if undo}}Undo {{undo.label}}{{else}}Nothing to undo{{/if}}</button></div>
+  </div>{{/if}}
   <div class="qin-card qin-gm-camera"><h4>Camera</h4>
     <div class="qin-btns">
       <button type="button" data-action="pullCamera" class="{{#if cameraPick}}active{{/if}}" title="Then click a tile: every player's view pans there (Shift+C)"><i class="fa-solid fa-{{#if cameraPick}}crosshairs{{else}}video{{/if}}"></i> {{#if cameraPick}}Click a tile… (Esc cancels){{else}}Move everyone's camera to a tile{{/if}}</button>
