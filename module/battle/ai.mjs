@@ -263,6 +263,8 @@ function strength(s, u) {
  *   { posture, gain, threatMult, close, ground, aggr, keep: [{x,y}], take: [{x,y}], jobs: Map(unitId -> { pt, kind, anchor }),
  *     protect: Set, hunt: Set, reinforceRound, why: [text] }
  */
+/** Share of the army sent to the objective squares (the anchors always go). */
+const OBJ_SHARE = 0.5;
 export function strategy(s, side) {
   const o = s.objectives || {}, st = s.objState || {}, al = E.alliance(side);
   const round = Number(s.turn?.round) || 0, done = Number(st.roundsDone) || 0;
@@ -366,7 +368,8 @@ export function strategy(s, side) {
     // the rest are shared out: each square in turn takes the nearest unit left, so every square is covered
     // each square's share of guards follows its urgency
     const wSum = pts.reduce((t, p) => t + p.w, 0);
-    const caps = pts.map(p => Math.ceil(free.length * p.w / wSum) + 1), count = new Map(pts.map((p, i) => [i, 1]));
+    // about half the army goes to the squares; the rest fight where they are (David, 2026-11-17: the AI chased objectives too hard)
+    const caps = pts.map(p => Math.ceil(free.length * OBJ_SHARE * p.w / wSum) + 1), count = new Map(pts.map((p, i) => [i, 1]));
     const rest = free.filter(u => !taken.has(u.id));
     for (let guard = 0; rest.length && guard < 200; guard++) {
       let pick = null;
@@ -877,13 +880,13 @@ function positionScore(s0, s1, u0, u1, side, P, S, M) {
   if (job) {
     const d0 = routeDist(s0, u0, u0, [job.pt]), d1 = routeDist(s0, u0, u1, [job.pt]);
     if (job.kind === 'take') {
-      v += (job.anchor ? 0.12 : 0.08) * w * (d0 - d1);
+      v += (job.anchor ? 0.1 : 0.05) * w * (d0 - d1);
       if (d1 === 0) v += 0.3 * w; // ending a turn there seizes it
     } else if (job.anchor) {
       v += 0.1 * w * (d0 - d1) + (d1 === 0 ? 0.45 * w * (M.anchorish || 1) : 0); // sit on the square
     } else {
       const ring = ranged ? 3 : 2; // guards stand around it (ranged a little further back)
-      v += 0.06 * w * (Math.max(0, d0 - ring) - Math.max(0, d1 - ring)) - (d1 > ring + 2 ? 0.03 * w * (d1 - ring - 2) : 0);
+      v += 0.045 * w * (Math.max(0, d0 - ring) - Math.max(0, d1 - ring)) - (d1 > ring + 2 ? 0.02 * w * (d1 - ring - 2) : 0);
     }
   }
   // good ground (lower levels see less of it)
