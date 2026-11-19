@@ -96,7 +96,7 @@ export async function reset({ officer = null, view = true } = {}) {
     tokUpd.push({ _id: m.token, x: u.x * g, y: u.y * g, hidden: false, disposition: u.side === "enemy" ? -1 : 1, ...del });
     if (u.officerSlot) slotToken = m.token;
   }
-  await scene.updateEmbeddedDocuments("Token", tokUpd);
+  await scene.updateEmbeddedDocuments("Token", tokUpd, { qinBattle: true, animate: false }); // past the unit-move lock (it refused moves outside a battle)
   if (layout.camera) canvas.pan(layout.camera);
   let r = await req({ type: "startBattle", sceneId: scene.id }); if (!r?.ok) throw new Error("startBattle: " + r?.error);
   r = await req({ type: "skipTactics" }); if (!r?.ok) throw new Error("skipTactics: " + r?.error);
