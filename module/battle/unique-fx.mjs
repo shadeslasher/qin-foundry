@@ -1784,31 +1784,43 @@ export function playUniqueSelf(skill, token, amount, float) {
 
 /* ------------------------------------------------------------ Sun Jian: The Tiger Pounces (David, 2026-11-18) */
 
-/** The spirit tiger is private art (the golden tiger token from David's token pack, turned so its head points right):
- *  modules/qin-3k-characters/art/fx/spirit-tiger.webp. Without it the summoning ring, claws and embers still play. */
-const SPIRIT_TIGER = "modules/qin-3k-characters/art/fx/spirit-tiger.webp";
-let tigerArt = null;
-function loadTiger() {
-  if (tigerArt) return tigerArt;
-  tigerArt = new Promise(res => {
+/** Private art in modules/qin-3k-characters/art/fx/: the spirit tiger (the golden tiger token from David's token pack,
+ *  turned so its head points right) and two JB2A (free) effects recoloured gold, as 10-across frame sheets: the side
+ *  shockwave (its roar, 12 frames of 400x400) and the creature claws (the strike, 35 frames of 400x300). Missing art
+ *  is skipped; the summoning ring and embers always play. */
+const FX_DIR = "modules/qin-3k-characters/art/fx/";
+const TIGER_ART = { tiger: ["spirit-tiger.webp"], shock: ["tiger-shock.webp", 12, 400, 400], claw: ["tiger-claw.webp", 35, 400, 300] };
+const tigerArt = {};
+function loadTigerArt(key) {
+  if (tigerArt[key]) return tigerArt[key];
+  const [file, n, fw, fh] = TIGER_ART[key];
+  tigerArt[key] = new Promise(res => {
     const img = new Image(); img.crossOrigin = "anonymous";
-    img.onload = () => res({ tex: PIXI.Texture.from(img), w: img.naturalWidth, h: img.naturalHeight });
+    img.onload = () => {
+      const tex = PIXI.Texture.from(img);
+      if (!n) return res({ tex, w: img.naturalWidth, h: img.naturalHeight });
+      const frames = [];
+      for (let i = 0; i < n; i++) frames.push(new PIXI.Texture(tex.baseTexture, new PIXI.Rectangle((i % 10) * fw, Math.floor(i / 10) * fh, fw, fh)));
+      res({ frames, w: fw, h: fh });
+    };
     img.onerror = () => res(null);
-    img.src = SPIRIT_TIGER;
+    img.src = FX_DIR + file;
   });
-  return tigerArt;
+  return tigerArt[key];
 }
+const loadTiger = () => Promise.all(Object.keys(TIGER_ART).map(loadTigerArt)).then(([tiger, shock, claw]) => ({ tiger, shock, claw }));
 globalThis.Hooks?.once?.("canvasReady", () => loadTiger());
 
-/** A ring of spirit-fire and sparks bursts around Sun Jian and the golden spirit tiger fades in behind him, crouched;
- *  it coils, springs over his unit in an arc (bigger at the top of the leap, its shadow on the ground, faint
- *  afterimages behind), lands on the enemy with three claw slashes, a shockwave ring and a screen shake, and
- *  dissolves into embers. `impact` resolves as it lands (the damage shows then); `done` when the embers are gone. */
+/** A ring of spirit-fire and sparks bursts around Sun Jian and the golden spirit tiger fades in behind him, crouched.
+ *  It roars: it rears and swells, three gold sound-wave blasts roll out of its jaws and the ground shakes. Then it
+ *  coils, springs over his unit in an arc (bigger at the top of the leap, its shadow on the ground, faint afterimages
+ *  behind), lands on the enemy with a gold claw strike, a shockwave ring and a screen shake, and dissolves into
+ *  embers. `impact` resolves as it lands (the damage shows then); `done` when the embers are gone. */
 function tigerPounce(attacker, defender) {
   const G = Math.min(attacker.w, attacker.h), k = G / 120, ADD = PIXI.BLEND_MODES.ADD, a0 = attacker.center, b = defender.center;
   const ang = Math.atan2(b.y - a0.y, b.x - a0.x), d = Math.hypot(b.x - a0.x, b.y - a0.y);
   let hit; const impact = new Promise(r => { hit = r; });
-  const done = loadTiger().then(art => {
+  const done = loadTiger().then(({ tiger: art, shock, claw }) => {
     const ground = new PIXI.Container(); ground.position.set(a0.x, a0.y); ground.rotation = ang; overLayer().addChild(ground);
     const root = new PIXI.Container(); root.position.set(a0.x, a0.y); root.rotation = ang; topLayer().addChild(root);
     const fx = new PIXI.Graphics(); fx.blendMode = ADD; root.addChild(fx);
@@ -1817,23 +1829,35 @@ function tigerPounce(attacker, defender) {
     const shadow = sprite(null, 0x000000); if (shadow) ground.addChild(shadow);
     const ghosts = [0.05, 0.08, 0.12].map(al => { const g = sprite(ADD); if (g) { g.alpha = 0; root.addChild(g); } return [g, al]; });
     const tiger = sprite(), glow = sprite(ADD); if (tiger) root.addChild(tiger); if (glow) root.addChild(glow);
+    // the roar's three blasts (anchored at their source, just in front of the jaws) and the claw strike (upright, on the target)
+    const blasts = shock ? [0.05, 0.3, 0.55].map(at => { const sp = new PIXI.Sprite(shock.frames[0]); sp.anchor.set(0.08, 0.5); sp.blendMode = ADD; sp.width = sp.height = W * 1.53; sp.visible = false; root.addChild(sp); return [sp, at]; }) : [];
+    const strike = claw ? new PIXI.Sprite(claw.frames[0]) : null;
+    if (strike) { strike.anchor.set(0.5); strike.blendMode = ADD; strike.width = W * 1.53; strike.height = W * 1.53 * 0.75; strike.position.set(b.x, b.y); strike.visible = false; topLayer().addChild(strike); }
     const x0 = -G * 0.95, x1 = d - G * 0.47; // crouched behind him; lands with its head over the target
+    const RS = 0.4, RL = 0.9; // the roar starts at RS and lasts RL; the rest waits for it
     const sm = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
     const place = (sp, x, y, s, sx, sy, alpha) => { if (!sp) return; sp.position.set(x, y); sp.scale.set(W / art.w * s * sx, H / art.h * s * sy); sp.alpha = alpha; };
     const leapAt = (q) => [x0 + (x1 - x0) * q, -Math.sin(Math.PI * q) * 18 * k];
     const sparks = (cx, cy, q, n, spread) => { for (let i = 0; i < n; i++) { const an = i * 2.399, r = spread * (0.3 + 0.7 * ((i * 37) % 11) / 11) * q;
       fx.beginFill(0xff9632 + ((i * 13) % 90 << 8), (1 - q) * 0.85).drawCircle(cx + Math.cos(an) * r, cy + Math.sin(an) * r * 0.7 - q * 30 * k * (1 + (i % 3) * 0.4), (2.6 * (1 - q) + 0.8) * k * 1.6).endFill(); } };
     let landed = false;
-    return run((dt, t) => {
+    return run((dt, T) => {
+      const t = T < RS ? T : T < RS + RL ? RS : T - RL, roar = T >= RS && T < RS + RL ? (T - RS) / RL : -1;
       fx.clear();
-      if (t < 0.7) { const q = t / 0.7; fx.lineStyle((5 * (1 - q) + 1) * k * 1.6, 0xffb43c, 0.9 * (1 - q)).drawCircle(0, 0, (24 + 50 * sm(q)) * k * 1.6).lineStyle(0); sparks(0, 0, q, 22, 46 * k * 1.6); }
+      if (T < 0.7) { const q = T / 0.7; fx.lineStyle((5 * (1 - q) + 1) * k * 1.6, 0xffb43c, 0.9 * (1 - q)).drawCircle(0, 0, (24 + 50 * sm(q)) * k * 1.6).lineStyle(0); sparks(0, 0, q, 22, 46 * k * 1.6); }
       for (const sp of [tiger, glow, shadow]) if (sp) sp.visible = false;
       for (const [g] of ghosts) if (g) g.alpha = 0;
-      if (t > 0.15 && t < 0.55) { // fades in and coils
+      for (const [sp] of blasts) sp.visible = false;
+      if (t > 0.15 && t < 0.55) { // fades in and crouches; roars; coils
         const a = sm((t - 0.15) / 0.25), coil = sm((t - 0.3) / 0.25), x = x0 - 6 * k * coil;
+        const swell = roar >= 0 ? Math.sin(Math.PI * Math.min(1, roar * 1.3)) : 0, rp = 1 + 0.1 * swell;
         for (const sp of [tiger, glow, shadow]) if (sp) sp.visible = true;
-        place(shadow, x + 4 * k, 8 * k, 0.95, 1, 1, 0.22 * a); place(tiger, x, 0, 1, 1 - 0.08 * coil, 1 + 0.05 * coil, a);
-        place(glow, x, 0, 1.06, 1 - 0.08 * coil, 1 + 0.05 * coil, 0.1 * a * (0.6 + 0.4 * Math.sin(t * 30)));
+        place(shadow, x + 4 * k, 8 * k, 0.95 * rp, 1, 1, 0.22 * a); place(tiger, x, 0, rp, 1 - 0.08 * coil, 1 + 0.05 * coil, a);
+        place(glow, x, 0, 1.06 * rp, 1 - 0.08 * coil, 1 + 0.05 * coil, (roar >= 0 ? 0.35 * Math.sin(Math.PI * roar) : 0.1) * a * (0.6 + 0.4 * Math.sin(T * 30)));
+        if (roar >= 0) {
+          const el = roar * RL;
+          for (const [sp, at] of blasts) { const f = Math.floor((el - at) * 30); if (f >= 0 && f < shock.frames.length) { sp.texture = shock.frames[f]; sp.visible = true; sp.position.set(x + W * 0.42 - 20 * k * 1.6, 0); } }
+        }
       } else if (t >= 0.55 && t < 1.0) { // the leap
         const p = (t - 0.55) / 0.45, q = p * p * 0.6 + sm(p) * 0.4, h = Math.sin(Math.PI * q), [x, y] = leapAt(q), s = 1 + 0.3 * h;
         for (const sp of [tiger, shadow]) if (sp) sp.visible = true;
@@ -1848,18 +1872,10 @@ function tigerPounce(attacker, defender) {
       if (t >= 1.0 && !landed) { landed = true; hit(); }
       if (t >= 1.0 && t < 1.35) { const q = (t - 1.0) / 0.35; fx.lineStyle((4 * (1 - q) + 1) * k * 1.6, 0xffdc78, 1 - q).drawCircle(d, 0, (20 + 55 * q) * k * 1.6).lineStyle(0); }
       if (t >= 1.0 && t < 1.9) sparks(d - 20 * k, 0, (t - 1.0) / 0.9, 34, 70 * k * 1.6);
-      if (t > 1.02 && t < 1.47) { // three claw slashes across the target
-        const q = (t - 1.02) / 0.45, a = Math.min(1, q * 3.5), f = 1 - Math.max(0, (q - 0.35) / 0.65), c = Math.cos(-0.5 - ang), s2 = Math.sin(-0.5 - ang);
-        const P = (px, py) => [d + (px * c - py * s2) * k * 1.6, (px * s2 + py * c) * k * 1.6];
-        for (let i = -1; i <= 1; i++) for (const [w, col, al] of [[9, 0xffaa3c, 0.6 * f], [3, 0xfffadc, f]]) {
-          fx.lineStyle(w * k * 1.6, col, al); const s0 = P(-34, i * 12 - 14), cp = P(0, i * 12 + 2), e = P(-34 + 68 * a, i * 12 - 14 + 28 * a);
-          fx.moveTo(...s0).quadraticCurveTo(...cp, ...e);
-        }
-        fx.lineStyle(0);
-      }
-      shakeScreen(t >= 1.0 && t < 1.3 ? 0.5 * (1 - (t - 1.0) / 0.3) : 0, t);
+      if (strike) { const f = Math.floor((t - 1.0) * 30 * 1.4); strike.visible = t >= 1.0 && f < claw.frames.length; if (strike.visible) strike.texture = claw.frames[f]; }
+      shakeScreen(t >= 1.0 && t < 1.3 ? 0.5 * (1 - (t - 1.0) / 0.3) : roar > 0.08 && roar < 0.75 ? 0.25 * Math.sin(Math.PI * Math.min(1, roar * 1.3)) : 0, T);
       if (t < 1.9) return true;
-      shakeScreen(0, t); hit(); root.destroy({ children: true }); ground.destroy({ children: true }); return false;
+      shakeScreen(0, T); hit(); root.destroy({ children: true }); ground.destroy({ children: true }); strike?.destroy(); return false;
     });
   });
   return { impact: Promise.race([impact, done]), done };
