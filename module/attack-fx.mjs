@@ -7,7 +7,7 @@ import { SYSTEM_ID } from "./config.mjs";
 import { playStepSounds, attackSounds, playMoment } from "./sound.mjs";
 import { drawUnitBars, freezeUnits } from "./unit-bars.mjs";
 import { playActivation } from "./battle/activation-fx.mjs";
-import { playSweep, playUniqueAttack, playUniqueContest, playAnotherTurn, playUniqueRide, playUniqueZap, playWalk, playUniqueSelf } from "./battle/unique-fx.mjs";
+import { playSweep, playUniqueAttack, playUniquePounce, playUniqueContest, playAnotherTurn, playUniqueRide, playUniqueZap, playWalk, playUniqueSelf } from "./battle/unique-fx.mjs";
 
 const SOCKET = `system.${SYSTEM_ID}`;
 
@@ -1096,9 +1096,10 @@ async function playBattleAnimNow({ sceneId, steps }) {
           const hitAt = (isRanged) => (isRanged ? 620 : 240);
           const snd = attackSounds(st);
           if (snd.start) playMoment(snd.start, { minGap: 0 });
-          const goA = strike(A, D, st.ranged);
-          if (st.special && !st.ranged) playUniqueAttack(st.special, A, D); // e.g. the Sky Piercer, landing with the lunge
-          await wait(hitAt(st.ranged));
+          const pounce = st.pounce && !st.ranged ? playUniquePounce(st.pounce, A, D) : null; // e.g. Sun Jian's spirit tiger, in place of the lunge
+          const goA = pounce ? pounce.done : strike(A, D, st.ranged);
+          if (!pounce && st.special && !st.ranged) playUniqueAttack(st.special, A, D); // e.g. the Sky Piercer, landing with the lunge
+          if (pounce) await pounce.impact; else await wait(hitAt(st.ranged));
           playMoment(snd.hit, { minGap: 0 });
           showAll(st.defender, st.toDefender);
           await goA;

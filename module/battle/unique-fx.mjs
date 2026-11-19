@@ -1781,3 +1781,93 @@ export function playUniqueSelf(skill, token, amount, float) {
   const fn = ON_SELF[skill];
   return fn && token && !token.destroyed ? fn(token, amount, float) : null;
 }
+
+/* ------------------------------------------------------------ Sun Jian: The Tiger Pounces (David, 2026-11-18) */
+
+/** The spirit tiger is private art (the golden tiger token from David's token pack, turned so its head points right):
+ *  modules/qin-3k-characters/art/fx/spirit-tiger.webp. Without it the summoning ring, claws and embers still play. */
+const SPIRIT_TIGER = "modules/qin-3k-characters/art/fx/spirit-tiger.webp";
+let tigerArt = null;
+function loadTiger() {
+  if (tigerArt) return tigerArt;
+  tigerArt = new Promise(res => {
+    const img = new Image(); img.crossOrigin = "anonymous";
+    img.onload = () => res({ tex: PIXI.Texture.from(img), w: img.naturalWidth, h: img.naturalHeight });
+    img.onerror = () => res(null);
+    img.src = SPIRIT_TIGER;
+  });
+  return tigerArt;
+}
+globalThis.Hooks?.once?.("canvasReady", () => loadTiger());
+
+/** A ring of spirit-fire and sparks bursts around Sun Jian and the golden spirit tiger fades in behind him, crouched;
+ *  it coils, springs over his unit in an arc (bigger at the top of the leap, its shadow on the ground, faint
+ *  afterimages behind), lands on the enemy with three claw slashes, a shockwave ring and a screen shake, and
+ *  dissolves into embers. `impact` resolves as it lands (the damage shows then); `done` when the embers are gone. */
+function tigerPounce(attacker, defender) {
+  const G = Math.min(attacker.w, attacker.h), k = G / 120, ADD = PIXI.BLEND_MODES.ADD, a0 = attacker.center, b = defender.center;
+  const ang = Math.atan2(b.y - a0.y, b.x - a0.x), d = Math.hypot(b.x - a0.x, b.y - a0.y);
+  let hit; const impact = new Promise(r => { hit = r; });
+  const done = loadTiger().then(art => {
+    const ground = new PIXI.Container(); ground.position.set(a0.x, a0.y); ground.rotation = ang; overLayer().addChild(ground);
+    const root = new PIXI.Container(); root.position.set(a0.x, a0.y); root.rotation = ang; topLayer().addChild(root);
+    const fx = new PIXI.Graphics(); fx.blendMode = ADD; root.addChild(fx);
+    const W = G * 2.1, H = art ? W * art.h / art.w : 0, AX = 0.55; // the tiger's anchor sits a little behind its middle
+    const sprite = (blend, tint) => { if (!art) return null; const sp = new PIXI.Sprite(art.tex); sp.anchor.set(AX, 0.5); sp.width = W; sp.height = H; if (blend) sp.blendMode = blend; if (tint !== undefined) sp.tint = tint; return sp; };
+    const shadow = sprite(null, 0x000000); if (shadow) ground.addChild(shadow);
+    const ghosts = [0.05, 0.08, 0.12].map(al => { const g = sprite(ADD); if (g) { g.alpha = 0; root.addChild(g); } return [g, al]; });
+    const tiger = sprite(), glow = sprite(ADD); if (tiger) root.addChild(tiger); if (glow) root.addChild(glow);
+    const x0 = -G * 0.95, x1 = d - G * 0.47; // crouched behind him; lands with its head over the target
+    const sm = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
+    const place = (sp, x, y, s, sx, sy, alpha) => { if (!sp) return; sp.position.set(x, y); sp.scale.set(W / art.w * s * sx, H / art.h * s * sy); sp.alpha = alpha; };
+    const leapAt = (q) => [x0 + (x1 - x0) * q, -Math.sin(Math.PI * q) * 18 * k];
+    const sparks = (cx, cy, q, n, spread) => { for (let i = 0; i < n; i++) { const an = i * 2.399, r = spread * (0.3 + 0.7 * ((i * 37) % 11) / 11) * q;
+      fx.beginFill(0xff9632 + ((i * 13) % 90 << 8), (1 - q) * 0.85).drawCircle(cx + Math.cos(an) * r, cy + Math.sin(an) * r * 0.7 - q * 30 * k * (1 + (i % 3) * 0.4), (2.6 * (1 - q) + 0.8) * k * 1.6).endFill(); } };
+    let landed = false;
+    return run((dt, t) => {
+      fx.clear();
+      if (t < 0.7) { const q = t / 0.7; fx.lineStyle((5 * (1 - q) + 1) * k * 1.6, 0xffb43c, 0.9 * (1 - q)).drawCircle(0, 0, (24 + 50 * sm(q)) * k * 1.6).lineStyle(0); sparks(0, 0, q, 22, 46 * k * 1.6); }
+      for (const sp of [tiger, glow, shadow]) if (sp) sp.visible = false;
+      for (const [g] of ghosts) if (g) g.alpha = 0;
+      if (t > 0.15 && t < 0.55) { // fades in and coils
+        const a = sm((t - 0.15) / 0.25), coil = sm((t - 0.3) / 0.25), x = x0 - 6 * k * coil;
+        for (const sp of [tiger, glow, shadow]) if (sp) sp.visible = true;
+        place(shadow, x + 4 * k, 8 * k, 0.95, 1, 1, 0.22 * a); place(tiger, x, 0, 1, 1 - 0.08 * coil, 1 + 0.05 * coil, a);
+        place(glow, x, 0, 1.06, 1 - 0.08 * coil, 1 + 0.05 * coil, 0.1 * a * (0.6 + 0.4 * Math.sin(t * 30)));
+      } else if (t >= 0.55 && t < 1.0) { // the leap
+        const p = (t - 0.55) / 0.45, q = p * p * 0.6 + sm(p) * 0.4, h = Math.sin(Math.PI * q), [x, y] = leapAt(q), s = 1 + 0.3 * h;
+        for (const sp of [tiger, shadow]) if (sp) sp.visible = true;
+        place(shadow, x + (10 + h * 16) * k, (10 + h * 14) * k, 1 - 0.15 * h, 1, 1, 0.25 - 0.1 * h);
+        ghosts.forEach(([g, al], i) => { const qq = Math.max(0, q - [0.24, 0.16, 0.08][i]), hh = Math.sin(Math.PI * qq), [gx, gy] = leapAt(qq); place(g, gx, gy, 1 + 0.3 * hh, 1.12, 0.92, al); });
+        place(tiger, x, y, s, 1.12, 0.92, 1);
+      } else if (t >= 1.0 && t < 1.45) { // lands and dissolves
+        const q = (t - 1.0) / 0.45, sq = 1 - 0.12 * Math.sin(Math.PI * Math.min(1, q * 2));
+        for (const sp of [tiger, glow]) if (sp) sp.visible = true;
+        place(tiger, x1, 0, 1, sq, 1 + (1 - sq) * 0.6, Math.max(0, 1 - q * 1.4)); place(glow, x1, 0, 1.05, sq, 1, Math.max(0, 0.25 - q));
+      }
+      if (t >= 1.0 && !landed) { landed = true; hit(); }
+      if (t >= 1.0 && t < 1.35) { const q = (t - 1.0) / 0.35; fx.lineStyle((4 * (1 - q) + 1) * k * 1.6, 0xffdc78, 1 - q).drawCircle(d, 0, (20 + 55 * q) * k * 1.6).lineStyle(0); }
+      if (t >= 1.0 && t < 1.9) sparks(d - 20 * k, 0, (t - 1.0) / 0.9, 34, 70 * k * 1.6);
+      if (t > 1.02 && t < 1.47) { // three claw slashes across the target
+        const q = (t - 1.02) / 0.45, a = Math.min(1, q * 3.5), f = 1 - Math.max(0, (q - 0.35) / 0.65), c = Math.cos(-0.5 - ang), s2 = Math.sin(-0.5 - ang);
+        const P = (px, py) => [d + (px * c - py * s2) * k * 1.6, (px * s2 + py * c) * k * 1.6];
+        for (let i = -1; i <= 1; i++) for (const [w, col, al] of [[9, 0xffaa3c, 0.6 * f], [3, 0xfffadc, f]]) {
+          fx.lineStyle(w * k * 1.6, col, al); const s0 = P(-34, i * 12 - 14), cp = P(0, i * 12 + 2), e = P(-34 + 68 * a, i * 12 - 14 + 28 * a);
+          fx.moveTo(...s0).quadraticCurveTo(...cp, ...e);
+        }
+        fx.lineStyle(0);
+      }
+      shakeScreen(t >= 1.0 && t < 1.3 ? 0.5 * (1 - (t - 1.0) / 0.3) : 0, t);
+      if (t < 1.9) return true;
+      shakeScreen(0, t); hit(); root.destroy({ children: true }); ground.destroy({ children: true }); return false;
+    });
+  });
+  return { impact: Promise.race([impact, done]), done };
+}
+const ON_POUNCE = { "The Tiger Pounces": tigerPounce };
+export function hasUniquePounce(skill) { return !!ON_POUNCE[skill]; }
+/** A skill whose attack is its own animation, played instead of the lunge: { impact, done } or null. */
+export function playUniquePounce(skill, attacker, defender) {
+  const fn = ON_POUNCE[skill];
+  return fn && attacker && defender && !attacker.destroyed && !defender.destroyed ? fn(attacker, defender) : null;
+}

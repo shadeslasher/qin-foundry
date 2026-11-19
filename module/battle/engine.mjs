@@ -1537,6 +1537,7 @@ function resolveAttackNow(s, attacker, defender, opts) {
   if (result.killedBy === defender.id) killTactics(s, defender, attacker);
   delete fx(defender).traitsOff;
   SK.capAttack(s, attacker, m0a); SK.capAttack(s, defender, m0d);
+  { const nx = (attacker.fx?.buffs ?? []).filter(b => b.until?.kind === 'attack').map(b => b.name); if (nx.length) result.nextAttack = nx; } // skills spent on this attack (their animations key off it)
   SK.onAttack(s, attacker, defender, { ...result, ranged }); // officers' battlefield skills: triggers, follow-ups, splash
   settle(s);
   for (const [v, k] of [[defender, attacker], [attacker, defender]]) { // morale for beating the other unit in this attack (for the floats)

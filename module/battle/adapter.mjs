@@ -432,7 +432,7 @@ async function postLog(entries, s) {
 /** Skills with their own animations (David, 2026-11-09; played by battle/unique-fx.mjs): attacks made while the active's
  *  buff is on, contested rolls a passive makes everyone around it take (the end-of-turn terror), and its extra turns. */
 export const UNIQUE_ATTACK = ["None Can Stand Before Him"], UNIQUE_CONTEST = ["Terror of the Battlefield", "Stone Sentinel Maze", "Roar That Breaks Bridges", "Terror of Changban"], UNIQUE_EXTRA = ["Terror of the Battlefield"],
-  UNIQUE_PICKED = ["The Wolf Bares His Fangs"], UNIQUE_ZAP = ["Eighty Jin of Iron"], UNIQUE_SELF = ["Fight or Be Butchered", "Iron Rule"]; // ZAP: its damage to one unit has its own animation (unique-fx ON_ZAP)
+  UNIQUE_PICKED = ["The Wolf Bares His Fangs"], UNIQUE_ZAP = ["Eighty Jin of Iron"], UNIQUE_SELF = ["Fight or Be Butchered", "Iron Rule"], UNIQUE_POUNCE = ["The Tiger Pounces"]; // ZAP: its damage to one unit has its own animation (unique-fx ON_ZAP)
 function uniqueAttackOf(s, id) {
   const u = E.unitById(s, id);
   return (u?.fx?.buffs ?? []).map(b => b.name).find(n => UNIQUE_ATTACK.includes(n)) ?? null;
@@ -533,7 +533,8 @@ function animateChanges(scene, before, s, entries, actionType = null) {
     const aType = E.unitById(s, r.attacker) ? E.typeOf(s, E.unitById(s, r.attacker)) : null;
     steps.push({ kind: "attack", attacker: r.attacker, defender: r.defender, toDefender: toD, toAttacker: toA, returnStrike: r.damageToAttacker > 0, attackBonus, ranged: !!r.ranged, returnRanged,
       crossbow: /nushu/i.test(aType?.skill ?? ""), charge: !!r.charge && aType?.category === "cavalry", overwatch: overwatchShot,
-      special: !r.ranged && s.units.length ? uniqueAttackOf(s, r.attacker) : null });
+      special: !r.ranged && s.units.length ? uniqueAttackOf(s, r.attacker) : null,
+      pounce: !r.ranged ? (r.nextAttack ?? []).find(n => UNIQUE_POUNCE.includes(n)) ?? null : null }); // its attack is the skill's own animation (Sun Jian's tiger)
     overwatchShot = false;
     if (r.suppressed) steps.push({ kind: "suppressed", unit: r.defender }); // Suppressing Fire landed
     if (r.charge && !r.ranged && r.loser === r.defender) steps.push({ kind: "charged", unit: r.defender }); // a charge that won: "Charged!" (David, 2026-11-10)
