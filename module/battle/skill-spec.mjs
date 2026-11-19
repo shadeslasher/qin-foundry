@@ -63,7 +63,7 @@ const FILTER_KEYS = ['myTurn', 'category', 'melee', 'levy', 'trait', 'officer', 
 const COND_KEYS = [...FILTER_KEYS, 'attacking', 'defending', 'kind', 'moved', 'notMoved', 'movedAtLeast', 'firstAttackOfBattle',
   'firstAttackOfTurn', 'notAttackedThisBattle', 'selfOnTerrain', 'selfHidden', 'selfNotMoved', 'selfMoraleAbove', 'selfMoraleBelow'];
 const STEP_KEYS = ['morale', 'health', 'buff', 'move', 'attack', 'contest', 'status', 'push', 'reveal', 'fire', 'resetCooldown',
-  'extraTurn', 'turnNow', 'reinforce', 'swap', 'selfStatus', 'if', 'onKill', 'onWin', 'onLose', 'manual', 'hide', 'fireArea',
+  'extraTurn', 'turnNow', 'shock', 'reinforce', 'swap', 'selfStatus', 'if', 'onKill', 'onWin', 'onLose', 'manual', 'hide', 'fireArea',
   // v3
   'casualties', 'turnOrder', 'setTerrain', 'openGate', 'repair', 'leave', 'convert', 'spawn', 'grantTrait', 'removeTrait', 'stealTrait',
   'stepTrait', 'cancelTactic', 'cooldown', 'overwatchOn', 'custom', 'counter', 'forceToward', 'forceAttack', 'moveInto', 'splitMorale', 'blast', 'overwatchShot', 'cleanse', 'swapUnits', 'climb', 'ride',
@@ -153,7 +153,7 @@ export function validateSpec(spec, kind) {
     if (main.length > 1) bad(p, 'one step per object (found ' + main.join(', ') + ')');
     const k = main[0];
     const allowed = { morale: ['who', 'upToResting'], health: ['who'], buff: ['who', 'for'], move: ['who', 'mode', 'toward'], attack: ['who', 'moveFirst', 'extraMove'],
-      contest: ['aspect', 'lose', 'win'], status: ['who', 'for', 'from'], push: ['who', 'thenAdvance', 'ifBlocked'], reveal: [], fire: [], resetCooldown: [], extraTurn: ['moveOnly'], turnNow: [],
+      contest: ['aspect', 'lose', 'win'], status: ['who', 'for', 'from'], push: ['who', 'thenAdvance', 'ifBlocked'], reveal: [], fire: [], resetCooldown: [], extraTurn: ['moveOnly'], turnNow: [], shock: [],
       reinforce: ['near', 'filter', 'onTerrain', 'arriveBuff'], swap: [], selfStatus: ['for'], if: ['who', 'then', 'else', 'each'], onKill: [], onWin: [], onLose: [], manual: [], hide: [], fireArea: ['from', 'square'],
       casualties: ['who', 'ignoreArmor'], turnOrder: ['who'], setTerrain: ['tiles', 'for'], openGate: ['for', 'oneSide'], repair: ['range'], leave: [], convert: [], spawn: [],
       grantTrait: ['who', 'tier', 'for'], removeTrait: ['who', 'for'], stealTrait: ['who', 'for'], stepTrait: ['who', 'for'], cancelTactic: [], cooldown: ['who'],
@@ -206,7 +206,7 @@ export function validateSpec(spec, kind) {
       case 'ride': if (!st.ride || !picks.has(st.ride.pick)) bad(p + '.ride', '{"pick": id of a path pick}'); break;
       case 'overwatchShot': who(p + '.overwatchShot', st.overwatchShot, true); break;
       case 'fire': if (!st.fire || !picks.has(st.fire.pick)) bad(p + '.fire', '{"pick": id of a tile pick}'); break;
-      case 'resetCooldown': case 'swap': case 'extraTurn': case 'turnNow': who(p + '.' + k, st[k], true); break;
+      case 'resetCooldown': case 'swap': case 'extraTurn': case 'turnNow': case 'shock': who(p + '.' + k, st[k], true); break;
       case 'if': filter(p + '.if', st.if, COND_KEYS); who(p + '.who', st.who, true); steps(p + '.then', st.then || []); if (st.else) steps(p + '.else', st.else); break;
       case 'onKill': case 'onWin': case 'onLose': steps(p + '.' + k, st[k]); break;
       case 'manual': if (typeof st.manual !== 'string') bad(p + '.manual', 'text'); break;

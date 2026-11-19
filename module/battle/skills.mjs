@@ -884,6 +884,10 @@ function step(s, st, ctx, rest) {
     return;
   }
   if (st.reinforce !== undefined) { say(s, label + ' (GM): up to ' + st.reinforce + ' allied unit(s) waiting as reinforcements arrive now, at the map edge nearest ' + nm(src) + '.', { type: 'skillManual', unit: src.id }); return; }
+  if (st.shock) { // shocked as if charged, whatever the unit type: 1 tile of movement on its next activation (Sun Jian's The Tiger Pounces, 2026-11-19)
+    for (const u of units(st.shock)) if (E.alive(u) && !(u.fx ||= {}).shocked) { u.fx.shocked = true; say(s, label + ': ' + nm(u) + ' is shocked and can move only 1 tile on its next activation.', { type: 'shocked', unit: u.id }); }
+    return;
+  }
   if (st.turnNow) { // allied units that haven't acted this round take their normal turn as soon as this turn ends, ahead of the order (Sun Ce's Lightning Campaign, 2026-11-19)
     for (const u of units(st.turnNow)) if (u !== src && !u.round.activated && !(s.skillNow ||= []).includes(u.id)) { s.skillNow.push(u.id); say(s, label + ': ' + nm(u) + ' will take its turn right after this one.', { type: 'skill', unit: u.id, skill: ctx.name || '' }); }
     return;
