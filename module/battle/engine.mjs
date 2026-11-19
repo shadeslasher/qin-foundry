@@ -1928,11 +1928,12 @@ function chargeTiles(ac, target) { // eslint-disable-line no-unused-vars
 
 function finishActivation(s, u, opts) {
   const t = s.turn;
-  // End-of-turn morale regen for units with an officer (up to 75), only on a turn the unit didn't fight
+  // End-of-turn morale regen for units with an officer (up to 75); attacking on its own turn no longer stops it (David, 2026-11-19),
+  // being attacked earlier in the round still does
   const o = officerOf(s, u);
   let regenCap = Math.max(75, alive(u) ? SK.stat(s, u, 'regenCap') : 0); // a battlefield skill may raise the cap
   if (alive(u) && SK.flag(s, u, 'regenToResting')) regenCap = Math.min(regenCap, 50 + disciplinedBonus(u));
-  if (o && alive(u) && u.morale < regenCap && ((!u.round.attacked && !u.round.wasAttacked) || SK.flag(s, u, 'regenEvenIfFought'))) {
+  if (o && alive(u) && u.morale < regenCap && (!u.round.wasAttacked || SK.flag(s, u, 'regenEvenIfFought'))) {
     const before = u.morale;
     u.morale = Math.min(regenCap, u.morale + o.fire + o.command);
     if (u.morale !== before) log(s, u.name + ' regains ' + (u.morale - before) + ' morale (officer Fire + Command).');
