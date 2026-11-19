@@ -19,6 +19,8 @@ export const FLAGS = ['noSurrender', 'noRout', 'cantBeSurrounded', 'noRearAgains
   'casualtyHalf', 'noRearNearby', 'challengeFirstAttacker', 'drawMeleeAttacks', 'rideThrough', 'extraTactic', 'gateRange', 'gateDouble', 'noStrikeBackIfWin', 'checkpointHalf', 'ignoreTraits', 'cantRefuseDuel', 'ignoreMoveLimits',
   // 2026-11-09: Readied — its next battlefield active ignores the 75-morale minimum (not a last stand's window)
   'readied',
+  // 2026-11-19: Free active — its next battlefield active costs no morale and ignores the morale minimum (a last stand still needs low morale) (Heaven-Sent Talent)
+  'freeActive',
   // 2026-11-09: Sweep:N — whenever it attacks, every enemy unit in the 3x3 square around it takes N casualties, ignoring armor and evasion (Guan Yu)
   'sweep',
   // sweepMorale:N — each unit its sweep hits also loses N morale (Guan Yu, 2026-11-09)

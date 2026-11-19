@@ -457,12 +457,13 @@ function skillCheck(s, u, o) {
     const left = fx(u).skillLast + n - round;
     return { ok: false, reason: 'Recharging: ' + left + ' turn' + (left === 1 ? '' : 's'), left };
   }
+  const free = !!(s.units && SK.flag(s, u, 'freeActive')); // Heaven-Sent Talent: no cost, no minimum (David, 2026-11-19)
   if (sk.lastStand) { if (u.morale > LAST_STAND_MAX_MORALE) return { ok: false, reason: 'Last stand: only at ' + LAST_STAND_MAX_MORALE + ' morale or less' }; }
-  else if (SK.activeMoraleCap(s, u) == null && !(s.units && SK.flag(s, u, 'readied'))) { // Readied (a skill reset it): no minimum this time
+  else if (SK.activeMoraleCap(s, u) == null && !free && !(s.units && SK.flag(s, u, 'readied'))) { // Readied (a skill reset it): no minimum this time
     const min = ACTIVE_MIN_MORALE + ((s.units && Number(SK.stat(s, u, 'skillMinUp'))) || 0); // an enemy skill may raise it
     if (u.morale < min) return { ok: false, reason: 'Needs at least ' + min + ' morale' };
   }
-  if (cost && u.morale <= cost) return { ok: false, reason: 'Needs more than ' + cost + ' morale' };
+  if (cost && !free && u.morale <= cost) return { ok: false, reason: 'Needs more than ' + cost + ' morale' };
   return { ok: true, reason: '' };
 }
 
@@ -2909,9 +2910,10 @@ const ACTIONS = {
     if (SK.pendingChoice(s)) return err('Finish the skill already in progress first');
     const sp = SK.specsOf(s, r.u), auto = !!(sp && sp.active);
     if (auto) { const bad = SK.checkPicks(s, r.u, a); if (bad) return err(bad); } // wrong picks: nothing is paid
-    const cost = Math.max(0, (Number(o.skill.moraleCost) || 0) + SK.skillTax(s, r.u)); // a battlefield skill may make it cost more
+    const free = SK.flag(s, r.u, 'freeActive'); // made free by another officer's skill (Heaven-Sent Talent): used up below
+    const cost = free ? 0 : Math.max(0, (Number(o.skill.moraleCost) || 0) + SK.skillTax(s, r.u)); // a battlefield skill may make it cost more
     r.u.morale -= cost; r.u.round.skillUsed = true; fx(r.u).skillLast = (s.turn && s.turn.round) || 0; r.act.started = true;
-    log(s, r.u.name + ' uses ' + o.skill.name + (cost ? ' (-' + cost + ' morale)' : '') + (auto ? '.' : ': ' + o.skill.text), { type: 'skill', unit: r.u.id, text: o.skill.text, active: true, skill: o.skill.name, picks: a.picks ?? null });
+    log(s, r.u.name + ' uses ' + o.skill.name + (cost ? ' (-' + cost + ' morale)' : free ? ' (free)' : '') + (auto ? '.' : ': ' + o.skill.text), { type: 'skill', unit: r.u.id, text: o.skill.text, active: true, skill: o.skill.name, picks: a.picks ?? null });
     SK.usedActive(r.u);
     if (auto) SK.useActive(s, r.u, a);
     settle(s);

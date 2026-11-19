@@ -1492,7 +1492,7 @@ function capRound(s) {
 /** The extra cost (or a cut) on an officer's battlefield active. */
 export const skillTax = (s, u) => stat(s, u, 'skillCost');
 /** "Its next battlefield active costs N more": buffs with the nextSkill duration end once it uses one. */
-export function usedActive(u) { dropBuffs(u, b => b.until.kind === 'skill' || (b.flags || []).some(f => String(f.flag).split(':')[0] === 'readied')); } // Readied is used up by the active it readied
+export function usedActive(u) { dropBuffs(u, b => b.until.kind === 'skill' || (b.flags || []).some(f => ['readied', 'freeActive'].includes(String(f.flag).split(':')[0]))); } // Readied is used up by the active it readied
 /** Is this enemy tactic cancelled by a battlefield skill? (Consumes the cancel.) */
 export function cancelsTactic(s, tacticSide) {
   const list = s.skillCancelTactic || [];

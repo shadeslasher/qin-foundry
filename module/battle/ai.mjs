@@ -1266,10 +1266,54 @@ function skillOption(s, unitId, opts, P) {
     // what the skill itself did (plans() scores from its own starting state), then the best rest of the turn
     let score = outcomeScore(s, g, u.side, S, {}) + (ac && ac.unitId === unitId ? (plans(g, unitId, { ...opts, noSkill: true })[0] || { score: 0 }).score : 0);
     score += 0.12 * worth(s, u) * lasting;
+    score += ruleBreakValue(s, g, u, opts, P);
     if (!best || score > best.score) best = { score, picks };
   }
   E.setRng(Math.random);
   return best && best.score > best0 + 0.05 * worth(s, u) ? { type: 'useSkill', unitId, picks: best.picks } : null;
+}
+/**
+ * What a rule-breaking skill hands out that the turn's own score can't see (David, 2026-11-19): turns it gives allies
+ * (Lightning Campaign sends them in now; an extra turn is a whole extra action) and allied actives it makes ready or
+ * free again (Heaven-Sent Talent). `s` before the skill, `g` after it.
+ */
+function ruleBreakValue(s, g, u, opts, P) {
+  let v = 0;
+  const idOf = (e) => (e && typeof e === 'object' ? e.unitId : e);
+  const before = new Set([...(s.skillNow || []), ...(s.skillExtra || []), ...(s.skillInterjects || [])].map(idOf));
+  const turnValue = (id) => { // the best this ally could do with a turn right now
+    const f = fork(g), x = E.unitById(f, id); if (!x || !E.alive(x)) return 0;
+    f.turn.activation = { unitId: id, step: 'move', started: false, tilesMoved: 0, from: { x: x.x, y: x.y } }; x.round.activated = false;
+    const best = plans(f, id, { ...opts, noSkill: true, level: Math.min(P.level, 2) })[0];
+    return best ? Math.max(0, best.score) : 0;
+  };
+  for (const e of g.skillNow || []) { const id = idOf(e); if (!before.has(id) && E.unitById(g, id)?.side === u.side) v += 0.35 * turnValue(id); } // goes now instead of later: tempo
+  for (const e of [...(g.skillExtra || []), ...(g.skillInterjects || [])]) { const id = idOf(e); if (!before.has(id) && E.unitById(g, id)?.side === u.side) v += 0.9 * turnValue(id); } // a turn it wouldn't have had
+  // allied actives that were out of reach (recharging, used, too little morale) and now aren't
+  for (const x of E.liveUnits(g)) {
+    if (x.side !== u.side || !x.officerId) continue;
+    const o = E.officerOf(g, x), act = o?.battle?.active; if (!act || act.manual) continue;
+    const xs = E.unitById(s, x.id);
+    const okBefore = xs && E.skillCheck(s, xs, o).ok, okAfter = E.skillCheck(g, x, o).ok || /Officer skill already used this turn/.test(E.skillCheck(g, x, o).reason);
+    const freed = SK.flag(g, x, 'freeActive') && !(xs && SK.flag(s, xs, 'freeActive'));
+    if ((okAfter && !okBefore) || freed) v += 0.6 * activeWorth(g, x.id, opts, P) + (freed ? 0.02 * (Number(o.skill?.moraleCost) || 0) * worth(g, x) : 0);
+  }
+  return v;
+}
+/** Roughly what an allied officer's active would do if he used it at the start of a turn now (for skills that ready it). */
+function activeWorth(g, unitId, opts, P) {
+  const f = fork(g), x = E.unitById(f, unitId), o = x && E.officerOf(f, x), act = o?.battle?.active;
+  if (!act) return 0;
+  f.turn.activation = { unitId, step: 'move', started: false, tilesMoved: 0, from: { x: x.x, y: x.y } }; x.round.activated = false; x.round.skillUsed = false;
+  const S = strategy(f, x.side); let best = 0;
+  for (const picks of pickCombos(f, x, act.pick || [], 1)) {
+    const h = fork(f), b0 = buffCount(h);
+    if (!E.act(h, HOST, { type: 'useSkill', unitId, picks }).ok) continue;
+    for (let i = 0; i < 4 && SK.pendingChoice(h); i++) E.act(h, HOST, skillAnswer(h, x.side));
+    best = Math.max(best, outcomeScore(f, h, x.side, S, {}) + 0.12 * worth(f, x) * (buffCount(h) - b0));
+  }
+  E.setRng(Math.random);
+  return Math.max(0, best);
 }
 const buffCount = (s) => s.units.reduce((n, x) => n + ((x.fx && x.fx.buffs) || []).filter(b => b.until.kind !== 'round' || b.until.round > s.turn.round).length, 0);
 /** Ride paths worth trying (Ride Them Down): straight lines, and L-shaped runs through each enemy in reach that carry on
