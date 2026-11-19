@@ -860,7 +860,7 @@ test('Avenge the Fallen: an ally within 3 squares falls -> +5 morale and Attack 
   assert.strictEqual(part(R.buildRoll(s, W, 'attacker', { attacker: W, defender: E })), 0, 'spent');
 });
 
-test('end-of-turn officer regen also after attacking (David, 2026-11-19), not after being attacked that round', () => {
+test('end-of-turn officer regen every turn, fought or attacked (David, 2026-11-19)', () => {
   for (const attackedFirst of [false, true]) {
     const s = setup();
     const a = add(s, { typeId: 'han_ji_inf', officerId: 'wen_ping', side: 'player', owner: 'p1', x: 5, y: 5, morale: 40 });
@@ -873,6 +873,6 @@ test('end-of-turn officer regen also after attacking (David, 2026-11-19), not af
     must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
     if (s.turn.activation) must(R.act(s, P1, { type: 'endTurn', unitId: a }));
     const regen = s.log.some(l => /regains \d+ morale \(officer Fire \+ Command\)/.test(l.text ?? l.msg ?? String(l)));
-    assert.strictEqual(regen, !attackedFirst, attackedFirst ? 'no regen after being attacked that round' : 'regen after attacking');
+    assert.strictEqual(regen, true, attackedFirst ? 'regen after being attacked that round' : 'regen after attacking');
   }
 });
