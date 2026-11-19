@@ -38,6 +38,8 @@ test('Reckless Conqueror: +5 morale and a stack per rout, attacking or defending
   const a0 = atk(), d0 = def(), m0 = u(0).morale;
   SK.onAttack(s, u(0), u(1), { winner: 'attacker', killedBy: u(0).id });            // he breaks a unit he attacks
   assert.strictEqual(atk() - a0, 2); assert.strictEqual(def() - d0, -1); assert.strictEqual(u(0).morale, m0 + 5);
+  const cnt = s.log.map(l => l.detail).filter(d => d?.type === 'skillCounter').at(-1);
+  assert.deepStrictEqual([cnt.skill, cnt.count], ['Reckless Conqueror', 1], 'the stack is logged with the skill (its fire burst keys off it)');
   SK.onAttack(s, u(1), u(0), { winner: 'defender', killedBy: u(0).id });            // a unit breaks attacking him
   assert.strictEqual(atk() - a0, 4); assert.strictEqual(u(0).morale, m0 + 10);
   for (let i = 0; i < 6; i++) SK.onAttack(s, u(0), u(1), { winner: 'attacker', killedBy: u(0).id });

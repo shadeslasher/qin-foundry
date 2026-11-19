@@ -2,6 +2,7 @@
 // side colour with up to five soldier figures (one per 20% of its strength), its officer's medallion,
 // its faction banner rolled up in the corner (it unrolls while hovered), and health/morale bars.
 import { factionOf } from "./factions.mjs";
+import { loadSheets, frameAt, sheetSprite, showFrame } from "./battle/sheet-fx.mjs";
 import { traitTiersOf } from "./battle/traits.mjs";
 import { tileRules, skillCheck, officerOf, typeOf, officerWeaponLevel } from "./battle/engine.mjs";
 import { effectsOf, alwaysOnRolls, status as skStatus } from "./battle/skills.mjs";
@@ -180,6 +181,37 @@ function zoneOf(token) {
   const buffs = battleRecord(token)?.meta?.[token.id]?.fx?.buffs ?? [];
   for (const b of buffs) if (ZONE_BUFFS[b.name]) return ZONE_BUFFS[b.name];
   return 0;
+}
+/** Sun Ce's Reckless Conqueror stacks on this unit (0–5), and whether a skill sent it in to act right after the current
+ *  turn and it hasn't yet (Lightning Campaign: it keeps crackling until it acts or the round ends). David, 2026-11-19. */
+function recklessOf(token) { return Math.min(5, Number(battleRecord(token)?.meta?.[token.id]?.fx?.counters?.reckless) || 0); }
+function waitingOf(token) { const b = battleRecord(token); return !!b?.skillNow?.includes(token.id) && !b?.meta?.[token.id]?.round?.activated; }
+/** The lasting looks: a fire aura behind the stand that grows with the stacks (fire below; flames above it from 3; a
+ *  burning ring at 5), and for a waiting unit a pale blue glow under it with static crackling over it (JB2A sheets). */
+function drawSunCeLooks(c, w, h, T, stacks, waiting) {
+  const back = new PIXI.Container(), front = new PIXI.Container(); c.addChildAt(back, 0); c.addChild(front);
+  const k = stacks / 5, cx = w / 2, cy = h / 2, sprites = [];
+  let glow = null;
+  if (waiting) { glow = new PIXI.Graphics(); glow.blendMode = PIXI.BLEND_MODES.ADD; const Blur = PIXI.BlurFilter ?? PIXI.filters?.BlurFilter; if (Blur) glow.filters = [new Blur(T * 0.12)];
+    glow.beginFill(0x8cc8ff, 0.5).drawCircle(cx, cy, T * 0.55).endFill(); back.addChild(glow); }
+  let time = 0, ready = false;
+  loadSheets(["rcBelow", "rcAbove", "rcRing", "lcStatic"]).then(sh => {
+    if (back.destroyed) return;
+    const add = (key, size, alpha, layer, at = 0) => { const sp = sheetSprite(sh[key], size); if (!sp) return; sp.position.set(cx, cy); layer.addChild(sp); sprites.push({ sp, key, alpha, at }); };
+    if (stacks) add("rcBelow", T * (1.1 + 0.62 * k), 0.35 + 0.4 * k, back);
+    if (stacks >= 3) add("rcAbove", T * (1.1 + 0.47 * k), 0.3 + 0.3 * k, back, 0.5);
+    if (stacks >= 5) add("rcRing", T * 2.0, 0.75, back);
+    if (waiting) add("lcStatic", T * 1.55, 1, front);
+    for (const x of sprites) x.sheet = sh[x.key];
+    ready = true;
+  });
+  const tick = () => {
+    if (back.destroyed) return;
+    time += (canvas.app?.ticker?.deltaMS ?? 16) / 1000;
+    if (glow) glow.alpha = 0.75 + 0.25 * Math.sin(time * 9);
+    if (ready) for (const x of sprites) showFrame(x.sp, frameAt(x.sheet, time + x.at, { loop: true }), x.alpha);
+  };
+  return tick;
 }
 /** The watched tiles: a faint red wash with an orange edge on each square within reach (its own square left out). */
 function drawZone(w, h, T, r) {
@@ -468,6 +500,7 @@ function clear(token) {
   if (c?.qinReadyTick) canvas.app?.ticker?.remove(c.qinReadyTick);
   if (c?.qinFxTick) canvas.app?.ticker?.remove(c.qinFxTick);
   if (c?.qinLastTick) canvas.app?.ticker?.remove(c.qinLastTick);
+  if (c?.qinSunTick) canvas.app?.ticker?.remove(c.qinSunTick);
   if (token.qinBurst && !token.qinBurst.destroyed) token.qinBurst.destroy({ children: true });
   token.qinBurst = null;
   if (c && !c.destroyed) c.destroy({ children: true });
@@ -955,7 +988,8 @@ export async function drawUnitBars(token) {
   const lasting = lastingLook(eff);
   const onCat = onCatapultSquare(token);
   const zoneR = zoneOf(token);
-  const key = JSON.stringify([zoneR, onCat, ready, locks, lasting, eff ? [eff.nb, eff.nd, eff.pb, eff.pd] : null, men, max, morale, w, h, s.side, acted, active, holding, watching, st, mine, n, art, off, fac?.img ?? null, facing, battleRecord(token)?.meta?.[token.id]?.carry ?? null, !!battleRecord(token)?.meta?.[token.id]?.fx?.shocked, s.traits]); // traits: equipment icons (ladders, engine)
+  const reck = recklessOf(token), waiting = !acted && waitingOf(token);
+  const key = JSON.stringify([zoneR, reck, waiting, onCat, ready, locks, lasting, eff ? [eff.nb, eff.nd, eff.pb, eff.pd] : null, men, max, morale, w, h, s.side, acted, active, holding, watching, st, mine, n, art, off, fac?.img ?? null, facing, battleRecord(token)?.meta?.[token.id]?.carry ?? null, !!battleRecord(token)?.meta?.[token.id]?.fx?.shocked, s.traits]); // traits: equipment icons (ladders, engine)
   if (pendingBurst.has(token.id)) { const kinds = pendingBurst.get(token.id); pendingBurst.delete(token.id); playBurst(token, kinds, w, h, T, T * L.pad); }
   let c = token[KEY];
   // (a ready mark that was hidden for an activation, e.g. one undone or replayed, is drawn again: David, 2026-11-09)
@@ -978,6 +1012,7 @@ export async function drawUnitBars(token) {
   if (c.qinReadyTick) { canvas.app?.ticker?.remove(c.qinReadyTick); c.qinReadyTick = null; }
   if (c.qinFxTick) { canvas.app?.ticker?.remove(c.qinFxTick); c.qinFxTick = null; }
   if (c.qinLastTick) { canvas.app?.ticker?.remove(c.qinLastTick); c.qinLastTick = null; }
+  if (c.qinSunTick) { canvas.app?.ticker?.remove(c.qinSunTick); c.qinSunTick = null; }
   const prevN = c.qinFigN;
   let fall = token.qinFall;                       // soldiers still falling survive the redraw
   if (fall && !fall.destroyed && fall.parent === c) c.removeChild(fall);
@@ -985,6 +1020,7 @@ export async function drawUnitBars(token) {
   if (zoneR) c.addChild(drawZone(w, h, T, zoneR)); // the ground a skill watches (under the stand)
   const stand = new PIXI.Container();
   c.addChild(stand);
+  if (reck || waiting) { c.qinSunTick = drawSunCeLooks(c, w, h, T, reck, waiting); canvas.app?.ticker?.add(c.qinSunTick); } // Sun Ce's stacks; a unit waiting its turn
 
   if (st.hidden) stand.alpha = 0.55; // hidden: see-through for those who can still see it
   // base in the side colour

@@ -166,7 +166,7 @@ export function buildState(battle, { useLastPosition = null, terrainFor = null }
   s.tactics = battle.tactics ?? null;
   s.siege = battle.siege ?? null;
   s.skillsBegun = !!battle.skillsBegun; // officers' battlefield skills: battle-start effects done
-  s.skillInterjects = battle.skillInterjects ?? []; s.skillExtra = battle.skillExtra ?? []; // short extra turns skills hand out
+  s.skillInterjects = battle.skillInterjects ?? []; s.skillExtra = battle.skillExtra ?? []; s.skillNow = battle.skillNow ?? []; // short extra turns skills hand out
   s.skillOrder = battle.skillOrder ?? []; s.skillCancelTactic = battle.skillCancelTactic ?? []; s.skFallen = battle.skFallen ?? {};
   s.tileOverrides = battle.tileOverrides ?? {};
   s.siegeDeploy = !!battle.siegeDeploy; s.siegeIssued = battle.siegeIssued ?? null; // siege equipment hand-outs (David, 2026-11-13)
@@ -374,7 +374,7 @@ async function writeBack(battle, s, scene, rides = null, walks = null) {
   battle.tactics = s.tactics ?? null;
   battle.siege = s.siege ?? null;
   battle.skillsBegun = !!s.skillsBegun;
-  battle.skillInterjects = s.skillInterjects ?? []; battle.skillExtra = s.skillExtra ?? [];
+  battle.skillInterjects = s.skillInterjects ?? []; battle.skillExtra = s.skillExtra ?? []; battle.skillNow = s.skillNow ?? [];
   battle.skillOrder = s.skillOrder ?? []; battle.skillCancelTactic = s.skillCancelTactic ?? []; battle.skFallen = s.skFallen ?? {};
   battle.tileOverrides = s.tileOverrides ?? {};
   battle.siegeDeploy = !!s.siegeDeploy; battle.siegeIssued = s.siegeIssued ?? null;
@@ -432,7 +432,7 @@ async function postLog(entries, s) {
 /** Skills with their own animations (David, 2026-11-09; played by battle/unique-fx.mjs): attacks made while the active's
  *  buff is on, contested rolls a passive makes everyone around it take (the end-of-turn terror), and its extra turns. */
 export const UNIQUE_ATTACK = ["None Can Stand Before Him"], UNIQUE_CONTEST = ["Terror of the Battlefield", "Stone Sentinel Maze", "Roar That Breaks Bridges", "Terror of Changban"], UNIQUE_EXTRA = ["Terror of the Battlefield"],
-  UNIQUE_PICKED = ["The Wolf Bares His Fangs"], UNIQUE_ZAP = ["Eighty Jin of Iron"], UNIQUE_SELF = ["Fight or Be Butchered", "Iron Rule"], UNIQUE_POUNCE = ["The Tiger Pounces"]; // ZAP: its damage to one unit has its own animation (unique-fx ON_ZAP)
+  UNIQUE_PICKED = ["The Wolf Bares His Fangs"], UNIQUE_ZAP = ["Eighty Jin of Iron"], UNIQUE_SELF = ["Fight or Be Butchered", "Iron Rule"], UNIQUE_STACK = ["Reckless Conqueror"], UNIQUE_POUNCE = ["The Tiger Pounces"]; // ZAP: its damage to one unit has its own animation (unique-fx ON_ZAP)
 function uniqueAttackOf(s, id) {
   const u = E.unitById(s, id);
   return (u?.fx?.buffs ?? []).map(b => b.name).find(n => UNIQUE_ATTACK.includes(n)) ?? null;
@@ -486,6 +486,7 @@ function animateChanges(scene, before, s, entries, actionType = null) {
       if (UNIQUE_ZAP.includes(e.detail.skill)) { steps.push({ kind: "zap", skill: e.detail.skill, src: e.detail.src, unit: e.detail.unit, cas: e.detail.casualties }); add(e.detail.unit, "men", e.detail.casualties); continue; }
     }
     // a skill's morale loss on a unit with its own animation (Dong Zhuo's whip at the end of each driven unit's turn)
+    if (e.detail?.type === "skillCounter" && UNIQUE_STACK.includes(e.detail.skill)) { steps.push({ kind: "selfFx", skill: e.detail.skill, unit: e.detail.unit, amount: e.detail.count }); continue; } // a stack gained (Sun Ce)
     if (e.detail?.type === "skillMorale" && e.detail.lost > 0 && UNIQUE_SELF.includes(e.detail.skill)) {
       steps.push({ kind: "selfFx", skill: e.detail.skill, unit: e.detail.unit, amount: e.detail.lost }); add(e.detail.unit, "morale", -e.detail.lost); continue;
     }

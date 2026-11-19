@@ -658,7 +658,7 @@ function step(s, st, ctx, rest) {
   if (st.manual !== undefined) { say(s, label + ' (GM): ' + st.manual, { type: 'skillManual', unit: src.id }); return; }
   if (st.morale !== undefined) {
     for (const u of units(st.who)) {
-      if (st.morale > 0) { const b = u.morale; u.morale = Math.min(st.upToResting ? Math.max(b, restingOf(u)) : 100, (u.morale ?? 50) + st.morale); if (u.morale !== b) say(s, label + ': ' + nm(u) + ' regains ' + (u.morale - b) + ' morale.', { type: 'skillMorale', unit: u.id }); }
+      if (st.morale > 0) { const b = u.morale; u.morale = Math.min(st.upToResting ? Math.max(b, restingOf(u)) : 100, (u.morale ?? 50) + st.morale); if (u.morale !== b) say(s, label + ': ' + nm(u) + ' regains ' + (u.morale - b) + ' morale.', { type: 'skillMorale', unit: u.id, skill: ctx.name || null, gained: u.morale - b }); }
       else { const l = loseMorale(s, u, -st.morale, src); say(s, label + ': ' + nm(u) + ' loses ' + l + ' morale.', { type: 'skillMorale', unit: u.id, skill: ctx.name || null, lost: l }); }
     }
     return;
@@ -743,7 +743,7 @@ function step(s, st, ctx, rest) {
     // with who: add that much for each unit it names (Zhao Yun, 2026-11-12: +1 for each ally within 6 at 25 morale or less)
     const add = (st.add ?? 1) * (st.who ? units(st.who).length : 1);
     c[st.counter] = st.set !== undefined ? st.set : Math.min(st.max ?? 99, before + add);
-    if (c[st.counter] !== before) say(s, label + ': count ' + c[st.counter] + (st.max ? '/' + st.max : '') + '.', { type: 'skillCounter', unit: src.id });
+    if (c[st.counter] !== before) say(s, label + ': count ' + c[st.counter] + (st.max ? '/' + st.max : '') + '.', { type: 'skillCounter', unit: src.id, skill: ctx.name || null, counter: st.counter, count: c[st.counter] });
     return;
   }
   if (st.forceToward) { // it moves at once as far as it can toward a point (the picked tile or unit, the target, his unit)

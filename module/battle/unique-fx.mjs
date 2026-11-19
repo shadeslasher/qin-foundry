@@ -17,6 +17,7 @@
 import { atSpeed } from "./battle-speed.mjs";
 import { overLayer, floatLocal } from "../attack-fx.mjs";
 import { playMoment } from "../sound.mjs";
+import { loadSheets, frameAt, sheetSprite, showFrame } from "./sheet-fx.mjs";
 
 import { factionOf } from "../factions.mjs";
 import { analyseFlag, releaseUnits } from "../unit-bars.mjs";
@@ -1329,6 +1330,7 @@ const ON_ACTIVATE_SPREAD = {
   "Roar That Breaks Bridges": (token, touched, release) => roarOfChangban(token, 5, touched, release),
   "Terror of Changban": (token, touched, release) => roarOfChangban(token, 5, touched, release), // its old name (cards not yet updated)
   "Fight or Be Butchered": (token, touched, release) => tyrantsWhip(token, touched, release),
+  "Lightning Campaign": (token, touched, release) => lightningCampaign(token, touched, release, 4),
   "Iron Rule": (token, touched, release) => tyrantsWhip(token, touched, release), // its old name (cards not yet updated)
   // the units it holds are released by the stones (playSentinels), not at the end of the banner
   "Stone Sentinel Maze": (token) => eightTrigrams(token),
@@ -1776,7 +1778,7 @@ function phantomWhip(token, amount, float) {
   });
 }
 /** A skill's effect on a unit by itself (its own morale loss), by the skill's name. */
-const ON_SELF = { "Fight or Be Butchered": phantomWhip, "Iron Rule": phantomWhip };
+const ON_SELF = { "Fight or Be Butchered": phantomWhip, "Iron Rule": phantomWhip, "Reckless Conqueror": (token) => recklessBurst(token) };
 export function playUniqueSelf(skill, token, amount, float) {
   const fn = ON_SELF[skill];
   return fn && token && !token.destroyed ? fn(token, amount, float) : null;
@@ -1886,4 +1888,71 @@ export function hasUniquePounce(skill) { return !!ON_POUNCE[skill]; }
 export function playUniquePounce(skill, attacker, defender) {
   const fn = ON_POUNCE[skill];
   return fn && attacker && defender && !attacker.destroyed && !defender.destroyed ? fn(attacker, defender) : null;
+}
+
+/* ------------------------------------------------------------ Sun Ce: Lightning Campaign and Reckless Conqueror (David, 2026-11-19) */
+
+/** Lightning Campaign (approved mockup v2): a lightning bolt strikes his unit (white flash, the view shakes); the squares
+ *  within reach light pale blue in a ripple from him; electric arcs leap from him to each ally in reach, one after
+ *  another, and static crackles over every unit that got the bonus. Allies still waiting for their turn keep crackling
+ *  (unit-bars) until they act or the round ends. JB2A (free) sheets; without them the flash and the ripple still play. */
+function lightningCampaign(token, touched = [], release = () => {}, reach = 4) {
+  const G = canvas.grid?.size ?? Math.min(token.w, token.h), c = token.center;
+  const gx = Math.round(token.document.x / G), gy = Math.round(token.document.y / G);
+  const view = canvas.dimensions?.rect ?? { x: 0, y: 0, width: 1e5, height: 1e5 };
+  const hits = touched.map(id => canvas.tokens?.get(id)).filter(u => u && !u.destroyed && u.id !== token.id)
+    .sort((a, b) => Math.hypot(a.center.x - c.x, a.center.y - c.y) - Math.hypot(b.center.x - c.x, b.center.y - c.y))
+    .map((u, i) => ({ u, at: 0.75 + i * 0.18, done: false }));
+  const END = Math.max(3.2, (hits.length ? hits.at(-1).at : 0.75) + 2.2);
+  return loadSheets(["lcStrike", "lcArc", "lcStatic"]).then(({ lcStrike, lcArc, lcStatic }) => {
+    const ground = groundLayer(); const ripple = new PIXI.Graphics(); ground.addChild(ripple);
+    const root = new PIXI.Container(); topLayer().addChild(root);
+    const flash = new PIXI.Graphics(); root.addChild(flash);
+    const bolt = sheetSprite(lcStrike, G * 420 / 64); if (bolt) { bolt.position.set(c.x - G * 14 / 64, c.y - G * 58 / 64); root.addChild(bolt); }
+    for (const h of hits) { h.arc = sheetSprite(lcArc, 1, { ax: 0, H: G * 70 / 64 }); if (h.arc) root.addChild(h.arc); }
+    const crackles = [{ u: token, at: 0.6 }, ...hits].map(h => { const sp = sheetSprite(lcStatic, G * 100 / 64); if (sp) root.addChild(sp); return { ...h, sp }; });
+    return run((dt, t) => {
+      showFrame(bolt, frameAt(lcStrike, t - 0.1));
+      if (t > 0.42 && t < 0.62) { flash.clear().beginFill(0xdcebff, (0.62 - t) * 3).drawRect(view.x, view.y, view.width, view.height).endFill(); } else flash.clear();
+      ripple.clear();
+      if (t > 0.45 && t < 2.2) for (let dx = -reach; dx <= reach; dx++) for (let dy = -reach; dy <= reach; dy++) {
+        const d = Math.abs(dx) + Math.abs(dy); if (d > reach) continue; const q = (t - 0.45) * 8 - d; if (q < 0) continue;
+        ripple.beginFill(0x96c8ff, Math.min(1, q) * Math.max(0, 1 - (t - 1.4) / 0.8) * 0.28).drawRect((gx + dx) * G, (gy + dy) * G, G, G).endFill();
+      }
+      for (const h of hits) {
+        const q = t - h.at, u = h.u; if (u.destroyed) continue;
+        if (!h.done && q >= 0) { h.done = true; release([u.id]); }
+        if (!h.arc) continue;
+        if (q < 0 || q > 0.6) { h.arc.visible = false; continue; }
+        const dx = u.center.x - c.x, dy = u.center.y - c.y;
+        h.arc.position.set(c.x, c.y); h.arc.rotation = Math.atan2(dy, dx);
+        h.arc.texture = frameAt(lcArc, q, { speed: 3, loop: true }); h.arc.width = Math.hypot(dx, dy); h.arc.height = G * 70 / 64;
+        h.arc.visible = true; h.arc.alpha = q < 0.45 ? 1 : (0.6 - q) / 0.15;
+      }
+      for (const k of crackles) {
+        if (!k.sp || k.u.destroyed) continue;
+        const q = t - k.at; if (q < 0 || t > 3.2) { k.sp.visible = false; continue; }
+        k.sp.position.set(k.u.center.x, k.u.center.y); showFrame(k.sp, frameAt(lcStatic, q, { loop: true }), t > 2.8 ? (3.2 - t) / 0.4 : 1);
+      }
+      shakeScreen(t > 0.42 && t < 0.7 ? 0.35 * (0.7 - t) / 0.28 : 0, t);
+      if (t < END) return true;
+      for (const h of hits) if (!h.done) release([h.u.id]);
+      shakeScreen(0, t); root.destroy({ children: true }); ripple.destroy(); return false;
+    });
+  });
+}
+
+/** Reckless Conqueror, each rout (approved mockup v3): a burst of fire erupts from his unit. The lasting aura that grows
+ *  with the stacks is drawn on the stand (unit-bars). */
+function recklessBurst(token) {
+  const G = Math.min(token.w, token.h);
+  return loadSheets(["rcErupt"]).then(({ rcErupt }) => {
+    if (!rcErupt || token.destroyed) return;
+    const sp = sheetSprite(rcErupt, G * 150 / 64); topLayer().addChild(sp);
+    return run((dt, t) => {
+      if (token.destroyed || t > 1.1) { sp.destroy(); return false; }
+      sp.position.set(token.center.x, token.center.y); showFrame(sp, frameAt(rcErupt, t, { speed: 4 / 3 }), 0.85 * Math.min(1, (1.1 - t) / 0.4));
+      return true;
+    });
+  });
 }
