@@ -504,6 +504,7 @@ export function onAttack(s, attacker, defender, res) {
     for (const X of live(s)) if (X.id !== w.id && ally(X, w)) event(s, 'allyWins', X, { target: w });
   }
   if (killed) event(s, 'kill', attacker, { target: defender, fallKind: defender.men <= 0 ? 'destroyed' : 'surrendered' });
+  if (res.killedBy === defender.id) event(s, 'defendKill', defender, { target: attacker, fallKind: attacker.men <= 0 ? 'destroyed' : 'surrendered' }); // it broke the unit attacking it
   for (const b of used) if (b.after) {
     const src = E.unitById(s, b.src) || attacker;
     const steps = [...(killed ? b.after.onKill || [] : []), ...(won ? b.after.onWin || [] : []), ...(lost ? b.after.onLose || [] : []), ...(b.after.then || [])];
@@ -883,6 +884,10 @@ function step(s, st, ctx, rest) {
     return;
   }
   if (st.reinforce !== undefined) { say(s, label + ' (GM): up to ' + st.reinforce + ' allied unit(s) waiting as reinforcements arrive now, at the map edge nearest ' + nm(src) + '.', { type: 'skillManual', unit: src.id }); return; }
+  if (st.turnNow) { // allied units that haven't acted this round take their normal turn as soon as this turn ends, ahead of the order (Sun Ce's Lightning Campaign, 2026-11-19)
+    for (const u of units(st.turnNow)) if (u !== src && !u.round.activated && !(s.skillNow ||= []).includes(u.id)) { s.skillNow.push(u.id); say(s, label + ': ' + nm(u) + ' will take its turn right after this one.', { type: 'skill', unit: u.id, skill: ctx.name || '' }); }
+    return;
+  }
   if (st.extraTurn) {
     const list = units(st.extraTurn);
     for (const u of list) { (s.skillExtra ||= []).push({ unitId: u.id, moveOnly: !!st.moveOnly }); say(s, label + ': ' + nm(u) + ' will take another ' + (st.moveOnly ? 'move' : 'turn') + ' at once.', { type: 'skill', unit: u.id, extraTurn: !st.moveOnly, skill: ctx.name || '' }); }

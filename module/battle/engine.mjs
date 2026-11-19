@@ -2004,6 +2004,10 @@ function skillTurns(s) {
     log(s, v.name + ' may ' + (first.kind === 'attack' ? 'attack' : 'move up to ' + first.budget + (first.mode === 'away' ? ' away from the enemy' : first.mode === 'toward' ? ' toward its target' : '')) + ' (' + x.name + '), or pass.', { type: 'skillTurn', unit: v.id });
     return true;
   }
+  while (s.skillNow && s.skillNow.length) { // units a skill sends in right away, ahead of the order; this uses their normal turn
+    const v = unitById(s, s.skillNow.shift());
+    if (v && alive(v) && !v.round.activated) { startActivation(s, v); log(s, v.name + ' takes its turn now (battlefield skill).', { type: 'skill', unit: v.id }); return true; }
+  }
   { const id = SK.orderAfterTurn(s), v = id && unitById(s, id); // an officerless unit a skill sends in right after
     if (v && alive(v) && !v.round.activated) { startActivation(s, v); log(s, v.name + ' takes its turn now (battlefield skill).', { type: 'skill', unit: v.id }); return true; } }
   while (s.skillExtra && s.skillExtra.length) {
@@ -2283,7 +2287,7 @@ const ACTIONS = {
     s.tactics = null;
     s.objState = freshObjState(); s.outcome = null; s.objEval = null; s.aiSeen = null;
     for (const u of s.units) u.round = newRoundFlags();
-    delete s.skillsBegun; delete s.skillExtra; delete s.skillInterjects; delete s.revealPicks; for (const u of s.units) SK.resetUnit(u);
+    delete s.skillsBegun; delete s.skillExtra; delete s.skillNow; delete s.skillInterjects; delete s.revealPicks; for (const u of s.units) SK.resetUnit(u);
     s.siegeDeploy = false; delete s.siegeIssued;
     for (const u of s.units) if (u.owner && u.owner !== 'host') u.carry = null; // players' siege equipment back to stock
     for (const c of (s.siege && s.siege.catapults) || []) { const k = c.x + ',' + c.y, o = s.tileOverrides && s.tileOverrides[k]; if (o) { s.map.tiles = { ...s.map.tiles, [k]: o.before }; delete s.tileOverrides[k]; } }
