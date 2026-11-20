@@ -331,9 +331,9 @@ function gateHostile(u, g) {
 }
 /** Catapults (David, 2026-11-04; reworked 2026-11-20): a ranged unit on a catapult square works it. Every shot it makes is a
  *  catapult shot: range 12 flat (no other range bonus), Damage 10, Pen 10, Attack +6, a base Splash Attack; the officer's
- *  Command and weapon skill and the unit's traits don't count; unit tier and battlefield-skill auras do. It bombards enemy
- *  gates up to 12 away: Yin/Yang + 10, doubled. */
-const CATAPULT = { range: 12, damage: 10, pen: 10, attack: 6, splash: 1, gateDamage: 10 };
+ *  Command and weapon skill and the unit's traits don't count; unit tier and battlefield-skill auras do. Splash Attack+
+ *  (4 to each enemy next to the target). It bombards enemy gates up to 12 away: Yin/Yang + Damage 10 + Pen 10, not doubled. */
+const CATAPULT = { range: 12, damage: 10, pen: 10, attack: 6, splash: 2 };
 const CATAPULT_RANGE = CATAPULT.range;
 const onCatapult = (s, u) => overlaysAt(s, u.x, u.y).includes('catapult') && !(s.siege && s.siege.burnt && s.siege.burnt[u.x + ',' + u.y]) && (typeOf(s, u) || {}).weapon === 'ranged'; // only ranged units work a catapult (David, 2026-11-04)
 const gateDist = (g, u) => Math.min(...g.squares.map(([x, y]) => Math.abs(x - u.x) + Math.abs(y - u.y)));
@@ -2795,14 +2795,13 @@ const ACTIONS = {
     // an uncontested roll: Yin/Yang + the officer's Command + the unit's damage; a siege engine doubles it
     const dice = yinYang(), o = officerOf(s, u), t = typeOf(s, u) || {};
     const engine = carrying(u) === 'engine' && gateDist(g, u) === 1, cat = onCatapult(s, u);
-    const cmd = o && !cat ? o.command || 0 : 0, dmgBase = cat ? CATAPULT.gateDamage : t.damage || 0; // a catapult: Yin/Yang + 10, no Command
+    const cmd = o && !cat ? o.command || 0 : 0, dmgBase = cat ? CATAPULT.damage + CATAPULT.pen : t.damage || 0; // a catapult: Yin/Yang + Damage 10 + Pen 10, no Command (David, 2026-11-20)
     let dmg = Math.max(0, dice.value + cmd + dmgBase);
     if (engine) dmg *= 2; // battering with a siege engine
-    if (cat) dmg *= 2;    // a catapult's stones
     const skillDouble = !!SK.flag(s, u, 'gateDouble'); if (skillDouble) dmg *= 2; // a battlefield skill
     if (skillDouble) SK.consumeNextAttack(u);
     g.hp = Math.max(0, g.hp - dmg);
-    log(s, u.name + ' batters the gate for ' + dmg + ' (Yin/Yang ' + dice.value + (cmd ? ' + Command ' + cmd : '') + ' + damage ' + dmgBase + (engine ? ', doubled by the siege engine' : '') + (cat ? ', doubled by the catapult' : '') + '): ' + g.hp + '/' + g.maxHp + ' left.',
+    log(s, u.name + ' batters the gate for ' + dmg + ' (Yin/Yang ' + dice.value + (cmd ? ' + Command ' + cmd : '') + (cat ? ' + catapult damage 10 + pen 10' : ' + damage ' + dmgBase) + (engine ? ', doubled by the siege engine' : '') + '): ' + g.hp + '/' + g.maxHp + ' left.',
       { type: 'gateHit', gate: g.id, by: u.id, damage: dmg, hp: g.hp, maxHp: g.maxHp, dice });
     if (g.hp <= 0) { g.state = 'broken'; log(s, 'The gate gives way and breaks open!', { type: 'gate', gate: g.id, state: 'broken', by: u.id }); }
     u.round.attacked = true;

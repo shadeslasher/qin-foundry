@@ -1,5 +1,5 @@
 // Catapults (David, 2026-11-20): every shot from a catapult is a catapult shot: range 12 flat (no other range bonus),
-// Damage 10, Pen 10, Attack +6, base Splash Attack. The officer's Command and weapon skill and the crew's traits don't
+// Damage 10, Pen 10, Attack +6, Splash Attack+. The officer's Command and weapon skill and the crew's traits don't
 // count; unit tier and battlefield-skill auras (its own officer's included) do.
 import test from 'node:test';
 import assert from 'node:assert';
@@ -49,8 +49,8 @@ test('the crew\'s traits don\'t count, and the trait flag is cleared afterwards'
   assert.strictEqual(part(r, /Precision/), null);
   assert.ok(!att._catShot);
 });
-test('Damage 10 and a base splash on the units next to the target', () => {
+test('Damage 10 and Splash Attack+ (4) on the units next to the target', () => {
   const { r, nb, nbBefore } = setup(5, { splashTarget: true });
   assert.ok(r.casualtiesDefender >= 10, 'damage 10 against armor 0: ' + r.casualtiesDefender);
-  assert.strictEqual(nbBefore - nb.men, 2, 'splash 2');
+  assert.strictEqual(nbBefore - nb.men, 4, 'Splash Attack+ 4');
 });
