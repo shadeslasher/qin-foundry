@@ -1374,12 +1374,14 @@ function resolveAttackNow(s, attacker, defender, opts) {
   const evDef = ranged ? 0 : evasionOf(defender, trait(attacker, 'shield breaker'));
   const returnRanged = dt.weapon === 'ranged' && !(!ranged && hybridOf(defender)); // a ranged unit's strike back is a shot, unless it's a Hybrid in melee
   const evAtt = returnRanged ? 0 : evasionOf(attacker, trait(defender, 'shield breaker'));
-  const hitDef = (dmg, pen) => casualtiesOf(dmg, armorOf(dt, defender, trait(attacker, 'shield breaker')), pen, 0, 0);
+  // a battlefield skill can make all of a unit's damage ignore armor, its strike back included (Guan Yu, David 2026-11-19)
+  const noArmorA = SK.flag(s, attacker, 'ignoreArmor', skc(attacker)), noArmorD = SK.flag(s, defender, 'ignoreArmor', skc(defender));
+  const hitDef = (dmg, pen) => casualtiesOf(dmg, noArmorA ? 0 : armorOf(dt, defender, trait(attacker, 'shield breaker')), pen, 0, 0);
   // Repeating: the attack lands as two hits of half damage (and half pen) each; armor counts against each hit. Evasion then takes its share of the total.
   const repeating = !!trait(attacker, 'repeating') && dmgToDef > 0;
   let casDef = evadeCasualties(repeating ? hitDef(Math.ceil(dmgToDef / 2), Math.ceil(penA / 2)) + hitDef(Math.floor(dmgToDef / 2), Math.floor(penA / 2)) : hitDef(dmgToDef, penA), evDef);
   if (ranged && casDef > 0 && trait(attacker, 'deterrence') && alive(defender)) fx(defender).deterred = true; // Deterrence (Liu Chong)
-  let casAtt = casualtiesOf(dmgToAtt, armorOf(at, attacker, trait(defender, 'shield breaker')), penD, 0, evAtt);
+  let casAtt = casualtiesOf(dmgToAtt, noArmorD ? 0 : armorOf(at, attacker, trait(defender, 'shield breaker')), penD, 0, evAtt);
   casDef = colossalCap(defender, casDef); casAtt = colossalCap(attacker, casAtt); // Colossal (War Elephants): at most 1 per attack
   // officers' battlefield skills: damage taken (−N, at least 1), half casualties, damage dealt back to melee attackers
   const lessHurt = (u, c) => { if (c <= 0) return c; const dt2 = SK.stat(s, u, 'damageTaken', skc(u)); if (dt2) c = Math.max(1, c + dt2); if (SK.flag(s, u, 'casualtyHalf', skc(u))) c = Math.ceil(c / 2); return c; };
@@ -1437,7 +1439,7 @@ function resolveAttackNow(s, attacker, defender, opts) {
     if (b && b !== attacker && alive(b) && hostile(attacker, b)) {
       const bt = typeOf(s, b);
       const full = fierce >= 4; // Fierce Charge EX (David, 2026-10-31): full damage instead of half; armor and Evasion still apply
-      const cas = colossalCap(b, casualtiesOf(full ? dmgToDef : Math.floor(dmgToDef / 2), armorOf(bt, b, false), full ? penOf(s, at, attacker) : Math.floor(penOf(s, at, attacker) / 2), 0, evasionOf(b)));
+      const cas = colossalCap(b, casualtiesOf(full ? dmgToDef : Math.floor(dmgToDef / 2), noArmorA ? 0 : armorOf(bt, b, false), full ? penOf(s, at, attacker) : Math.floor(penOf(s, at, attacker) / 2), 0, evasionOf(b)));
       b.men = Math.max(0, b.men - cas);
       b.morale = clamp(b.morale - checkpointMorale(b), 0, 100);
       trample = { unit: b.id, casualties: cas };

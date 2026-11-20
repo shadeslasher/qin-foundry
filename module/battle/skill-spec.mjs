@@ -21,6 +21,8 @@ export const FLAGS = ['noSurrender', 'noRout', 'cantBeSurrounded', 'noRearAgains
   'readied',
   // 2026-11-19: Free active — its next battlefield active costs no morale and ignores the morale minimum (a last stand still needs low morale) (Heaven-Sent Talent)
   'freeActive',
+  // 2026-11-19: all of the unit's damage ignores armor, its strike back included (Guan Yu)
+  'ignoreArmor',
   // 2026-11-09: Sweep:N — whenever it attacks, every enemy unit in the 3x3 square around it takes N casualties, ignoring armor and evasion (Guan Yu)
   'sweep',
   // sweepMorale:N — each unit its sweep hits also loses N morale (Guan Yu, 2026-11-09)
