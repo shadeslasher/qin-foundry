@@ -332,7 +332,7 @@ function gateHostile(u, g) {
 /** Catapults (David, 2026-11-04; reworked 2026-11-20): a ranged unit on a catapult square works it. Every shot it makes is a
  *  catapult shot: range 12 flat (no other range bonus), Damage 10, Pen 10, Attack +6, a base Splash Attack; the officer's
  *  Command and weapon skill and the unit's traits don't count; unit tier and battlefield-skill auras do. Splash Attack+
- *  (4 to each enemy next to the target). It bombards enemy gates up to 12 away: (its attack roll + Damage 10 + Pen 10) × 2. */
+ *  (4 to each enemy next to the target). It bombards enemy gates up to 12 away: its attack roll + Damage 10 + Pen 10 (David, 2026-11-20). */
 const CATAPULT = { range: 12, damage: 10, pen: 10, attack: 6, splash: 2 };
 const CATAPULT_RANGE = CATAPULT.range;
 const onCatapult = (s, u) => overlaysAt(s, u.x, u.y).includes('catapult') && !(s.siege && s.siege.burnt && s.siege.burnt[u.x + ',' + u.y]) && (typeOf(s, u) || {}).weapon === 'ranged'; // only ranged units work a catapult (David, 2026-11-04)
@@ -2794,7 +2794,7 @@ const ACTIONS = {
     gateHp(g);
     // an uncontested roll: Yin/Yang + the officer's Command + the unit's damage; a siege engine doubles it.
     // From a catapult (David, 2026-11-20): the catapult's attack roll (as against a unit: Yin/Yang, unit tier, Attack +6,
-    // skill effects; no officer Command, weapon skill or traits) + Damage 10 + Pen 10, doubled.
+    // skill effects; no officer Command, weapon skill or traits) + Damage 10 + Pen 10.
     const dice = yinYang(), o = officerOf(s, u), t = typeOf(s, u) || {};
     const engine = carrying(u) === 'engine' && gateDist(g, u) === 1, cat = onCatapult(s, u);
     let dmg, how;
@@ -2802,8 +2802,8 @@ const ACTIONS = {
       const was = s.catapultShot; s.catapultShot = u.id; u._catShot = true;
       let A; try { A = buildRoll(s, u, 'attacker', { catapult: true, ranged: true, attacker: u, defender: u, tilesMoved: 0 }); }
       finally { if (was === undefined) delete s.catapultShot; else s.catapultShot = was; delete u._catShot; }
-      dmg = Math.max(0, A.total + CATAPULT.damage + CATAPULT.pen) * 2;
-      how = 'catapult roll ' + A.total + ' + damage 10 + pen 10, doubled';
+      dmg = Math.max(0, A.total + CATAPULT.damage + CATAPULT.pen);
+      how = 'catapult roll ' + A.total + ' + damage 10 + pen 10';
     } else {
       const cmd = o ? o.command || 0 : 0, dmgBase = t.damage || 0;
       dmg = Math.max(0, dice.value + cmd + dmgBase);

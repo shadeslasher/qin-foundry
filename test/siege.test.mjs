@@ -237,7 +237,7 @@ test('stairs: units walk up from a stairs square onto the wall and back down; me
   assert.ok(R.rangeOk(s, atStairs, foe) && R.rangeOk(s, foe, atStairs), 'stairs <-> wall melee');
 });
 
-test('catapults: a ranged unit on a catapult square bombards an enemy gate up to 12 squares away for (its attack roll + Damage 10 + Pen 10) × 2; a siege engine doubles battering', () => {
+test('catapults: a ranged unit on a catapult square bombards an enemy gate up to 12 squares away for its attack roll + Damage 10 + Pen 10; a siege engine doubles battering', () => {
   const s = city();
   s.map.tiles['6,13'].overlays = ['catapult'];
   const g = s.siege.gates[0];
@@ -251,7 +251,7 @@ test('catapults: a ranged unit on a catapult square bombards an enemy gate up to
   dice([9, 2]); must(R.act(s, HOST, { type: 'attackGate', unitId: gunner.id }));
   const hit = s.log.filter(e => e.detail?.type === 'gateHit').at(-1);
   const roll = Number(/catapult roll (-?\d+)/.exec(hit.text)[1]);
-  assert.strictEqual(80 - g.hp, Math.min(80, (roll + 20) * 2), '(roll + damage 10 + pen 10) doubled');
+  assert.strictEqual(80 - g.hp, Math.min(80, roll + 20), 'roll + damage 10 + pen 10');
   assert.ok(!/Command/.test(hit.text));
   g.hp = 53; // carry on as before
   ram.carry = 'engine';
