@@ -23,7 +23,9 @@ const typeOf = (s, u) => E.typeOf(s, u) || {};
 export function specsOf(s, u) {
   if (!u || !u.officerId) return null;
   const o = E.officerOf(s, u);
-  return o && o.battle ? { ...o.battle, officer: o } : null;
+  if (!o || !o.battle) return null;
+  // a 'noPassive' status switches its officer's battlefield passive off while it lasts (Sima Yi's Wolf, David 2026-11-19)
+  return status(s, u, 'noPassive') ? { ...o.battle, passive: null, officer: o } : { ...o.battle, officer: o };
 }
 
 // ---------------------------------------------------------------- terrain words

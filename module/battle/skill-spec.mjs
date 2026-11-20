@@ -38,7 +38,7 @@ export const EVENTS = ['battleStart', 'roundStart', 'turnStart', 'turnEnd', 'win
   'enemyMoves', 'allyMoves', 'allyTurnEnd', 'enemyTurnEnd', 'duelWin', 'duelLose', 'duelRefused', 'allyDuelWin',
   // 2026-11-18: an enemy unit's move passes within range (any square of its path, start excluded; once per move) (Dian Wei)
   'enemyPasses'];
-export const STATUSES = ['cantMove', 'cantAttack', 'cantMoveOrAttack', 'skipTurn', 'moveOrAttack', 'noSkills', 'stripDefenses',
+export const STATUSES = ['cantMove', 'cantAttack', 'cantMoveOrAttack', 'skipTurn', 'moveOrAttack', 'noSkills', 'stripDefenses', 'noPassive',
   'halfMove', 'cantAttackSource', 'maxMove1',
   // v3
   'isolated', 'noTactics', 'noOverwatchAgainst', 'cantMoveAway', 'cantAttackNearSource',
