@@ -257,7 +257,12 @@ test('catapults: a ranged unit on a catapult square bombards an enemy gate up to
   ram.carry = 'engine';
   s.turn.activation = { unitId: ram.id, step: 'move', started: true };
   dice([9, 2]); must(R.act(s, HOST, { type: 'attackGate', unitId: ram.id }));
-  assert.strictEqual(g.hp, 53 - 26, 'the siege engine doubles battering (7 + damage 6)');
+  assert.strictEqual(g.hp, 53 - 26, 'the siege engine doubles battering (7 + damage 6 + pen 0)');
+  s.library.unitTypes.find(x => x.id === 'inf').armorPen = 3; // battering adds the unit's pen (David, 2026-11-20)
+  delete ram.carry; ram.round.attacked = false; s.turn.activation = { unitId: ram.id, step: 'move', started: true }; const before = g.hp;
+  dice([9, 2]); must(R.act(s, HOST, { type: 'attackGate', unitId: ram.id }));
+  assert.strictEqual(before - g.hp, 7 + 6 + 3, 'Yin/Yang 7 + damage 6 + pen 3');
+  s.library.unitTypes.find(x => x.id === 'inf').armorPen = 0;
   s.map.tiles['5,13'].overlays = ['catapult'];
   const foot = add(s, { typeId: 'inf', side: 'enemy', x: 5, y: 13 }); // melee units can't work a catapult
   s.turn.activation = { unitId: foot.id, step: 'move', started: true };

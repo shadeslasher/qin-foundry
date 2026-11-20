@@ -2792,7 +2792,7 @@ const ACTIONS = {
     const g = gateTargets(s, u).find(x => !a.gateId || x.id === a.gateId);
     if (!g) return err(onCatapult(s, u) ? 'No gate of the other side within the catapult\'s range' : 'No gate of the other side next to this unit');
     gateHp(g);
-    // an uncontested roll: Yin/Yang + the officer's Command + the unit's damage; a siege engine doubles it.
+    // an uncontested roll: Yin/Yang + the officer's Command + the unit's damage + its pen; a siege engine doubles it.
     // From a catapult (David, 2026-11-20): the catapult's attack roll (as against a unit: Yin/Yang, unit tier, Attack +6,
     // skill effects; no officer Command, weapon skill or traits) + Damage 10 + Pen 10.
     const dice = yinYang(), o = officerOf(s, u), t = typeOf(s, u) || {};
@@ -2805,10 +2805,10 @@ const ACTIONS = {
       dmg = Math.max(0, A.total + CATAPULT.damage + CATAPULT.pen);
       how = 'catapult roll ' + A.total + ' + damage 10 + pen 10';
     } else {
-      const cmd = o ? o.command || 0 : 0, dmgBase = t.damage || 0;
-      dmg = Math.max(0, dice.value + cmd + dmgBase);
+      const cmd = o ? o.command || 0 : 0, dmgBase = t.damage || 0, pen = penOf(s, t, u); // + the unit's pen (David, 2026-11-20)
+      dmg = Math.max(0, dice.value + cmd + dmgBase + pen);
       if (engine) dmg *= 2; // battering with a siege engine
-      how = 'Yin/Yang ' + dice.value + (cmd ? ' + Command ' + cmd : '') + ' + damage ' + dmgBase + (engine ? ', doubled by the siege engine' : '');
+      how = 'Yin/Yang ' + dice.value + (cmd ? ' + Command ' + cmd : '') + ' + damage ' + dmgBase + (pen ? ' + pen ' + pen : '') + (engine ? ', doubled by the siege engine' : '');
     }
     const skillDouble = !!SK.flag(s, u, 'gateDouble'); if (skillDouble) dmg *= 2; // a battlefield skill
     if (skillDouble) SK.consumeNextAttack(u);
