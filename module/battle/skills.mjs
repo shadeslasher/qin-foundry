@@ -207,6 +207,7 @@ export function matches(s, f, u, ctx = {}) {
       case 'selfHidden': if (!ctx.src || !!ctx.src.hidden !== !!v) return false; break;
       case 'selfNotMoved': if (!ctx.src || !!(ctx.src.round && ctx.src.round.moved) === !!v) return false; break;
       case 'selfMoraleAbove': if (!ctx.src || !((ctx.src.morale ?? 50) > half(v))) return false; break;
+      case 'moraleBelowSource': if (!ctx.src || (((u.morale ?? 50) < (ctx.src.morale ?? 50)) !== !!v)) return false; break;
       case 'selfMoraleBelow': if (!ctx.src || !((ctx.src.morale ?? 50) < half(v))) return false; break;
       default: break;
     }

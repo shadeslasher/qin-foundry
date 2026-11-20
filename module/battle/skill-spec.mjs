@@ -65,7 +65,9 @@ const FILTER_KEYS = ['myTurn', 'category', 'melee', 'levy', 'trait', 'officer', 
   // 2026-11-11: attacks already made on it this round (Zhang Liao's growing damage reduction)
   'attacksTakenAtLeast'];
 const COND_KEYS = [...FILTER_KEYS, 'attacking', 'defending', 'kind', 'moved', 'notMoved', 'movedAtLeast', 'firstAttackOfBattle',
-  'firstAttackOfTurn', 'notAttackedThisBattle', 'selfOnTerrain', 'selfHidden', 'selfNotMoved', 'selfMoraleAbove', 'selfMoraleBelow'];
+  'firstAttackOfTurn', 'notAttackedThisBattle', 'selfOnTerrain', 'selfHidden', 'selfNotMoved', 'selfMoraleAbove', 'selfMoraleBelow',
+  // 2026-11-19: the receiving unit has less morale than the skill's own unit (Lu Bu)
+  'moraleBelowSource'];
 const STEP_KEYS = ['morale', 'health', 'buff', 'move', 'attack', 'contest', 'status', 'push', 'reveal', 'fire', 'resetCooldown',
   'extraTurn', 'turnNow', 'shock', 'reinforce', 'swap', 'selfStatus', 'if', 'onKill', 'onWin', 'onLose', 'manual', 'hide', 'fireArea',
   // v3
