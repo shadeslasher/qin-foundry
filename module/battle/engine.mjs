@@ -1371,9 +1371,9 @@ function resolveAttackNow(s, attacker, defender, opts) {
   // for Shield Breaker / + / ++ / EX
   const armorOf = (t, u, breaker) => Math.max(0, (t.armor ?? t.defense ?? 0) + tierVal(trait(u, 'reinforced armor'), [1, 2, 3]) - (fx(u).sunder || 0) - (breaker && t.shield ? tierVal(breaker, [1, 2, 3, 4]) : 0) + (u === attacker || u === defender ? SK.stat(s, u, 'armor', skc(u)) : 0));
   const penA = Math.max(0, penOf(s, at, attacker) + SK.stat(s, attacker, 'pen', skc(attacker))), penD = Math.max(0, penOf(s, dt, defender) + SK.stat(s, defender, 'pen', skc(defender)));
-  const evDef = ranged ? 0 : evasionOf(defender, trait(attacker, 'shield breaker'));
+  const evDef = ranged || SK.flag(s, attacker, 'ignoreEvasion', skc(attacker)) ? 0 : evasionOf(defender, trait(attacker, 'shield breaker')); // ignoreEvasion: Guan Yu (David, 2026-11-19)
   const returnRanged = dt.weapon === 'ranged' && !(!ranged && hybridOf(defender)); // a ranged unit's strike back is a shot, unless it's a Hybrid in melee
-  const evAtt = returnRanged ? 0 : evasionOf(attacker, trait(defender, 'shield breaker'));
+  const evAtt = returnRanged || SK.flag(s, defender, 'ignoreEvasion', skc(defender)) ? 0 : evasionOf(attacker, trait(defender, 'shield breaker'));
   // a battlefield skill can make all of a unit's damage ignore armor, its strike back included (Guan Yu, David 2026-11-19)
   const noArmorA = SK.flag(s, attacker, 'ignoreArmor', skc(attacker)), noArmorD = SK.flag(s, defender, 'ignoreArmor', skc(defender));
   const hitDef = (dmg, pen) => casualtiesOf(dmg, noArmorA ? 0 : armorOf(dt, defender, trait(attacker, 'shield breaker')), pen, 0, 0);
