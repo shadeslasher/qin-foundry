@@ -329,8 +329,12 @@ function gateHostile(u, g) {
   const side = alliance(u.side);
   return g.owner === 'enemy' ? side === 'player' : side === 'enemy';
 }
-/** Catapults (David, 2026-11-04): a ranged unit on a catapult square bombards enemy gates up to this far away, for double damage. */
-const CATAPULT_RANGE = 10;
+/** Catapults (David, 2026-11-04; reworked 2026-11-20): a ranged unit on a catapult square works it. Every shot it makes is a
+ *  catapult shot: range 12 flat (no other range bonus), Damage 10, Pen 10, Attack +6, a base Splash Attack; the officer's
+ *  Command and weapon skill and the unit's traits don't count; unit tier and battlefield-skill auras do. It bombards enemy
+ *  gates up to 12 away: Yin/Yang + 10, doubled. */
+const CATAPULT = { range: 12, damage: 10, pen: 10, attack: 6, splash: 1, gateDamage: 10 };
+const CATAPULT_RANGE = CATAPULT.range;
 const onCatapult = (s, u) => overlaysAt(s, u.x, u.y).includes('catapult') && !(s.siege && s.siege.burnt && s.siege.burnt[u.x + ',' + u.y]) && (typeOf(s, u) || {}).weapon === 'ranged'; // only ranged units work a catapult (David, 2026-11-04)
 const gateDist = (g, u) => Math.min(...g.squares.map(([x, y]) => Math.abs(x - u.x) + Math.abs(y - u.y)));
 const gateTargets = (s, u) => (onCatapult(s, u) || SK.flag(s, u, 'gateRange')
@@ -481,7 +485,7 @@ function moraleState(m) {
 
 // ---------------------------------------------------------------- traits
 // A unit's traits come from its Traits tab as { "base name": tier }, tier 1 = base, 2 = "+", 3 = "++".
-function trait(u, base) { const t = u && u.traitTiers; const v = (t && t[base]) || 0; return u && u.fx ? SK.traitTier(u, base, v) : v; } // battlefield skills may grant, raise or take traits
+function trait(u, base) { if (u && u._catShot) return 0; /* a catapult shot: the crew's traits don't count (David, 2026-11-20) */ const t = u && u.traitTiers; const v = (t && t[base]) || 0; return u && u.fx ? SK.traitTier(u, base, v) : v; } // battlefield skills may grant, raise or take traits
 /** Suppressing Fire (David, 2026-10-29): movement -2 (min 1); a suppressed unit loses Hold, Brace, Anti-Cavalry and Charge Reflection until it wears off. */
 const suppressed = (u) => !!(u && u.fx && u.fx.suppressed);
 /** Hybrid, or Throwing Axes (Hybrid without the melee Attack -2: David, 2026-10-29): a ranged unit that also fights adjacent enemies in melee. */
@@ -692,7 +696,7 @@ function threatArea(s, u) {
   const move = movementOf(s, u);
   const moveSet = new Set(move ? reachable(s, u, move).keys() : []);
   const t = typeOf(s, u), ranged = t.weapon === 'ranged';
-  const bands = [[t.rangeMin || 1, (t.rangeMax || 1) + (ranged ? rangeBonus(s, u) : 0)]];
+  const bands = [[t.rangeMin || 1, ranged && onCatapult(s, u) ? CATAPULT.range : (t.rangeMax || 1) + (ranged ? rangeBonus(s, u) : 0)]];
   if (ranged && hybridOf(u)) bands.push([1, 1]);
   const attack = new Set();
   const origins = [[u.x, u.y], ...[...moveSet].map(k => k.split(',').map(Number))];
@@ -942,6 +946,7 @@ function rangeOk(s, attacker, defender) {
   const bonus = t.weapon === 'ranged' ? rangeBonus(s, attacker) + (tr ? tr.range : 0) : 0;
   // Hybrid units may fight next to them in melee
   if (d === 1 && t.weapon === 'ranged' && hybridOf(attacker)) return meleeLevelOk(s, attacker, defender);
+  if (onCatapult(s, attacker)) return d >= (t.rangeMin || 1) && d <= CATAPULT.range && !wallBlocksShot(s, attacker, defender) && !mountainShields(s, attacker, defender); // a catapult: 12 flat
   if (!(d >= (t.rangeMin || 1) && d <= Math.max(1, (t.rangeMax || 1) + bonus))) return false;
   if (t.weapon !== 'ranged') return meleeLevelOk(s, attacker, defender); // walls: melee needs the same level or a ladder
   return !wallBlocksShot(s, attacker, defender) && !mountainShields(s, attacker, defender);
@@ -1080,6 +1085,7 @@ function buildRoll(s, unit, role, ctx) {
     else parts.push(['Attacker bonus', 2]);
     // Officer leading with his own weapon (David, 2026-10-28; above Apprentice since 2026-11-03): Attack +1 per level of the unit's weapon skill above Apprentice (1):
     // Competent +1, Expert +2, Master +3, Legendary +4, Godlike +5. Two-weapon units use his higher skill. Only on the unit's own attacks.
+    if (catShot) parts.push(['Catapult', CATAPULT.attack]);
     if (o && !catShot) { const lv = officerWeaponLevel(o, t); if (lv > 1) parts.push(["Officer's weapon (" + (lv === officerWeaponLevel(o, { skill: t.skill }) ? t.skill : t.skill2) + ' ' + lv + ')', lv - 1]); }
     // a charge's bonus comes only from Fierce Charge (David, 2026-11-10: no more +1 per tile moved)
     if (ctx.charge && ctx.fierceBonus) parts.push([FIERCE_NAMES[Math.min(4, ctx.fierce)], ctx.fierceBonus]);
@@ -1209,8 +1215,7 @@ function buildRoll(s, unit, role, ctx) {
   if (tr) {
     const where = tr.names.join(', ');
     if (tr.command) parts.push(['Terrain (' + where + '): command', tr.command]);
-    // a catapult's Attack bonus only helps the ranged units that work it (David, 2026-11-04)
-    const atk = tr.atk - (overlaysAt(s, unit.x, unit.y).includes('catapult') && (typeOf(s, unit) || {}).weapon !== 'ranged' ? (data.MAP_OVERLAYS.catapult.atk || 0) : 0);
+    const atk = tr.atk; // the catapult's own Attack +6 is a roll part of its shots (above)
     if (role === 'attacker' && atk) parts.push(['Terrain (' + where + '): attack', atk]);
     if (tr.downhill) { // on a hill against a lower unit, attacking or attacked (not against units on a hill, wall or tower)
       const dr = tileRules(s, other.x, other.y);
@@ -1249,19 +1254,17 @@ function damageValue(s, u, ranged = false) {
  *  the catapult. Its officer's Command and weapon skill, and battlefield-skill bonuses (passives, actives, allies' auras),
  *  don't count for it; penalties enemies put on it still do. */
 function catapultShot(s, attacker, defender) {
-  if (!onCatapult(s, attacker)) return false;
-  const t = typeOf(s, attacker) || {}, tr = tileRules(s, attacker.x, attacker.y);
-  const without = (t.rangeMax || 1) + rangeBonus(s, attacker) + (tr ? tr.range - (data.MAP_OVERLAYS.catapult.range || 0) : 0);
-  return manhattan(attacker, defender) > Math.max(1, without);
+  // every shot from a catapult (David, 2026-11-20); a Hybrid crew's melee blow at an adjacent enemy isn't a shot
+  return onCatapult(s, attacker) && !(hybridOf(attacker) && manhattan(attacker, defender) === 1);
 }
 function resolveAttack(s, attacker, defender, opts) {
   const cat = catapultShot(s, attacker, defender), was = s.catapultShot;
-  if (cat) s.catapultShot = attacker.id;
+  if (cat) { s.catapultShot = attacker.id; attacker._catShot = true; }
   try {
     const r = resolveAttackNow(s, attacker, defender, opts);
     if (cat && r) r.catapult = true;
     return r;
-  } finally { if (was === undefined) delete s.catapultShot; else s.catapultShot = was; }
+  } finally { if (was === undefined) delete s.catapultShot; else s.catapultShot = was; if (attacker) delete attacker._catShot; }
 }
 function resolveAttackNow(s, attacker, defender, opts) {
   { // officers' battlefield skills: an attack may be lost to a challenge, or drawn onto another unit
@@ -1332,7 +1335,7 @@ function resolveAttackNow(s, attacker, defender, opts) {
 
   // Who deals damage
   let dmgToDef = 0, dmgToAtt = 0, canCounter = false; // canCounter: the defender may strike back at all
-  const base = (u, shot = false) => Math.max(0, damageValue(s, u, shot) + SK.stat(s, u, 'damage', skc(u)));
+  const base = (u, shot = false) => Math.max(0, (u === attacker && ctx.catapult ? CATAPULT.damage : damageValue(s, u, shot)) + SK.stat(s, u, 'damage', skc(u))); // a catapult shot: Damage 10
   const winBonus = (side) => (winner === side ? diff : 0);
   if (!ranged) {
     if (!aNeg) dmgToDef = base(attacker) + winBonus('attacker');
@@ -1370,7 +1373,7 @@ function resolveAttackNow(s, attacker, defender, opts) {
   // Shield Breaker (David, 2026-10-30): against a unit with a shield (its weapon includes a shield) ignore 1 / 2 / 3 / 4 armor
   // for Shield Breaker / + / ++ / EX
   const armorOf = (t, u, breaker) => Math.max(0, (t.armor ?? t.defense ?? 0) + tierVal(trait(u, 'reinforced armor'), [1, 2, 3]) - (fx(u).sunder || 0) - (breaker && t.shield ? tierVal(breaker, [1, 2, 3, 4]) : 0) + (u === attacker || u === defender ? SK.stat(s, u, 'armor', skc(u)) : 0));
-  const penA = Math.max(0, penOf(s, at, attacker) + SK.stat(s, attacker, 'pen', skc(attacker))), penD = Math.max(0, penOf(s, dt, defender) + SK.stat(s, defender, 'pen', skc(defender)));
+  const penA = Math.max(0, (ctx.catapult ? CATAPULT.pen + (imperialAura(s, attacker) ? 1 : 0) : penOf(s, at, attacker)) + SK.stat(s, attacker, 'pen', skc(attacker))), penD = Math.max(0, penOf(s, dt, defender) + SK.stat(s, defender, 'pen', skc(defender)));
   const evDef = ranged || SK.flag(s, attacker, 'ignoreEvasion', skc(attacker)) ? 0 : evasionOf(defender, trait(attacker, 'shield breaker')); // ignoreEvasion: Guan Yu (David, 2026-11-19)
   const returnRanged = dt.weapon === 'ranged' && !(!ranged && hybridOf(defender)); // a ranged unit's strike back is a shot, unless it's a Hybrid in melee
   const evAtt = returnRanged || SK.flag(s, defender, 'ignoreEvasion', skc(defender)) ? 0 : evasionOf(attacker, trait(defender, 'shield breaker'));
@@ -1448,7 +1451,7 @@ function resolveAttackNow(s, attacker, defender, opts) {
   }
   // Splash Attack (David, 2026-10-28): when the attack lands, every other enemy unit next to the defender takes
   // 2 casualties (Splash Attack) or 4 (Splash Attack+), flat
-  const splash = trait(attacker, 'splash attack');
+  const splash = ctx.catapult ? CATAPULT.splash : trait(attacker, 'splash attack'); // a catapult's stones splash (base Splash Attack)
   if (splash && casDef > 0) {
     const n = tierVal(splash, [2, 4, 6]); // Splash Attack++ 6 (David, 2026-10-29)
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
@@ -2791,9 +2794,9 @@ const ACTIONS = {
     gateHp(g);
     // an uncontested roll: Yin/Yang + the officer's Command + the unit's damage; a siege engine doubles it
     const dice = yinYang(), o = officerOf(s, u), t = typeOf(s, u) || {};
-    const cmd = o ? o.command || 0 : 0, dmgBase = t.damage || 0;
-    let dmg = Math.max(0, dice.value + cmd + dmgBase);
     const engine = carrying(u) === 'engine' && gateDist(g, u) === 1, cat = onCatapult(s, u);
+    const cmd = o && !cat ? o.command || 0 : 0, dmgBase = cat ? CATAPULT.gateDamage : t.damage || 0; // a catapult: Yin/Yang + 10, no Command
+    let dmg = Math.max(0, dice.value + cmd + dmgBase);
     if (engine) dmg *= 2; // battering with a siege engine
     if (cat) dmg *= 2;    // a catapult's stones
     const skillDouble = !!SK.flag(s, u, 'gateDouble'); if (skillDouble) dmg *= 2; // a battlefield skill

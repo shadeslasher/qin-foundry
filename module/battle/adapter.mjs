@@ -401,7 +401,7 @@ async function postLog(entries, s) {
     if (d?.type === "attack") {
       const r = d.result;
       const A = nameOf(r.attacker), D = nameOf(r.defender);
-      const tags = [r.ranged ? "Ranged" : "Melee", r.catapult && "Catapult shot (no officer or skill bonuses)", r.charge && "Cavalry charge", r.rear && "Rear", r.ambush && "Ambush"].filter(Boolean).join(" · ");
+      const tags = [r.ranged ? "Ranged" : "Melee", r.catapult && "Catapult shot (Damage 10, Pen 10, Attack +6, splash; no officer Command, weapon skill or unit traits)", r.charge && "Cavalry charge", r.rear && "Rear", r.ambush && "Ambush"].filter(Boolean).join(" · ");
       const win = r.winner === "attacker" ? A : r.winner === "defender" ? D : null;
       const col = (roll) => roll.parts.filter(([k, v]) => v !== 0 || /Yin/.test(k)).map(([k, v]) => `<div class="qin-row"><span>${k}</span><span>${signed(v)}</span></div>`).join("");
       const line = (cls, label, a, b) => (a || b) ? `<div class="qin-bc-line ${cls}"><span>${a || "—"}</span><span class="qin-bc-label">${label}</span><span>${b || "—"}</span></div>` : "";

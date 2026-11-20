@@ -247,8 +247,7 @@ export function resolveWho(s, who, src, ctx = {}) {
 /** Every passive mod/flag and buff entry that reaches unit u: [{ entry, src, name, buff }]. kind: 'mods' | 'flags'. */
 function reaching(s, u, kind) {
   const out = reachingAll(s, u, kind);
-  // a catapult shot (engine: s.catapultShot) gets no help from skills; enemies' effects on the unit still count
-  return s && s.catapultShot === u.id ? out.filter(r => r.src && r.src.id !== u.id && E.hostile(r.src, u)) : out;
+  return out; // a catapult shot gets battlefield-skill effects like any attack (David, 2026-11-20); range bonuses don't reach it
 }
 function reachingAll(s, u, kind) {
   const out = [];
