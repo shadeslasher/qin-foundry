@@ -3,8 +3,6 @@
 // its faction banner rolled up in the corner (it unrolls while hovered), and health/morale bars.
 import { factionOf } from "./factions.mjs";
 import { loadSheets, frameAt, sheetSprite, showFrame } from "./battle/sheet-fx.mjs";
-import { playBuffLooks } from "./battle/buff-fx.mjs";
-import { looksOfBuff, looksOfKey } from "./battle/buff-looks.mjs";
 import { traitTiersOf } from "./battle/traits.mjs";
 import { tileRules, skillCheck, officerOf, typeOf, officerWeaponLevel } from "./battle/engine.mjs";
 import { effectsOf, alwaysOnRolls, status as skStatus, specsOf, whoIncludes, matches } from "./battle/skills.mjs";
@@ -555,10 +553,7 @@ function readyMap(battle) {
       // each part on its own: one unit's problem must not take the marks off every other unit (David, 2026-11-09)
       try {
         const list = effectsOf(s, u).filter(e => !e.aura);
-        // which animation each effect plays when it lands (David, 2026-11-21): by the stats it changes
-        const bufById = Object.fromEntries((u.fx?.buffs ?? []).map(b => ["b:" + b.id, b]));
-        const looks = Object.fromEntries(list.map(e => [e.key, bufById[e.key] ? looksOfBuff(bufById[e.key]) : looksOfKey(e.key)]));
-        if (list.length) { const of = (k) => list.filter(e => e.kind === k); eff[u.id] = { looks, nb: of("buff").length, nd: of("debuff").length, pb: of("buff").reduce((a, e) => a + e.power, 0), pd: of("debuff").reduce((a, e) => a + e.power, 0), keys: list.map(e => e.key + "|" + e.kind), names: list.map(e => e.name) }; }
+        if (list.length) { const of = (k) => list.filter(e => e.kind === k); eff[u.id] = { nb: of("buff").length, nd: of("debuff").length, pb: of("buff").reduce((a, e) => a + e.power, 0), pd: of("debuff").reduce((a, e) => a + e.power, 0), keys: list.map(e => e.key + "|" + e.kind), names: list.map(e => e.name) }; }
         // a buff his own battlefield active put on his own unit: an aura in his officer type's colour (David, 2026-11-12)
         const o = u.officerId ? officerOf(s, u) : null;
         if (eff[u.id] && o?.skill && list.some(e => e.self && e.kind === "buff" && e.name === o.skill.name)) eff[u.id].selfBuff = { ctype: o.ctype || "", tier: Number(o.tier) || 0, high: !!o.tierHigh };
@@ -796,12 +791,9 @@ function noteLanded(battle, eff) {
   for (const [id, e] of Object.entries(eff)) now[id] = new Set(e.keys);
   if (seenFx && seenFx.battleKey === bkey) {
     for (const [id, set] of Object.entries(now)) {
-      const before = seenFx.keys[id] ?? new Set(), kinds = new Set(), looks = new Set();
-      for (const k of set) if (!before.has(k)) {
-        const kind = k.split("|").pop(), lk = eff[id]?.looks?.[k.slice(0, k.length - kind.length - 1)] ?? [];
-        if (lk.length) lk.forEach(x => looks.add(x)); else kinds.add(kind); // a look of its own, or the old sweep
-      }
-      if (kinds.size || looks.size) pendingBurst.set(id, { kinds: [...kinds].sort(), looks: [...looks] }); // "buff" before "debuff"
+      const before = seenFx.keys[id] ?? new Set(), kinds = new Set();
+      for (const k of set) if (!before.has(k)) kinds.add(k.split("|").pop());
+      if (kinds.size) pendingBurst.set(id, [...kinds].sort()); // "buff" before "debuff"
     }
   }
   seenFx = { battleKey: bkey, keys: now };
@@ -1035,11 +1027,7 @@ export async function drawUnitBars(token) {
   const zoneR = zoneOf(token);
   const reck = recklessOf(token), waiting = !acted && waitingOf(token), heaven = heavenOf(token), river = riverOf(token);
   const key = JSON.stringify([zoneR, reck, waiting, heaven, river, onCat, ready, locks, lasting, eff ? [eff.nb, eff.nd, eff.pb, eff.pd] : null, men, max, morale, w, h, s.side, acted, active, holding, watching, st, mine, n, art, off, fac?.img ?? null, facing, battleRecord(token)?.meta?.[token.id]?.carry ?? null, !!battleRecord(token)?.meta?.[token.id]?.fx?.shocked, s.traits]); // traits: equipment icons (ladders, engine)
-  if (pendingBurst.has(token.id)) {
-    const { kinds, looks } = pendingBurst.get(token.id); pendingBurst.delete(token.id);
-    if (kinds.length) playBurst(token, kinds, w, h, T, T * L.pad);
-    if (looks.length) playBuffLooks(token, looks, { shiver: (px) => { const c = token[KEY]; if (c && !c.destroyed) c.x = px; } }).catch(e => console.warn("Qin | buff looks", e));
-  }
+  if (pendingBurst.has(token.id)) { const kinds = pendingBurst.get(token.id); pendingBurst.delete(token.id); playBurst(token, kinds, w, h, T, T * L.pad); }
   let c = token[KEY];
   // (a ready mark that was hidden for an activation, e.g. one undone or replayed, is drawn again: David, 2026-11-09)
   if (c && !c.destroyed && c.parent === token && c.qinKey === key && !(ready && !c.qinReadyTick)) return;
