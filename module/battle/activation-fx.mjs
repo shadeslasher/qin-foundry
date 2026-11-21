@@ -7,6 +7,7 @@ import { playActiveBanner } from "./active-banner.mjs";
 import { atSpeed } from "./battle-speed.mjs";
 import { releaseUnits, hideSkillReady } from "../unit-bars.mjs";
 import { playUniqueActivation, darkHoldOf, lightWave } from "./unique-fx.mjs";
+const WAIT_FOR_SPREAD = new Set(["The Hundred Thousand"]); // their floats show once the units have been released
 
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
 const smooth = (a) => (a <= 0 ? 0 : a >= 1 ? 1 : a * a * (3 - 2 * a));
@@ -105,8 +106,10 @@ export async function playActivation(st) {
     releaseUnits([st.unit]);             // morale cost, ready mark, buff (it sweeps up from the bottom)
     // tier 1+ special animation, if the skill has one; it may release the other units it touched itself (as its wave
     // reaches them), otherwise they show their bursts now
-    if (!playUniqueActivation(st, token, (ids) => releaseUnits(ids))?.releases) releaseUnits(st.touched ?? []);
-    await wait(Math.max(OFF, UNDIM1) - ms("release"));
+    const uniq = playUniqueActivation(st, token, (ids) => releaseUnits(ids));
+    if (!uniq?.releases) releaseUnits(st.touched ?? []);
+    // the units' morale floats wait for the animation that lands their buffs (Yuan Shao's answering stomps)
+    await Promise.all([wait(Math.max(OFF, UNDIM1) - ms("release")), uniq?.releases && WAIT_FOR_SPREAD.has(st.skill) ? Promise.resolve(uniq.done).catch(() => {}) : null]);
   } finally {
     canvas.app.ticker.remove(tick);
     light.done(); dim.el.remove(); deep?.remove();

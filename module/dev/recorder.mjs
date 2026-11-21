@@ -189,6 +189,9 @@ export async function record({ start = null, fps = 20, preMs = 600, tailMs = 900
   // update until the clock caught up: the activation dim and light showed late (2026-11-12). Start it from our clock.
   const resetTicker = (t) => { const tk = canvas.app.ticker; tk.lastTime = t; if ("_lastFrame" in tk) tk._lastFrame = t; };
   resetTicker(V.base);
+  // the page's own animation frames would also run the ticker, on the real clock: with the tab visible the two clocks
+  // fought and animations ran several times too fast (2026-11-21). Only our frames drive it while recording.
+  const tickerWasOn = canvas.app.ticker.started; canvas.app.ticker.stop();
   V.install();
   try {
     V.sync();
@@ -222,5 +225,6 @@ export async function record({ start = null, fps = 20, preMs = 600, tailMs = 900
     return { path: folder, frames: frames.length, ms: Math.round(V.now - t0), sounds: V.sounds, result, perf: Object.fromEntries(Object.entries(perf).map(([k, v]) => [k, Math.round(v)])) };
   } finally {
     try { V.uninstall(); resetTicker(performance.now()); } catch { /* already */ }
+    if (tickerWasOn && !canvas.app.ticker.started) canvas.app.ticker.start();
   }
 }
