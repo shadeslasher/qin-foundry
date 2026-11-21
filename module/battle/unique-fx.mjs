@@ -1998,3 +1998,5 @@ function heavenSent(token, touched = [], release = () => {}) {
     });
   });
 }
+
+export { topLayer as fxTopLayer, groundLayer as fxGroundLayer }; // shared with buff-fx.mjs
