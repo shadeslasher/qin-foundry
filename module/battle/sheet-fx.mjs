@@ -18,6 +18,8 @@ export const SHEETS = {
   hsBeam: ["sunquan-beam.webp", 61, 480, 120, 15],
   hsBurst: ["sunquan-burst.webp", 51, 300, 300, 30],
   hsStars: ["sunquan-stars.webp", 60, 300, 300, 15],
+  // Sun Quan: Guardian of the Great River (allies on or next to water)
+  grWater: ["sunquan-water.webp", 78, 240, 240, 15],
 };
 const cache = {};
 export function loadSheet(key) {

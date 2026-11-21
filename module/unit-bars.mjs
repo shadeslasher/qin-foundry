@@ -5,7 +5,7 @@ import { factionOf } from "./factions.mjs";
 import { loadSheets, frameAt, sheetSprite, showFrame } from "./battle/sheet-fx.mjs";
 import { traitTiersOf } from "./battle/traits.mjs";
 import { tileRules, skillCheck, officerOf, typeOf, officerWeaponLevel } from "./battle/engine.mjs";
-import { effectsOf, alwaysOnRolls, status as skStatus } from "./battle/skills.mjs";
+import { effectsOf, alwaysOnRolls, status as skStatus, specsOf, whoIncludes, matches } from "./battle/skills.mjs";
 import { BOOT } from "./icons.mjs";
 import { buildState } from "./battle/adapter.mjs";
 import { decodeTiles, FLAG as MAP_FLAG } from "./battle/battlemap.mjs";
@@ -186,6 +186,12 @@ function zoneOf(token) {
  *  turn and it hasn't yet (Lightning Campaign: it keeps crackling until it acts or the round ends). David, 2026-11-19. */
 function recklessOf(token) { return Math.min(5, Number(battleRecord(token)?.meta?.[token.id]?.fx?.counters?.reckless) || 0); }
 /** Sun Quan's Heaven-Sent Talent: the unit he chose sparkles with stars while its Command +4 lasts (David, 2026-11-20). */
+function drawRiverLooks(c, w, h, T) {
+  const back = new PIXI.Container(); c.addChildAt(back, 0);
+  let sp = null, sheet = null, time = Math.random() * 3;
+  loadSheets(["grWater"]).then(sh => { if (back.destroyed || !sh.grWater) return; sheet = sh.grWater; sp = sheetSprite(sheet, T * 1.5); sp.position.set(w / 2, h / 2); back.addChild(sp); });
+  return () => { if (back.destroyed) return; time += (canvas.app?.ticker?.deltaMS ?? 16) / 1000; if (sp) showFrame(sp, frameAt(sheet, time, { loop: true }), 0.8); };
+}
 function heavenOf(token) { return (battleRecord(token)?.meta?.[token.id]?.fx?.buffs ?? []).some(b => b.name === "Heaven-Sent Talent" && (b.mods ?? []).length); }
 function drawHeavenLooks(c, w, h, T) {
   const front = new PIXI.Container(); c.addChild(front);
@@ -510,6 +516,7 @@ function clear(token) {
   if (c?.qinLastTick) canvas.app?.ticker?.remove(c.qinLastTick);
   if (c?.qinSunTick) canvas.app?.ticker?.remove(c.qinSunTick);
   if (c?.qinHeavenTick) canvas.app?.ticker?.remove(c.qinHeavenTick);
+  if (c?.qinRiverTick) canvas.app?.ticker?.remove(c.qinRiverTick);
   if (token.qinBurst && !token.qinBurst.destroyed) token.qinBurst.destroy({ children: true });
   token.qinBurst = null;
   if (c && !c.destroyed) c.destroy({ children: true });
@@ -525,7 +532,7 @@ function clear(token) {
 let readyCache = null;
 function readyMap(battle) {
   if (readyCache) return readyCache.map; // cleared by the hooks in registerUnitBars whenever anything it depends on changes
-  const map = {}, eff = {}, rolls = {}, locks = {};
+  const map = {}, eff = {}, rolls = {}, locks = {}, river = {};
   try {
     const { s } = buildState(battle);
     for (const u of s.units) {
@@ -537,6 +544,9 @@ function readyMap(battle) {
         const lv = o && t ? officerWeaponLevel(o, t) : 0;
         rolls[u.id] = { rolls: (o?.command || 0) + sk.command, attack: (lv > 1 ? lv - 1 : 0) + sk.attack, defense: sk.meleeDef, rangedDefense: sk.rangedDef };
       } catch (e) { console.warn("Qin | roll icons", e); }
+      // a passive's Attack bonus for units on or next to water reaches it (Sun Quan's Guardian of the Great River,
+      // David, 2026-11-20): swirling water under the stand
+      try { if (waterAura(s, u)) river[u.id] = true; } catch (e) { console.warn("Qin | water aura on " + u.id, e); }
       // buffs and debuffs the stand shows (not passive auras: they come and go as units move)
       // can't move / can't attack from a battlefield skill (David, 2026-11-09): icons on the stand
       try { const m = !!skStatus(s, u, "cantMove"), a = !!skStatus(s, u, "cantAttack"); if (m || a) locks[u.id] = { move: m, attack: a }; } catch { /* fine */ }
@@ -555,7 +565,7 @@ function readyMap(battle) {
       } catch (e) { console.warn("Qin | skill-ready mark on " + u.id, e); }
     }
   } catch (e) { console.warn("Qin | skill-ready marks", e); }
-  readyCache = { map, eff, rolls, locks };
+  readyCache = { map, eff, rolls, locks, river };
   noteLanded(battle, eff);
   return map;
 }
@@ -565,6 +575,24 @@ function lockStatus(token) {
   if (!battle) return null;
   readyMap(battle);
   return readyCache?.locks?.[token.id] ?? null;
+}
+function riverOf(token) {
+  const battle = battleRecord(token);
+  if (!battle) return false;
+  readyMap(battle);
+  return !!readyCache?.river?.[token.id];
+}
+/** Does a passive's Attack bonus that needs water nearby (if.nextToTerrain with river) reach u right now? */
+function waterAura(s, u) {
+  for (const X of s.units) {
+    if (X.status !== "active") continue;
+    const p = specsOf(s, X)?.passive; if (!p) continue;
+    for (const m of p.mods ?? []) {
+      if (m.stat !== "attack" || !(m.if?.nextToTerrain ?? []).includes("river")) continue;
+      if (whoIncludes(s, m.who, X, u) && matches(s, m.if, u, { src: X, self: u })) return true;
+    }
+  }
+  return false;
 }
 function rollExtras(token) {
   const battle = battleRecord(token);
@@ -997,8 +1025,8 @@ export async function drawUnitBars(token) {
   const lasting = lastingLook(eff);
   const onCat = onCatapultSquare(token);
   const zoneR = zoneOf(token);
-  const reck = recklessOf(token), waiting = !acted && waitingOf(token), heaven = heavenOf(token);
-  const key = JSON.stringify([zoneR, reck, waiting, heaven, onCat, ready, locks, lasting, eff ? [eff.nb, eff.nd, eff.pb, eff.pd] : null, men, max, morale, w, h, s.side, acted, active, holding, watching, st, mine, n, art, off, fac?.img ?? null, facing, battleRecord(token)?.meta?.[token.id]?.carry ?? null, !!battleRecord(token)?.meta?.[token.id]?.fx?.shocked, s.traits]); // traits: equipment icons (ladders, engine)
+  const reck = recklessOf(token), waiting = !acted && waitingOf(token), heaven = heavenOf(token), river = riverOf(token);
+  const key = JSON.stringify([zoneR, reck, waiting, heaven, river, onCat, ready, locks, lasting, eff ? [eff.nb, eff.nd, eff.pb, eff.pd] : null, men, max, morale, w, h, s.side, acted, active, holding, watching, st, mine, n, art, off, fac?.img ?? null, facing, battleRecord(token)?.meta?.[token.id]?.carry ?? null, !!battleRecord(token)?.meta?.[token.id]?.fx?.shocked, s.traits]); // traits: equipment icons (ladders, engine)
   if (pendingBurst.has(token.id)) { const kinds = pendingBurst.get(token.id); pendingBurst.delete(token.id); playBurst(token, kinds, w, h, T, T * L.pad); }
   let c = token[KEY];
   // (a ready mark that was hidden for an activation, e.g. one undone or replayed, is drawn again: David, 2026-11-09)
@@ -1023,6 +1051,7 @@ export async function drawUnitBars(token) {
   if (c.qinLastTick) { canvas.app?.ticker?.remove(c.qinLastTick); c.qinLastTick = null; }
   if (c.qinSunTick) { canvas.app?.ticker?.remove(c.qinSunTick); c.qinSunTick = null; }
   if (c.qinHeavenTick) { canvas.app?.ticker?.remove(c.qinHeavenTick); c.qinHeavenTick = null; }
+  if (c.qinRiverTick) { canvas.app?.ticker?.remove(c.qinRiverTick); c.qinRiverTick = null; }
   const prevN = c.qinFigN;
   let fall = token.qinFall;                       // soldiers still falling survive the redraw
   if (fall && !fall.destroyed && fall.parent === c) c.removeChild(fall);
@@ -1031,6 +1060,7 @@ export async function drawUnitBars(token) {
   const stand = new PIXI.Container();
   c.addChild(stand);
   if (reck || waiting) { c.qinSunTick = drawSunCeLooks(c, w, h, T, reck, waiting); canvas.app?.ticker?.add(c.qinSunTick); } // Sun Ce's stacks; a unit waiting its turn
+  if (river) { c.qinRiverTick = drawRiverLooks(c, w, h, T); canvas.app?.ticker?.add(c.qinRiverTick); } // Guardian of the Great River: allies near water
   if (heaven) { c.qinHeavenTick = drawHeavenLooks(c, w, h, T); canvas.app?.ticker?.add(c.qinHeavenTick); } // Sun Quan's chosen unit, while its Command +4 lasts
 
   if (st.hidden) stand.alpha = 0.55; // hidden: see-through for those who can still see it
