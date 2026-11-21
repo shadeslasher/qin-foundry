@@ -185,6 +185,14 @@ function zoneOf(token) {
 /** Sun Ce's Reckless Conqueror stacks on this unit (0–5), and whether a skill sent it in to act right after the current
  *  turn and it hasn't yet (Lightning Campaign: it keeps crackling until it acts or the round ends). David, 2026-11-19. */
 function recklessOf(token) { return Math.min(5, Number(battleRecord(token)?.meta?.[token.id]?.fx?.counters?.reckless) || 0); }
+/** Sun Quan's Heaven-Sent Talent: the unit he chose sparkles with stars while its Command +4 lasts (David, 2026-11-20). */
+function heavenOf(token) { return (battleRecord(token)?.meta?.[token.id]?.fx?.buffs ?? []).some(b => b.name === "Heaven-Sent Talent" && (b.mods ?? []).length); }
+function drawHeavenLooks(c, w, h, T) {
+  const front = new PIXI.Container(); c.addChild(front);
+  let sp = null, sheet = null, time = 0;
+  loadSheets(["hsStars"]).then(sh => { if (front.destroyed || !sh.hsStars) return; sheet = sh.hsStars; sp = sheetSprite(sheet, T * 1.6); sp.position.set(w / 2, h / 2); front.addChild(sp); });
+  return () => { if (front.destroyed) return; time += (canvas.app?.ticker?.deltaMS ?? 16) / 1000; if (sp) showFrame(sp, frameAt(sheet, time, { loop: true }), 0.85); };
+}
 function waitingOf(token) { const b = battleRecord(token); return !!b?.skillNow?.includes(token.id) && !b?.meta?.[token.id]?.round?.activated; }
 /** The lasting looks: a fire aura behind the stand that grows with the stacks (fire below; flames above it from 3; a
  *  burning ring at 5), and for a waiting unit a pale blue glow under it with static crackling over it (JB2A sheets). */
@@ -501,6 +509,7 @@ function clear(token) {
   if (c?.qinFxTick) canvas.app?.ticker?.remove(c.qinFxTick);
   if (c?.qinLastTick) canvas.app?.ticker?.remove(c.qinLastTick);
   if (c?.qinSunTick) canvas.app?.ticker?.remove(c.qinSunTick);
+  if (c?.qinHeavenTick) canvas.app?.ticker?.remove(c.qinHeavenTick);
   if (token.qinBurst && !token.qinBurst.destroyed) token.qinBurst.destroy({ children: true });
   token.qinBurst = null;
   if (c && !c.destroyed) c.destroy({ children: true });
@@ -988,8 +997,8 @@ export async function drawUnitBars(token) {
   const lasting = lastingLook(eff);
   const onCat = onCatapultSquare(token);
   const zoneR = zoneOf(token);
-  const reck = recklessOf(token), waiting = !acted && waitingOf(token);
-  const key = JSON.stringify([zoneR, reck, waiting, onCat, ready, locks, lasting, eff ? [eff.nb, eff.nd, eff.pb, eff.pd] : null, men, max, morale, w, h, s.side, acted, active, holding, watching, st, mine, n, art, off, fac?.img ?? null, facing, battleRecord(token)?.meta?.[token.id]?.carry ?? null, !!battleRecord(token)?.meta?.[token.id]?.fx?.shocked, s.traits]); // traits: equipment icons (ladders, engine)
+  const reck = recklessOf(token), waiting = !acted && waitingOf(token), heaven = heavenOf(token);
+  const key = JSON.stringify([zoneR, reck, waiting, heaven, onCat, ready, locks, lasting, eff ? [eff.nb, eff.nd, eff.pb, eff.pd] : null, men, max, morale, w, h, s.side, acted, active, holding, watching, st, mine, n, art, off, fac?.img ?? null, facing, battleRecord(token)?.meta?.[token.id]?.carry ?? null, !!battleRecord(token)?.meta?.[token.id]?.fx?.shocked, s.traits]); // traits: equipment icons (ladders, engine)
   if (pendingBurst.has(token.id)) { const kinds = pendingBurst.get(token.id); pendingBurst.delete(token.id); playBurst(token, kinds, w, h, T, T * L.pad); }
   let c = token[KEY];
   // (a ready mark that was hidden for an activation, e.g. one undone or replayed, is drawn again: David, 2026-11-09)
@@ -1013,6 +1022,7 @@ export async function drawUnitBars(token) {
   if (c.qinFxTick) { canvas.app?.ticker?.remove(c.qinFxTick); c.qinFxTick = null; }
   if (c.qinLastTick) { canvas.app?.ticker?.remove(c.qinLastTick); c.qinLastTick = null; }
   if (c.qinSunTick) { canvas.app?.ticker?.remove(c.qinSunTick); c.qinSunTick = null; }
+  if (c.qinHeavenTick) { canvas.app?.ticker?.remove(c.qinHeavenTick); c.qinHeavenTick = null; }
   const prevN = c.qinFigN;
   let fall = token.qinFall;                       // soldiers still falling survive the redraw
   if (fall && !fall.destroyed && fall.parent === c) c.removeChild(fall);
@@ -1021,6 +1031,7 @@ export async function drawUnitBars(token) {
   const stand = new PIXI.Container();
   c.addChild(stand);
   if (reck || waiting) { c.qinSunTick = drawSunCeLooks(c, w, h, T, reck, waiting); canvas.app?.ticker?.add(c.qinSunTick); } // Sun Ce's stacks; a unit waiting its turn
+  if (heaven) { c.qinHeavenTick = drawHeavenLooks(c, w, h, T); canvas.app?.ticker?.add(c.qinHeavenTick); } // Sun Quan's chosen unit, while its Command +4 lasts
 
   if (st.hidden) stand.alpha = 0.55; // hidden: see-through for those who can still see it
   // base in the side colour

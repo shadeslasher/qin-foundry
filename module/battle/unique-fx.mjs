@@ -1173,7 +1173,7 @@ function heroCommands(token, touched = [], release = () => {}, reach = 4) {
     // the allies: released as the wave reaches their tile
     for (const h of hits) {
       const q = t - h.at; if (q < 0) continue;
-      if (!h.done) { h.done = true; release([h.u.id]); floatLocal({ x: h.u.center.x, y: h.u.center.y - G * 0.5 }, "xp", "Attack +5"); setTimeout(() => floatLocal({ x: h.u.center.x, y: h.u.center.y - G * 0.2 }, "surrounded", "Move +1 · Morale ≥ 10"), atSpeed(120)); }
+      if (!h.done) { h.done = true; release([h.u.id]); floatLocal({ x: h.u.center.x, y: h.u.center.y - G * 0.5 }, "xp", "Attack +4"); setTimeout(() => floatLocal({ x: h.u.center.x, y: h.u.center.y - G * 0.2 }, "surrounded", "Move +1 · Morale ≥ 10"), atSpeed(120)); }
       h.col.alpha = q < 0.15 ? q / 0.15 : Math.max(0, 1 - (q - 0.15) / 0.75);
       swell(h.u.qinUnitBars, 1 + 0.12 * Math.sin(Math.min(1, q / 0.3) * Math.PI));
     }
@@ -1331,6 +1331,7 @@ const ON_ACTIVATE_SPREAD = {
   "Terror of Changban": (token, touched, release) => roarOfChangban(token, 5, touched, release), // its old name (cards not yet updated)
   "Fight or Be Butchered": (token, touched, release) => tyrantsWhip(token, touched, release),
   "Lightning Campaign": (token, touched, release) => lightningCampaign(token, touched, release, 4),
+  "Heaven-Sent Talent": (token, touched, release) => heavenSent(token, touched, release),
   "Iron Rule": (token, touched, release) => tyrantsWhip(token, touched, release), // its old name (cards not yet updated)
   // the units it holds are released by the stones (playSentinels), not at the end of the banner
   "Stone Sentinel Maze": (token) => eightTrigrams(token),
@@ -1953,6 +1954,47 @@ function recklessBurst(token) {
       if (token.destroyed || t > 1.1) { sp.destroy(); return false; }
       sp.position.set(token.center.x, token.center.y); showFrame(sp, frameAt(rcErupt, t, { speed: 4 / 3 }), 0.85 * Math.min(1, (1.1 - t) / 0.4));
       return true;
+    });
+  });
+}
+
+/* ------------------------------------------------------------ Sun Quan: Heaven-Sent Talent (David, 2026-11-20) */
+
+/** Heaven-Sent Talent (approved mockup v2): golden strands gather and swirl round Sun Quan; a beam of gold light runs to
+ *  the ally officer he chose; the light bursts over it and stars sparkle round it as its skill comes back. The stars
+ *  stay on that unit while its Command +4 lasts (unit-bars). JB2A (free) sheets; without them only the text floats. */
+function heavenSent(token, touched = [], release = () => {}) {
+  const G = canvas.grid?.size ?? Math.min(token.w, token.h), k = G / 64;
+  const ally = touched.map(id => canvas.tokens?.get(id)).find(u => u && !u.destroyed && u.id !== token.id);
+  return loadSheets(["hsStrands", "hsBeam", "hsBurst", "hsStars"]).then(({ hsStrands, hsBeam, hsBurst, hsStars }) => {
+    const root = new PIXI.Container(); topLayer().addChild(root);
+    const strands = sheetSprite(hsStrands, 150 * k); if (strands) root.addChild(strands);
+    const beam = sheetSprite(hsBeam, 1, { ax: 0, H: 60 * k }); if (beam) root.addChild(beam);
+    const burst = sheetSprite(hsBurst, 170 * k); if (burst) root.addChild(burst);
+    const stars = sheetSprite(hsStars, 120 * k); if (stars) root.addChild(stars);
+    let done = false, floated = false;
+    const END = 3.0;
+    return run((dt, t) => {
+      const c = token.destroyed ? null : token.center;
+      if (strands && c && t < 1.4) { strands.position.set(c.x, c.y); showFrame(strands, frameAt(hsStrands, t, { loop: true }), Math.min(1, t / 0.3) * (t > 1.1 ? (1.4 - t) / 0.3 : 1)); }
+      else if (strands) strands.visible = false;
+      if (ally && !ally.destroyed && c) {
+        const a = ally.center, dx = a.x - c.x, dy = a.y - c.y, d = Math.hypot(dx, dy);
+        if (beam && t > 0.85 && t < 1.8) {
+          const q = t - 0.85, s = Math.min(1, q / 0.3), L = d * s * s * (3 - 2 * s);
+          beam.position.set(c.x, c.y); beam.rotation = Math.atan2(dy, dx);
+          showFrame(beam, frameAt(hsBeam, q, { speed: 2, loop: true }), t > 1.5 ? (1.8 - t) / 0.3 : 1); beam.width = Math.max(1, L); beam.height = 60 * k;
+        } else if (beam) beam.visible = false;
+        if (burst) { burst.position.set(a.x, a.y); showFrame(burst, frameAt(hsBurst, t - 1.15)); }
+        if (stars) { stars.position.set(a.x, a.y); showFrame(stars, t > 1.2 ? frameAt(hsStars, t - 1.2, { loop: true }) : null, Math.min(1, (t - 1.2) / 0.3) * (t > END - 0.4 ? (END - t) / 0.4 : 1)); }
+        if (!done && t >= 1.3) { done = true; release([ally.id]); }
+        if (!floated && t >= 1.35) { floated = true;
+          floatLocal({ x: a.x, y: a.y - G * 0.5 }, "xp", "Skill ready again · next one free");
+          setTimeout(() => floatLocal({ x: a.x, y: a.y - G * 0.2 }, "xp", "Command +4 (3 turns)"), atSpeed(250)); }
+      }
+      if (t < END) return true;
+      if (!done && ally) release([ally.id]);
+      root.destroy({ children: true }); return false;
     });
   });
 }

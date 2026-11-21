@@ -13,6 +13,11 @@ export const SHEETS = {
   rcBelow: ["sunce-shieldb.webp", 75, 300, 300, 15],
   rcAbove: ["sunce-shielda.webp", 75, 300, 300, 15],
   rcRing: ["sunce-ring.webp", 60, 300, 300, 10],
+  // Sun Quan: Heaven-Sent Talent
+  hsStrands: ["sunquan-strands.webp", 61, 300, 300, 30],
+  hsBeam: ["sunquan-beam.webp", 61, 480, 120, 15],
+  hsBurst: ["sunquan-burst.webp", 51, 300, 300, 30],
+  hsStars: ["sunquan-stars.webp", 60, 300, 300, 15],
 };
 const cache = {};
 export function loadSheet(key) {
