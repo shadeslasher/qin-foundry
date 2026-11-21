@@ -803,6 +803,13 @@ function noteLanded(battle, eff) {
  * every client before the new state is saved, so its morale drop, ready mark and buff wait for the banner; the
  * activation animation releases it (or it releases itself after a while, e.g. on a client looking at another scene). */
 const frozen = new Map(); // tokenId -> timeout
+/** Play the blue buff sweep (or the red debuff one) on a unit now, e.g. for a morale gain that isn't a buff (Yuan Shao's
+ *  Lord of the North at the start of battle, David 2026-11-21). */
+export function playStandSweep(token, kind = "buff") {
+  if (!token || token.destroyed) return;
+  pendingBurst.set(token.id, [kind]);
+  drawUnitBars(token);
+}
 export function freezeUnits(ids, ms = 15000) {
   for (const id of ids ?? []) {
     clearTimeout(frozen.get(id));

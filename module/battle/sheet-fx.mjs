@@ -1,4 +1,4 @@
-/* Frame-sheet effects (David, 2026-11-19): JB2A (free) effects turned into 10-across frame sheets, kept as private art
+/* Frame-sheet effects (David, 2026-11-19): JB2A / Eskie effects turned into 10-across frame sheets, kept as private art
  * in modules/qin-3k-characters/art/fx/ (never in this repository). A missing sheet loads as null and is skipped. */
 
 const FX_DIR = "modules/qin-3k-characters/art/fx/";
@@ -20,6 +20,11 @@ export const SHEETS = {
   hsStars: ["sunquan-stars.webp", 60, 300, 300, 15],
   // Sun Quan: Guardian of the Great River (allies on or next to water)
   grWater: ["sunquan-water.webp", 78, 240, 240, 15],
+  // Yuan Shao: Lord of the North (battle start) and The Hundred Thousand (Eskie Effects Patreon)
+  ysGather: ["yuanshao-gather.webp", 19, 200, 200, 15],
+  ysBurst: ["yuanshao-burst.webp", 22, 200, 200, 15],
+  ysDustRing: ["yuanshao-dustring.webp", 15, 200, 200, 15],
+  ysDustPuff: ["yuanshao-dustpuff.webp", 18, 200, 200, 15],
 };
 const cache = {};
 export function loadSheet(key) {

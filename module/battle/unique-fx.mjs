@@ -20,7 +20,7 @@ import { playMoment } from "../sound.mjs";
 import { loadSheets, frameAt, sheetSprite, showFrame } from "./sheet-fx.mjs";
 
 import { factionOf } from "../factions.mjs";
-import { analyseFlag, releaseUnits } from "../unit-bars.mjs";
+import { analyseFlag, releaseUnits, playStandSweep } from "../unit-bars.mjs";
 
 const rnd = (a, b) => a + Math.random() * (b - a);
 const Blur = () => PIXI.BlurFilter ?? PIXI.filters?.BlurFilter;
@@ -1332,6 +1332,7 @@ const ON_ACTIVATE_SPREAD = {
   "Fight or Be Butchered": (token, touched, release) => tyrantsWhip(token, touched, release),
   "Lightning Campaign": (token, touched, release) => lightningCampaign(token, touched, release, 4),
   "Heaven-Sent Talent": (token, touched, release) => heavenSent(token, touched, release),
+  "The Hundred Thousand": (token, touched, release) => hundredThousand(token, touched, release),
   "Iron Rule": (token, touched, release) => tyrantsWhip(token, touched, release), // its old name (cards not yet updated)
   // the units it holds are released by the stones (playSentinels), not at the end of the banner
   "Stone Sentinel Maze": (token) => eightTrigrams(token),
@@ -1356,6 +1357,12 @@ export function playUniqueContest(skill, token, results, tokOf, float) {
 export function playUniqueAttack(skill, attacker, defender) {
   const fn = ON_ATTACK[skill];
   return fn ? fn(attacker, defender) : null;
+}
+/** Passives that play at the start of battle, by name (Yuan Shao's Lord of the North). units: the ones it raised. */
+const ON_PASSIVE_START = { "Lord of the North": (token, units) => lordOfTheNorth(token, units) };
+export function playUniquePassiveStart(skill, token, units = []) {
+  const fn = ON_PASSIVE_START[skill];
+  return fn && token && !token.destroyed ? fn(token, units) : null;
 }
 export function playUniqueActivation(st, token, release = null) {
   const spread = ON_ACTIVATE_SPREAD[st?.skill];
@@ -1995,6 +2002,104 @@ function heavenSent(token, touched = [], release = () => {}) {
       if (t < END) return true;
       if (!done && ally) release([ally.id]);
       root.destroy({ children: true }); return false;
+    });
+  });
+}
+
+/* ------------------------------------------------------------ Yuan Shao (David, 2026-11-21; approved mockup v8) */
+
+/** Lord of the North, at the start of battle: gold light gathers on Yuan Shao and bursts; a red war banner with 袁 rises
+ *  on a pole standing on the centre of his square, hangs from its crossbar and ripples, then fades. As it starts to
+ *  fade every unit on his side whose starting morale it raised gets the blue buff sweep (its +15 morale float follows,
+ *  over the banner). Eskie Effects sheets; the banner is drawn. Resolves when the sweeps start; the fade runs on. */
+function lordOfTheNorth(token, units = []) {
+  const G = canvas.grid?.size ?? Math.min(token.w, token.h), k = G / 64;
+  return loadSheets(["ysGather", "ysBurst"]).then(({ ysGather, ysBurst }) => new Promise(resolve => {
+    const under = new PIXI.Container(); topLayer().addChild(under);
+    const gather = sheetSprite(ysGather, 190 * k); if (gather) under.addChild(gather);
+    const burst = sheetSprite(ysBurst, 240 * k); if (burst) under.addChild(burst);
+    const flag = new PIXI.Graphics(); under.addChild(flag);
+    const glyph = new PIXI.Text("袁", { fontFamily: ["KaiTi", "STKaiti", "Noto Serif CJK SC", "Noto Serif SC", "SimSun", "serif"], fontSize: 26 * k * 2, fontWeight: "700", fill: 0xf6e3a8 });
+    glyph.anchor.set(0.5); glyph.scale.set(0.5); under.addChild(glyph);
+    const title = new PIXI.Text("Lord of the North", { fontFamily: "Signika, sans-serif", fontSize: 16 * k * 2, fontWeight: "600", fill: 0xffd76a, stroke: 0x000000, strokeThickness: 6 * k });
+    title.anchor.set(0.5); title.scale.set(0.5); under.addChild(title);
+    const sm = (x) => x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x);
+    const SWEEP = 2.3, END = 3.4; let swept = false;
+    run((dt, t) => {
+      const c = token.destroyed ? null : token.center;
+      if (c) {
+        if (gather) { gather.position.set(c.x, c.y); showFrame(gather, frameAt(ysGather, t), 0.9); }
+        if (burst) { burst.position.set(c.x, c.y); showFrame(burst, frameAt(ysBurst, t - 0.6)); }
+        // the banner: pole foot on the centre of his square, cloth 40 × 70 (mockup px at a 64 px square)
+        const q = t - 0.5; flag.clear(); glyph.visible = false;
+        if (q >= 0 && q < 2.6) {
+          const rise = sm(Math.min(1, q / 0.6)), a = q > 2.1 ? (2.6 - q) / 0.5 : Math.min(1, q / 0.2);
+          const W = 40 * k, H = 70 * k, x = c.x, top = c.y - H - 24 * k + (1 - rise) * 24 * k, bot = c.y;
+          flag.alpha = a; glyph.alpha = a;
+          flag.lineStyle(3 * k, 0x3a2414, 1).moveTo(x, bot).lineTo(x, top - 8 * k);
+          flag.lineStyle(2.5 * k, 0x3a2414, 1).moveTo(x - W / 2 - 5 * k, top).lineTo(x + W / 2 + 5 * k, top);
+          flag.lineStyle(0).beginFill(0xd9b45a).drawCircle(x, top - 10 * k, 3.5 * k).endFill();
+          const step = 2 * k;
+          for (let i = 0; i < W; i += step) { const off = Math.sin(q * 7 - (i / k) * 0.2) * 2.2 * k * (0.3 + 0.7 * (i / W)); flag.beginFill(0xa8231a).drawRect(x - W / 2 + i, top + 1 * k, step * 1.1, H + off * 0.6).endFill(); }
+          flag.beginFill(0xa8231a).drawPolygon([x - W / 2, top + H, x + W / 2, top + H, x + W / 2, top + H + (9 + Math.sin(q * 7) * 1.5) * k, x, top + H + 1 * k, x - W / 2, top + H + (9 + Math.sin(q * 7 - 2) * 1.5) * k]).endFill();
+          flag.lineStyle(1.5 * k, 0xe3c46a, 1).drawRect(x - W / 2 + 3 * k, top + 4 * k, W - 6 * k, H - 6 * k);
+          glyph.visible = true; glyph.position.set(x, top + H / 2 + (1 + Math.sin(q * 7 - 3) * 1.2) * k);
+        }
+        const tq = t - 0.4; title.position.set(c.x, c.y - 124 * k);
+        title.alpha = tq < 0 ? 0 : tq < 0.2 ? tq / 0.2 : tq < 1.6 ? 1 : Math.max(0, 1 - (tq - 1.6) / 0.6);
+      }
+      if (!swept && t >= SWEEP) { swept = true; for (const u of units) playStandSweep(u); resolve(); }
+      if (t < END) return true;
+      if (!swept) { for (const u of units) playStandSweep(u); resolve(); }
+      under.destroy({ children: true }); return false;
+    });
+  }));
+}
+
+/** The Hundred Thousand: Yuan Shao stomps twice, kicking up dust (a ring and two puffs each time, the view shaking a
+ *  little); then every unit the active reached answers with two stomps of its own, and as they land their buffs do
+ *  (the blue sweep). Eskie Effects dust sheets. */
+function hundredThousand(token, touched = [], release = () => {}) {
+  const G = canvas.grid?.size ?? Math.min(token.w, token.h), k = G / 64;
+  const others = touched.map(id => canvas.tokens?.get(id)).filter(u => u && !u.destroyed && u.id !== token.id);
+  return loadSheets(["ysDustRing", "ysDustPuff"]).then(({ ysDustRing, ysDustPuff }) => {
+    const layer = groundLayer();
+    const STOMPS = [0, 0.45], ECHO = 1.15, LAND = 0.28, RELEASE = ECHO + 0.9, END = ECHO + 2.0;
+    const mk = (u, at, big) => {
+      const base = { x: u.document.x + u.w / 2, y: u.document.y + u.h / 2 };
+      const fx = STOMPS.map(() => {
+        const ring = sheetSprite(ysDustRing, (big ? 170 : 120) * k), l = sheetSprite(ysDustPuff, (big ? 100 : 75) * k), r = sheetSprite(ysDustPuff, (big ? 100 : 75) * k);
+        for (const sp of [ring, l, r]) if (sp) { sp.blendMode = PIXI.BLEND_MODES.NORMAL; layer.addChild(sp); }
+        if (r) r.scale.x *= -1;
+        return { ring, l, r };
+      });
+      return { u, at, base, fx };
+    };
+    const units = [mk(token, 0, true), ...others.map(u => mk(u, ECHO, false))];
+    let released = false;
+    return run((dt, t) => {
+      let shake = 0;
+      for (const m of units) {
+        if (m.u.destroyed) continue;
+        const q = t - m.at; let hop = 0;
+        STOMPS.forEach((s0, i) => {
+          const h = q - s0; if (h > 0 && h < LAND + 0.04) hop -= Math.sin(Math.PI * Math.min(1, h / LAND)) * 9 * k;
+          const d = q - s0 - LAND, f = m.fx[i];
+          if (f.ring) { f.ring.position.set(m.base.x, m.base.y + 18 * k); showFrame(f.ring, frameAt(ysDustRing, d, { speed: 1.3 })); }
+          if (f.l) { f.l.position.set(m.base.x - 28 * k, m.base.y + 14 * k); showFrame(f.l, frameAt(ysDustPuff, d)); }
+          if (f.r) { f.r.position.set(m.base.x + 28 * k, m.base.y + 14 * k); showFrame(f.r, frameAt(ysDustPuff, d)); }
+          if (d > 0 && d < 0.2) shake = Math.max(shake, (m.u === token ? 0.22 : 0.15) * (1 - d / 0.2));
+        });
+        if (q > 0 && q < STOMPS[1] + LAND + 0.1) placeAt(m.u, m.base.x, m.base.y + hop);
+        else if (q >= STOMPS[1] + LAND + 0.1 && !m.reset) { m.reset = true; placeAt(m.u, m.base.x, m.base.y); }
+      }
+      shakeScreen(shake, t);
+      if (!released && t >= RELEASE) { released = true; release(touched); }
+      if (t < END) return true;
+      shakeScreen(0, t);
+      for (const m of units) if (!m.u.destroyed) { placeAt(m.u, m.base.x, m.base.y); try { m.u.renderFlags?.set({ refreshPosition: true }); } catch { /* fine */ } }
+      if (!released) release(touched);
+      layer.destroy({ children: true }); return false;
     });
   });
 }

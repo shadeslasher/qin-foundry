@@ -432,7 +432,7 @@ async function postLog(entries, s) {
 /** Skills with their own animations (David, 2026-11-09; played by battle/unique-fx.mjs): attacks made while the active's
  *  buff is on, contested rolls a passive makes everyone around it take (the end-of-turn terror), and its extra turns. */
 export const UNIQUE_ATTACK = ["None Can Stand Before Him"], UNIQUE_CONTEST = ["Terror of the Battlefield", "Stone Sentinel Maze", "Roar That Breaks Bridges", "Terror of Changban"], UNIQUE_EXTRA = ["Terror of the Battlefield"],
-  UNIQUE_PICKED = ["The Wolf Bares His Fangs"], UNIQUE_ZAP = ["Eighty Jin of Iron"], UNIQUE_SELF = ["Fight or Be Butchered", "Iron Rule"], UNIQUE_STACK = ["Reckless Conqueror"], UNIQUE_POUNCE = ["The Tiger Pounces"]; // ZAP: its damage to one unit has its own animation (unique-fx ON_ZAP)
+  UNIQUE_PICKED = ["The Wolf Bares His Fangs"], UNIQUE_ZAP = ["Eighty Jin of Iron"], UNIQUE_SELF = ["Fight or Be Butchered", "Iron Rule"], UNIQUE_STACK = ["Reckless Conqueror"], UNIQUE_POUNCE = ["The Tiger Pounces"], UNIQUE_PASSIVE_START = ["Lord of the North"]; // ZAP: its damage to one unit has its own animation (unique-fx ON_ZAP)
 function uniqueAttackOf(s, id) {
   const u = E.unitById(s, id);
   return (u?.fx?.buffs ?? []).map(b => b.name).find(n => UNIQUE_ATTACK.includes(n)) ?? null;
@@ -489,6 +489,17 @@ function animateChanges(scene, before, s, entries, actionType = null) {
     if (e.detail?.type === "skillCounter" && UNIQUE_STACK.includes(e.detail.skill)) { steps.push({ kind: "selfFx", skill: e.detail.skill, unit: e.detail.unit, amount: e.detail.count }); continue; } // a stack gained (Sun Ce)
     if (e.detail?.type === "skillMorale" && e.detail.lost > 0 && UNIQUE_SELF.includes(e.detail.skill)) {
       steps.push({ kind: "selfFx", skill: e.detail.skill, unit: e.detail.unit, amount: e.detail.lost }); add(e.detail.unit, "morale", -e.detail.lost); continue;
+    }
+    // a passive that plays at the start of battle (Yuan Shao's banner), then the units whose starting morale it raised
+    // get the blue sweep as their morale float shows (David, 2026-11-21)
+    if (e.detail?.type === "passiveStart") {
+      if (UNIQUE_PASSIVE_START.includes(e.detail.skill)) {
+        const src = E.unitById(s, e.detail.unit);
+        const units = entries.filter(x => x.detail?.type === "skillMorale" && x.detail.start > 0).map(x => x.detail.unit)
+          .filter(id => E.unitById(s, id)?.side === src?.side);
+        steps.push({ kind: "passiveStart", unit: e.detail.unit, skill: e.detail.skill, units });
+      }
+      continue;
     }
     // a tactic plays where it fired: before the attack that set it off
     if (e.detail?.type === "tactic") { steps.push({ kind: "tactic", tactic: e.detail.tactic }); continue; }

@@ -7,7 +7,7 @@ import { SYSTEM_ID } from "./config.mjs";
 import { playStepSounds, attackSounds, playMoment } from "./sound.mjs";
 import { drawUnitBars, freezeUnits } from "./unit-bars.mjs";
 import { playActivation } from "./battle/activation-fx.mjs";
-import { playSweep, playUniqueAttack, playUniquePounce, playUniqueContest, playAnotherTurn, playUniqueRide, playUniqueZap, playWalk, playUniqueSelf } from "./battle/unique-fx.mjs";
+import { playSweep, playUniqueAttack, playUniquePounce, playUniqueContest, playAnotherTurn, playUniqueRide, playUniqueZap, playWalk, playUniqueSelf, playUniquePassiveStart } from "./battle/unique-fx.mjs";
 
 const SOCKET = `system.${SYSTEM_ID}`;
 
@@ -1137,6 +1137,9 @@ async function playBattleAnimNow({ sceneId, steps }) {
       } else if (st.kind === "selfFx") { // e.g. Dong Zhuo's whip on a driven unit at the end of its turn
         const t = tok(st.unit), done = playUniqueSelf(st.skill, t, st.amount, (style, text) => { if (t) floatLocal(t.center, style, text); });
         if (done) await done; else { if (t) floatLocal(t.center, "moraleDown", `\u2212${st.amount} morale`); await wait(500); }
+      } else if (st.kind === "passiveStart") { // e.g. Yuan Shao's banner at the start of battle; it plays the units' sweeps itself
+        const done = playUniquePassiveStart(st.skill, tok(st.unit), (st.units ?? []).map(tok).filter(Boolean));
+        if (done) await done;
       } else if (st.kind === "anotherTurn") {
         await playAnotherTurn(tok(st.unit));
       } else if (st.kind === "floats") {

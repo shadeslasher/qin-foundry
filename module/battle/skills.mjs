@@ -444,9 +444,11 @@ export function onRoundStart(s) {
 }
 /** Engine hook: the battle starts (round 1, after tactics). */
 export function onBattleStart(s) {
+  // an officer's passive that changes starting morale is named first, so its animation can play before the morale lands
+  for (const X of live(s)) { const sp = specsOf(s, X); if (sp?.passive?.mods?.some(m => m.stat === 'startMorale')) say(s, (sp.officer?.name || X.name) + ' · ' + (sp.passiveName || 'passive') + '.', { type: 'passiveStart', unit: X.id, skill: sp.passiveName || null }); }
   for (const X of live(s)) {
     const sm = stat(s, X, 'startMorale');
-    if (sm) { X.morale = Math.max(0, Math.min(100, (X.morale ?? 50) + sm)); say(s, X.name + (sm > 0 ? ' starts the battle with +' : ' starts the battle with ') + sm + ' morale (battlefield skill).', { type: 'skillMorale', unit: X.id }); }
+    if (sm) { X.morale = Math.max(0, Math.min(100, (X.morale ?? 50) + sm)); say(s, X.name + (sm > 0 ? ' starts the battle with +' : ' starts the battle with ') + sm + ' morale (battlefield skill).', { type: 'skillMorale', unit: X.id, start: sm }); }
   }
   for (const X of live(s)) event(s, 'battleStart', X);
   // what the GM still applies by hand: passives the engine can't fully play
