@@ -2076,7 +2076,7 @@ function hundredThousand(token, touched = [], release = () => {}) {
       return { u, at, base, fx };
     };
     const units = [mk(token, 0, true), ...others.map(u => mk(u, ECHO, false))];
-    let released = false;
+    let released = false; const heard = new Set();
     return run((dt, t) => {
       let shake = 0;
       for (const m of units) {
@@ -2085,6 +2085,10 @@ function hundredThousand(token, touched = [], release = () => {}) {
         STOMPS.forEach((s0, i) => {
           const h = q - s0; if (h > 0 && h < LAND + 0.04) hop -= Math.sin(Math.PI * Math.min(1, h / LAND)) * 9 * k;
           const d = q - s0 - LAND, f = m.fx[i];
+          // the stomp sound (David, 2026-11-21: BLFX ground hit): Yuan Shao's at full volume; the answering units stomp
+          // together, so one quieter sound per answering stomp
+          const key = (m.u === token ? "ys" : "echo") + i;
+          if (d >= 0 && !heard.has(key)) { heard.add(key); playMoment("Stomp", { minGap: 0, volume: m.u === token ? 1 : 0.6 }); }
           if (f.ring) { f.ring.position.set(m.base.x, m.base.y + 18 * k); showFrame(f.ring, frameAt(ysDustRing, d, { speed: 1.3 })); }
           if (f.l) { f.l.position.set(m.base.x - 28 * k, m.base.y + 14 * k); showFrame(f.l, frameAt(ysDustPuff, d)); }
           if (f.r) { f.r.position.set(m.base.x + 28 * k, m.base.y + 14 * k); showFrame(f.r, frameAt(ysDustPuff, d)); }

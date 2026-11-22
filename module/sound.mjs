@@ -10,7 +10,7 @@ import { atSpeed } from "./battle/battle-speed.mjs";
 /** Every moment the battle can play a sound for, grouped as in the panel. `local`: only the person acting hears it. */
 export const MOMENT_GROUPS = [
   ["Combat", ["Melee hit", "Sweep hit", "Miss or blocked", "Bow shot", "Crossbow shot", "Overwatch shot",
-    "Unit destroyed", "Morale drop", "Morale up / rally", "Level up", "XP gained", "Fire catches / burning", "Duel clash"]],
+    "Unit destroyed", "Morale drop", "Morale up / rally", "Level up", "XP gained", "Fire catches / burning", "Duel clash", "Stomp"]],
   ["Turn and actions", ["Battle start", "Condition shown", "Round start", "Turn start",
     "Unit selected", "Infantry moves", "Cavalry moves", "Hold", "Overwatch set", "Reload", "Tactic placed", "Tactic triggered",
     "Officer skill", "Buff lands", "Debuff lands", "Gate opens", "Gate destroyed", "Ladder placed", "Victory", "Defeat"]],
@@ -63,8 +63,8 @@ export function soundVolume() { return get("soundMuted", false) ? 0 : Math.max(0
 
 const lastPlayed = new Map();
 /** Play a moment on this computer. `minGap` (ms) stops the same moment piling up (cursor moves, several falls). */
-export function playMoment(moment, { minGap = 60 } = {}) {
-  const vol = soundVolume();
+export function playMoment(moment, { minGap = 60, volume = 1 } = {}) {
+  const vol = soundVolume() * Math.max(0, Math.min(1, volume));
   if (!vol) return null;
   const now = Date.now();
   if (now - (lastPlayed.get(moment) ?? 0) < minGap) return null;
