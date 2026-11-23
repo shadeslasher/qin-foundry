@@ -10,7 +10,7 @@ import { atSpeed } from "./battle/battle-speed.mjs";
 /** Every moment the battle can play a sound for, grouped as in the panel. `local`: only the person acting hears it. */
 export const MOMENT_GROUPS = [
   ["Combat", ["Melee hit", "Sweep hit", "Miss or blocked", "Bow shot", "Crossbow shot", "Overwatch shot",
-    "Unit destroyed", "Morale drop", "Morale up / rally", "Level up", "XP gained", "Fire catches / burning", "Duel clash", "Stomp"]],
+    "Unit destroyed", "Morale drop", "Morale up / rally", "Level up", "XP gained", "Fire catches / burning", "Duel clash", "Stomp", "Ground cracks", "Flames erupt", "Flames roar", "Stone grinds", "Wolves howl"]],
   ["Turn and actions", ["Battle start", "Condition shown", "Round start", "Turn start",
     "Unit selected", "Infantry moves", "Cavalry moves", "Hold", "Overwatch set", "Reload", "Tactic placed", "Tactic triggered",
     "Officer skill", "Buff lands", "Debuff lands", "Gate opens", "Gate destroyed", "Ladder placed", "Victory", "Defeat"]],
@@ -63,12 +63,14 @@ export function soundVolume() { return get("soundMuted", false) ? 0 : Math.max(0
 
 const lastPlayed = new Map();
 /** Play a moment on this computer. `minGap` (ms) stops the same moment piling up (cursor moves, several falls). */
-export function playMoment(moment, { minGap = 60, volume = 1 } = {}) {
+export function playMoment(moment, { minGap = 60, volume = 1, pick = null } = {}) {
   const vol = soundVolume() * Math.max(0, Math.min(1, volume));
   if (!vol) return null;
   const now = Date.now();
   if (now - (lastPlayed.get(moment) ?? 0) < minGap) return null;
-  const src = pickSound(soundsFor(moment, pack, overrides()));
+  const list = soundsFor(moment, pack, overrides());
+  // pick: a given file of the moment's list (a skill playing its files in order), else one at random
+  const src = pick !== null && list?.length ? list[((pick % list.length) + list.length) % list.length] : pickSound(list);
   if (!src) return null;
   lastPlayed.set(moment, now);
   try {

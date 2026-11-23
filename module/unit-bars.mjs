@@ -805,6 +805,10 @@ function noteLanded(battle, eff) {
 const frozen = new Map(); // tokenId -> timeout
 /** Play the blue buff sweep (or the red debuff one) on a unit now, e.g. for a morale gain that isn't a buff (Yuan Shao's
  *  Lord of the North at the start of battle, David 2026-11-21). */
+/** Some skills play their own sound instead of the default "Buff lands" / "Debuff lands" (David, 2026-11-22: Guan Yu,
+ *  Lu Bu, Zhuge Liang, Sima Yi): the sweeps that start in the next ms stay silent. */
+let burstSoundMutedUntil = 0;
+export function muteBurstSounds(ms) { burstSoundMutedUntil = Math.max(burstSoundMutedUntil, Date.now() + ms); }
 export function playStandSweep(token, kind = "buff") {
   if (!token || token.destroyed) return;
   pendingBurst.set(token.id, [kind]);
@@ -874,7 +878,7 @@ function playBurst(token, kinds, w, h, T, pad) {
   });
   token.addChild(box);
   // the burst's sound (David, 2026-11-11): once per wave however many units it lands on; a debuff's plays with its own layer
-  kinds.forEach((kind, i) => { const m = kind === "buff" ? "Buff lands" : "Debuff lands"; if (i) setTimeout(() => playMoment(m, { minGap: 400 }), i * 1500); else playMoment(m, { minGap: 400 }); });
+  if (Date.now() >= burstSoundMutedUntil) kinds.forEach((kind, i) => { const m = kind === "buff" ? "Buff lands" : "Debuff lands"; if (i) setTimeout(() => playMoment(m, { minGap: 400 }), i * 1500); else playMoment(m, { minGap: 400 }); });
   const DUR = 1.5, SWEEP = 0.35, SPEED = 184 * sc; // the pattern moves at one steady speed for the whole burst
   let t = 0;
   const tick = () => {

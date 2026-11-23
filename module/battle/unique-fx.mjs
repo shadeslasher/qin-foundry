@@ -20,7 +20,7 @@ import { playMoment } from "../sound.mjs";
 import { loadSheets, frameAt, sheetSprite, showFrame } from "./sheet-fx.mjs";
 
 import { factionOf } from "../factions.mjs";
-import { analyseFlag, releaseUnits, playStandSweep } from "../unit-bars.mjs";
+import { analyseFlag, releaseUnits, playStandSweep, muteBurstSounds } from "../unit-bars.mjs";
 
 const rnd = (a, b) => a + Math.random() * (b - a);
 const Blur = () => PIXI.BlurFilter ?? PIXI.filters?.BlurFilter;
@@ -737,6 +737,7 @@ function stoneSentinel(token, resisted, i, float) {
 }
 /** Stone Sentinel Maze: a stone on each unit it was used on, one after another. */
 export function playSentinels(results, tokOf, float) {
+  playMoment("Stone grinds", { minGap: 0 }); muteBurstSounds(results.length * 120 + 5000); // David, 2026-11-22
   // each unit's debuff lands (its stand is released) once its stone has risen and gone (David, 2026-11-11)
   const all = results.map(([id, lost], i) => new Promise(res => setTimeout(() => res(stoneSentinel(tokOf(id), !lost, i, (style, text) => float?.(id, style, text))), atSpeed(i * 120)))
     .then(() => releaseUnits([id])));
@@ -891,7 +892,7 @@ export function playHunt(token, float) {
       w.ph += dt * (13 + 9 * close);   // the stride quickens as they close
       drawWolfRun(w.g, u, w.ph, leap);
     }
-    if (hit < 0 && a >= CIRCLE + 0.2) { hit = a; float?.("unitDamage", "Hunted"); }
+    if (hit < 0 && a >= CIRCLE + 0.2) { hit = a; float?.("unitDamage", "Hunted"); muteBurstSounds(1500); releaseUnits([token.id]); }
     if (hit >= 0) {
       const q = a - hit, kk = Math.min(1, q / 0.7);
       flash.alpha = 0.5 * (1 - kk);
@@ -1312,14 +1313,33 @@ function peachGarden(token, touched = [], release = () => {}, reach = 4) {
   });
 }
 
+/* ------------------------------------------------------------ skill sounds (David, 2026-11-22) */
+
+/** Sounds a skill plays instead of the default buff/debuff sound, at given seconds into its animation (before battle
+ *  speed). Each entry: [seconds, moment, { volume, pick }]. The files come from the character module's sound pack. */
+const SKILL_SOUNDS = {
+  // Guan Yu: earth tearing on the first two heaves, a ground hit under each (BLFX)
+  "Might That Shakes the Realm": [[-0.05, "Ground cracks", { pick: 0 }], [0, "Stomp", { volume: 0.8 }], [0.85, "Stomp", { volume: 0.9 }], [0.85, "Ground cracks", { pick: 1, volume: 0.85 }], [1.7, "Stomp", { volume: 1 }]],
+  // Lu Bu: a burst of fire as the flames erupt, then their roar (BLFX)
+  "None Can Stand Before Him": [[-0.05, "Flames erupt", {}], [0.45, "Flames roar", { volume: 0.8 }]],
+  // Sima Yi: the wolves howl one after another as they appear (PF2e Creature Sounds, hyena howls)
+  "The Wolf Bares His Fangs": [[0.85, "Wolves howl", { pick: 0 }], [1.3, "Wolves howl", { pick: 1, volume: 0.85 }], [1.75, "Wolves howl", { pick: 2, volume: 0.85 }], [2.15, "Wolves howl", { pick: 3, volume: 0.75 }]],
+};
+/** Silence the default buff/debuff sound now if this skill plays its own (call before its own unit's buff lands). */
+export function hushForSkill(skill) { if (SKILL_SOUNDS[skill]) muteBurstSounds(1500); }
+function playSkillSounds(skill) {
+  const list = SKILL_SOUNDS[skill]; if (!list) return;
+  muteBurstSounds(1500);
+  for (const [sec, moment, o] of list) setTimeout(() => playMoment(moment, { minGap: 0, ...o }), Math.max(0, atSpeed(sec * 1000)));
+}
+
 /* ------------------------------------------------------------ registry */
 
 /** Special animations played when a tier 1+ active is used, by the active's name. */
 const ON_ACTIVATE = {
-  "Might That Shakes the Realm": (token) => groundCrack(token),
-  "None Can Stand Before Him": (token) => Promise.all([warAura(token), fireEruption(token)]),
+  "Might That Shakes the Realm": (token) => (playSkillSounds("Might That Shakes the Realm"), groundCrack(token)),
+  "None Can Stand Before Him": (token) => (playSkillSounds("None Can Stand Before Him"), Promise.all([warAura(token), fireEruption(token)])),
   "Stone Sentinel Maze": (token) => eightTrigrams(token),
-  "The Wolf Bares His Fangs": (token) => wolfPack(token),
   "Eighty Jin of Iron": (token) => gateHolds(token),
 };
 /** Animations that release the units the active touched themselves, as their effect reaches them. */
@@ -1332,6 +1352,8 @@ const ON_ACTIVATE_SPREAD = {
   "Fight or Be Butchered": (token, touched, release) => tyrantsWhip(token, touched, release),
   "Lightning Campaign": (token, touched, release) => lightningCampaign(token, touched, release, 4),
   "Heaven-Sent Talent": (token, touched, release) => heavenSent(token, touched, release),
+  // the unit he picked keeps its debuff until the wolves pounce on it (playHunt releases it; David, 2026-11-22)
+  "The Wolf Bares His Fangs": (token) => (playSkillSounds("The Wolf Bares His Fangs"), wolfPack(token)),
   "The Hundred Thousand": (token, touched, release) => hundredThousand(token, touched, release),
   "Iron Rule": (token, touched, release) => tyrantsWhip(token, touched, release), // its old name (cards not yet updated)
   // the units it holds are released by the stones (playSentinels), not at the end of the banner
