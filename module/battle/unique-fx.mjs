@@ -1322,8 +1322,8 @@ const SKILL_SOUNDS = {
   "Might That Shakes the Realm": [[-0.05, "Ground cracks", { pick: 0 }], [0, "Stomp", { volume: 0.8 }], [0.85, "Stomp", { volume: 0.9 }], [0.85, "Ground cracks", { pick: 1, volume: 0.85 }], [1.7, "Stomp", { volume: 1 }]],
   // Lu Bu: a burst of fire as the flames erupt, then their roar (BLFX)
   "None Can Stand Before Him": [[-0.05, "Flames erupt", {}], [0.45, "Flames roar", { volume: 0.8 }]],
-  // Sima Yi: the wolves howl one after another as they appear (PF2e Creature Sounds, hyena howls)
-  "The Wolf Bares His Fangs": [[0.85, "Wolves howl", { pick: 0 }], [1.3, "Wolves howl", { pick: 1, volume: 0.85 }], [1.75, "Wolves howl", { pick: 2, volume: 0.85 }], [2.15, "Wolves howl", { pick: 3, volume: 0.75 }]],
+  // Sima Yi: the pack howls almost as one, drawn out with an echo (PF2e Creature Sounds hyena howls, slowed; David, 2026-11-22)
+  "The Wolf Bares His Fangs": [[0.85, "Wolves howl", { pick: 0, volume: 0.8 }], [0.87, "Wolves howl", { pick: 1, volume: 0.7 }], [0.9, "Wolves howl", { pick: 2, volume: 0.7 }], [0.92, "Wolves howl", { pick: 3, volume: 0.65 }]],
 };
 /** Silence the default buff/debuff sound now if this skill plays its own (call before its own unit's buff lands). */
 export function hushForSkill(skill) { if (SKILL_SOUNDS[skill]) muteBurstSounds(1500); }
