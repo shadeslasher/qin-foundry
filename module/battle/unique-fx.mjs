@@ -1324,12 +1324,16 @@ const SKILL_SOUNDS = {
   "None Can Stand Before Him": [[-0.05, "Flames erupt", {}], [0.45, "Flames roar", { volume: 0.8 }]],
   // Sima Yi: the pack howls almost as one, drawn out with an echo (PF2e Creature Sounds hyena howls, slowed; David, 2026-11-22)
   "The Wolf Bares His Fangs": [[0.85, "Wolves howl", { pick: 0, volume: 0.8 }], [0.87, "Wolves howl", { pick: 1, volume: 0.7 }], [0.9, "Wolves howl", { pick: 2, volume: 0.7 }], [0.92, "Wolves howl", { pick: 3, volume: 0.65 }]],
+  // Cao Cao: his army shouts as the flags unfurl (TW3K group cry, stacked into a crowd and stretched; David, 2026-11-23)
+  "The Hero Commands": [[0.5, "Army shouts", { volume: 0.55 }]],
 };
+/** How long a skill keeps the default buff/debuff sound quiet, when its buffs land over longer than 1.5s. */
+const SKILL_HUSH_MS = { "The Hero Commands": 3500 };
 /** Silence the default buff/debuff sound now if this skill plays its own (call before its own unit's buff lands). */
-export function hushForSkill(skill) { if (SKILL_SOUNDS[skill]) muteBurstSounds(1500); }
+export function hushForSkill(skill) { if (SKILL_SOUNDS[skill]) muteBurstSounds(SKILL_HUSH_MS[skill] ? atSpeed(SKILL_HUSH_MS[skill]) : 1500); }
 function playSkillSounds(skill) {
   const list = SKILL_SOUNDS[skill]; if (!list) return;
-  muteBurstSounds(1500);
+  muteBurstSounds(SKILL_HUSH_MS[skill] ? atSpeed(SKILL_HUSH_MS[skill]) : 1500);
   for (const [sec, moment, o] of list) setTimeout(() => playMoment(moment, { minGap: 0, ...o }), Math.max(0, atSpeed(sec * 1000)));
 }
 
@@ -1344,7 +1348,7 @@ const ON_ACTIVATE = {
 };
 /** Animations that release the units the active touched themselves, as their effect reaches them. */
 const ON_ACTIVATE_SPREAD = {
-  "The Hero Commands": (token, touched, release) => heroCommands(token, touched, release, 4),
+  "The Hero Commands": (token, touched, release) => (playSkillSounds("The Hero Commands"), heroCommands(token, touched, release, 4)),
   "Until the Day of Death Comes": (token, touched, release) => peachGarden(token, touched, release, 4),
   "Restore the Han": (token, touched, release) => peachGarden(token, touched, release, 4), // its old name (cards not yet updated)
   "Roar That Breaks Bridges": (token, touched, release) => roarOfChangban(token, 5, touched, release),
