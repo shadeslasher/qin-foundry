@@ -176,8 +176,8 @@ test('Dual Weapons: a second attack at -2 on another adjacent enemy, or skip', (
   assert.ok(!s.turn.activation || s.turn.activation.unitId !== A.id, 'turn over');
 });
 
-test('Charge Reflection (2026-10-30): only while holding; adds the charge bonus to the strike back, win or lose', () => {
- for (const [holding, win, want] of [[false, true, 93], [true, true, 88], [true, false, null]]) {
+test('Charge Reflection (2026-10-30; holding or not since 2026-11-24): adds the charge bonus to the strike back, win or lose', () => {
+ for (const [holding, win, want] of [[false, true, 89], [true, true, 88], [true, false, null]]) {
   const s = setup();
   s.library.unitTypes.push(unitType('cav', { category: 'cavalry' }), unitType('d'));
   const a = add(s, { typeId: 'cav', side: 'player', owner: 'p1', x: 5, y: 1 });
@@ -194,12 +194,12 @@ test('Charge Reflection (2026-10-30): only while holding; adds the charge bonus 
   const r = s.log.filter(e => e.detail && e.detail.type === 'attack').pop().detail.result;
   assert.ok(r.charge);
   if (want !== null) assert.strictEqual(R.unitById(s, a).men, want, `holding ${holding}`);
-  // the strike back carries the charge bonus (Fierce Charge +4) only while holding, win or lose
+  // the strike back carries the charge bonus (Fierce Charge +4), holding or not, win or lose
   else assert.strictEqual(r.damageToAttacker, 6 + 4, 'lost the roll: base damage 6 + charge bonus 4');
  }
 });
 
-test("Charge Reflection: a Hold carried over from last round doesn't count", () => {
+test("Charge Reflection: a Hold carried over from last round still works (it no longer needs a Hold, 2026-11-24)", () => {
   const s = setup();
   s.library.unitTypes.push(unitType('cav', { category: 'cavalry' }), unitType('d'));
   const a = add(s, { typeId: 'cav', side: 'player', owner: 'p1', x: 5, y: 1 });
@@ -213,8 +213,8 @@ test("Charge Reflection: a Hold carried over from last round doesn't count", () 
   R.unitById(s, d).round.holding = true; R.unitById(s, d).fx = { holdRound: s.turn.round - 1 }; // held last round
   dice([0, 0, 9, 0]);
   must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
-  assert.strictEqual(R.unitById(s, a).men, 92, 'Hold still gives +1 melee defense, but no charge bonus on the strike back (88 with it)');
-  assert.ok(!s.log.some(e => /Charge Reflection/.test(e.text || '')));
+  assert.strictEqual(R.unitById(s, a).men, 88, 'the charge bonus comes back on the strike back');
+  assert.ok(s.log.some(e => /Charge Reflection/.test(e.text || '')));
 });
 
 test('Inspiration: allies next to it gain 2 morale at the end of the round, not the end of its turn', () => {
@@ -472,4 +472,23 @@ test('Defend the Homeland: as the defender, melee defense +1 and the strike back
   const sb = duel(bow('a'), bow('d'), [0, 0, 9, 0], (a, d) => { d.traitTiers = { 'defend the homeland': 1 }; });
   const sbPlain = duel(bow('a'), bow('d'), [0, 0, 9, 0]);
   assert.strictEqual(sb.r.damageToAttacker, sbPlain.r.damageToAttacker + 1, 'shooting back: +1 damage, no defense bonus');
+});
+
+test('A holding unit is not shocked by a winning charge (David, 2026-11-24)', () => {
+  for (const holding of [false, true]) {
+    const s = setup();
+    s.library.unitTypes.push(unitType('cav', { category: 'cavalry' }), unitType('d'));
+    const a = add(s, { typeId: 'cav', side: 'player', owner: 'p1', x: 5, y: 1 });
+    const d = add(s, { typeId: 'd', side: 'enemy', x: 5, y: 5 });
+    must(R.act(s, HOST, { type: 'startBattle' })); dice([0, 0]); must(R.act(s, HOST, { type: 'startRound' }));
+    must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: a }));
+    s.freeMovement = false;
+    must(R.act(s, P1, { type: 'moveTo', unitId: a, x: 5, y: 4 }));
+    if (holding) R.unitById(s, d).round.holding = true;
+    dice([9, 0, 0, 0]);
+    must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
+    const r = s.log.filter(e => e.detail && e.detail.type === 'attack').pop().detail.result;
+    assert.ok(r.charge && r.winner === 'attacker');
+    assert.strictEqual(!!(R.unitById(s, d).fx || {}).shocked, !holding, holding ? 'held: no shock' : 'not holding: shocked');
+  }
 });

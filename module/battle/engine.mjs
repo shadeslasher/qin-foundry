@@ -1360,10 +1360,10 @@ function resolveAttackNow(s, attacker, defender, opts) {
   }
   // Defend the Homeland (Tao Qian, David 2026-11-02): the defender's strike back (melee or shooting back) deals +1 damage
   if (dmgToAtt > 0 && trait(defender, 'defend the homeland')) dmgToAtt += 1;
-  // Charge Reflection (David, 2026-10-30; this round's Hold only since 2026-11-01): a holding unit charged by cavalry adds the charge bonus to its strike back, win or lose,
-  // whenever it can strike back at all (never in the rear; Anti-Cavalry needed to strike back at a charge; not while Suppressed)
+  // Charge Reflection (David, 2026-10-30; works without holding since 2026-11-24): a unit charged by cavalry adds the charge bonus to its strike back, win or lose,
+  // whenever it can strike back at all (never in the rear; Anti-Cavalry needed to strike back at a charge; not while Suppressed or stripped of its defenses)
   let reflected = 0;
-  if (charge && at.category === 'cavalry' && canCounter && dmgToAtt > 0 && holdingNow(defender) && fx(defender).holdRound === s.turn.round && trait(defender, 'charge reflection')) { dmgToAtt += chargeBonus; reflected = chargeBonus; }
+  if (charge && at.category === 'cavalry' && canCounter && dmgToAtt > 0 && !suppressed(defender) && !SK.status(null, defender, 'stripDefenses') && trait(defender, 'charge reflection')) { dmgToAtt += chargeBonus; reflected = chargeBonus; }
   if (trait(attacker, 'duelist')) { dmgToAtt = 0; canCounter = false; } // Duelist: ignores counter-strike damage
   if (SK.flag(s, attacker, 'noStrikeBack', skc(attacker)) || SK.flag(s, attacker, 'noCounterDamage', skc(attacker))) { dmgToAtt = 0; canCounter = false; } // officers' battlefield skills
   if (winner === 'attacker' && SK.flag(s, attacker, 'noStrikeBackIfWin', skc(attacker))) { dmgToAtt = 0; }
@@ -1430,7 +1430,7 @@ function resolveAttackNow(s, attacker, defender, opts) {
   let trample = null;
   // Shock (David, 2026-10-31, a cavalry rule): any cavalry charge that wins the roll against foot troops leaves them
   // shocked: they can move only 1 tile on their next activation (David, 2026-11-10; was no movement).
-  if (charge && winner === 'attacker' && dt.category !== 'cavalry' && alive(defender) && !fx(defender).shocked) {
+  if (charge && winner === 'attacker' && dt.category !== 'cavalry' && alive(defender) && !fx(defender).shocked && !holdingNow(defender)) { // a holding unit isn't shocked (David, 2026-11-24)
     fx(defender).shocked = true;
     log(s, defender.name + ' is shocked by the charge and can move only 1 tile on its next activation.', { type: 'shocked', unit: defender.id });
   }
@@ -1527,7 +1527,7 @@ function resolveAttackNow(s, attacker, defender, opts) {
     '. Casualties: ' + defender.name + ' -' + casDef + ', ' + attacker.name + ' -' + casAtt +
     (loser ? '. ' + loser.name + ' loses ' + moraleLoss + ' morale' + (mult > 1 ? ' (x' + mult + ')' : '') : '') +
     (cmD || cmA ? '. Losses cost morale: ' + [cmD && defender.name + ' -' + cmD, cmA && attacker.name + ' -' + cmA].filter(Boolean).join(', ') : '') +
-    (reflected ? '. Charge Reflection (held this round): +' + reflected + ' to the strike back' : '') + '.',
+    (reflected ? '. Charge Reflection: +' + reflected + ' to the strike back' : '') + '.',
     { type: 'attack', result });
 
   // XP: casualties inflicted x (enemy tier / own tier), rounded down

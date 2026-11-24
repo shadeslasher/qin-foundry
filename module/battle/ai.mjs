@@ -214,11 +214,11 @@ function threatOf(s, u, side, P, areas, S, M) {
       harm = sim.harm * (sim.harm > 0 ? scale : 1);
     } else if (P.level === 2) {
       harm = traitHit(s, e, u, dist, holding) / mx(u);
-      if (cav && holding && E.unitTrait(u, 'charge reflection')) harm = -0.5 * harm * worth(s, e) / w;
+      if (cav && (E.unitTrait(u, 'charge reflection') && E.unitTrait(u, 'anti-cavalry') || holding && E.unitTrait(u, 'brace'))) harm = -0.5 * harm * worth(s, e) / w; // Charge Reflection works without holding (2026-11-24)
     } else {
       harm = naiveHit(s, e, u, dist) / mx(u);
       // what a skilled side knows: spears that hold make charging cavalry pay
-      if (!P.naive && cav && holding && (E.unitTrait(u, 'charge reflection') || E.unitTrait(u, 'brace'))) harm = -0.5 * harm * worth(s, e) / w;
+      if (!P.naive && cav && ((E.unitTrait(u, 'charge reflection') && E.unitTrait(u, 'anti-cavalry')) || (holding && E.unitTrait(u, 'brace')))) harm = -0.5 * harm * worth(s, e) / w;
       else if (!P.naive && cav && E.unitTrait(u, 'anti-cavalry')) harm *= 0.6;
     }
     hits.push(harm);
