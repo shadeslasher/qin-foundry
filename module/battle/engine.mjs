@@ -1154,6 +1154,9 @@ function buildRoll(s, unit, role, ctx) {
   // ...and Attack +1 / +2 / +3 on its own melee attacks against cavalry (David, 2026-10-29)
   if (role === 'attacker' && oc === 'cavalry' && !ctx.ranged && trait(unit, 'anti-cavalry') && !suppressed(unit)) // melee only
     parts.push(['Anti-Cavalry: attacking cavalry', tierVal(trait(unit, 'anti-cavalry'), [2, 4, 6])]); // +2 / +4 / +6 (David, 2026-11-24; was +1 / +2 / +3)
+  // Shield Breaker (David, 2026-11-24): Attack +2 / +4 / +6 / +6 (EX) on its own attacks against a unit with a shield; EX also ignores all its armor
+  if (role === 'attacker' && other && (typeOf(s, other) || {}).shield && trait(unit, 'shield breaker'))
+    parts.push(['Shield Breaker (target has shields)', tierVal(trait(unit, 'shield breaker'), [2, 4, 6, 6])]);
   if (role === 'attacker' && oc === 'infantry' && trait(unit, 'anti-infantry')) parts.push(['Anti-Infantry', tierVal(trait(unit, 'anti-infantry'), [1, 2, 4])]);
   // Ruthless Pursuit (Wei, David 2026-11-01): Attack +2 against an enemy at 50 morale or less
   // Opportunists (Xianbei, David 2026-11-01): Attack +2 against an enemy already next to another friendly unit
@@ -1369,10 +1372,9 @@ function resolveAttackNow(s, attacker, defender, opts) {
   if (winner === 'attacker' && SK.flag(s, attacker, 'noStrikeBackIfWin', skc(attacker))) { dmgToAtt = 0; }
 
   // Casualties = armor pen + what the damage leaves after armor, less Evasion in melee.
-  // Armor is lowered by Sunder, and Shield Breaker ignores the armor a unit gets from shields.
-  // Shield Breaker (David, 2026-10-30): against a unit with a shield (its weapon includes a shield) ignore 1 / 2 / 3 / 4 armor
-  // for Shield Breaker / + / ++ / EX
-  const armorOf = (t, u, breaker) => Math.max(0, (t.armor ?? t.defense ?? 0) + tierVal(trait(u, 'reinforced armor'), [1, 2, 3]) - (fx(u).sunder || 0) - (breaker && t.shield ? tierVal(breaker, [1, 2, 3, 4]) : 0) + (u === attacker || u === defender ? SK.stat(s, u, 'armor', skc(u)) : 0));
+  // Armor is lowered by Sunder. Shield Breaker EX ignores all the armor of a unit with a shield (David, 2026-11-24;
+  // Shield Breaker / + / ++ no longer ignore armor: they give Attack instead, see buildRoll)
+  const armorOf = (t, u, breaker) => (breaker >= 4 && t.shield) ? 0 : Math.max(0, (t.armor ?? t.defense ?? 0) + tierVal(trait(u, 'reinforced armor'), [1, 2, 3]) - (fx(u).sunder || 0) + (u === attacker || u === defender ? SK.stat(s, u, 'armor', skc(u)) : 0));
   const penA = Math.max(0, (ctx.catapult ? CATAPULT.pen + (imperialAura(s, attacker) ? 1 : 0) : penOf(s, at, attacker)) + SK.stat(s, attacker, 'pen', skc(attacker))), penD = Math.max(0, penOf(s, dt, defender) + SK.stat(s, defender, 'pen', skc(defender)));
   const evDef = ranged || SK.flag(s, attacker, 'ignoreEvasion', skc(attacker)) ? 0 : evasionOf(defender, trait(attacker, 'shield breaker')); // ignoreEvasion: Guan Yu (David, 2026-11-19)
   const returnRanged = dt.weapon === 'ranged' && !(!ranged && hybridOf(defender)); // a ranged unit's strike back is a shot, unless it's a Hybrid in melee

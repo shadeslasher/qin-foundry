@@ -156,10 +156,11 @@ function traitHit(s, att, def, tiles, holding) {
   const cav = ta.category === 'cavalry' && ta.weapon !== 'ranged';
   const charge = cav && tiles >= 2 ? [0, 2, 4, 6, 6][att.fierceCharge || 0] : 0;
   let armor = (td.armor || 0) + [0, 1, 2, 3][Math.min(3, E.unitTrait(def, 'reinforced armor'))];
-  if (td.shield && E.unitTrait(att, 'shield breaker')) armor -= [0, 1, 2, 3, 4][Math.min(4, E.unitTrait(att, 'shield breaker'))];
+  const sb = td.shield ? Math.min(4, E.unitTrait(att, 'shield breaker') || 0) : 0; // Shield Breaker: Attack +2/+4/+6/+6 against shields (≈ half as damage), EX ignores all armor
   if (cav && E.unitTrait(def, 'anti-cavalry')) armor += 2 * Math.min(3, E.unitTrait(def, 'anti-cavalry'));
   if (holding && ta.weapon !== 'ranged') armor += 1 + (E.unitTrait(def, 'brace') ? Math.min(3, E.unitTrait(def, 'brace')) : 0);
   let dmg = (ta.damage || 0) + 2 + charge + [0, 1, 2, 3][Math.min(3, E.unitTrait(att, 'sharpened weapons') || 0)];
+  dmg += [0, 1, 2, 3, 3][sb]; if (sb >= 4) armor = 0;
   if (E.unitTrait(def, 'colossal')) return 1;
   return E.casualtiesOf(dmg, Math.max(0, armor), ta.armorPen || 0, 0, 0);
 }

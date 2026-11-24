@@ -98,15 +98,17 @@ test('Counter-Attack: a winning defender strikes back harder; Duelist ignores st
   assert.strictEqual(A.men, 100);
 });
 
-test('Sunder and Poison stick to a beaten defender and do not stack; Shield Breaker ignores armor on shielded units', () => {
+test('Sunder and Poison stick to a beaten defender and do not stack; Shield Breaker against shielded units', () => {
   let { D } = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], (a, d) => { a.traitTiers = { sunder: 2, poison: 1 }; d.fx = { sunder: 2, poison: 1 }; });
   assert.strictEqual(D.fx.sunder, 4, 'Sunder+ replaces Sunder');
   assert.strictEqual(D.fx.poison, 1, "Poison doesn't stack");
-  // Shield Breaker (2026-10-30): against a shielded unit ignore 1/2/3/4 armor. Damage 6 + 11 = 17 against armor 3.
+  // Shield Breaker (2026-11-24): Attack +2/+4/+6/+6 against a shielded unit; EX also ignores all its armor. Damage 6 + 11 = 17 against armor 3.
   ({ D } = duel(unitType('a'), unitType('d', { shield: true }), [9, 0, 0, 0], (a) => { a.traitTiers = { 'shield breaker': 1 }; }));
-  assert.strictEqual(D.men, 100 - 15, 'Shield Breaker: armor 3 - 1');
+  assert.strictEqual(D.men, 100 - 16, 'Shield Breaker: Attack +2, damage 19 against armor 3');
+  ({ D } = duel(unitType('a'), unitType('d', { shield: true }), [9, 0, 0, 0], (a) => { a.traitTiers = { 'shield breaker': 3 }; }));
+  assert.strictEqual(D.men, 100 - 20, 'Shield Breaker++: Attack +6, damage 23 against armor 3');
   ({ D } = duel(unitType('a'), unitType('d', { shield: true }), [9, 0, 0, 0], (a) => { a.traitTiers = { 'shield breaker': 4 }; }));
-  assert.strictEqual(D.men, 100 - 17, 'Shield Breaker EX: armor 3 - 4 (min 0)');
+  assert.strictEqual(D.men, 100 - 23, 'Shield Breaker EX: Attack +6 and no armor');
   ({ D } = duel(unitType('a'), unitType('d'), [9, 0, 0, 0], (a) => { a.traitTiers = { 'shield breaker': 4 }; }));
   assert.strictEqual(D.men, 100 - 14, 'no shield: no effect');
 });
