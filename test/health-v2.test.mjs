@@ -29,3 +29,12 @@ test('health v3: moves a world unit by the template difference, keeps share of h
   assert.deepStrictEqual(tok, { 'delta.system.damage': 11 });
   assert.equal(healthV3Update({ men: { value: 10, max: 10 }, damage: 11 }, tmpl, { ...prev, damage: 11 }), null);
 });
+
+test('cavalry health 2026-11-24: melee cavalry 65 → 75, hybrid horse archers 50 → 65, keeping the share left', async () => {
+  const { cavHealthUpdate } = await import('../module/health-v2.mjs');
+  assert.deepStrictEqual(cavHealthUpdate({ men: { value: 52, max: 65 } }, { category: 'cavalry', men: { max: 75 } }), { 'system.men.max': 75, 'system.men.value': 60 });
+  assert.deepStrictEqual(cavHealthUpdate({ men: { value: 50, max: 50 } }, { category: 'cavalry', men: { max: 65 } }, 'delta.system.'), { 'delta.system.men.max': 65, 'delta.system.men.value': 65 });
+  assert.strictEqual(cavHealthUpdate({ men: { value: 50, max: 50 } }, { category: 'cavalry', men: { max: 50 } }), null, 'plain horse archers stay');
+  assert.strictEqual(cavHealthUpdate({ men: { value: 75, max: 75 } }, { category: 'cavalry', men: { max: 75 } }), null, 'already moved');
+  assert.strictEqual(cavHealthUpdate({ men: { value: 65, max: 65 } }, { category: 'infantry', men: { max: 75 } }), null, 'infantry untouched');
+});

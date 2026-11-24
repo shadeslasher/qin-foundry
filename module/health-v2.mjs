@@ -19,6 +19,51 @@ export function registerHealthV2() {
   game.settings.register(SYSTEM_ID, KEY + "b", { scope: "world", config: false, type: Boolean, default: false });
   game.settings.register(SYSTEM_ID, KEY + "c", { scope: "world", config: false, type: Boolean, default: false });
   game.settings.register(SYSTEM_ID, "healthV3", { scope: "world", config: false, type: Boolean, default: false });
+  game.settings.register(SYSTEM_ID, "cavHealth75", { scope: "world", config: false, type: Boolean, default: false });
+}
+
+/**
+ * Cavalry health (David, 2026-11-24): melee cavalry 65 → 75, hybrid horse archers 50 → 65. A world cavalry unit whose
+ * compendium unit now has the new health, and which still has the old full health, moves up keeping its share of
+ * health (a unit at 52/65 becomes 60/75). Returns the update or null (pure, for tests).
+ */
+export const CAV_HEALTH = { 75: 65, 65: 50 }; // new full health → the old one
+export function cavHealthUpdate(own, tmpl, prefix = "system.") {
+  const to = Number(tmpl?.men?.max), from = CAV_HEALTH[to], men = own?.men;
+  if (!from || tmpl?.category !== "cavalry" || !men || Number(men.max) !== from) return null;
+  return { [prefix + "men.max"]: to, [prefix + "men.value"]: Math.max(0, Math.min(to, Math.round((Number(men.value) || 0) * to / from))) };
+}
+
+async function migrateCavHealth() {
+  if (game.settings.get(SYSTEM_ID, "cavHealth75")) return;
+  const tmpl = new Map();
+  for (const pack of game.packs ?? []) {
+    if (pack.documentName !== "Actor") continue;
+    let index; try { index = await pack.getIndex({ fields: ["type", "system.men", "system.category"] }); } catch { continue; }
+    for (const e of index) if (e.type === "unit" && e.system?.category === "cavalry" && !tmpl.has(e.name)) tmpl.set(e.name, e.system);
+  }
+  if (![...tmpl.values()].some(t => Number(t.men?.max) === 75)) return; // the unit pack isn't updated yet: try again next load
+  let n = 0;
+  const up = [];
+  for (const a of game.actors) {
+    if (a.type !== "unit") continue;
+    const row = cavHealthUpdate(a.system._source ?? a._source.system, tmpl.get(a.name));
+    if (row) up.push({ _id: a.id, ...row });
+  }
+  if (up.length) { await Actor.updateDocuments(up); n += up.length; }
+  for (const scene of game.scenes) {
+    const tu = [];
+    for (const tok of scene.tokens) {
+      if (tok.actorLink || tok.actor?.type !== "unit") continue;
+      const base = game.actors.get(tok.actorId); const t = tmpl.get(base?.name ?? tok.actor?.name); if (!t) continue;
+      const own = foundry.utils.getProperty(tok._source ?? tok, "delta.system"); if (!own?.men) continue;
+      const row = cavHealthUpdate(own, t, "delta.system.");
+      if (row) tu.push({ _id: tok.id, ...row });
+    }
+    if (tu.length) { try { await scene.updateEmbeddedDocuments("Token", tu, { qinBattle: true }); n += tu.length; } catch (e) { console.warn("Qin | cavalry health tokens", scene.name, e); } }
+  }
+  await game.settings.set(SYSTEM_ID, "cavHealth75", true);
+  if (n) ui.notifications.info(`Cavalry now have more health (melee cavalry 75, hybrid horse archers 65): ${n} unit${n === 1 ? "" : "s"} updated.`);
 }
 
 /**
@@ -137,6 +182,7 @@ export async function migrateHealthV2() {
   await damagePenUp();
   if (!game.settings.get(SYSTEM_ID, KEY)) await healthV2Units();
   await migrateHealthV3();
+  await migrateCavHealth();
 }
 
 async function healthV2Units() {
