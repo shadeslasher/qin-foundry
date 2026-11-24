@@ -1735,7 +1735,7 @@ function whipCrack(g, x, y, a, s) {
 }
 /** Activation (mockup, David 2026-11-18): the view darkens to blood red with the 5-tile reach outlined; his whip
  *  lashes out from his unit to each ally it drives, one after another, each with a crack. The ally flinches, flashes
- *  red and lurches forward, away from him, as "Attack +5" shows (Attack +5 since 1.100.73) (its buff is released then). */
+ *  red and lurches forward, away from him, as "Attack +8" shows (Attack +8 since 1.100.74) (its buff is released then). */
 function tyrantsWhip(token, touched = [], release = () => {}, reach = 5) {
   const G = canvas.grid?.size ?? Math.min(token.w, token.h), k = G / 68, c = token.center;
   const gx = Math.round(token.document.x / G), gy = Math.round(token.document.y / G);
@@ -1764,7 +1764,7 @@ function tyrantsWhip(token, touched = [], release = () => {}, reach = 5) {
         if (q >= OUT && q < OUT + 0.18) whipCrack(lash, tip[0], tip[1], 1 - (q - OUT) / 0.18, k); }
       if (q >= OUT) {
         const hq = q - OUT;
-        if (!h.done) { h.done = true; release([u.id]); playMoment("Melee hit", { minGap: 0 }); floatLocal({ x: u.center.x, y: u.center.y - G * 0.5 }, "xp", "Attack +5"); shakeScreen(0.25, t); }
+        if (!h.done) { h.done = true; release([u.id]); playMoment("Melee hit", { minGap: 0 }); floatLocal({ x: u.center.x, y: u.center.y - G * 0.5 }, "xp", "Attack +8"); shakeScreen(0.25, t); }
         const ux = (u.center.x - c.x), uy = (u.center.y - c.y), L = Math.hypot(ux, uy) || 1;
         const fl = (hq < 0.12 ? -(hq / 0.12) * 5 : hq < 0.35 ? -5 + (hq - 0.12) / 0.23 * 19 : hq < 0.7 ? 14 * (1 - (hq - 0.35) / 0.35) : 0) * k;
         if (u.mesh && !u.mesh.destroyed) { h.mesh0 ??= { x: u.document.x + u.w / 2, y: u.document.y + u.h / 2 }; placeAt(u, h.mesh0.x + ux / L * fl, h.mesh0.y + uy / L * fl); }
