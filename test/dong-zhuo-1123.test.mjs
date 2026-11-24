@@ -30,3 +30,16 @@ test('Xiliang Iron Cavalry: Command +1 within 4, cavalry +3 and no surrender wit
   assert.strictEqual(SK.flag(s, U(c5), 'noSurrender'), false);
   assert.strictEqual(SK.stat(s, U(dz), 'command'), 0, 'not his own unit');
 });
+
+test('AI worth of officer auras where a unit stands (2026-11-24)', () => {
+  const s = R.newState(); s.players.p1 = { name: 'A' };
+  s.map.cols = 14; s.map.rows = 6; s.map.tiles = {};
+  for (let x = 0; x < 14; x++) for (let y = 0; y < 6; y++) s.map.tiles[x + ',' + y] = { terrain: 'plains' };
+  s.library.unitTypes.push(inf, cav); s.library.officers.push(off);
+  const add = (typeId, x, o = {}) => must(R.act(s, HOST, { type: 'addUnit', typeId, side: 'enemy', x, y: 2, ...o })).unitId;
+  add('cav', 1, { officerId: 'dz' }); const c4 = add('cav', 5), c6 = add('cav', 7);
+  must(R.act(s, HOST, { type: 'addUnit', typeId: 'inf', side: 'player', owner: 'p1', x: 12, y: 2 }));
+  const U = (id) => R.unitById(s, id);
+  assert.ok(SK.skillWorthAt(s, U(c4)) > 5, 'cavalry inside his aura: Command +3 and more');
+  assert.strictEqual(SK.skillWorthAt(s, U(c6)), 0);
+});

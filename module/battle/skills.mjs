@@ -327,6 +327,38 @@ export function stat(s, u, name, ctx = {}) {
   return name === 'regenCap' ? cap : v;
 }
 
+// ---------------------------------------------------------------- what officers' skills are worth where a unit stands (battle AI)
+// David, 2026-11-24: the AI should stand units where officers' passives (and actives about to be used) help them, without
+// letting that overrule the objective. Weights are the battlefield-skill budget's costs (claude/skill-budget.md).
+const AURA_W = { command: 2, attack: 1.5, commandAtk: 1.5, commandDef: 1, meleeDef: 1, rangedDef: 0.5, range: 1, armor: 1.5, pen: 2,
+  damage: 2, damageTaken: -1.5, enemyLoss: 0.5, enemyLossAtk: 0.5, moraleLossLess: 0.5, checkpointLess: 0.5, resist: 0.5 };
+/** Budget points of officers' battlefield-skill mods reaching u where it stands (negative for enemy debuffs). Conditional mods count half. */
+export function skillWorthAt(s, u) {
+  let v = 0;
+  for (const { entry: m, src } of reaching(s, u, 'mods')) {
+    const w = AURA_W[m.stat]; if (!w) continue;
+    const val = (Number(m.value) || 0) * perOf(src, m); if (!val) continue;
+    v += w * val * (m.if || m.vs ? 0.5 : 1);
+  }
+  return v;
+}
+/** Ally-buff and enemy-debuff areas of unit X's battlefield active, when it is ready (or one round from ready): [{ range, side, worth }]. */
+export function readyActiveAreas(s, X) {
+  const o = E.officerOf(s, X), act = specsOf(s, X)?.active; if (!o || !act) return [];
+  const chk = E.skillCheck ? E.skillCheck(s, X, o) : { ok: true };
+  if (!chk.ok && !/Recharging[^0-9]*1\b/.test(String(chk.reason || ''))) return [];
+  const out = [];
+  for (const st of act.do || []) {
+    const w = st && st.who; if (!w || !w.side || w.pick !== undefined || w.target || w.from || w.all) continue;
+    let worth = 0;
+    for (const m of (st.buff && st.buff.mods) || []) worth += (AURA_W[m.stat] || 0) * Math.abs(Number(m.value) || 0);
+    if (typeof st.morale === 'number') worth += 0.1 * Math.abs(st.morale);
+    if (st.status) worth += 1;
+    if (worth) out.push({ range: Number(w.range) || 0, side: w.side, worth: worth * 0.3 });
+  }
+  return out;
+}
+
 /** A flag on unit u: false, true, or its number (revealHidden:N, splash:N), or its list (ignoreTerrainCost). */
 export function flag(s, u, name, ctx = {}) {
   let best = false;

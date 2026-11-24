@@ -641,6 +641,20 @@ function coveredBy(s, u, x, y) {
   return E.liveUnits(s).filter(o => o.id !== u.id && E.alliance(o.side) === E.alliance(u.side) && E.manhattan(o, p) <= r).length;
 }
 
+/** Budget points from officers' battlefield actives that are ready to go and would reach u where it stands (allies' help, enemies' harm). */
+function activeCover(s, u) {
+  let v = 0;
+  for (const X of E.liveUnits(s)) {
+    if (!X.officerId || X.id === u.id && false) continue;
+    for (const a of SK.readyActiveAreas(s, X)) {
+      if (E.manhattan(X, u) > a.range && X.id !== u.id) continue;
+      const mine = E.alliance(X.side) === E.alliance(u.side);
+      if (a.side === 'allies' && mine) v += a.worth;
+      else if (a.side === 'enemies' && !mine) v -= a.worth;
+    }
+  }
+  return v;
+}
 /** What the unit's own traits make of where it ends its turn (levels 2+). */
 function traitPosition(s0, s1, u0, u1, P, S) {
   const lw = [0, 0, 0.6, 0.85, 1, 1.1][P.level]; if (!lw || !u1 || u1.status !== 'active') return 0;
@@ -664,6 +678,17 @@ function traitPosition(s0, s1, u0, u1, P, S) {
   // allies' auras over it, and its own aura over allies
   v += 0.02 * w * (aurasAt(s1, u0, u1.x, u1.y) - aurasAt(s0, u0, u0.x, u0.y));
   v += 0.012 * w * (coveredBy(s1, u0, u1.x, u1.y) - coveredBy(s0, u0, u0.x, u0.y));
+  // officers' battlefield skills (David, 2026-11-24): where allied officers' passives, and their actives when ready, help it
+  // and enemy officers' don't; an officer weighs the allies his own skills cover. Budget points, small next to the job.
+  v += 0.01 * w * (SK.skillWorthAt(s1, u1) - SK.skillWorthAt(s0, u0) + activeCover(s1, u1) - activeCover(s0, u0));
+  if (u0.officerId && (SK.passiveAura(s0, u0) || SK.readyActiveAreas(s0, u0).length)) {
+    const R = Math.max(SK.passiveAura(s0, u0)?.range || 0, ...SK.readyActiveAreas(s0, u0).map(a => a.range)) + E.movementOf(s0, u0) + 1;
+    for (const a0 of E.liveUnits(s0)) {
+      if (a0.id === u0.id || E.alliance(a0.side) !== E.alliance(u0.side) || E.manhattan(a0, u0) > R) continue;
+      const a1 = E.unitById(s1, a0.id); if (!a1 || a1.status !== 'active') continue;
+      v += 0.01 * worth(s0, a0) * (SK.skillWorthAt(s1, a1) - SK.skillWorthAt(s0, a0) + activeCover(s1, a1) - activeCover(s0, a0));
+    }
+  }
   // Swarm / Opportunists: an ally next to their target makes their attack stronger
   const al = E.alliance(u0.side);
   for (const e of E.liveUnits(s1)) {
