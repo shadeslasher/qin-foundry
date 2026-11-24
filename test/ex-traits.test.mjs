@@ -63,8 +63,8 @@ test('Charging Strike EX: Attack +8 after moving a single tile', () => {
   assert.strictEqual(part(r.attackRoll, /^Charging Strike/), 8);
 });
 
-test('Anti-Cavalry: Attack +1/+2/+3 on its own attacks against cavalry, nothing against infantry', () => {
-  for (const [tier, want] of [[1, 1], [2, 2], [3, 3]]) {
+test('Anti-Cavalry: Attack +2/+4/+6 on its own attacks against cavalry (2026-11-24), nothing against infantry', () => {
+  for (const [tier, want] of [[1, 2], [2, 4], [3, 6]]) {
     const { r } = duel(unitType('a'), unitType('d', { category: 'cavalry' }), [3, 0, 0, 0], traits({ 'anti-cavalry': tier }));
     assert.strictEqual(part(r.attackRoll, /^Anti-Cavalry: attacking/), want);
   }

@@ -146,7 +146,7 @@ function outcomeScore(a, b, side, S, M) {
 /** Raw-numbers guess at the casualties of a melee or ranged hit (no traits beyond the charge, no holds). */
 function naiveHit(s, att, def, tiles) {
   const ta = E.typeOf(s, att), td = E.typeOf(s, def);
-  const charge = ta.category === 'cavalry' && ta.weapon !== 'ranged' && tiles >= 2 ? [0, 4, 6, 8, 8][att.fierceCharge || 0] : 0; // charges add only the Fierce Charge bonus (0.123.0)
+  const charge = ta.category === 'cavalry' && ta.weapon !== 'ranged' && tiles >= 2 ? [0, 2, 4, 6, 6][att.fierceCharge || 0] : 0; // charges add only the Fierce Charge bonus (0.123.0)
   return E.casualtiesOf((ta.damage || 0) + 2 + charge, td.armor || 0, ta.armorPen || 0, 0, 0);
 }
 
@@ -154,7 +154,7 @@ function naiveHit(s, att, def, tiles) {
 function traitHit(s, att, def, tiles, holding) {
   const ta = E.typeOf(s, att), td = E.typeOf(s, def);
   const cav = ta.category === 'cavalry' && ta.weapon !== 'ranged';
-  const charge = cav && tiles >= 2 ? [0, 4, 6, 8, 8][att.fierceCharge || 0] : 0;
+  const charge = cav && tiles >= 2 ? [0, 2, 4, 6, 6][att.fierceCharge || 0] : 0;
   let armor = (td.armor || 0) + [0, 1, 2, 3][Math.min(3, E.unitTrait(def, 'reinforced armor'))];
   if (td.shield && E.unitTrait(att, 'shield breaker')) armor -= [0, 1, 2, 3, 4][Math.min(4, E.unitTrait(att, 'shield breaker'))];
   if (cav && E.unitTrait(def, 'anti-cavalry')) armor += 2 * Math.min(3, E.unitTrait(def, 'anti-cavalry'));

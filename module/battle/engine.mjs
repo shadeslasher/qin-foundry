@@ -1153,7 +1153,7 @@ function buildRoll(s, unit, role, ctx) {
     parts.push(['Anti-Cavalry: defense against cavalry', tierVal(trait(unit, 'anti-cavalry'), [2, 4, 6])]);
   // ...and Attack +1 / +2 / +3 on its own melee attacks against cavalry (David, 2026-10-29)
   if (role === 'attacker' && oc === 'cavalry' && !ctx.ranged && trait(unit, 'anti-cavalry') && !suppressed(unit)) // melee only
-    parts.push(['Anti-Cavalry: attacking cavalry', tierVal(trait(unit, 'anti-cavalry'), [1, 2, 3])]);
+    parts.push(['Anti-Cavalry: attacking cavalry', tierVal(trait(unit, 'anti-cavalry'), [2, 4, 6])]); // +2 / +4 / +6 (David, 2026-11-24; was +1 / +2 / +3)
   if (role === 'attacker' && oc === 'infantry' && trait(unit, 'anti-infantry')) parts.push(['Anti-Infantry', tierVal(trait(unit, 'anti-infantry'), [1, 2, 4])]);
   // Ruthless Pursuit (Wei, David 2026-11-01): Attack +2 against an enemy at 50 morale or less
   // Opportunists (Xianbei, David 2026-11-01): Attack +2 against an enemy already next to another friendly unit
@@ -1288,7 +1288,7 @@ function resolveAttackNow(s, attacker, defender, opts) {
   // Fierce Charge trait on a charge attack: Fierce Charge +4, Fierce Charge+ +6, Fierce Charge++ +8 and the enemy behind takes half damage
   const fierce = attacker.fierceCharge || 0;
   const chargeBase = !ranged && (at.category === 'cavalry' || SK.flag(s, attacker, 'asCharge')) && !SK.flag(s, defender, 'noChargeAgainst') ? Math.max(SK.flag(s, attacker, 'asCharge') ? 1 : 0, tilesMoved - 1) : 0;
-  const fierceBonus = chargeBase > 0 ? [0, 4, 6, 8, 8][Math.min(4, fierce)] : 0; // +4 / +6 / +8, EX +8 and the unit behind takes full damage (David, 2026-11-01; was +2 / +4 / +4)
+  const fierceBonus = chargeBase > 0 ? [0, 2, 4, 6, 6][Math.min(4, fierce)] : 0; // +2 / +4 / +6, EX +6 and the unit behind takes full damage (David, 2026-11-24; was +4 / +6 / +8 from 2026-11-01)
   const chargeBonus = fierceBonus;      // what a charge adds to the attack (and what Charge Reflection turns back)
   const charge = chargeBase > 0;
   let rear = (isRear(s, attacker, defender) || !!SK.flag(s, attacker, 'asRear')) && !passive(s, defender).noRearAgainst && !SK.flag(s, defender, 'noRearAgainst') && !rearDenied(s, attacker);

@@ -154,7 +154,7 @@ test('cavalry charge: no bonus however far it rode (2026-11-10); one tile is no 
   }
 });
 
-test('Fierce Charge tiers: +4 / +6 / +8 on a charge attack (2026-11-01); ++ also hits the enemy behind for half', () => {
+test('Fierce Charge tiers: +2 / +4 / +6 on a charge attack (2026-11-24; was +4 / +6 / +8); ++ also hits the enemy behind for half', () => {
   const run = (fierce, startY, behind = false) => {
     const s = setup();
     const a = add(s, { typeId: 'han_lancer_cav', side: 'player', owner: 'p1', x: 5, y: startY });
@@ -171,15 +171,15 @@ test('Fierce Charge tiers: +4 / +6 / +8 on a charge attack (2026-11-01); ++ also
     const sum = (re) => r.attackRoll.parts.filter(([l]) => re.test(l)).reduce((t, [, v]) => t + v, 0);
     return { r, s, b, charge: sum(/Cavalry charge/), fierce: sum(/^Fierce Charge/) };
   };
-  let x = run(1, 2); assert.deepStrictEqual([x.charge, x.fierce], [0, 4]);   // 2 tiles: +1, Fierce +4
+  let x = run(1, 2); assert.deepStrictEqual([x.charge, x.fierce], [0, 2]);   // 2 tiles: +1, Fierce +4
   x = run(1, 3); assert.deepStrictEqual([x.charge, x.fierce], [0, 0]);       // 1 tile: no charge, no Fierce
-  x = run(2, 1); assert.deepStrictEqual([x.charge, x.fierce], [0, 6]);       // 3 tiles: +2, Fierce+ +6
+  x = run(2, 1); assert.deepStrictEqual([x.charge, x.fierce], [0, 4]);       // 3 tiles: +2, Fierce+ +6
   x = run(3, 0, true);                                                       // 4 tiles: +3, Fierce++ +4, and the unit behind
-  assert.deepStrictEqual([x.charge, x.fierce], [0, 8]);
+  assert.deepStrictEqual([x.charge, x.fierce], [0, 6]);
   assert.ok(x.s.log.some(e => e.detail && e.detail.type === 'trample'), 'the enemy behind takes half damage');
   const half = x.s.log.find(e => e.detail && e.detail.type === 'trample').detail.casualties;
   x = run(4, 0, true);                                                       // Fierce Charge EX: +4, the unit behind takes full damage
-  assert.deepStrictEqual([x.charge, x.fierce], [0, 8]);
+  assert.deepStrictEqual([x.charge, x.fierce], [0, 6]);
   assert.ok(x.r.attackRoll.parts.some(([l]) => l === 'Fierce Charge EX'));
   const full = x.s.log.find(e => e.detail && e.detail.type === 'trample').detail.casualties;
   assert.ok(full > half, 'full damage beats half (' + full + ' vs ' + half + ')');

@@ -32,13 +32,13 @@ function duel(aType, dType, rolls, setupFn, extra = []) {
 const part = (roll, re) => roll.parts.filter(([l]) => re.test(l)).reduce((t, [, v]) => t + v, 0);
 const traits = (o) => (u) => { u.traitTiers = o; };
 
-test('Anti-Cavalry: Defense +2/+4/+6 when cavalry attack it in melee; +1/+2/+3 on its own attacks against cavalry. Anti-Infantry only attacking', () => {
+test('Anti-Cavalry: Defense +2/+4/+6 when cavalry attack it in melee; +2/+4/+6 on its own attacks against cavalry. Anti-Infantry only attacking', () => {
   for (const [tier, val] of [[1, 2], [2, 4], [3, 6]]) {
     const { r } = duel(unitType('c', { category: 'cavalry' }), unitType('a'), [3, 0, 0, 0], (a, d) => { d.traitTiers = { 'anti-cavalry': tier }; });
     assert.strictEqual(part(r.defendRoll, /^Anti-Cavalry/), val, 'Anti-Cavalry tier ' + tier);
   }
   const { r } = duel(unitType('a'), unitType('c', { category: 'cavalry' }), [3, 0, 0, 0], (a, d) => { a.traitTiers = { 'anti-cavalry': 3 }; d.traitTiers = { 'anti-infantry': 2 }; });
-  assert.strictEqual(part(r.attackRoll, /^Anti-Cavalry/), 3, 'Anti-Cavalry++ attacking cavalry: Attack +3 (David, 2026-10-29)');
+  assert.strictEqual(part(r.attackRoll, /^Anti-Cavalry/), 6, 'Anti-Cavalry++ attacking cavalry: Attack +6 (David, 2026-11-24; was +3)');
   assert.strictEqual(part(r.defendRoll, /^Anti-Infantry/), 0, 'Anti-Infantry not when defending');
   const inf = duel(unitType('i'), unitType('a'), [3, 0, 0, 0], (a, d) => { d.traitTiers = { 'anti-cavalry': 3 }; });
   assert.strictEqual(part(inf.r.defendRoll, /^Anti-Cavalry/), 0, 'not against infantry');
@@ -183,7 +183,7 @@ test('Charge Reflection (2026-10-30; holding or not since 2026-11-24): adds the 
   const a = add(s, { typeId: 'cav', side: 'player', owner: 'p1', x: 5, y: 1 });
   const d = add(s, { typeId: 'd', side: 'enemy', x: 5, y: 5 });
   R.unitById(s, d).traitTiers = { 'charge reflection': 1, 'anti-cavalry': 1 }; // only Anti-Cavalry units strike back at a charge
-  R.unitById(s, a).fierceCharge = 1; // the charge's bonus is Fierce Charge's +4 (2026-11-10: no bonus for tiles moved)
+  R.unitById(s, a).fierceCharge = 1; // the charge's bonus is Fierce Charge's +2 (2026-11-24; +4 before; 2026-11-10: no bonus for tiles moved)
   must(R.act(s, HOST, { type: 'startBattle' })); dice([0, 0]); must(R.act(s, HOST, { type: 'startRound' }));
   must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: a }));
   s.freeMovement = false;
@@ -195,7 +195,7 @@ test('Charge Reflection (2026-10-30; holding or not since 2026-11-24): adds the 
   assert.ok(r.charge);
   if (want !== null) assert.strictEqual(R.unitById(s, a).men, want, `holding ${holding}`);
   // the strike back carries the charge bonus (Fierce Charge +4), holding or not, win or lose
-  else assert.strictEqual(r.damageToAttacker, 6 + 4, 'lost the roll: base damage 6 + charge bonus 4');
+  else assert.strictEqual(r.damageToAttacker, 6 + 2, 'lost the roll: base damage 6 + charge bonus 2 (Fierce Charge +2 since 2026-11-24)');
  }
 });
 
