@@ -35,6 +35,10 @@
 //     Champions and Sentinels take risks; and by Battle style (sheet field): Rash, Glory-seeking, Cautious,
 //     Steadfast, Cunning, Protective. Rash and glory-seeking officers sometimes ignore the plan (said in the log)
 //   - mistakes: tacticians of Art of War 0-2 often chase, blunder into reach, dawdle or ignore the ground
+//   - the army's general (tactician, or the officer with the highest Command) minds his safety, Vanguards included;
+//     cavalry that don't attack pull back to charge distance, horse archers keep out of melee reach (2026-11-24)
+//   - officers' battlefield skills: units stand where allied officers' passives and ready actives help them, officers
+//     weigh the allies they cover (2026-11-24, budget-point weights, small next to the job)
 //
 // Sieges (David, 2026-11-04; ai-siege.mjs): on maps with city walls, distances to enemies and to the squares a unit is
 // sent to follow the real way in (gates, ladders), and each side has a role. Attackers batter gates (siege engines
@@ -498,6 +502,18 @@ export function stylesOf(text) {
   return out;
 }
 
+/** Is this unit led by its side's general: the tactician if the side has one, otherwise its officer with the highest Command? */
+function isGeneralUnit(s, u) {
+  if (!u.officerId) return false;
+  if (s.tactics?.sides?.[u.side]) return isTacticianUnit(s, u);
+  let best = null, bc = -Infinity;
+  for (const x of E.liveUnits(s)) {
+    if (x.side !== u.side || !x.officerId) continue;
+    const c = Number(E.officerOf(s, x)?.command) || 0;
+    if (c > bc) { bc = c; best = x; }
+  }
+  return best === u || best?.id === u.id;
+}
 /** Is this unit led by its side's tactician? */
 function isTacticianUnit(s, u) {
   const tac = s.tactics?.sides?.[u.side], off = u.officerId ? E.officerOf(s, u) : null;
@@ -516,6 +532,7 @@ export function mind(s, u, S, P) {
   const M = { threat: ty.threat || 1, close: ty.close || 1, kill: (P.level >= 3 ? 0.4 : 0.2) * (ty.kill || 1), glory: 1, flank: 1, ground: 1,
     anchorish: ty.anchor || 1, shaken: false, recover: 0, ignoreJob: false, mistake: null, disobey: false, note: null, styles: st };
   if (isTacticianUnit(s, u)) M.threat *= 1.5;
+  else if (isGeneralUnit(s, u)) M.threat *= 1.3; // the army's general minds his safety, Vanguards included (David, 2026-11-24)
   if (st.has('rash')) { M.threat *= 0.5; M.close *= 1.6; M.kill *= 1.3; }
   if (st.has('glory-seeking')) { M.glory = 1.6; M.kill *= 1.5; }
   if (st.has('cautious')) { M.threat *= 1.4; M.close *= 0.6; }
@@ -678,6 +695,16 @@ function traitPosition(s0, s1, u0, u1, P, S) {
   // allies' auras over it, and its own aura over allies
   v += 0.02 * w * (aurasAt(s1, u0, u1.x, u1.y) - aurasAt(s0, u0, u0.x, u0.y));
   v += 0.012 * w * (coveredBy(s1, u0, u1.x, u1.y) - coveredBy(s0, u0, u0.x, u0.y));
+  // cavalry skirmishing (David, 2026-11-24): cavalry that didn't attack pull back to charge distance (2-3 tiles) rather
+  // than wait in the melee for the enemy's first strike; horse archers keep out of melee reach but within range
+  const ty1 = E.typeOf(s1, u1);
+  if (ty1.category === 'cavalry' && !(u1.round && u1.round.attacked) && !(S && S.jobs && S.jobs.get(u0.id))) {
+    let d = Infinity; for (const e of E.liveUnits(s1)) if (E.hostile(e, u1) && !e.hidden) d = Math.min(d, E.manhattan(e, u1));
+    if (Number.isFinite(d)) {
+      if (ty1.weapon === 'ranged') v += 0.04 * w * (d === 1 ? -1 : d <= Math.max(2, ty1.rangeMax || 2) ? 1 : 0);
+      else v += 0.04 * w * (d === 1 ? -1 : d <= 3 ? 1 : 0);
+    }
+  }
   // officers' battlefield skills (David, 2026-11-24): where allied officers' passives, and their actives when ready, help it
   // and enemy officers' don't; an officer weighs the allies his own skills cover. Budget points, small next to the job.
   v += 0.01 * w * (SK.skillWorthAt(s1, u1) - SK.skillWorthAt(s0, u0) + activeCover(s1, u1) - activeCover(s0, u0));
