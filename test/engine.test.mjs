@@ -123,18 +123,21 @@ test('cavalry charge: 2 tiles is a charge with no bonus of its own (2026-11-10),
   assert.strictEqual(r.damageToAttacker, 0, 'a charged unit strikes back only with Anti-Cavalry, and never from the rear');
 });
 
-test('cavalry that started next to the enemy still charges after moving 2 tiles', () => {
-  const s = setup();
-  const a = add(s, { typeId: 'han_lancer_cav', side: 'player', owner: 'p1', x: 4, y: 5 });   // already next to the enemy
-  const d = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 5 });
-  must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'startRound' }));
-  must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: a }));
-  s.freeMovement = false;
-  must(R.act(s, P1, { type: 'moveTo', unitId: a, x: 5, y: 4 })); // around the corner: 2 tiles from an adjacent start
-  dice([3, 0, 0, 0]);
-  must(R.act(s, P1, { type: 'attack', unitId: a, targetId: d }));
-  const r = s.log.filter(e => e.detail && e.detail.type === 'attack').pop().detail.result;
-  assert.strictEqual(r.charge, true);
+test('engaged (2026-11-24): cavalry that started next to an enemy cannot charge it, but can charge another enemy', () => {
+  for (const [targetX, isCharge] of [[5, false], [6, true]]) {
+    const s = setup();
+    const a = add(s, { typeId: 'han_lancer_cav', side: 'player', owner: 'p1', x: 4, y: 5 });   // already next to the first enemy
+    const d = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 5, y: 5 });
+    const d2 = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 6, y: 4 });
+    must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'startRound' }));
+    must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: a }));
+    s.freeMovement = false;
+    must(R.act(s, P1, { type: 'moveTo', unitId: a, x: 5, y: 4 })); // around the corner: 2 tiles, next to both enemies
+    dice([3, 0, 0, 0]);
+    must(R.act(s, P1, { type: 'attack', unitId: a, targetId: targetX === 5 ? d : d2 }));
+    const r = s.log.filter(e => e.detail && e.detail.type === 'attack').pop().detail.result;
+    assert.strictEqual(!!r.charge, isCharge, targetX === 5 ? 'no charge at the enemy it started next to' : 'charges the other enemy');
+  }
 });
 
 test('cavalry charge: no bonus however far it rode (2026-11-10); one tile is no charge', () => {

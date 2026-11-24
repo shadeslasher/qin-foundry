@@ -31,10 +31,10 @@ test('status icons: Command roll bonus/penalty, defense, ranged defense', () => 
   assert.strictEqual(U.unitStatus(tok({ range: 3 })).attack, 2);
   battle.meta.t = { round: { moved: true } };
   assert.strictEqual(U.unitStatus(tok({ range: 3 })).attack, 0, 'moved: keeps nothing');
-  // cavalry after a 4-tile move: no bonus for the tiles (2026-11-10), Fierce Charge+ gives +6
+  // cavalry after a 4-tile move: no bonus for the tiles (2026-11-10), Fierce Charge+ gives +4 (2026-11-24)
   battle.meta = {}; battle.turn.activation = { unitId: 't', movedThisActivation: true, tilesMoved: 4 };
   assert.strictEqual(U.unitStatus(tok({ category: 'cavalry' })).attack, 0);
-  assert.strictEqual(U.unitStatus(tok({ category: 'cavalry', traits: 'Fierce Charge+ - x' })).attack, 6);
+  assert.strictEqual(U.unitStatus(tok({ category: 'cavalry', traits: 'Fierce Charge+ - x' })).attack, 4);
   // undone / not its turn: no charge
   battle.turn.activation = null;
   assert.strictEqual(U.unitStatus(tok({ category: 'cavalry' })).attack, 0);

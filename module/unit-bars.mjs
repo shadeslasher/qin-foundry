@@ -271,8 +271,9 @@ export function unitStatus(token) {
     else if (s.category === "cavalry" && ac.movedThisActivation) {
       const tiles = ac.tilesMoved || 0;
       const fierce = Math.min(4, tr["fierce charge"] || 0);
-      // a charge (2+ tiles) gets only its Fierce Charge bonus: +4 / +6 / +8 (David, 2026-11-10; no +1 per tile)
-      if (tiles >= 2) attack += [0, 4, 6, 8, 8][fierce];
+      // a charge (2+ tiles) gets only its Fierce Charge bonus: +2 / +4 / +6, EX +6 (David, 2026-11-24; no +1 per tile).
+      // Not against an enemy it started next to (engaged), which this preview can't see.
+      if (tiles >= 2) attack += [0, 2, 4, 6, 6][fierce];
     }
   }
   // the officer's Command and weapon skill, and the battlefield skills' always-on changes (David, 2026-11-09)

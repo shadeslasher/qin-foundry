@@ -1928,8 +1928,11 @@ function startActivation(s, u, extra) {
 
 /** Tiles that count for a charge. Any cavalry that moved 2+ tiles and attacks charges, even if it started next to
  *  the target (David, 2026-10-30, for clarity; replaces the "no stepping out and back in" rule). */
-function chargeTiles(ac, target) { // eslint-disable-line no-unused-vars
+function chargeTiles(ac, target, s, u) { // eslint-disable-line no-unused-vars
   if (ac.roughPath) return 0; // cavalry that rode across or onto rough ground get no charge
+  // Engaged (David, 2026-11-24): cavalry that started this activation next to an enemy can't charge that enemy; it has to
+  // break away for a turn first (it can still charge a different enemy). Charging Strike on foot isn't affected.
+  if (s && u && target && ac.from && manhattan(ac.from, target) === 1 && (typeOf(s, u) || {}).category === 'cavalry') return 0;
   return ac.tilesMoved || 0;
 }
 
@@ -2704,7 +2707,7 @@ const ACTIONS = {
     settle(s);
     if (!alive(d)) { log(s, d.name + ' gave up before the attack landed.'); if (alive(u)) finishActivation(s, u); return; }
     ac.lastTargetId = d.id; // Hit and Fade rides away from this unit
-    const res = resolveAttack(s, u, d, { movedThisActivation: ac.movedThisActivation, tilesMoved: chargeTiles(ac, d), ambush: !!u.hidden && !SK.flag(s, d, 'cantBeAmbushed') });
+    const res = resolveAttack(s, u, d, { movedThisActivation: ac.movedThisActivation, tilesMoved: chargeTiles(ac, d, s, u), ambush: !!u.hidden && !SK.flag(s, d, 'cantBeAmbushed') });
     if (!alive(u)) return;
     if (SK.pendingChoice(s)) { ac.skillResume = true; return; } // a battlefield skill's follow-up waits for a choice; the turn ends after it
     // Clear a Path: destroying an enemy after moving lets the unit move and attack again
@@ -2728,8 +2731,8 @@ const ACTIONS = {
       target = unitById(s, a.targetId);
       if (target && alive(target)) {
         const res = resolveAttack(s, u, target, kind === 'phoenix'
-          ? { phoenixWon: !!ac.second.won, movedThisActivation: ac.movedThisActivation, tilesMoved: chargeTiles(ac, target) }
-          : { second: true, movedThisActivation: ac.movedThisActivation, tilesMoved: chargeTiles(ac, target) });
+          ? { phoenixWon: !!ac.second.won, movedThisActivation: ac.movedThisActivation, tilesMoved: chargeTiles(ac, target, s, u) }
+          : { second: true, movedThisActivation: ac.movedThisActivation, tilesMoved: chargeTiles(ac, target, s, u) });
         won = res.winner === 'attacker'; melee = !res.ranged;
       }
     }

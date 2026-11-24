@@ -699,9 +699,10 @@ function rechargePlan(s0, u0, S) {
   S._recharge = S._recharge || new Map();
   if (S._recharge.has(key)) return S._recharge.get(key);
   let best = null;
-  // it can charge someone this turn already (room to ride round 2+ tiles to an enemy's side): no need to back off
+  // it can charge someone this turn already (room to ride round 2+ tiles to the side of an enemy it didn't start next to:
+  // an enemy it started next to can't be charged, David 2026-11-24): no need to back off
   const blue = (E.moveOptions(s0, u0) || {}).blue;
-  const canCharge = !!blue && E.liveUnits(s0).some(e => E.hostile(e, u0) && !e.hidden && [[0, 1], [1, 0], [0, -1], [-1, 0]].some(([dx, dy]) => (blue.get((e.x + dx) + ',' + (e.y + dy)) || 0) >= 2));
+  const canCharge = !!blue && E.liveUnits(s0).some(e => E.hostile(e, u0) && !e.hidden && E.manhattan(e, u0) > 1 && [[0, 1], [1, 0], [0, -1], [-1, 0]].some(([dx, dy]) => (blue.get((e.x + dx) + ',' + (e.y + dy)) || 0) >= 2));
   if (!canCharge) for (const e of E.liveUnits(s0)) {
     if (!E.hostile(e, u0) || E.manhattan(e, u0) !== 1) continue;
     const stand = strikeNet(s0, u0, e, 0), charge = strikeNet(s0, u0, e, 3);
@@ -1222,7 +1223,7 @@ export function plans(s, unitId, opts = {}) {
       if (P.naive) {
         // raw numbers: what it expects to do, and what it expects back (melee only), traits and holds ignored
         const g = fork(f); const gu = E.unitById(g, unitId), gt = E.unitById(g, tid);
-        const tiles = acf.movedThisActivation ? acf.tilesMoved || 0 : 0;
+        const tiles = acf.movedThisActivation && !(acf.from && E.manhattan(acf.from, gt) === 1 && E.typeOf(g, gu).category === 'cavalry') ? acf.tilesMoved || 0 : 0; // engaged: no charge at an enemy it started next to
         const ta = E.typeOf(g, gu), ranged = ta.weapon === 'ranged' && E.manhattan(gu, gt) > 1;
         gt.men = Math.max(0, gt.men - naiveHit(g, gu, gt, ranged ? 0 : tiles));
         if (!ranged) gu.men = Math.max(0, gu.men - Math.round(naiveHit(g, gt, gu, 0) * 0.5));
