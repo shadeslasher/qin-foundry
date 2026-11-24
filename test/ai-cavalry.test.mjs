@@ -72,3 +72,29 @@ test('AI cavalry: does not end its turn cut off deep among strong enemies, but a
   const acts2 = enemyTurn(b.s, b.ids, b.ids.slice(0, 3));
   assert.ok(acts2.some(a => a.type === 'attack'), 'attacks: ' + JSON.stringify(acts2));
 });
+
+test('AI cavalry: hemmed in and losing a standstill fight, a skilled AI backs out of reach and charges next turn; a weak one fights on', () => {
+  const run = (level) => {
+    const sab = unitType('sab', { damage: 8, armor: 5, armorPen: 3 }), horse = cav({ damage: 9, armor: 4, armorPen: 4 });
+    const s = R.newState(); s.players.p1 = { name: 'Alice' };
+    s.library.unitTypes.push(sab, horse);
+    for (let y = 2; y <= 14; y++) for (const x of [9, 11]) s.map.terrain[x + ',' + y] = 'impassable'; // a one-tile lane
+    const ids = [['sab', 'player', 10, 10], ['cav', 'enemy', 10, 9]].map(([t, sd, x, y]) => must(R.act(s, HOST, { type: 'addUnit', typeId: t, side: sd, owner: sd === 'player' ? 'p1' : undefined, x, y })).unitId);
+    must(R.act(s, HOST, { type: 'startBattle' })); R.setRng(() => 0.3); must(R.act(s, HOST, { type: 'startRound' }));
+    const sb = R.unitById(s, ids[0]), cv = R.unitById(s, ids[1]);
+    sb.traitTiers = { evasion: 2, 'charging strike': 1, 'anti-infantry': 1 };
+    cv.traitTiers = { 'fierce charge': 2, disciplined: 1 }; cv.fierceCharge = 2; cv.maxMen = cv.men = 75;
+    const acts = enemyTurn(s, ids, [ids[0]], level);
+    return { s, ids, acts };
+  };
+  const weak = run(1);
+  assert.ok(weak.acts.some(a => a.type === 'attack'), 'a weak AI fights on: ' + JSON.stringify(weak.acts));
+  const { s, ids, acts } = run(4);
+  assert.ok(!acts.some(a => a.type === 'attack'), 'backs off: ' + JSON.stringify(acts));
+  assert.ok(R.manhattan(R.unitById(s, ids[1]), R.unitById(s, ids[0])) >= 5, 'out of reach of the infantry');
+  // next round: the infantry waits, the cavalry charges
+  R.setRng(() => 0.3); must(R.act(s, HOST, { type: 'startRound' }));
+  const next = enemyTurn(s, ids, [ids[0]], 4);
+  const hit = next.find(a => a.type === 'attack');
+  assert.ok(hit, 'charges back in: ' + JSON.stringify(next));
+});

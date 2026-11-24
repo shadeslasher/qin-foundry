@@ -674,6 +674,45 @@ function activeCover(s, u) {
   return v;
 }
 /** What the unit's own traits make of where it ends its turn (levels 2+). */
+/** One cavalry strike at `foe` from where it stands (tiles 0) or as a charge (tiles 3), played out a few times:
+ *  what the foe loses minus what the cavalry loses, weighted by worth. (David, 2026-11-24) */
+function strikeNet(base, cav, foe, tiles, samples = 3) {
+  let tot = 0, n = 0;
+  for (let i = 0; i < samples; i++) {
+    const f = fork(base); E.setRng(seeded(hashStr('cavnet' + cav.id + foe.id + tiles + i)));
+    const fc = E.unitById(f, cav.id), fe = E.unitById(f, foe.id);
+    try { E.resolveAttack(f, fc, fe, { movedThisActivation: tiles > 0, tilesMoved: tiles }); } catch { continue; }
+    tot += worth(base, foe) * (Math.max(0, foe.men - fe.men) / mx(foe) + 0.45 * Math.max(0, (foe.morale ?? 50) - (fe.morale ?? 50)) / 100)
+      - worth(base, cav) * (Math.max(0, cav.men - fc.men) / mx(cav) + 0.45 * Math.max(0, (cav.morale ?? 50) - (fc.morale ?? 50)) / 100);
+    n++;
+  }
+  E.setRng(Math.random);
+  return n ? tot / n : 0;
+}
+
+/** Cavalry locked in melee (David, 2026-11-24): if fighting on from a standstill loses and a charge would win, the unit
+ *  may back off this turn to charge next turn. Returns { foe, gain } (outcome-score units) for the enemy next to it that this pays most
+ *  against, or null. Worked out once per activation. */
+function rechargePlan(s0, u0, S) {
+  const ty = E.typeOf(s0, u0); if (!ty || ty.category !== 'cavalry' || ty.weapon === 'ranged') return null;
+  const key = u0.id + ':' + (s0.turn && s0.turn.round);
+  S._recharge = S._recharge || new Map();
+  if (S._recharge.has(key)) return S._recharge.get(key);
+  let best = null;
+  // it can charge someone this turn already (room to ride round 2+ tiles to an enemy's side): no need to back off
+  const blue = (E.moveOptions(s0, u0) || {}).blue;
+  const canCharge = !!blue && E.liveUnits(s0).some(e => E.hostile(e, u0) && !e.hidden && [[0, 1], [1, 0], [0, -1], [-1, 0]].some(([dx, dy]) => (blue.get((e.x + dx) + ',' + (e.y + dy)) || 0) >= 2));
+  if (!canCharge) for (const e of E.liveUnits(s0)) {
+    if (!E.hostile(e, u0) || E.manhattan(e, u0) !== 1) continue;
+    const stand = strikeNet(s0, u0, e, 0), charge = strikeNet(s0, u0, e, 3);
+    if (stand >= 0 || charge <= 0) continue;
+    const gain = charge - stand; // in outcome-score units: next turn's charge over another standstill attack
+    if (!best || gain > best.gain) best = { foe: e, gain };
+  }
+  S._recharge.set(key, best);
+  return best;
+}
+
 /** How cut off a unit would be where it stands: enemy strength that can reach it next turn over its own and that of allies
  *  within 3 tiles (strength = worth × health share), less 1.2; 0 to 2. (Cavalry, David 2026-11-24.) */
 function cutOff(s, u) {
@@ -723,6 +762,13 @@ function traitPosition(s0, s1, u0, u1, P, S) {
     }
     const cw = [0.2, 0.4, 0.7, 1, 1.1, 1.2][P.level] * (u0.officerId ? 1.5 : 1);
     if (cw) v -= cw * 0.1 * w * (cutOff(s1, u1) - cutOff(s0, u0));
+    // locked in a melee it loses but a charge would win: back off to charging distance, out of the foe's reach if it can
+    const rp = P.level >= 2 && ty1.weapon !== 'ranged' && !(u1.round && u1.round.attacked) ? rechargePlan(s0, u0, S || {}) : null;
+    if (rp) {
+      const foe = E.unitById(s1, rp.foe.id), mv = E.movementOf(s1, u1), fr = foe ? E.movementOf(s1, foe) + 1 : 0;
+      const ready = (p) => { if (!foe) return 0; const d = E.manhattan(p, foe); return d < 3 || d > mv + 1 ? 0 : d > fr ? 1 : 0.5; };
+      v += [0, 0, 0.5, 0.8, 1, 1.2][P.level] * (u0.officerId ? 1.25 : 1) * 0.8 * rp.gain * (ready(u1) - ready(u0));
+    }
   }
   // officers' battlefield skills (David, 2026-11-24): where allied officers' passives, and their actives when ready, help it
   // and enemy officers' don't; an officer weighs the allies his own skills cover. Budget points, small next to the job.
