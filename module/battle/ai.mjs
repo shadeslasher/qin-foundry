@@ -674,6 +674,20 @@ function activeCover(s, u) {
   return v;
 }
 /** What the unit's own traits make of where it ends its turn (levels 2+). */
+/** How cut off a unit would be where it stands: enemy strength that can reach it next turn over its own and that of allies
+ *  within 3 tiles (strength = worth × health share), less 1.2; 0 to 2. (Cavalry, David 2026-11-24.) */
+function cutOff(s, u) {
+  if (!u || u.status !== 'active') return 0;
+  const str = (o) => worth(s, o) * Math.max(0.1, (o.men || 0) / mx(o));
+  let foe = 0, mine = str(u);
+  for (const o of E.liveUnits(s)) {
+    if (o.id === u.id) continue;
+    if (E.hostile(o, u)) { if (o.hidden) continue; const t = E.typeOf(s, o); if (E.manhattan(o, u) <= E.movementOf(s, o) + Math.max(1, t.weapon === 'ranged' ? t.rangeMax || 1 : 1)) foe += str(o); }
+    else if (E.manhattan(o, u) <= 3) mine += str(o);
+  }
+  return Math.max(0, Math.min(2, foe / mine - 1.2));
+}
+
 function traitPosition(s0, s1, u0, u1, P, S) {
   const lw = [0, 0, 0.6, 0.85, 1, 1.1][P.level]; if (!lw || !u1 || u1.status !== 'active') return 0;
   const w = worth(s0, u0), tr = (k) => E.unitTrait(u0, k);
@@ -696,15 +710,19 @@ function traitPosition(s0, s1, u0, u1, P, S) {
   // allies' auras over it, and its own aura over allies
   v += 0.02 * w * (aurasAt(s1, u0, u1.x, u1.y) - aurasAt(s0, u0, u0.x, u0.y));
   v += 0.012 * w * (coveredBy(s1, u0, u1.x, u1.y) - coveredBy(s0, u0, u0.x, u0.y));
-  // cavalry skirmishing (David, 2026-11-24): cavalry that didn't attack pull back to charge distance (2-3 tiles) rather
-  // than wait in the melee for the enemy's first strike; horse archers keep out of melee reach but within range
+  // cavalry (David, 2026-11-24): horse archers keep out of melee reach but within range. Melee cavalry no longer pull back
+  // to charge distance for its own sake (one-on-one tests: it cost them fights); instead every cavalry unit, more so one led
+  // by an officer, stays clear of ending its turn cut off: deep among enemies that can reach it with too few allies near.
+  // A unit strong enough to win there doesn't mind (the danger is enemy strength over its own and its allies').
   const ty1 = E.typeOf(s1, u1);
-  if (ty1.category === 'cavalry' && !(u1.round && u1.round.attacked) && !(S && S.jobs && S.jobs.get(u0.id))) {
-    let d = Infinity; for (const e of E.liveUnits(s1)) if (E.hostile(e, u1) && !e.hidden) d = Math.min(d, E.manhattan(e, u1));
-    if (Number.isFinite(d)) {
-      if (ty1.weapon === 'ranged') v += 0.04 * w * (d === 1 ? -1 : d <= Math.max(2, ty1.rangeMax || 2) ? 1 : 0);
-      else v += 0.04 * w * (d === 1 ? -1 : d <= 3 ? 1 : 0);
+  if (ty1.category === 'cavalry') {
+    const free = !(S && S.jobs && S.jobs.get(u0.id));
+    if (free && ty1.weapon === 'ranged' && !(u1.round && u1.round.attacked)) {
+      let d = Infinity; for (const e of E.liveUnits(s1)) if (E.hostile(e, u1) && !e.hidden) d = Math.min(d, E.manhattan(e, u1));
+      if (Number.isFinite(d)) v += 0.04 * w * (d === 1 ? -1 : d <= Math.max(2, ty1.rangeMax || 2) ? 1 : 0);
     }
+    const cw = [0.2, 0.4, 0.7, 1, 1.1, 1.2][P.level] * (u0.officerId ? 1.5 : 1);
+    if (cw) v -= cw * 0.1 * w * (cutOff(s1, u1) - cutOff(s0, u0));
   }
   // officers' battlefield skills (David, 2026-11-24): where allied officers' passives, and their actives when ready, help it
   // and enemy officers' don't; an officer weighs the allies his own skills cover. Budget points, small next to the job.
@@ -881,6 +899,16 @@ function teamScore(s0, s1, u0, u1, S, P, act) {
       if (t1 && t1.status !== 'active') v += lw * 0.25 * worth(s0, t0); // the team's work done
       // foot that couldn't strike yet: stand on a side of the target (pinning it for the others)
       if (me.role === 'pin' && t1 && t1.status === 'active') v += lw * 0.06 * w * ((E.manhattan(u0, t0) > 1 ? 1 : 0) - (E.manhattan(u1, t1) > 1 ? 1 : 0)) + lw * 0.01 * w * (E.manhattan(u0, t0) - E.manhattan(u1, t1));
+    }
+  }
+  // cavalry (David, 2026-11-24): a lone enemy, or a shooter or general deeper in the enemy lines, is worth charging
+  if (act && act.type === 'attack' && E.typeOf(s0, u0).category === 'cavalry' && E.typeOf(s0, u0).weapon !== 'ranged') {
+    const t0 = E.unitById(s0, act.targetId);
+    if (t0) {
+      const lw = [0.2, 0.4, 0.7, 1, 1.1, 1.2][P.level], tt = E.typeOf(s0, t0);
+      const lone = !E.liveUnits(s0).some(o => o.id !== t0.id && !E.hostile(o, t0) && E.manhattan(o, t0) <= 2);
+      const prize = (tt.weapon === 'ranged' && !E.unitTrait(t0, 'hybrid')) || isGeneralUnit(s0, t0);
+      v += lw * worth(s0, t0) * ((lone ? 0.04 : 0) + (prize ? 0.03 : 0));
     }
   }
   const c = S.converge;
