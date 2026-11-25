@@ -97,6 +97,18 @@ test('Throwing Axes: a range-2 unit fights adjacent enemies in melee without the
   assert.strictEqual(part(hy.r.attackRoll, /^Hybrid/), -2);
 });
 
+test('Throwing Axes / Spear Crossbow: Attack -2 on ranged attacks only (David, 2026-11-25)', () => {
+  for (const tr of ['throwing axes', 'spear crossbow']) {
+    const far = duel(unitType('a', { weapon: 'ranged', rangeMax: 2 }), unitType('d'), [3, 0, 0, 0], traits({ [tr]: 1 }), [], (a, d) => { d.y = 3; });
+    assert.strictEqual(far.r.ranged, true);
+    assert.strictEqual(part(far.r.attackRoll, /: ranged attack$/), -2, tr + ' ranged');
+    const near = duel(unitType('a', { weapon: 'ranged', rangeMax: 2 }), unitType('d'), [3, 0, 0, 0], traits({ [tr]: 1 }));
+    assert.strictEqual(part(near.r.attackRoll, /: ranged attack$|^Hybrid/), 0, tr + ' melee');
+  }
+  const hy = duel(unitType('a', { weapon: 'ranged', rangeMax: 2 }), unitType('d'), [3, 0, 0, 0], traits({ hybrid: 1 }), [], (a, d) => { d.y = 3; });
+  assert.strictEqual(part(hy.r.attackRoll, /: ranged attack$/), 0, 'plain Hybrid shots unchanged');
+});
+
 test('Shielded does not add Evasion (the Evasion trait already covers shields, 2026-10-30)', () => {
   const ev = (t) => R.evasionOf({ traitTiers: t });
   assert.strictEqual(ev({ shielded: 3 }), 0);

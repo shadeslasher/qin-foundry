@@ -498,6 +498,12 @@ function trait(u, base) { if (u && u._catShot) return 0; /* a catapult shot: the
 /** Suppressing Fire (David, 2026-10-29): movement -2 (min 1); a suppressed unit loses Hold, Brace, Anti-Cavalry and Charge Reflection until it wears off. */
 const suppressed = (u) => !!(u && u.fx && u.fx.suppressed);
 /** Hybrid, or Throwing Axes (Hybrid without the melee Attack -2: David, 2026-10-29): a ranged unit that also fights adjacent enemies in melee. */
+/** A Hybrid's melee roll modifiers (attack: its own melee attacks; defense: when it is attacked in melee). Sims may override with globalThis.__qinHybridMelee. */
+const HYBRID_MELEE = { attack: -2, defense: 0 };
+const hybridMods = () => globalThis.__qinHybridMelee || HYBRID_MELEE;
+/** Throwing Axes / Spear Crossbow: Attack -2 on their ranged attacks (they fight in melee without a penalty; David, 2026-11-25). Sims may override with globalThis.__qinThrowRanged. */
+const THROW_RANGED = -2; // David, 2026-11-25
+const throwRanged = () => globalThis.__qinThrowRanged ?? THROW_RANGED;
 const hybridOf = (u) => !!(trait(u, 'hybrid') || trait(u, 'throwing axes') || trait(u, 'spear crossbow'));
 const holdingNow = (u) => !!(u && u.round && u.round.holding) && !suppressed(u) && !SK.status(null, u, 'stripDefenses');
 /** Colossal (War Elephants, David 2026-11-03): the unit loses at most 1 health to any one attack (or other hit). */
@@ -1102,9 +1108,10 @@ function buildRoll(s, unit, role, ctx) {
     if (saddleOf(s, unit)) parts.push(['Saddle', 1]);
     // Charging Strike +2/+4/+6 after moving 2+ tiles; Charging Strike EX +8 after moving 1+ tile (David, 2026-10-29)
     if (!ctx.ranged && trait(unit, 'charging strike') && ctx.tilesMoved >= (trait(unit, 'charging strike') >= 4 ? 1 : 2)) parts.push(['Charging Strike (moved ' + ctx.tilesMoved + (ctx.tilesMoved === 1 ? ' tile)' : ' tiles)'), tierVal(trait(unit, 'charging strike'), [2, 4, 6, 8])]);
-    if (ctx.hybridMelee && !trait(unit, 'throwing axes') && !trait(unit, 'spear crossbow')) parts.push(['Hybrid: melee attack', -2]); // Throwing Axes: no penalty
+    if (ctx.hybridMelee && !trait(unit, 'throwing axes') && !trait(unit, 'spear crossbow')) parts.push(['Hybrid: melee attack', hybridMods().attack]); // Throwing Axes: no penalty
     if (ctx.second) parts.push(['Second attack (Dual Weapons)', -2]);
     if (trait(unit, 'hefty weapon') && unit.round.moved) parts.push(['Hefty Weapon (moved)', -2]);
+    if (ctx.ranged && !ctx.catapult && throwRanged() && (trait(unit, 'throwing axes') || trait(unit, 'spear crossbow'))) parts.push([(trait(unit, 'throwing axes') ? 'Throwing Axes' : 'Spear Crossbow') + ': ranged attack', throwRanged()]);
     // Precision: ranged attacks only (not a Hybrid's melee attack), when the unit hasn't moved; Precision++ +6 (David, 2026-10-28/29)
     if (ctx.ranged && !unit.round.moved && trait(unit, 'precision')) parts.push(['Precision', tierVal(trait(unit, 'precision'), [2, 4, 6])]);
     if (trait(unit, 'swarm') && liveUnits(s).some(o => o !== unit && friendly(o, unit) && manhattan(o, other) === 1))
@@ -1188,6 +1195,7 @@ function buildRoll(s, unit, role, ctx) {
   }
   // Mountain Passes (Liu Yan, David 2026-11-01): melee and ranged defense +1 on a hill, forest (or Trees) or rocky ground
   if (role === 'defender' && trait(unit, 'mountain passes') && mountainGround(s, unit.x, unit.y)) parts.push(['Mountain Passes (hill, forest or rocky ground)', 1]);
+  if (role === 'defender' && !ctx.ranged && hybridMods().defense && (typeOf(s, unit) || {}).weapon === 'ranged' && trait(unit, 'hybrid') && !trait(unit, 'throwing axes') && !trait(unit, 'spear crossbow')) parts.push(['Hybrid: melee defense', hybridMods().defense]);
   if (role === 'defender' && !ctx.ranged && trait(unit, 'defend the homeland')) parts.push(['Defend the Homeland: melee defense', 1]); // Tao Qian (David, 2026-11-02)
   // Jungle Warriors / + / ++ (Nanman, David 2026-11-02): melee defense +1 / +2 / +3 on forest, Trees or marsh
   if (role === 'defender' && !ctx.ranged && trait(unit, 'jungle warriors') && jungleGround(s, unit.x, unit.y)) parts.push(['Jungle Warriors' + '+'.repeat(Math.min(2, trait(unit, 'jungle warriors') - 1)) + ' (forest or marsh)', tierVal(trait(unit, 'jungle warriors'), [1, 2, 3])]);
