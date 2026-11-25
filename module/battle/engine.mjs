@@ -1825,6 +1825,7 @@ function prompt(s) {
   if (t.phase === 'formations') t.phase = 'start'; // battles saved before formations were removed (2026-10-29)
   if (t.phase === 'start') return { kind: 'start', rank: -1 };
   if (t.phase === 'over') return { kind: 'over', rank: -1 }; // decided: victory or defeat
+  if (t.activation && !unitById(s, t.activation.unitId)) t.activation = null; // its unit was removed mid-turn (token or actor deleted): move on (2026-11-24)
   if (t.activation) {
     const u = unitById(s, t.activation.unitId);
     return { kind: 'activation', unitId: t.activation.unitId, rank: hasOfficer(u) ? rankOf(s, u.id) : Infinity };

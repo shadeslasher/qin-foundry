@@ -879,3 +879,17 @@ test('end-of-turn officer regen every turn, fought or attacked (David, 2026-11-1
     assert.strictEqual(regen, true, attackedFirst ? 'regen after being attacked that round' : 'regen after attacking');
   }
 });
+
+test('a unit removed in the middle of its turn does not stop the battle (2026-11-24)', () => {
+  const s = setup();
+  const a = add(s, { typeId: 'han_lancer_cav', side: 'player', owner: 'p1', x: 2, y: 2 });
+  const b = add(s, { typeId: 'yt_warriors', side: 'enemy', x: 8, y: 8 });
+  must(R.act(s, HOST, { type: 'startBattle' })); must(R.act(s, HOST, { type: 'startRound' }));
+  must(R.act(s, P1, { type: 'claim' })); must(R.act(s, P1, { type: 'begin', unitId: a }));
+  assert.strictEqual(R.prompt(s).kind, 'activation');
+  s.units = s.units.filter(u => u.id !== a); // its token was deleted
+  const p = R.prompt(s);
+  assert.notStrictEqual(p.kind, 'activation', 'the turn moved on');
+  assert.strictEqual(s.turn.activation, null);
+  assert.ok(R.unitById(s, b));
+});
