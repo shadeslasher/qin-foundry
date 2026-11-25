@@ -123,6 +123,11 @@ function knownState(s, side) {
 /** Full health (engine units made without a sheet have none recorded: 100). */
 const mx = (u) => Math.max(1, Number(u && u.maxMen) || 100);
 
+/** Fair play (David, 2026-11-24: "less emphasis on putting yourself in dangerous situations to kill low health units
+ *  or officers"): officer-led enemy units count this much of their worth as targets (unless an objective is about them),
+ *  the extra for destroying a unit and the pull of weakened units are scaled down. */
+const FAIR = { officer: 0.7, kill: 0.5, weak: 0.5 };
+
 /** How much a unit is worth to its side. */
 function worth(s, u) { const t = E.typeOf(s, u); const tier = Math.max(1, Number(t?.tier) || Number(t?.unitValue) || 1); return tier * tier * 0.5 + 1; }
 
@@ -145,6 +150,7 @@ function outcomeScore(a, b, side, S, M) {
     // a unit put out of the fight stops hurting the side: finishing one counts extra (more for the bold and the glory-seeking)
     const lost = u1.status !== 'active' ? 0.7 + (mine ? 0 : (M ? M.kill : 0.2)) : 0;
     if (!mine && M && M.glory > 1 && (u0.officerId || (Number(E.typeOf(a, u0)?.tier) || 0) >= 3)) w *= M.glory; // famous foes
+    if (!mine && u0.officerId && !(S && S.hunt.has(u0.id))) w *= FAIR.officer; // fair play: no singling out the officers
     v += sign * w * (dm + 0.45 * dmo + lost);
   }
   return v;
@@ -400,7 +406,7 @@ export function strategy(s, side) {
   const siegeS = { take: [...take.keys()].map(ptOf), keep: [...keep.keys()].map(ptOf) };
   const siege = siegeRoles(s, side, siegeS);
   const reinforceSquares = coming.filter(r => Number.isFinite(r.x) && Number.isFinite(r.y)).map(r => ({ x: r.x, y: r.y }));
-  const team = teamPlan(s, side, jobs, protect);
+  const team = teamPlan(s, side, jobs, protect, hunt);
   const lvlS = sideLevel(s, side);
   // memory of hidden units (David, 2026-11-11): where enemies that went out of sight were last seen; better tacticians
   // remember longer (Art of War 0-1 forget at once, 2 for a round, 3 for two, 4-5 for three)
@@ -537,12 +543,12 @@ export function mind(s, u, S, P) {
   const off = u.officerId ? E.officerOf(s, u) : null;
   const ty = TYPE_MIND[String(off?.ctype || '').trim().toLowerCase()] || {};
   const st = stylesOf(off?.style);
-  const M = { threat: ty.threat || 1, close: ty.close || 1, kill: (P.level >= 3 ? 0.4 : 0.2) * (ty.kill || 1), glory: 1, flank: 1, ground: 1,
+  const M = { threat: ty.threat || 1, close: ty.close || 1, kill: (P.level >= 3 ? 0.4 : 0.2) * FAIR.kill * (ty.kill || 1), glory: 1, flank: 1, ground: 1,
     anchorish: ty.anchor || 1, shaken: false, recover: 0, ignoreJob: false, mistake: null, disobey: false, note: null, styles: st };
   if (isTacticianUnit(s, u)) M.threat *= 1.5;
   else if (isGeneralUnit(s, u)) M.threat *= 1.3; // the army's general minds his safety, Vanguards included (David, 2026-11-24)
   if (st.has('rash')) { M.threat *= 0.5; M.close *= 1.6; M.kill *= 1.3; }
-  if (st.has('glory-seeking')) { M.glory = 1.6; M.kill *= 1.5; }
+  if (st.has('glory-seeking')) { M.glory = 1.3; M.kill *= 1.5; } // was 1.6 (fair play, 2026-11-24)
   if (st.has('cautious')) { M.threat *= 1.4; M.close *= 0.6; }
   if (st.has('cunning')) { M.flank = 1.6; M.ground = 1.4; }
   const tiger = E.unitTrait(u, 'cornered tiger') && u.men < mx(u) / 2; // fights harder below half health
@@ -559,7 +565,7 @@ export function mind(s, u, S, P) {
   const weakNear = foes.some(e => e.men / mx(e) < 0.4 && E.manhattan(u, e) <= reach);
   if (weakNear && r1 < [0.16, 0.11, 0.06, 0.02, 0, 0][P.level]) M.mistake = 'greedy';
   else if (r1 < [0.46, 0.33, 0.18, 0.07, 0, 0][P.level]) M.mistake = ['chase', 'blind', 'dawdle', 'ground'][Math.floor(r2 * 4)];
-  if (M.mistake === 'greedy') { M.threat *= 0.15; M.kill = 2.5; }
+  if (M.mistake === 'greedy') { M.threat *= 0.4; M.kill = 1.2; } // was ×0.15 / 2.5 (fair play, 2026-11-24)
   if (M.mistake === 'chase') { M.close = Math.max(M.close, 1.8); M.ignoreJob = true; }
   if (M.mistake === 'blind') M.threat *= 0.3;
   if (M.mistake === 'dawdle') M.close = 0;
@@ -838,7 +844,7 @@ function roleOf(s, u) {
 const reachOf = (s, u) => E.movementOf(s, u) + (E.typeOf(s, u).weapon === 'ranged' ? Math.max(1, E.typeOf(s, u).rangeMax || 1) : 1);
 
 /** The side's combined attack this turn and its convergence for the next rounds: { focus, converge, why }. */
-export function teamPlan(s, side, jobs = new Map(), protect = new Set()) {
+export function teamPlan(s, side, jobs = new Map(), protect = new Set(), hunt = new Set()) {
   const lvl = sideLevel(s, side), out = { focus: null, converge: null, why: [] };
   if (lvl < 3) return out;
   const al = E.alliance(side), live = E.liveUnits(s);
@@ -873,10 +879,11 @@ export function teamPlan(s, side, jobs = new Map(), protect = new Set()) {
     const kills = dmg >= e.men;
     const melee = team.filter(m => m.role !== 'soften').length;
     const ringable = !cantBeRinged(s, e) ? Math.min(4, melee + closedSides(s, e, al)) : 0;
-    let v = worth(s, e) * (kills ? 1.6 : Math.min(1, dmg / Math.max(1, e.men)) * 0.8) + worth(s, e) * RING[ringable] * 2;
+    let v = worth(s, e) * (kills ? 1.3 : Math.min(1, dmg / Math.max(1, e.men)) * 0.8) + worth(s, e) * RING[ringable] * 2; // kill was 1.6
     if (protect.has(e.id)) v *= 0.5;
     // weakened units are worth finishing together; fresh ones mostly for the ring around them
-    v += worth(s, e) * 0.4 * (1 - e.men / mx(e));
+    v += worth(s, e) * 0.4 * FAIR.weak * (1 - e.men / mx(e));
+    if (e.officerId && !hunt.has(e.id)) v *= FAIR.officer;
     v -= 0.05 * team.reduce((t, m) => t + E.manhattan(m.u, e), 0); // nearer teams first
     v -= team.reduce((t, m) => t + m.risk, 0) * (lvl >= 5 ? 1 : 0.8); // what going in together would cost
     if (v <= 0) continue;
@@ -962,7 +969,7 @@ function teamScore(s0, s1, u0, u1, S, P, act) {
       const lw = [0.2, 0.4, 0.7, 1, 1.1, 1.2][P.level], tt = E.typeOf(s0, t0);
       const lone = !E.liveUnits(s0).some(o => o.id !== t0.id && !E.hostile(o, t0) && E.manhattan(o, t0) <= 2);
       const prize = (tt.weapon === 'ranged' && !E.unitTrait(t0, 'hybrid')) || isGeneralUnit(s0, t0);
-      v += lw * worth(s0, t0) * ((lone ? 0.04 : 0) + (prize ? 0.03 : 0));
+      v += lw * worth(s0, t0) * ((lone ? 0.04 : 0) + (prize ? 0.03 * FAIR.officer : 0));
     }
   }
   const c = S.converge;
@@ -1008,8 +1015,8 @@ function positionScore(s0, s1, u0, u1, side, P, S, M) {
     if (hunted.length) v += 0.03 * w * (nearest(u0, hunted) - nearest(u1, hunted));
     if (P.lookahead) {
       const reach = E.movementOf(s1, u1) + (ranged ? t.rangeMax || 1 : 1);
-      const weak = foes.filter(e => E.manhattan(e, u1) <= reach).map(e => worth(s1, e) * (1 - e.men / mx(e) + 0.2) * (S.hunt.has(e.id) ? 1.6 : 1));
-      if (weak.length) v += 0.05 * w * Math.max(...weak);
+      const weak = foes.filter(e => E.manhattan(e, u1) <= reach).map(e => worth(s1, e) * (1 - e.men / mx(e) + 0.2) * (S.hunt.has(e.id) ? 1.6 : e.officerId ? FAIR.officer : 1));
+      if (weak.length) v += 0.05 * FAIR.weak * w * Math.max(...weak);
     }
   }
   if (job) {
