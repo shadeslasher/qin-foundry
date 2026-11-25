@@ -178,6 +178,20 @@ function traitHit(s, att, def, tiles, holding) {
   return E.casualtiesOf(dmg, Math.max(0, armor), ta.armorPen || 0, 0, 0);
 }
 
+/** Holding only helps in melee (Hold and Brace add melee defense only). Hold only when an enemy that can fight in melee could reach
+ *  the unit next turn and its blow is at least as dangerous as the worst shot it faces (David, 2026-11-25). */
+function holdWorthIt(s, u) {
+  let melee = 0, ranged = 0;
+  for (const e of E.liveUnits(s)) {
+    if (!E.hostile(e, u)) continue;
+    const te = E.typeOf(s, e) || {}, d = E.manhattan(e, u), shooter = te.weapon === 'ranged';
+    const canMelee = !shooter || E.unitTrait(e, 'hybrid') || E.unitTrait(e, 'throwing axes') || E.unitTrait(e, 'spear crossbow');
+    if (canMelee && d <= E.movementOf(s, e) + 1) melee = Math.max(melee, traitHit(s, e, u, Math.max(0, d - 1), false));
+    if (shooter && d <= E.movementOf(s, e) + Math.max(1, te.rangeMax || 1)) ranged = Math.max(ranged, traitHit(s, e, u, 0, false));
+  }
+  return melee > 0 && melee >= ranged;
+}
+
 /**
  * Levels 3+: what this enemy really does to the unit, played out with the full rules (both sides' traits,
  * officers, holds), net of what it loses itself; as a share of the unit's health. Cached per plan.
@@ -1269,7 +1283,7 @@ export function plans(s, unitId, opts = {}) {
       out.push({ actions: [...pre, act], score: scores.reduce((t, x) => t + x, 0) / scores.length + sup + team, state: runs[0] });
     }
     // hold position (defensive stance)
-    if (!u.round.attacked && !acf.forcedMarched) {
+    if (!u.round.attacked && !acf.forcedMarched && holdWorthIt(f, u)) {
       const g = fork(f); const r = E.act(g, HOST, { type: 'holdPosition', unitId });
       if (r.ok) {
         consider([...pre, { type: 'holdPosition', unitId }], g);
@@ -1325,7 +1339,9 @@ export function plans(s, unitId, opts = {}) {
       if (r.ok) { consider([...pre, { type: 'overwatch', unitId }], g); out[out.length - 1].score += 0.02 * worth(base, u0); }
     }
     // just end the turn here
-    { const g = fork(f); E.act(g, HOST, { type: 'endTurn', unitId }); consider([...pre, { type: 'endTurn', unitId }], g); }
+    { const g = fork(f); E.act(g, HOST, { type: 'endTurn', unitId }); consider([...pre, { type: 'endTurn', unitId }], g);
+      // keeping a square or waiting for help without holding (holding only pays against melee): the same little extra as a hold
+      if (!holdWorthIt(f, u)) { const gu = E.unitById(g, unitId); if (gu && ((job && job.kind === 'keep' && E.manhattan(gu, job.pt) <= 1) || S.posture === 'stall')) out[out.length - 1].score += 0.04 * worth(base, u0); } }
   }
   // the best few, checked against the enemy's strongest reply
   out.sort((a, b) => b.score - a.score);

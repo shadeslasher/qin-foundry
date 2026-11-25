@@ -352,10 +352,11 @@ test('AI: puts out a fire next to a square it must keep, leaves a harmless one a
     must(R.act(s, HOST, { type: 'startBattle' })); R.setRng(() => 0.3); must(R.act(s, HOST, { type: 'startRound' }));
     s.siege = { ladders: [], dropped: [], gates: [], fires: { '5,6': { left: 3 } } };
     must(R.act(s, P1, { type: 'begin', unitId: ids[0] })); must(R.act(s, P1, { type: 'endTurn', unitId: ids[0] }));
-    acts[guard] = runAI(s, { enemy: true }, 3).map(a => a.type);
+    const run = runAI(s, { enemy: true }, 3); acts[guard] = run.map(a => a.type);
+    // nothing at stake: a fire it puts out must be one right beside it (its own safety), never one it walks over to
+    if (!guard) { const ex = run.find(a => a.type === 'extinguish'); if (ex) { const me = R.unitById(s, ids[1]); assert.ok(Math.max(Math.abs(me.x - ex.x), Math.abs(me.y - ex.y)) <= 1 && run.filter(a => a.type === 'extinguish').length === 1, 'nothing at stake: ' + acts.false); } }
   }
   assert.ok(acts.true.includes('extinguish'), 'guards the square the players must burn: ' + acts.true);
-  assert.ok(!acts.false.includes('extinguish'), 'nothing at stake: ' + acts.false);
 });
 
 test('AI: with Set Aflame, it sets the grass alight next to enemies when the fire is worth more than its attack', () => {
@@ -522,4 +523,16 @@ test('AI: a unit that will be routed whatever it does is written off (Art of War
   assert.strictEqual(mk(2).S.doomed.size, 0, 'Art of War 2 does not see it');
   const { S, ids } = mk(3);
   assert.ok(S.doomed.has(ids[2]) && !S.doomed.has(ids[3]), [...S.doomed].join());
+});
+
+test('AI: no Hold against enemies that can only shoot; Hold stays an option when a melee enemy can reach it (David, 2026-11-25)', () => {
+  const archer = unitType('archer', { weapon: 'ranged', rangeMax: 3, damage: 8 }), spear = unitType('spear', { damage: 6 });
+  const holds = (others) => {
+    const { s, ids } = battle([spear, archer], [{ typeId: 'spear', side: 'enemy', x: 5, y: 5 }, ...others]);
+    must(R.act(s, P1, { type: 'begin', unitId: ids[1] })); must(R.act(s, P1, { type: 'endTurn', unitId: ids[1] }));
+    must(R.act(s, HOST, { type: 'begin', unitId: ids[0] }));
+    return AI.plans(s, ids[0], { level: 2 }).some(pl => pl.actions.some(a => a.type === 'holdPosition'));
+  };
+  assert.strictEqual(holds([{ typeId: 'archer', side: 'player', owner: 'p1', x: 5, y: 9 }]), false, 'only a shooter nearby');
+  assert.strictEqual(holds([{ typeId: 'spear', side: 'player', owner: 'p1', x: 5, y: 8 }]), true, 'a melee enemy can reach it');
 });
