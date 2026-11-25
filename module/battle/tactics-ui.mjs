@@ -588,6 +588,7 @@ export function playSetFire(x, y) {
   const t0 = performance.now();
   return new Promise((resolve) => {
     const tick = () => {
+      if (g.destroyed) return resolve(); // the canvas was redrawn under it (2026-11-24)
       const t = (performance.now() - t0) / 1200;
       g.clear().lineStyle(4, 0xff7a1a, 1 - t).beginFill(0xff5a00, 0.4 * (1 - t)).drawRect(x * size, y * size, size, size).endFill();
       if (t < 1) requestAnimationFrame(tick); else { g.destroy(); resolve(); }

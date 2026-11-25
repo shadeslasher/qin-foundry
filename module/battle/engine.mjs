@@ -56,9 +56,9 @@ function clone(o) { return JSON.parse(JSON.stringify(o)); }
 // ---------------------------------------------------------------- lookups
 
 const typeOf = (s, u) => s.library.unitTypes.find(t => t.id === u.typeId) || null;
-const officerOf = (s, u) => (u.officerId ? s.library.officers.find(o => o.id === u.officerId) || null : null);
+const officerOf = (s, u) => (u?.officerId ? s.library.officers.find(o => o.id === u.officerId) || null : null);
 const unitById = (s, id) => s.units.find(u => u.id === id) || null;
-const alive = u => u.status === 'active';
+const alive = u => !!u && u.status === 'active'; // a unit deleted mid-battle may still be listed in the turn order (2026-11-24)
 const liveUnits = s => s.units.filter(alive);
 const alliance = side => (side === 'ally' ? 'player' : side) || 'player'; // Ally units fight on the players' side: never enemies, never targets (fixed 2026-10-25)
 const hostile = (a, b) => alliance(a.side) !== alliance(b.side);

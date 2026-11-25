@@ -426,6 +426,8 @@ function animate(ms, draw, opts = {}) {
     try { extras = opts.setup?.(box) ?? null; } catch (e) { console.warn(e); }
     let elapsed = 0;
     const tick = () => {
+      // the canvas was redrawn under it (a burning map redraws the background): stop, don't throw every frame (2026-11-24)
+      if (g.destroyed || box.destroyed) { canvas.app?.ticker?.remove(tick); try { opts.cleanup?.(extras); } catch { /* gone */ } return resolve(); }
       elapsed += canvas.app.ticker.deltaMS;
       const t = clamp01(elapsed / ms);
       g.clear();
@@ -997,6 +999,7 @@ async function playGateHit(token, st) {
   await new Promise(resolve => {
     let t = 0;
     const tick = () => {
+      if (g.destroyed) { canvas.app.ticker.remove(tick); return resolve(); } // the canvas was redrawn under it (2026-11-24)
       t += canvas.app.ticker.deltaMS; const k = Math.min(1, t / ms);
       g.clear();
       // shudder: the impact ring
@@ -1073,8 +1076,14 @@ function levelUpLocal(token, level) {
  */
 export async function playBattleAnim(data) {
   animCount++;
-  try { await playBattleAnimNow(data); } finally { animCount--; holdLocal(false); }
+  // never hold the action menu for good: a canvas redraw mid-animation (the battle map redraws when fires start or go
+  // out) or an animation that never finishes ends the wait (2026-11-24)
+  let release; const torn = new Promise(r => { release = r; tearWaiters.add(r); });
+  try { await Promise.race([playBattleAnimNow(data), torn, new Promise(r => setTimeout(r, 30000))]); }
+  finally { tearWaiters.delete(release); animCount--; holdLocal(false); }
 }
+const tearWaiters = new Set();
+globalThis.Hooks?.on?.("canvasTearDown", () => { for (const r of [...tearWaiters]) r(); tearWaiters.clear(); });
 async function playBattleAnimNow({ sceneId, steps }) {
   if (!canvas?.ready || (sceneId && canvas.scene?.id !== sceneId)) return;
   const tok = (id) => canvas.tokens?.get(id);

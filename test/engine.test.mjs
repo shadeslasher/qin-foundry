@@ -892,4 +892,7 @@ test('a unit removed in the middle of its turn does not stop the battle (2026-11
   assert.notStrictEqual(p.kind, 'activation', 'the turn moved on');
   assert.strictEqual(s.turn.activation, null);
   assert.ok(R.unitById(s, b));
+  // still listed in the turn order: the next steps skip it
+  s.turn.phase = 'officer'; s.turn.order = [a, ...s.turn.order.filter(id => id !== a)];
+  assert.doesNotThrow(() => R.prompt(s));
 });
