@@ -194,7 +194,7 @@ test('forts, small forts, command tents and town halls: a unit there cannot be s
   R.settle(s);
   assert.ok(!R.unitById(s, p).surrounded);
   assert.strictEqual(R.unitById(s, p).morale, 50);
-  s.map.tiles['5,5'] = { terrain: 'plains' }; R.settle(s);
+  s.map.tiles = { ...s.map.tiles, '5,5': { terrain: 'plains' } }; R.settle(s); // tiles are replaced, never edited in place (the engine remembers squares' rules per tiles object)
   assert.ok(R.unitById(s, p).surrounded, 'on open ground the same ring surrounds it');
   assert.ok(R.tileRules(field({ '1,1': { terrain: 'plains', overlays: ['command-tent', 'camp'] } }), 1, 1).noSurround);
 });

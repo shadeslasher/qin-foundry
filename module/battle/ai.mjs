@@ -95,12 +95,19 @@ export function sideLevel(s, side) {
   return tac ? Math.max(0, Math.min(5, Number(tac.aow) || 0)) : 1;
 }
 
+/** A deep copy, same result as JSON.parse(JSON.stringify(v)) for plain data, a good deal faster (2026-11-24). */
+const cloneJ = (v) => {
+  if (v === null || typeof v !== 'object') return (typeof v === 'number' && !isFinite(v)) ? null : v;
+  if (Array.isArray(v)) { const a = new Array(v.length); for (let i = 0; i < v.length; i++) { const x = v[i]; a[i] = (x === undefined || typeof x === 'function') ? null : cloneJ(x); } return a; }
+  if (typeof v.toJSON === 'function') return JSON.parse(JSON.stringify(v));
+  const o = {}; for (const k in v) { if (!Object.prototype.hasOwnProperty.call(v, k)) continue; const x = v[k]; if (x === undefined || typeof x === 'function') continue; o[k] = cloneJ(x); } return o;
+};
 /** A copy of the state for trying things out. The map and the library are shared (never changed by a turn). */
 export function fork(s) {
   const o = {};
   for (const k of Object.keys(s)) {
     if (k === '_inside') { o[k] = s[k]; continue; } // the engine's cache of the squares inside the city: depends only on the map
-    o[k] = (k === 'map' || k === 'library' || k === 'objectives') ? s[k] : (s[k] && typeof s[k] === 'object' ? JSON.parse(JSON.stringify(s[k])) : s[k]);
+    o[k] = (k === 'map' || k === 'library' || k === 'objectives' || k === 'log') ? s[k] : (s[k] && typeof s[k] === 'object' ? cloneJ(s[k]) : s[k]); // the log is replaced below, not copied
   }
   o.log = [];
   return o;
@@ -1592,21 +1599,39 @@ function holdValue(s, u, P, S, foesToCome, now) {
 
 /** An officer-less turn for this side: which unit goes (the one with the best move; levels 0-1 pick at random). */
 export function pickUnit(s, side, opts = {}) {
+  const c = pickCandidates(s, side, opts);
+  if (!c) return null;
+  if (c.pick) return c.pick;
+  const S = pickStrategy(s, side, opts);
+  return pickBest(c.ids, c.ids.map(id => pickScore(s, side, id, opts, S)));
+}
+/** pickUnit in parts, so the scores can be worked out side by side (the AI's background threads, 2026-11-24):
+ *  { pick } when no scoring is needed, else { ids } of the units to score; null when the side has no one to move. */
+export function pickCandidates(s, side, opts = {}) {
   const P = profile(opts.level ?? sideLevel(s, side));
   const mine = E.liveUnits(s).filter(u => u.side === side && !u.officerId && !u.round.activated);
   if (!mine.length) return null;
-  if (P.naive) return { type: 'begin', unitId: mine[Math.floor(seeded(hashStr(side + s.turn.round + mine.length))() * mine.length)].id };
-  let best = mine[0], bestV = -Infinity;
-  const S = P.level >= 3 ? strategy(s, side) : null;
-  for (const u of mine) {
-    let v = bestScore(s, u.id, { ...opts, level: Math.min(P.level, 3) });
-    // thinking a move ahead: Suppressing Fire goes before the charge it opens up
-    if (P.level >= 3) for (const e of E.liveUnits(s)) if (E.hostile(e, u) && E.manhattan(e, u) <= E.movementOf(s, u) + (E.typeOf(s, u).rangeMax || 1)) v = Math.max(v, v + 3 * suppressValue(s, u, e));
-    // a combined attack goes in its order: those still waiting for partners go after them
-    if (P.level >= 3 && waitingFor(s, S, u.id)) v -= Math.max(0, waitGain(s, S, u.id)); // what he'd gain by going after them
-    if (v > bestV) { bestV = v; best = u; }
-  }
-  return { type: 'begin', unitId: best.id };
+  if (P.naive) return { pick: { type: 'begin', unitId: mine[Math.floor(seeded(hashStr(side + s.turn.round + mine.length))() * mine.length)].id } };
+  return { ids: mine.map(u => u.id) };
+}
+/** How good it would be for this unit to go now. */
+export function pickScore(s, side, unitId, opts = {}, S = pickStrategy(s, side, opts)) {
+  const P = profile(opts.level ?? sideLevel(s, side)), u = E.unitById(s, unitId);
+  if (!u) return -Infinity;
+  let v = bestScore(s, u.id, { ...opts, level: Math.min(P.level, 3) });
+  // thinking a move ahead: Suppressing Fire goes before the charge it opens up
+  if (P.level >= 3) for (const e of E.liveUnits(s)) if (E.hostile(e, u) && E.manhattan(e, u) <= E.movementOf(s, u) + (E.typeOf(s, u).rangeMax || 1)) v = Math.max(v, v + 3 * suppressValue(s, u, e));
+  // a combined attack goes in its order: those still waiting for partners go after them
+  if (P.level >= 3 && waitingFor(s, S, u.id)) v -= Math.max(0, waitGain(s, S, u.id)); // what he'd gain by going after them
+  return v;
+}
+/** The side's plan the scores use (levels 3+), worked out once for all its units. */
+export function pickStrategy(s, side, opts = {}) { return profile(opts.level ?? sideLevel(s, side)).level >= 3 ? strategy(s, side) : null; }
+/** The first unit with the highest score (ties go to the earlier one, as before). */
+export function pickBest(ids, scores) {
+  let best = 0, bestV = -Infinity;
+  for (let i = 0; i < ids.length; i++) if (scores[i] > bestV) { bestV = scores[i]; best = i; }
+  return { type: 'begin', unitId: ids[best] };
 }
 
 /** What the AI does next, if it is this side's move: an action, or null when it's someone else's turn. */

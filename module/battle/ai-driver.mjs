@@ -4,7 +4,8 @@
 // the battle update that follows starts the next step. A unit owned by a player is never moved by the AI.
 import { SYSTEM_ID } from "../config.mjs";
 import { getBattle, buildState, runAction } from "./adapter.mjs";
-import { aiStep, sideLevel } from "./ai.mjs";
+import { sideLevel } from "./ai.mjs";
+import { thinkStep } from "./ai-pool.mjs";
 import * as E from "./engine.mjs";
 import { atSpeed } from "./battle-speed.mjs";
 
@@ -15,7 +16,8 @@ const DEFAULTS = { enemy: false, ally: false, paused: false, delay: 900, step: t
 
 export function registerBattleAI() {
   game.settings.register(SYSTEM_ID, KEY, { scope: "world", config: false, type: Object, default: { ...DEFAULTS }, onChange: () => schedule() });
-  Hooks.on("updateSetting", (st) => { if (st.key === `${SYSTEM_ID}.battle`) schedule(); });
+  Hooks.on("updateSetting", (st) => { if (st.key === `${SYSTEM_ID}.battle`) { battleRev++; schedule(); } });
+  for (const h of ["createToken", "updateToken", "deleteToken", "updateScene", "updateActor"]) Hooks.on(h, () => { battleRev++; }); // what the AI's plan reads
   Hooks.once("ready", () => schedule());
   // Pause / resume the battle AI from the keyboard (GM, David 2026-11-08); the GM controls' Pause button does the same
   game.keybindings.register(SYSTEM_ID, "pauseAI", {
@@ -81,27 +83,48 @@ function schedule() {
   if (cfg.paused || (!cfg.enemy && !cfg.ally)) return clearSuggestion();
   if (cfg.step) { timer = setTimeout(() => suggest().catch(e => console.warn("Qin | battle AI", e)), 120); return; }
   clearSuggestion();
+  thinkAhead(); // the move is worked out while the pause below runs
   const now = Date.now();
   if (bigMomentSince()) pauseUntil = now + atSpeed(BIG_PAUSE);
   const wait = Math.max(atSpeed(Math.max(150, Number(cfg.delay) || 900)), pauseUntil - now);
   timer = setTimeout(() => tick().catch(e => console.warn("Qin | battle AI", e)), wait);
 }
 
-/** What the AI would do now: { action, s } or null. */
+/** What the AI would do now: { action, s } or null. Worked out in background threads (ai-pool.mjs), and started
+ *  as soon as the battle changes, while the pause between moves and the animations run (David, 2026-11-24): asking
+ *  again before anything has changed gets the answer already being worked out. */
+let battleRev = 0, ahead = null;
 function plan(cfg = aiSettings()) {
+  const key = battleRev + "|" + !!cfg.enemy + "|" + !!cfg.ally;
+  if (ahead?.key === key) return ahead.promise;
+  const promise = planNow(cfg);
+  ahead = { key, promise };
+  return promise;
+}
+async function planNow(cfg) {
   const battle = getBattle();
   if (!battle.active || battle.outcome) return null;
   const unitId = battle.turn?.activation?.unitId ?? null;
   const { s } = buildState(battle, { terrainFor: unitId });
-  try { const action = aiStep(s, { enemy: cfg.enemy, ally: cfg.ally }); return action ? { action, s } : null; }
+  // the threads get their own copy: the one returned here stays as the battle was when the move was planned
+  const copy = foundry.utils.deepClone(s);
+  try { const action = await thinkStep(copy, { enemy: cfg.enemy, ally: cfg.ally }); return action ? { action, s } : null; }
   catch (e) { console.warn("Qin | battle AI planning", e); return null; }
+}
+/** Start thinking about the next move now, if the AI is to make it. */
+function thinkAhead() {
+  const cfg = aiSettings();
+  if (!isRunner() || cfg.paused || (!cfg.enemy && !cfg.ally)) return;
+  const b = getBattle(); if (!b.active || b.outcome) return;
+  plan(cfg).catch(() => { /* reported when it's used */ });
 }
 
 async function tick() {
   if (busy || !isRunner()) return;
   const cfg = aiSettings();
   if (cfg.paused || (!cfg.enemy && !cfg.ally)) return;
-  const p = plan(cfg); if (!p) return;
+  const p = await plan(cfg); if (!p) return;
+  if (busy || aiSettings().paused) return;
   await perform(p.action);
 }
 async function perform(action, { quiet = false } = {}) {
@@ -169,7 +192,8 @@ async function suggest() {
   if (busy || playing || !isRunner()) return;
   const cfg = aiSettings();
   if (cfg.paused || (!cfg.enemy && !cfg.ally) || !cfg.step) return clearSuggestion();
-  const p = plan(cfg);
+  const p = await plan(cfg);
+  if (busy || playing || !isRunner()) return;
   if (!p) return clearSuggestion();
   // a few steps need no decision of the GM's (the "act" prompt, skill choices with nothing to pick): still asked, as a move
   suggestion = p;
@@ -201,7 +225,8 @@ async function lookAhead(s0, first, cfg, still = () => true) {
       const r = E.act(g, host, a); if (r && r.ok === false) break;
       await new Promise(res => setTimeout(res, 0));           // let the screen draw between steps
       if (!still()) return out;
-      a = aiStep(g, { enemy: cfg.enemy, ally: cfg.ally });
+      a = await thinkStep(foundry.utils.deepClone(g), { enemy: cfg.enemy, ally: cfg.ally });
+      if (!still()) return out;
       if (!a || turnKey(g, a) !== key) break;
       out.push(a);
     }
@@ -215,7 +240,7 @@ let playing = false;
  *  at the AI's usual pace, until that unit's (or side's) turn is over. */
 async function playSuggestion() {
   if (busy || playing || !suggestion) return;
-  let next = plan();                                      // the battle may have moved on since it was shown
+  let next = await plan();                                // the battle may have moved on since it was shown (same answer if not)
   clearSuggestion();
   if (!next) return schedule();
   const key = turnKey(next.s, next.action);
@@ -224,8 +249,10 @@ async function playSuggestion() {
     for (let i = 0; i < 40 && next; i++) {
       if (aiSettings().paused) break;
       await perform(next.action, { quiet: true });
+      const coming = plan();                              // the next move is worked out during the pause
       await new Promise(r => setTimeout(r, atSpeed(Math.max(150, Number(aiSettings().delay) || 900))));
-      next = plan();
+      next = await plan();                                // the same one, unless the battle changed again meanwhile
+      void coming;
       if (!next || !key || turnKey(next.s, next.action) !== key) break;
     }
   } finally { playing = false; schedule(); }

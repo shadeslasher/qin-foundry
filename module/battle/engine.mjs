@@ -71,7 +71,16 @@ const inBounds = (s, x, y) => x >= 0 && y >= 0 && x < s.map.cols && y < s.map.ro
  * A square's terrain effects from the battle map (terrain + overlays, added together), or null when the scene
  * has no battle map (then the older region-based terrain applies).
  */
+const TRC = new WeakMap(); // speed-up (2026-11-24): a square's rules, remembered per map, while no fire, burnt square or gate can change them
 function tileRules(s, x, y) {
+  const sg = s.siege;
+  if (!s.map.tiles || (sg && (sg.gates || (sg.fires && Object.keys(sg.fires).length) || (sg.burnt && Object.keys(sg.burnt).length)))) return tileRules0(s, x, y);
+  let c = TRC.get(s.map.tiles); if (!c) { c = new Map(); TRC.set(s.map.tiles, c); }
+  const k = x + ',' + y; let r = c.get(k);
+  if (r === undefined) { r = tileRules0(s, x, y); if (r) { Object.freeze(r.names); Object.freeze(r); } c.set(k, r); }
+  return r;
+}
+function tileRules0(s, x, y) {
   let tile = s.map.tiles && s.map.tiles[x + ',' + y];
   if (!tile) return null;
   tile = burnState(s, x, y, tile); // fire: a burning square has the Fire overlay; a burnt one has turned to scorched ground or ruins
