@@ -284,27 +284,14 @@ test('Charging Strike: Attack +2/+4/+6 when the unit moved 2 or more tiles befor
   assert.strictEqual(part(t.r.attackRoll, /^Charging Strike/), 0);
 });
 
-test('Deflect: ranged defense +3 against the first ranged attack each round; Deflect+ the first two; nothing in melee', () => {
+test('Deflect adds nothing to the roll (it halves ranged casualties instead, 2026-11-26); ranged attacks taken are counted per round', () => {
   const s = setup(); s.library.unitTypes.push(unitType('a'), unitType('d'), unitType('b', { weapon: 'ranged', rangeMax: 3 }));
   const A = R.unitById(s, add(s, { typeId: 'a', side: 'player', owner: 'p1', x: 5, y: 5 }));
   const B = R.unitById(s, add(s, { typeId: 'b', side: 'player', owner: 'p1', x: 5, y: 7 }));
   const D = R.unitById(s, add(s, { typeId: 'd', side: 'enemy', x: 5, y: 4 }));
-  D.traitTiers = { deflect: 1 };
-  assert.strictEqual(part(rollOf(s, D, 'defender', A), /^Deflect/), 0, 'no melee bonus');
-  assert.strictEqual(part(rollOf(s, D, 'defender', B, { ranged: true }), /^Deflect/), 3);
-  D.round.attacksTaken = 3; // melee attacks don't use it up
-  assert.strictEqual(part(rollOf(s, D, 'defender', B, { ranged: true }), /^Deflect/), 3);
-  D.round.rangedTaken = 1;
-  assert.strictEqual(part(rollOf(s, D, 'defender', B, { ranged: true }), /^Deflect/), 0, 'already shot at once this round');
-  D.traitTiers = { deflect: 2 };
-  assert.strictEqual(part(rollOf(s, D, 'defender', B, { ranged: true }), /^Deflect\+/), 3, 'Deflect+ still works on the second shot');
-  D.round.rangedTaken = 2;
+  D.traitTiers = { deflect: 3 };
+  assert.strictEqual(part(rollOf(s, D, 'defender', A), /^Deflect/), 0);
   assert.strictEqual(part(rollOf(s, D, 'defender', B, { ranged: true }), /^Deflect/), 0);
-  D.traitTiers = { deflect: 3 }; // Deflect++ (David 2026-11-01): the first three ranged attacks
-  assert.strictEqual(part(rollOf(s, D, 'defender', B, { ranged: true }), /^Deflect\+\+/), 3, 'Deflect++ on the third shot');
-  D.round.rangedTaken = 3;
-  assert.strictEqual(part(rollOf(s, D, 'defender', B, { ranged: true }), /^Deflect/), 0);
-  D.traitTiers = { deflect: 2 }; D.round.rangedTaken = 2;
   // the count comes from real attacks: a melee attack doesn't count as a ranged one
   const { D: D2 } = duel(unitType('a'), unitType('d'), [3, 0, 0, 0]);
   assert.strictEqual(D2.round.attacksTaken, 1);

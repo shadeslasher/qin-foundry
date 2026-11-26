@@ -228,10 +228,19 @@ function threatOf(s, u, side, P, areas, S, M) {
   if (!u || u.status !== 'active') return 0;
   const k = u.x + ',' + u.y, w = worth(s, u), hits = [];
   const holding = !!(u.round && u.round.holding);
+  // only when the unit's goal is to beat the enemy: a unit keeping a square, or a side playing for time or on the defensive,
+  // may still give ground to shooters (David, 2026-11-25)
+  const fighting = !(S && ((S.jobs && S.jobs.get && S.jobs.get(u.id)?.kind === 'keep') || S.posture === 'stall' || S.posture === 'defensive'));
+  const melee0 = fighting && (E.typeOf(s, u) || {}).weapon !== 'ranged';
   for (const e of E.liveUnits(s)) {
     if (!E.hostile(e, u)) continue;
-    const ar = areas.get(e.id); if (!ar || !(ar.attack.has(k) || ar.move.has(k) || E.manhattan(e, u) <= 1)) continue;
     const te = E.typeOf(s, e);
+    // a melee unit can't step out of a shooter's way: the shooter just follows and shoots again, so backing off from shooters
+    // gains nothing (David, 2026-11-25: melee units were retreating from archers instead of closing in). When the unit's goal is
+    // to defeat the enemy (the default), a shooter's threat counts wherever the unit stands, so hiding far back scores no better
+    // than closing in (2026-11-25: units were backing into their own corner, out of range, while the rest fought alone).
+    const chaser = melee0 && te.weapon === 'ranged' && !(E.unitTrait(e, 'hybrid') || E.unitTrait(e, 'throwing axes') || E.unitTrait(e, 'spear crossbow'));
+    const ar = areas.get(e.id); if (!chaser && (!ar || !(ar.attack.has(k) || ar.move.has(k) || E.manhattan(e, u) <= 1))) continue;
     const cav = te.category === 'cavalry' && te.weapon !== 'ranged';
     const dist = cav ? Math.min(E.movementOf(s, e), E.manhattan(e, u)) : 0;
     let harm;
@@ -249,12 +258,58 @@ function threatOf(s, u, side, P, areas, S, M) {
       if (!P.naive && cav && ((E.unitTrait(u, 'charge reflection') && E.unitTrait(u, 'anti-cavalry')) || (holding && E.unitTrait(u, 'brace')))) harm = -0.5 * harm * worth(s, e) / w;
       else if (!P.naive && cav && E.unitTrait(u, 'anti-cavalry')) harm *= 0.6;
     }
+    // a shooter that out-ranges us keeps shooting until we reach it: the more turns away it is, the more volleys we take first
+    // (2026-11-26: slow units drifted near their own edge, the small gain for closing in lost to noise)
+    if (chaser && harm > 0) { const mv = Math.max(1, E.movementOf(s, u)), turns = Math.ceil(Math.max(0, E.manhattan(e, u) - mv - 1) / mv); harm *= 1 + 0.25 * Math.min(4, turns); }
     hits.push(harm);
   }
   hits.sort((x, y) => y - x);
   const top = hits.slice(0, 3).reduce((t, h, i) => t + h * [1, 0.6, 0.35][i], 0);
   const prot = (S && S.protect.has(u.id) ? 1.6 : 1) * (S && S.doomed && S.doomed.has(u.id) ? 0.35 : 1) * (M ? M.threat : 1) * (M && M.shaken && !(S && S.doomed && S.doomed.has(u.id)) ? 1.5 : 1);
   return -P.threatW * (S ? S.threatMult : 0.75) * prot * w * Math.min(1.2, top);
+}
+
+/**
+ * Pinning shooters (David, 2026-11-25: "chase down the ranged infantry ... figure out how far they need to chase to trap a unit until
+ * it's basically stuck in melee range, based on impassable tiles, other units, edges of the map"). For each enemy shooter near this
+ * melee unit, count the squares it could move to next turn (its real move area: ground, units and map edges already limit it) that
+ * none of our melee units could reach and strike. A move that takes those escape squares away is worth something, more so when the
+ * shooter is left with none. Only for a melee unit whose goal is to fight (not keeping a square, not on a defensive or stalling side).
+ */
+function pinScore(s0, s1, u0, u1, side, P, S, M) {
+  if (!u1 || u1.status !== 'active') return 0;
+  const t = E.typeOf(s0, u0) || {};
+  if (t.weapon === 'ranged') return 0;
+  if (S && ((S.jobs && S.jobs.get && S.jobs.get(u0.id)?.kind === 'keep') || S.posture === 'stall' || S.posture === 'defensive')) return 0;
+  const canMelee = (e) => { const te = E.typeOf(s0, e) || {}; return te.weapon !== 'ranged' || E.unitTrait(e, 'hybrid') || E.unitTrait(e, 'throwing axes') || E.unitTrait(e, 'spear crossbow'); };
+  const shooters = E.liveUnits(s0).filter(e => E.hostile(e, u0) && !canMelee(e) && E.visibleTo(s0, e, E.alliance(side)) && E.manhattan(e, u0) <= 2 * E.movementOf(s0, u0) + 4);
+  if (!shooters.length) return 0;
+  // what our other melee units cover (as things stand), worked out once per plan search
+  const C = (M && M.pinCache) || {};
+  if (!C.others) {
+    C.others = new Set();
+    for (const m of E.liveUnits(s0)) {
+      if (m.id === u0.id || E.hostile(m, u0) || !canMelee(m)) continue;
+      const ar = E.threatArea(s0, m);
+      for (const k of [m.x + ',' + m.y, ...ar.move]) { const [x, y] = k.split(',').map(Number); for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) C.others.add((x + dx) + ',' + (y + dy)); }
+    }
+    C.before = new Map();
+    if (M) M.pinCache = C;
+  }
+  const coverOf = (s, u) => { const out = new Set(); const ar = E.threatArea(s, u);
+    for (const k of [u.x + ',' + u.y, ...ar.move]) { const [x, y] = k.split(',').map(Number); for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) out.add((x + dx) + ',' + (y + dy)); } return out; };
+  const escapes = (s, e, mine) => { const ar = E.threatArea(s, e); let n = 0;
+    for (const k of [e.x + ',' + e.y, ...ar.move]) if (!C.others.has(k) && !mine.has(k)) n++; return n; };
+  if (!C.mine0) C.mine0 = coverOf(s0, u0);
+  const mine1 = coverOf(s1, u1);
+  let v = 0;
+  for (const e0 of shooters) {
+    const e1 = E.unitById(s1, e0.id); if (!e1 || e1.status !== 'active') { continue; }
+    if (!C.before.has(e0.id)) C.before.set(e0.id, escapes(s0, e0, C.mine0));
+    const b = C.before.get(e0.id), a = escapes(s1, e1, mine1);
+    v += worth(s0, e0) * ((b - a) / (b + 1) + (a === 0 && b > 0 ? 0.5 : 0));
+  }
+  return 0.12 * P.threatW * v;
 }
 
 /** What this unit can strike next turn from where it ends (the other half of standing close): a score (positive). */
@@ -1189,13 +1244,14 @@ export function plans(s, unitId, opts = {}) {
   const areas = new Map(E.liveUnits(base).filter(e => E.hostile(e, u0)).map(e => [e.id, E.threatArea(base, e)]));
   const S = opts.strategy || strategy(base, side), M = opts.mind || mind(base, u0, S, P);
   M.areas = areas;
+  M.pinCache = null; // pinScore's cache belongs to this search
   { const cache = new Map(), n = P.level >= 4 ? 3 : 2;
     M.sim = (e, holding) => { const k = e.id + (holding ? '|h' : ''); if (!cache.has(k)) cache.set(k, simThreat(base, unitId, E.unitById(base, e.id) || e, holding, n)); return cache.get(k); }; }
   const job = M.ignoreJob ? null : S.jobs.get(unitId);
   const out = [];
   const consider = (actions, f) => {
     const u1 = E.unitById(f, unitId);
-    const o1 = outcomeScore(base, f, side, S, M), p1 = positionScore(base, f, u0, u1, side, P, S, M) + traitPosition(base, f, u0, u1, P, S), t1 = threatOf(f, u1, side, P, areas, S, M) + pressureOf(f, u1, P);
+    const o1 = outcomeScore(base, f, side, S, M), p1 = positionScore(base, f, u0, u1, side, P, S, M) + traitPosition(base, f, u0, u1, P, S), t1 = threatOf(f, u1, side, P, areas, S, M) + pressureOf(f, u1, P) + pinScore(base, f, u0, u1, side, P, S, M);
     let sc = o1 + p1 + t1 + teamScore(base, f, u0, u1, S, P, actions[actions.length - 1]);
     out.push({ actions, score: sc, state: f });
   };
@@ -1277,7 +1333,7 @@ export function plans(s, unitId, opts = {}) {
         for (const [k, n] of Object.entries((g.siege && g.siege.scorch) || {})) if (n > (scBefore[k] || 0)) { const [x, y] = k.split(',').map(Number); v += 0.3 * fireValue(f, side, S, x, y, worth(base, u0), unitId); }
         return fw * v;
       };
-      const scores = runs.map(g => { const u1 = E.unitById(g, unitId); return outcomeScore(base, g, side, S, M) + positionScore(base, g, u0, u1, side, P, S, M) + traitPosition(base, g, u0, u1, P, S) + threatOf(g, u1, side, P, areas, S, M) + pressureOf(g, u1, P) + fireGain(g); });
+      const scores = runs.map(g => { const u1 = E.unitById(g, unitId); return outcomeScore(base, g, side, S, M) + positionScore(base, g, u0, u1, side, P, S, M) + traitPosition(base, g, u0, u1, P, S) + threatOf(g, u1, side, P, areas, S, M) + pressureOf(g, u1, P) + pinScore(base, g, u0, u1, side, P, S, M) + fireGain(g); });
       const sup = P.level >= 2 ? suppressValue(f, u, target) * [0, 0, 0.6, 0.85, 1, 1.1][P.level] : 0;
       const team = runs.reduce((t, g) => t + teamScore(base, g, u0, E.unitById(g, unitId), S, P, act), 0) / runs.length;
       out.push({ actions: [...pre, act], score: scores.reduce((t, x) => t + x, 0) / scores.length + sup + team, state: runs[0] });

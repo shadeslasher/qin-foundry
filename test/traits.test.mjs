@@ -56,7 +56,7 @@ test('Precision: Attack +2/+4 if the unit has not moved before attacking; Hefty 
   assert.strictEqual(part(R.buildRoll(h.s, h.A, 'attacker', { attacker: h.A, defender: h.D, ranged: false }), /^Hefty/), -2);
 });
 
-test('Brace adds melee defense while holding; Shielded adds ranged +2/level (melee: Evasion); Shield Battery; Poison lowers defense', () => {
+test('Brace adds melee defense while holding; Shielded adds nothing to the roll (it cuts ranged casualties, 2026-11-26); Shield Battery; Poison lowers defense', () => {
   const s = setup();
   s.library.unitTypes.push(unitType('h'), unitType('m'), unitType('r', { weapon: 'ranged', rangeMax: 3 }));
   const h = add(s, { typeId: 'h', side: 'enemy', x: 5, y: 4 });
@@ -69,7 +69,7 @@ test('Brace adds melee defense while holding; Shielded adds ranged +2/level (mel
   assert.strictEqual(part(melee, /^Brace/), 1);
   assert.strictEqual(part(melee, /^Shielded/), 0);
   assert.strictEqual(part(melee, /^Shield Battery/), 0);
-  assert.strictEqual(part(ranged, /^Shielded/), 6);
+  assert.strictEqual(part(ranged, /^Shielded/), 0);
   assert.strictEqual(part(ranged, /^Shield Battery/), 2);
   assert.strictEqual(part(ranged, /^Brace/), 0);
   assert.strictEqual(part(melee, /^Poisoned/), -1);

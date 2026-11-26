@@ -134,7 +134,7 @@ function battleRecord(token) {
  *           2+ tile move, or the ranged attacker's +2 kept by not moving. During an attack it shows that
  *           attack's whole situational total instead (token.qinAttackBonus).
  *  defense - against melee attacks: Hold (+2), Brace, Shielded, Poison, Suppressing Fire.
- *  rangedDefense - against ranged attacks: Shielded, Shield Battery, Poison. (Hold does not count against ranged attacks.)
+ *  rangedDefense - against ranged attacks: Shield Battery, Poison. (Shielded cuts ranged casualties instead of adding defense, 2026-11-26.) (Hold does not count against ranged attacks.)
  *  range - extra range (nothing grants this automatically yet).
  * Since 2026-11-09 they also count the officer: his Command on every roll (rolls) and his weapon skill on attacks
  * (attack), and the always-on changes from battlefield skills (buffs, his passive, other officers' auras: rolls, attack,
@@ -285,7 +285,7 @@ export function unitStatus(token) {
   const supp = !!fx.suppressed; // Suppressing Fire: Attack -1, melee defense -1, Hold and Brace lost
   if (supp) attack -= 1;
   const defense = (round.holding && !supp ? 1 + tierVal(tr.brace, [1, 2, 3]) : 0) - (supp ? 1 : 0) + both; // Shielded gives ranged defense only (2026-10-30)
-  const rangedDefense = both + tierVal(tr.shielded, [2, 4, 6])
+  const rangedDefense = both // Shielded no longer adds ranged defense: it cuts ranged casualties (2026-11-26)
     + (fx.stillLast && tr["shield battery"] ? 2 : 0);
   let range = s.range > 1 && fx.stillLast ? tierVal(tr["range up"], [1, 2]) : 0;
   // the square it stands on (battle maps): command, defense, range

@@ -500,8 +500,11 @@ const suppressed = (u) => !!(u && u.fx && u.fx.suppressed);
 /** Hybrid, or Throwing Axes (Hybrid without the melee Attack -2: David, 2026-10-29): a ranged unit that also fights adjacent enemies in melee. */
 /** A Hybrid's melee roll modifiers (attack: its own melee attacks; defense: when it is attacked in melee). Sims may override with globalThis.__qinHybridMelee. */
 const HYBRID_MELEE = { attack: -2, defense: 0 };
-/** How Shielded works (2026-11-25 test): 'roll' = ranged defense on the roll (the rule now); 'pct' / 'dmg' = see resolveAttack. Sims set globalThis.__qinShieldMode. */
-const shieldMode = () => globalThis.__qinShieldMode || 'roll';
+/** How Shielded works: 'pct' (the rule since 2026-11-26, David's option 1) = ranged attacks inflict 25 / 40 / 55 / 70% (EX) fewer casualties;
+ *  'roll' = the old ranged defense +2 / +4 / +6 / +8 on the roll; 'dmg' = only the damage-over-armor part is cut. Sims set globalThis.__qinShieldMode. */
+const shieldMode = () => globalThis.__qinShieldMode || 'pct';
+const SHIELD_PCT = [25, 40, 55, 70];
+const DEFLECT_PCT = 50;
 const hybridMods = () => globalThis.__qinHybridMelee || HYBRID_MELEE;
 /** Throwing Axes / Spear Crossbow: Attack -2 on their ranged attacks (they fight in melee without a penalty; David, 2026-11-25). Sims may override with globalThis.__qinThrowRanged. */
 const THROW_RANGED = -2; // David, 2026-11-25
@@ -1144,12 +1147,10 @@ function buildRoll(s, unit, role, ctx) {
       if (htl) parts.push(['Hold the Line (holding ally): melee defense', htl]);
     }
     if (!ctx.ranged && imperialAura(s, unit)) parts.push(['Imperial Solidarity (' + imperialAura(s, unit).name + '): melee defense', 2]);
-    if (trait(unit, 'shielded') && ctx.ranged && shieldMode() === 'roll') parts.push(['Shielded: ranged defense', tierVal(trait(unit, 'shielded'), [2, 4, 6])]); // ranged defense only; in melee the unit's Evasion trait already covers its shield (2026-10-30)
+    if (trait(unit, 'shielded') && ctx.ranged && shieldMode() === 'roll') parts.push(['Shielded: ranged defense', tierVal(trait(unit, 'shielded'), [2, 4, 6, 8])]); // ranged defense only; in melee the unit's Evasion trait already covers its shield (2026-10-30)
     if (ctx.ranged && trait(unit, 'shield battery') && fx(unit).stillLast) parts.push(['Shield Battery: ranged defense', 2]);
     if (!ctx.ranged && saddleOf(s, unit) >= 2) parts.push(['Saddle+: melee defense', 1]);
-    // Deflect: ranged defense +3 against the first ranged attack each round; Deflect+ the first two; Deflect++ the first three (David 2026-11-01; no melee bonus since v0.83.0)
-    if (ctx.ranged && trait(unit, 'deflect') && (unit.round.rangedTaken || 0) < tierVal(trait(unit, 'deflect'), [1, 2, 3]))
-      parts.push(['Deflect' + '+'.repeat(Math.min(2, trait(unit, 'deflect') - 1)) + ': ranged defense', 3]);
+    // Deflect no longer adds ranged defense: it halves the casualties of the first 1 / 2 / 3 ranged attacks each round (see resolveAttack, David 2026-11-26)
     if (fx(unit).poison) parts.push(['Poisoned: melee & ranged defense', -fx(unit).poison]);
     if (hasTactic(s, unit, 'defend')) parts.push(['Tactic: Defend (melee & ranged defense)', 2]);
     if (ctx.ranged && t.weapon === 'ranged' && hasTactic(s, unit, 'divineWinds')) parts.push(['Tactic: Divine Winds (ranged defense)', 2]);
@@ -1400,8 +1401,8 @@ function resolveAttackNow(s, attacker, defender, opts) {
   const evAtt = returnRanged || SK.flag(s, defender, 'ignoreEvasion', skc(defender)) ? 0 : evasionOf(attacker, trait(defender, 'shield breaker'));
   // a battlefield skill can make all of a unit's damage ignore armor, its strike back included (Guan Yu, David 2026-11-19)
   const noArmorA = SK.flag(s, attacker, 'ignoreArmor', skc(attacker)), noArmorD = SK.flag(s, defender, 'ignoreArmor', skc(defender));
-  // Shielded on ranged hits (test modes, 2026-11-25): 'pct' takes 25/40/55% off the casualties; 'dmg' takes it off the damage that gets past armor only (pen untouched)
-  const shPct = ranged && shieldMode() !== 'roll' ? tierVal(trait(defender, 'shielded'), [25, 40, 55]) : 0;
+  // Shielded on ranged hits (David, 2026-11-26): 'pct' takes 25/40/55/70% (EX) off the casualties; 'dmg' takes it off the damage that gets past armor only (pen untouched)
+  const shPct = ranged && shieldMode() !== 'roll' ? tierVal(trait(defender, 'shielded'), SHIELD_PCT) : 0;
   const hitDef = (dmg, pen) => { const arm = noArmorA ? 0 : armorOf(dt, defender, trait(attacker, 'shield breaker'));
     if (shPct && shieldMode() === 'dmg') { if (!(dmg > 0)) return 0; const over = Math.max(0, dmg - Math.max(0, arm || 0)); return Math.max(0, pen || 0) + evadeCasualties(over, shPct); }
     return casualtiesOf(dmg, arm, pen, 0, 0); };
@@ -1409,6 +1410,9 @@ function resolveAttackNow(s, attacker, defender, opts) {
   const repeating = !!trait(attacker, 'repeating') && dmgToDef > 0;
   let casDef = evadeCasualties(repeating ? hitDef(Math.ceil(dmgToDef / 2), Math.ceil(penA / 2)) + hitDef(Math.floor(dmgToDef / 2), Math.floor(penA / 2)) : hitDef(dmgToDef, penA), evDef);
   if (shPct && shieldMode() === 'pct') casDef = evadeCasualties(casDef, shPct);
+  // Deflect (David, 2026-11-26; was ranged defense +3): 50% fewer casualties from the first ranged attack each round, Deflect+ the first two,
+  // Deflect++ the first three. After Shielded, so the two multiply (Shielded++ and Deflect: 77.5% fewer).
+  if (ranged && trait(defender, 'deflect') && (defender.round.rangedTaken || 0) < tierVal(trait(defender, 'deflect'), [1, 2, 3])) casDef = evadeCasualties(casDef, DEFLECT_PCT);
   if (ranged && casDef > 0 && trait(attacker, 'deterrence') && alive(defender)) fx(defender).deterred = true; // Deterrence (Liu Chong)
   let casAtt = casualtiesOf(dmgToAtt, noArmorD ? 0 : armorOf(at, attacker, trait(defender, 'shield breaker')), penD, 0, evAtt);
   casDef = colossalCap(defender, casDef); casAtt = colossalCap(attacker, casAtt); // Colossal (War Elephants): at most 1 per attack

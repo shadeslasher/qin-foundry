@@ -124,3 +124,27 @@ test('GM level-up: non-player units pick reached trait choices at random, and on
   assert.strictEqual(list[1].chosen, 1); assert.strictEqual(list[2].chosen, -1, 'level 5 choice still locked'); assert.strictEqual(list[3].chosen, 0, 'made choices kept');
   assert.deepStrictEqual(pickRandomChoices(list, 5, () => 0), ['C']);
 });
+
+test('Shielded cuts ranged casualties by 25 / 40 / 55 / 70% (EX), rounded in its favour; melee hits unchanged (David, 2026-11-26)', () => {
+  const shot = (tier, ranged = true) => duel(ranged ? unitType('a', { weapon: 'ranged', rangeMax: 3, damage: 10, armorPen: 0 }) : unitType('a', { damage: 10, armorPen: 0 }),
+    unitType('d', { armor: 0 }), [3, 0, 0, 0], tier ? (a, d) => { d.traitTiers = { shielded: tier }; } : null, [], ranged ? (a, d) => { d.y = 2; } : undefined).r.casualtiesDefender;
+  const base = shot(0);
+  assert.ok(base > 0, 'the plain shot hits');
+  [25, 40, 55, 70].forEach((pct, i) => assert.strictEqual(shot(i + 1), Math.ceil(base * (100 - pct) / 100 - 1e-9), 'tier ' + (i + 1)));
+  assert.strictEqual(shot(4, false), shot(0, false), 'melee unchanged');
+});
+
+test('Deflect halves the casualties of the first 1 / 2 / 3 ranged attacks each round; it multiplies with Shielded; melee unchanged (David, 2026-11-26)', () => {
+  const hit = (tiers, taken = 0, ranged = true) => duel(ranged ? unitType('a', { weapon: 'ranged', rangeMax: 3, damage: 10, armorPen: 0 }) : unitType('a', { damage: 10, armorPen: 0 }),
+    unitType('d', { armor: 0 }), [3, 0, 0, 0], (a, d) => { d.traitTiers = tiers; }, [], (a, d) => { if (ranged) d.y = 2; d.round.rangedTaken = taken; }).r.casualtiesDefender;
+  const base = hit({}), half = Math.ceil(base / 2 - 1e-9);
+  assert.strictEqual(hit({ deflect: 1 }), half, 'first shot');
+  assert.strictEqual(hit({ deflect: 1 }, 1), base, 'Deflect: only the first ranged attack');
+  assert.strictEqual(hit({ deflect: 2 }, 1), half, 'Deflect+: the second');
+  assert.strictEqual(hit({ deflect: 2 }, 2), base);
+  assert.strictEqual(hit({ deflect: 3 }, 2), half, 'Deflect++: the third');
+  assert.strictEqual(hit({ deflect: 3 }, 3), base);
+  const sh = Math.ceil(base * 45 / 100 - 1e-9);
+  assert.strictEqual(hit({ shielded: 3, deflect: 1 }), Math.ceil(sh / 2 - 1e-9), 'Shielded++ then Deflect');
+  assert.strictEqual(hit({ deflect: 3 }, 0, false), hit({}, 0, false), 'melee unchanged');
+});

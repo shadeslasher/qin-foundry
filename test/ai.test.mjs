@@ -536,3 +536,14 @@ test('AI: no Hold against enemies that can only shoot; Hold stays an option when
   assert.strictEqual(holds([{ typeId: 'archer', side: 'player', owner: 'p1', x: 5, y: 9 }]), false, 'only a shooter nearby');
   assert.strictEqual(holds([{ typeId: 'spear', side: 'player', owner: 'p1', x: 5, y: 8 }]), true, 'a melee enemy can reach it');
 });
+
+test('AI: a melee unit out to defeat the enemy closes on far-off shooters instead of backing out of their range (David, 2026-11-25)', () => {
+  const archer = unitType('archer', { weapon: 'ranged', rangeMax: 5, damage: 8 }), spear = unitType('spear', { damage: 6 });
+  const { s, ids } = battle([spear, archer], [{ typeId: 'spear', side: 'enemy', x: 3, y: 5 }, { typeId: 'archer', side: 'player', owner: 'p1', x: 15, y: 5 }]);
+  must(R.act(s, P1, { type: 'begin', unitId: ids[1] })); must(R.act(s, P1, { type: 'endTurn', unitId: ids[1] }));
+  must(R.act(s, HOST, { type: 'begin', unitId: ids[0] }));
+  for (const level of [2, 3]) {
+    const best = AI.plans(s, ids[0], { level })[0], mv = best.actions.find(a => a.type === 'moveTo');
+    assert.ok(mv && Math.abs(mv.x - 15) + Math.abs(mv.y - 5) < 12, 'level ' + level + ': moves toward the shooter, chose ' + JSON.stringify(best.actions));
+  }
+});
